@@ -7,6 +7,9 @@ archive by default.
 
 Read narrow first, then expand only when the task requires it.
 
+Maintain this file as a stable routing table, not a session log. Do not update
+it for ordinary task progress.
+
 Default startup read set:
 
 1. `docs/ACTIVE_CONTEXT.md`
@@ -44,3 +47,24 @@ Before opening broad files or long logs, record:
 - why the file is needed;
 - what symbols, headings, or ranges are needed;
 - what decision the read should support.
+
+## Maintenance Rule
+
+Update this file only when the documentation topology or routing policy changes,
+such as:
+
+- a required project document is added, removed, renamed, or moved;
+- a profile adds a new default read path;
+- task types or ownership boundaries change;
+- a new archive or historical evidence policy is adopted.
+
+Do not write task status, command output, review notes, milestone progress, or
+agent observations here. Durable current-state facts belong in active context;
+observations, evidence, and progress belong in the milestone ledger, phase
+document, completion report, or handoff.
+
+At the end of a run, record `No routing change needed` in the handoff or
+completion report when this file does not require an edit.
+
+Target size: keep this file under 100 lines unless the project profile
+explicitly raises the routing budget.

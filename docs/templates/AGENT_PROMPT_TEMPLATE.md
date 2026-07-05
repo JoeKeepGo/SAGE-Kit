@@ -52,4 +52,6 @@ Approval gates:
 Return format:
 - Use `docs/templates/LANE_PACKET_TEMPLATE.md` for lane work.
 - Use `docs/agent/HANDOFF_TEMPLATE.md` for phase or session handoff.
+- Report memory maintenance for `docs/ACTIVE_CONTEXT.md` and
+  `docs/DOC_ROUTING.md`.
 ```

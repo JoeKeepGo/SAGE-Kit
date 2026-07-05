@@ -122,6 +122,8 @@ Approval Gates:
 
 Security / Data Hygiene:
 
+Memory Maintenance:
+
 Change Control Status:
 
 Gate Status:

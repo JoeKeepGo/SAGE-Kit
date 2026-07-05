@@ -48,5 +48,6 @@ runtime ownership.
 - Final tests:
 - Runtime smoke:
 - Ledger update:
+- Memory maintenance:
 - Handoff:
 ```

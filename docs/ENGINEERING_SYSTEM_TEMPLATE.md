@@ -82,6 +82,8 @@ Before handoff or commit:
 - inspect changed files;
 - check staged files if staging is used;
 - scan for secrets or local data when applicable;
-- update completion report;
+- maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot;
+- update `docs/DOC_ROUTING.md` only when routing or document topology changed;
+- update completion report with memory maintenance status;
 - update milestone ledger;
 - name skipped checks and remaining gaps.

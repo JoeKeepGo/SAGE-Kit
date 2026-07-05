@@ -12,6 +12,9 @@ Context hygiene keeps long-running AI work reliable.
 - Do not rely on previous chat memory when a ledger or active context should
   hold the state.
 - Use document routing to avoid reading historical archives by default.
+- Maintain active context by replacement, not append-only accumulation.
+- Keep document routing stable unless the documentation topology or routing
+  policy changes.
 
 ## Minimum Read Declaration
 
@@ -32,3 +35,36 @@ Before broad exploration, state:
 | Review decision | Review report or phase completion report |
 | Next action | Milestone ledger and final handoff |
 
+## End-Of-Run Memory Maintenance
+
+Every non-trivial agent run must close with memory maintenance before handoff,
+commit, or completion. If the running agent does not own the startup context
+files, it must return a memory update proposal for the serial controller.
+
+For `docs/ACTIVE_CONTEXT.md`:
+
+- update current repository, branch, milestone, phase, objective, next action,
+  and blocker fields when they changed;
+- replace stale facts instead of appending corrections below them;
+- delete closed blockers, completed objectives, and expired assumptions;
+- keep evidence and historical detail in ledgers, phase docs, completion
+  reports, or handoffs.
+
+For `docs/DOC_ROUTING.md`:
+
+- update only when document locations, task routing, ownership boundaries, or
+  archive policy changed;
+- do not add session notes, progress summaries, command output, or review
+  observations.
+
+If neither file needs an edit, the completion report or handoff must say:
+
+```text
+Memory Maintenance: ACTIVE_CONTEXT no change; DOC_ROUTING no change.
+```
+
+If either file exceeds its target size budget, the agent or controller that owns
+the startup context files must compact it before claiming phase `DONE`. If the
+current agent does not own those files, it must return a memory update proposal;
+the controller must finish compaction before the phase can be `DONE`, or return
+`HANDOFF` with the compaction gap named.

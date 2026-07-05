@@ -26,6 +26,8 @@ Approval Gates:
 
 Security / Data Hygiene:
 
+Memory Maintenance:
+
 Gate Status:
 
 Change Control Status:

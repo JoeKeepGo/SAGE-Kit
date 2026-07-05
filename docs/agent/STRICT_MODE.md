@@ -22,6 +22,12 @@ architecture, invent contracts, or decide that an approval gate can be opened.
 
 A Strict Mode agent must not convert a phase into its own task card.
 
+Strict Mode agents perform memory maintenance only when the task card lists the
+startup docs under `Allowed to modify`. Otherwise, a complete `Memory Update
+Proposal` satisfies the Strict Mode agent's memory responsibility for its task,
+and the controller applies or compacts startup docs serially before the phase
+can be marked `DONE`.
+
 ## Required Task Card
 
 ```markdown
@@ -41,6 +47,8 @@ Exact commands:
 
 Completion requires:
 
+Memory maintenance responsibility:
+
 Stop if:
 
 Return format:
@@ -56,6 +64,8 @@ Return format:
 - Do not open approval gates.
 - Do not continue after a failed required command.
 - Do not claim completion without the required evidence.
+- Do not edit `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md` unless the task
+  card explicitly allows it.
 
 ## Hard Stop Conditions
 
@@ -84,7 +94,13 @@ Commands Run:
 
 Evidence:
 
+Memory Update Proposal:
+
 Stopped Because:
 
 Remaining Gaps:
 ```
+
+`DONE` in Strict Mode means the assigned task card is complete. It does not mean
+the phase is complete when controller-owned memory maintenance, review,
+integration, approval, or change-control work remains.

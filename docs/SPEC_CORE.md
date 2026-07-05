@@ -13,6 +13,8 @@ milestones, and phase documents.
 - Keep implementation scope small enough to review.
 - Verify behavior with fresh evidence before claiming completion.
 - Record durable state in docs instead of relying on chat memory.
+- Keep startup context compact by replacing stale state instead of accumulating
+  session history.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
@@ -76,7 +78,9 @@ Submit:
 
 - Review changed files.
 - Check local data hygiene.
-- Update completion reports and ledgers.
+- Maintain `docs/ACTIVE_CONTEXT.md` as a current-state snapshot.
+- Update `docs/DOC_ROUTING.md` only when routing or document topology changed.
+- Update completion reports and ledgers with memory maintenance status.
 - Commit or hand off only the intended scope.
 
 ## Universal Completion Rule
@@ -90,6 +94,7 @@ No work is complete until the completion report names:
 - runtime smoke or reason it is not applicable;
 - skipped checks;
 - security or data hygiene checks;
+- active context and document routing maintenance;
 - remaining gaps;
 - handoff or next action.
 

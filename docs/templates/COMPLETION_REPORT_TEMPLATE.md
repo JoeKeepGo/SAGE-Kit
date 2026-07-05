@@ -19,6 +19,8 @@ Approval Gates:
 
 Security / Data Hygiene:
 
+Memory Maintenance:
+
 Skipped Checks:
 
 Remaining Gaps:

@@ -30,9 +30,10 @@ Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:
 7. Implement the narrowest change.
 8. Run focused checks.
 9. Run runtime smoke if the phase makes runtime claims.
-10. Update completion report.
-11. Update milestone ledger.
-12. Hand off or submit.
+10. Maintain active context and document routing.
+11. Update completion report with memory maintenance status.
+12. Update milestone ledger.
+13. Hand off or submit.
 
 ## Wave Execution
 
@@ -47,6 +48,7 @@ The controller may parallelize safe lanes, but these remain serial:
 - approval gates;
 - final integration;
 - ledger update;
+- active context and routing maintenance;
 - git operations when used.
 
 ## Strict Mode Execution

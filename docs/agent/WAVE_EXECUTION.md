@@ -41,6 +41,7 @@ The controller owns:
 - final integration;
 - final verification;
 - milestone ledger updates;
+- active context and document routing maintenance;
 - git operations when used.
 
 ## Safe Parallel Work
@@ -72,6 +73,7 @@ These must remain serial unless the project explicitly defines a safer process:
 - destructive actions;
 - release, publish, merge, push, or protected-branch operations;
 - final completion report and milestone ledger update.
+- active context and document routing maintenance.
 
 ## Writable Lane Rules
 
@@ -115,6 +117,7 @@ Wave 5 - Serial Integration:
 - final checks:
 - real runtime smoke:
 - ledger update:
+- memory maintenance:
 - handoff:
 ```
 
@@ -129,6 +132,8 @@ A phase that used waves must report:
 - tests and local, fake, dry, or isolated validation run by lanes;
 - real runtime smoke run serially by the controller, when applicable;
 - final verification run by the controller;
+- active context and document routing maintenance run serially by the
+  controller;
 - skipped checks and remaining gaps.
 
 ## Lane Status Semantics
