@@ -48,7 +48,30 @@ docs/
     control-plane-agent/
   templates/
     *_TEMPLATE.md
+skills/
+  spec-kit-governance/
 ```
+
+## Bundled Skill
+
+SPEC-Kit includes `skills/spec-kit-governance`, a Codex skill that helps agents
+stay aligned with the framework during adoption, planning, implementation,
+review, handoff, and milestone closeout.
+
+The skill is intentionally a governance entrypoint, not a copy of every
+SPEC-Kit document. It tells agents to read `ACTIVE_CONTEXT.md` and
+`DOC_ROUTING.md` first, then load only the milestone, phase, gate, or historical
+closeout files required by the task.
+
+To use it in another environment, copy `skills/spec-kit-governance` into the
+Codex skills directory and invoke:
+
+```text
+Use $spec-kit-governance to plan and execute this task under SPEC-Kit.
+```
+
+The skill can help bootstrap SPEC-Kit in a new project, but the project still
+needs to adopt the relevant templates and maintain its own SPEC documents.
 
 ## Recommended Project Layout
 
