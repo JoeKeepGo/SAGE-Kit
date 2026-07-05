@@ -123,11 +123,15 @@ Historical closeouts are not default startup context. Read them only through
 `DOC_ROUTING.md` when a task needs prior milestone outcomes, decisions, gaps, or
 provenance.
 
+## Applicability
+
+SPEC-Kit is not a fit for every project. Review the kit before adopting it to
+confirm that its planning depth, documentation structure, and AI agent workflow
+match the project you want to run.
+
 ## Non-Goals
 
 - SPEC-Kit is not a project management application.
 - SPEC-Kit is not a replacement for tests, reviews, or runtime verification.
 - SPEC-Kit does not prescribe one programming language, framework, hosting
   model, database, or agent provider.
-- SPEC-Kit should not contain project-specific product names, internal paths,
-  credentials, account data, or deployment secrets.
