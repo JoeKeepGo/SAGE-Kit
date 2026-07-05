@@ -70,6 +70,10 @@ Codex skills directory and invoke:
 Use $spec-kit-governance to plan and execute this task under SPEC-Kit.
 ```
 
+The skill is designed for explicit invocation so it does not displace more
+specific coding, frontend, document, GitHub, or review skills during ordinary
+work.
+
 The skill can help bootstrap SPEC-Kit in a new project, but the project still
 needs to adopt the relevant templates and maintain its own SPEC documents.
 

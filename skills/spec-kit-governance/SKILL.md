@@ -1,6 +1,6 @@
 ---
 name: spec-kit-governance
-description: SPEC-Kit governance workflow for AI-assisted projects. Use when working in or adopting a SPEC-Kit governed repository; when the user mentions SPEC-Kit, SPEC, Agent Harness, ACTIVE_CONTEXT, DOC_ROUTING, milestones, phases, ledgers, closeouts, Strict Mode, Wave Execution, quality gates, approval gates, handoff, or completion reports; or when Codex must plan, implement, review, or finish work without drifting from the project's SPEC framework.
+description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, or Wave Execution. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
 ---
 
 # SPEC-Kit Governance
