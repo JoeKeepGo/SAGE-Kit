@@ -1,0 +1,100 @@
+# SPEC Core
+
+SPEC Core defines the reusable rules that every project using SPEC-Kit should
+follow. Project-specific details belong in project profiles, technical designs,
+milestones, and phase documents.
+
+## Principles
+
+- State the product goal before implementation starts.
+- Keep architecture boundaries explicit.
+- Define contracts before consumers depend on them.
+- Use retained phase documents for non-trivial work.
+- Keep implementation scope small enough to review.
+- Verify behavior with fresh evidence before claiming completion.
+- Record durable state in docs instead of relying on chat memory.
+- Keep secrets, local data, credentials, and production artifacts out of
+  commits and reports.
+- Avoid guessed fields, placeholder success, silent fallback, and hidden error
+  paths.
+
+## Trivial And Non-Trivial Work
+
+Trivial work is limited to typo fixes, formatting-only documentation edits, or
+metadata changes that do not affect behavior, contracts, verification, security,
+runtime operation, release process, or agent execution.
+
+All other work is non-trivial and requires a retained phase or task document.
+
+## Required Project Documents
+
+| File | Purpose |
+|---|---|
+| `docs/PROJECT_PROFILE.md` | Product identity, goals, users, constraints, and non-goals. |
+| `docs/TECHNICAL_DESIGN.md` | Architecture, runtime boundaries, data ownership, and integration contracts. |
+| `docs/ENGINEERING_SYSTEM.md` | Day-to-day workflow for humans and AI agents. |
+| `docs/QUALITY_GATES.md` | Evidence required before work can be called complete. |
+| `docs/APPROVAL_GATES.md` | Actions that require explicit human approval. |
+| `docs/ACTIVE_CONTEXT.md` | Short current-state summary for future sessions. |
+| `docs/DOC_ROUTING.md` | Smallest safe read set by task type. |
+| `docs/MILESTONE_ROADMAP.md` | Milestone sequence and review gates. |
+
+## Standard Workflow
+
+```text
+explore -> plan -> implement -> verify -> submit
+```
+
+Explore:
+
+- Identify the active project boundary.
+- Read the smallest relevant doc set.
+- Inspect current files and tests before assuming structure.
+- Record unknowns, risks, likely files, and verification needs.
+
+Plan:
+
+- Write or update the retained phase document.
+- Name requirement IDs and contracts.
+- Define allowed files, read-only files, and forbidden files.
+- Define tests, runtime smoke, and completion gate.
+
+Implement:
+
+- Stay inside the phase boundary.
+- Keep interfaces explicit.
+- Avoid unrelated refactors.
+- Stop if the required change expands beyond the approved phase.
+
+Verify:
+
+- Run focused tests and any required runtime checks.
+- Prove UI, API, service, worker, database, or integration claims with evidence.
+- Record skipped checks and blockers clearly.
+
+Submit:
+
+- Review changed files.
+- Check local data hygiene.
+- Update completion reports and ledgers.
+- Commit or hand off only the intended scope.
+
+## Universal Completion Rule
+
+No work is complete until the completion report names:
+
+- scope implemented;
+- files changed;
+- contract evidence;
+- tests run;
+- runtime smoke or reason it is not applicable;
+- skipped checks;
+- security or data hygiene checks;
+- remaining gaps;
+- handoff or next action.
+
+Blocking gates cannot be bypassed by listing them as skipped checks. A skipped
+blocking gate means the work is `BLOCKED` or `HANDOFF`, not complete.
+
+Runtime, UI, service, worker, database, device, or external integration evidence
+is required only when that surface is in scope.
