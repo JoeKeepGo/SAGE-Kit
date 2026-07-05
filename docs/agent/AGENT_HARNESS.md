@@ -87,7 +87,7 @@ Before claiming `DONE`, committing, or handing off:
 3. Update `docs/DOC_ROUTING.md` only when document paths, task routing,
    ownership boundaries, or archive policy changed.
 4. Put evidence and historical detail in the milestone ledger, phase document,
-   completion report, or handoff.
+   milestone closeout, completion report, or handoff.
 5. If neither startup file needs an edit, record that explicitly in the
    completion report or handoff.
 

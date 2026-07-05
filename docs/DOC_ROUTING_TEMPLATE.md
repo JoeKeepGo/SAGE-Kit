@@ -22,12 +22,13 @@ Default startup read set:
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` |
-| New feature planning | Project profile, technical design, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Related prior milestone docs |
-| Milestone planning | Project profile, technical design, roadmap, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Prior milestone ledgers |
+| New feature planning | Project profile, technical design, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
+| Milestone planning | Project profile, technical design, roadmap, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
 | UI work | Active phase doc, UI contract, quality gates | Design system or product profile sections |
-| Contract change | Contract owner doc and consumer docs | Historical decision records |
-| Review | Active phase doc, quality gates, changed files | Prior ledger evidence |
+| Contract change | Contract owner doc and consumer docs | Relevant closeout decision summary, then historical decision records |
+| Review | Active phase doc, quality gates, changed files | Prior closeout summary, then ledger evidence |
+| Historical outcome lookup | Named `MILESTONE_CLOSEOUT.md` | Ledger, phase docs, and completion reports only for provenance |
 | Release or publish | Approval gates, release phase doc | Packaging docs |
 
 ## Historical Archive Policy
@@ -38,7 +39,13 @@ when:
 - the user names the milestone;
 - the active doc points to a specific historical decision;
 - a review must verify provenance;
+- planning needs prior milestone outcomes, gaps, or follow-up decisions;
 - implementation touches behavior governed by a historical contract.
+
+When historical context is needed, read `docs/M<ID>/MILESTONE_CLOSEOUT.md`
+first. Open historical ledgers, phase docs, completion reports, or logs only
+when the closeout does not answer the question or the task requires detailed
+provenance.
 
 ## Expansion Rule
 

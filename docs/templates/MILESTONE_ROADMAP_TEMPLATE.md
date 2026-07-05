@@ -43,6 +43,10 @@ Validation:
 
 - `<evidence>`
 
+Closeout:
+
+- `<expected outcome summary or follow-up signal>`
+
 Non-goals:
 
 - `<excluded scope>`
@@ -52,4 +56,3 @@ Required phase decomposition:
 | Phase | Objective | Owner | Contract | Expected Files | Tests | Runtime Smoke | Stop Conditions |
 |---|---|---|---|---|---|---|---|
 | `<phase>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
-

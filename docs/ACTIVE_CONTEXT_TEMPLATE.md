@@ -70,7 +70,8 @@ Before handoff, commit, or completion:
 2. Replace obsolete accepted facts with the current fact.
 3. Delete facts that are no longer needed for startup.
 4. Move evidence, command output, review notes, and historical detail to the
-   milestone ledger, phase doc, or completion report.
+   milestone ledger, phase doc, completion report, or milestone closeout for
+   closed milestones.
 5. Record `No active context change needed` in the handoff or completion report
    when this file does not require an edit.
 

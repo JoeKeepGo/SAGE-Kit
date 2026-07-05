@@ -51,6 +51,10 @@ Validation:
 
 - `<evidence>`
 
+Closeout:
+
+- `<expected outcome summary or follow-up signal>`
+
 Non-goals:
 
 - `<excluded scope>`

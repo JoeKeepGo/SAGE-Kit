@@ -15,6 +15,8 @@ milestones, and phase documents.
 - Record durable state in docs instead of relying on chat memory.
 - Keep startup context compact by replacing stale state instead of accumulating
   session history.
+- Summarize closed milestones in compact closeouts instead of promoting
+  historical ledgers into startup context.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
@@ -103,3 +105,15 @@ blocking gate means the work is `BLOCKED` or `HANDOFF`, not complete.
 
 Runtime, UI, service, worker, database, device, or external integration evidence
 is required only when that surface is in scope.
+
+## Milestone Closeout Rule
+
+When a milestone closes, write or update `docs/M<ID>/MILESTONE_CLOSEOUT.md`.
+
+The closeout records the milestone outcome, shipped capabilities, key decisions,
+verification summary, known gaps, follow-up milestones, and links to evidence.
+It must not duplicate raw logs, full evidence tables, or phase reports.
+
+Historical closeouts are not default startup context. Future agents read them
+only through `docs/DOC_ROUTING.md` when prior milestone outcomes, decisions,
+gaps, or provenance are relevant.

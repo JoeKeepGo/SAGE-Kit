@@ -4,6 +4,16 @@
 
 ## Current State
 
+## Closeout Status
+
+- Closeout file: `docs/M<ID>/MILESTONE_CLOSEOUT.md`
+- Closeout status: `not_started | drafted | finalized | blocked | superseded`
+- Closeout change ref: `<commit, PR, changelist, or n/a>`
+- Closeout notes: `<short note or n/a>`
+
+The ledger is the detailed milestone evidence record. The closeout is the
+compressed historical outcome index written after the ledger is current.
+
 ## Phase Status
 
 | Phase | Status | Owner | Change Ref | Evidence | Next Action |
@@ -58,3 +68,13 @@ Use this table only when Wave Execution is used.
 ## Blockers
 
 ## Context Notes For Resume
+
+## Closeout Inputs
+
+Use these notes only while preparing `MILESTONE_CLOSEOUT.md`.
+
+- What shipped:
+- Key decisions:
+- Verification summary:
+- Known gaps:
+- Follow-up milestones:

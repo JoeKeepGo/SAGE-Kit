@@ -11,8 +11,8 @@ and agent workflows can stay aligned over many sessions.
 ## What SPEC-Kit Provides
 
 - A core project specification model.
-- Templates for project profiles, milestones, phases, ledgers, quality gates,
-  approval gates, and completion reports.
+- Templates for project profiles, milestones, phases, ledgers, closeouts,
+  quality gates, approval gates, and completion reports.
 - An AI agent harness for context control, file ownership, verification,
   handoff, and review.
 - Wave Execution for safe parallel development inside a phase.
@@ -71,11 +71,13 @@ docs/
   templates/
     PHASE_TEMPLATE.md
     MILESTONE_LEDGER_TEMPLATE.md
+    MILESTONE_CLOSEOUT_TEMPLATE.md
     COMPLETION_REPORT_TEMPLATE.md
     LANE_PACKET_TEMPLATE.md
   M<ID>/
     00-entry-gate.md
     MILESTONE_LEDGER.md
+    MILESTONE_CLOSEOUT.md  # created at milestone closure
     01-phase-name.md
 ```
 
@@ -95,6 +97,7 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/templates/MILESTONE_ROADMAP_TEMPLATE.md` | `docs/MILESTONE_ROADMAP.md` |
 | `docs/templates/ENTRY_GATE_TEMPLATE.md` | `docs/M<ID>/00-entry-gate.md` |
 | `docs/templates/MILESTONE_LEDGER_TEMPLATE.md` | `docs/M<ID>/MILESTONE_LEDGER.md` |
+| `docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md` | `docs/M<ID>/MILESTONE_CLOSEOUT.md` at milestone closure |
 | `docs/templates/PHASE_TEMPLATE.md` | `docs/M<ID>/<NN>-<phase-name>.md` |
 
 Copy `docs/agent/` when AI agents will execute or review work. Copy the
@@ -113,6 +116,12 @@ profile.
 7. Execute each phase through retained phase docs and completion reports.
 8. Use Wave Execution when safe parallel lanes can speed up the phase.
 9. Keep milestone state in `MILESTONE_LEDGER.md`.
+10. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
+    historical outcome index.
+
+Historical closeouts are not default startup context. Read them only through
+`DOC_ROUTING.md` when a task needs prior milestone outcomes, decisions, gaps, or
+provenance.
 
 ## Non-Goals
 

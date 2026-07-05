@@ -78,6 +78,7 @@ Before implementation starts, the entry gate must answer:
 - Which gates remain closed?
 - Which runtime checks prove the milestone?
 - What review or handoff phase closes the milestone?
+- What closeout summary will future work need after the milestone closes?
 
 ## Planning Blockers
 
@@ -115,5 +116,5 @@ A well-planned milestone produces:
 - one phase file per reviewable slice;
 - wave plan for phases that can run in parallel;
 - approval gates and stop conditions;
-- final review or handoff criteria.
-
+- final review or handoff criteria;
+- `MILESTONE_CLOSEOUT.md` after the milestone closes.

@@ -31,9 +31,14 @@ Before broad exploration, state:
 |---|---|
 | Current repository state | `docs/ACTIVE_CONTEXT.md` |
 | Milestone progress | `docs/M<ID>/MILESTONE_LEDGER.md` |
+| Milestone outcome | `docs/M<ID>/MILESTONE_CLOSEOUT.md` |
 | Phase scope and evidence | `docs/M<ID>/<phase>.md` |
 | Review decision | Review report or phase completion report |
 | Next action | Milestone ledger and final handoff |
+
+Historical closeouts are compressed indexes. They are not startup context. Read
+them before opening historical ledgers or phase docs when prior milestone
+outcomes are relevant.
 
 ## End-Of-Run Memory Maintenance
 
@@ -48,7 +53,7 @@ For `docs/ACTIVE_CONTEXT.md`:
 - replace stale facts instead of appending corrections below them;
 - delete closed blockers, completed objectives, and expired assumptions;
 - keep evidence and historical detail in ledgers, phase docs, completion
-  reports, or handoffs.
+  reports, closeouts, or handoffs.
 
 For `docs/DOC_ROUTING.md`:
 

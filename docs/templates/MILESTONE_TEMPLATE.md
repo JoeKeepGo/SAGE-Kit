@@ -10,6 +10,10 @@ Create:
 - `docs/M<ID>/MILESTONE_LEDGER.md`
 - one phase file per independently reviewable work slice
 
+Create when closing the milestone:
+
+- `docs/M<ID>/MILESTONE_CLOSEOUT.md`
+
 Reference:
 
 - `docs/ACTIVE_CONTEXT.md`
@@ -17,6 +21,7 @@ Reference:
 - `docs/QUALITY_GATES.md`
 - `docs/agent/MILESTONE_PLANNING.md`
 - `docs/templates/PHASE_TEMPLATE.md`
+- `docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md`
 
 ## Entry Gate Requirements
 
@@ -72,3 +77,22 @@ the next only when:
 - the ledger is current;
 - verification evidence does not contradict the ledger;
 - no approval gate, blocker, or review stop is required.
+
+## Milestone Closeout
+
+Close the milestone by writing `docs/M<ID>/MILESTONE_CLOSEOUT.md` after the
+ledger is current.
+
+Closure order:
+
+1. Accept or explicitly supersede required phases.
+2. Update `MILESTONE_LEDGER.md`.
+3. Write or update `MILESTONE_CLOSEOUT.md`.
+4. Mark the milestone closed or accepted.
+
+The closeout is a compact historical outcome index. It records what shipped,
+what changed, key decisions, verification summary, known gaps, follow-up
+milestones, and links to detailed evidence.
+
+Do not add the closeout to default startup context. Read it only when
+`docs/DOC_ROUTING.md` says historical milestone context is needed.
