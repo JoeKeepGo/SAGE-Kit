@@ -8,6 +8,11 @@ description: SPEC-Kit governance workflow for AI-assisted projects. Use when wor
 Use this skill to keep AI work aligned with SPEC-Kit without loading the whole
 framework into context.
 
+This skill is an execution and governance aid. It does not replace the
+project's own SPEC documents. The project remains responsible for maintaining
+its `docs/` profile, design, gates, active context, routing, milestones, phase
+docs, ledgers, completion reports, and closeouts.
+
 ## Core Rule
 
 Do not read every SPEC-Kit document by default. Start from the active project
