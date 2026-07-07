@@ -82,6 +82,75 @@ SPEC-Kit 不是 skill library。参见 `docs/SPEC_CORE.md#external-capability-bo
 
 Skill 可以帮助新项目引入 SPEC-Kit，但项目仍然需要采用相关模板并维护自己的 SPEC 文档。
 
+## 可复制 Prompt
+
+把 SPEC-Kit 带到另一个 Codex 环境时，可以直接使用下面的 prompts。
+
+### 1. 安装 Skill
+
+当 `spec-kit-governance` 还没有安装时，把这段发给 Codex：
+
+```text
+Use the skill-installer workflow to install the SPEC-Kit Governance skill from
+GitHub.
+
+Repository: JoeKeepGo/SPEC-Kit
+Path: skills/spec-kit-governance
+
+If the skill is already installed, do not reinstall it. If installation
+succeeds, tell me to restart Codex or open a new Codex session so the new skill
+is discovered.
+```
+
+Codex 通常需要重启或新开会话后，才能在 skill 列表中发现新安装的 skill。
+
+### 2. 从 0 开始构建项目
+
+重启 Codex 后，在目标项目仓库中粘贴：
+
+```text
+Use $spec-kit-governance to help me start this project from zero.
+
+First, inspect the repository boundary and current files without making
+changes. Then interview me before creating project documents.
+
+Ask me concise questions in this order:
+1. What is the product or project goal?
+2. Who will use it?
+3. What problem does it solve right now?
+4. What should users or operators be able to do when the first usable version is successful?
+5. What are the main risks, constraints, or things that must not happen?
+6. Is this a small project, a standard software project, or a large/high-risk project?
+7. Are AI agents expected to implement and review most of the work?
+8. Are there known approval gates such as production data, credentials, paid APIs, deploys, destructive operations, or external service mutation?
+
+After I answer, propose the lightest SPEC-Kit adoption mode that fits:
+Light, Standard, or Heavy.
+
+Then draft the minimum useful SPEC-Kit documents:
+- PROJECT_PROFILE
+- TECHNICAL_DESIGN when architecture is known or can be sketched
+- QUALITY_GATES
+- APPROVAL_GATES
+- ACTIVE_CONTEXT
+- DOC_ROUTING
+- CAPABILITY_MAP if the idea is broad, non-technical, or roadmap granularity is uncertain
+- MILESTONE_ROADMAP only after the capability map or granularity check is ready
+
+Do not create executable milestones until the milestone granularity check
+passes. Do not enable Wave Execution, Session Orchestration, Worktree Isolation,
+or Task Dispatch Profile unless the project risk justifies them.
+```
+
+如果是已有项目，可以把访谈部分替换成：
+
+```text
+Use $spec-kit-governance to adopt SPEC-Kit for this existing repository.
+Read the current README, docs, package/config files, tests, and source layout
+with narrow searches first. Then propose the minimum SPEC-Kit document set and
+ask before writing files.
+```
+
 ## 推荐项目结构
 
 ```text
@@ -183,6 +252,196 @@ docs/
 16. 只有当 milestone 需要结构化 task/evidence records、资源锁、lease tracking 或 validator closeout 时，才启用 Task Dispatch Profile。
 17. 在 `MILESTONE_LEDGER.md` 中维护 milestone 状态。
 18. Milestone 关闭时，写入 `MILESTONE_CLOSEOUT.md` 作为紧凑的历史结果索引。
+
+## 详细使用方法
+
+### 选择采用模式
+
+先从足够安全的最轻模式开始。
+
+| 模式 | 适用场景 | 最少文件 |
+|---|---|---|
+| Light adoption | 小项目、低风险、一两个 agent、基本串行工作。 | `PROJECT_PROFILE.md`、`QUALITY_GATES.md`、`ACTIVE_CONTEXT.md`、`DOC_ROUTING.md`、一个 milestone ledger、一个 phase doc。 |
+| Standard adoption | 普通软件项目，有多个功能、评审和长期 agent 工作。 | Light adoption 加上 `TECHNICAL_DESIGN.md`、`ENGINEERING_SYSTEM.md`、`APPROVAL_GATES.md`、`MILESTONE_ROADMAP.md`、保留的 phase docs、completion reports。 |
+| Heavy adoption | 大型 milestone、多 agent、共享文件、状态机、控制层加运行层、发布风险或高 false-completion 风险。 | Standard adoption 加上 Governance Levels、Session Orchestration、可选 Wave Execution、可选 Worktree Isolation、可选 Task Dispatch Profile。 |
+
+不要默认启用所有控制。按当前风险选择：
+
+- 非平凡 controller、phase、lane 或 worker 都先选择 Governance Level。
+- 只有 writable lanes 文件互不重叠时才使用 Wave Execution。
+- Milestone 太大、人工来回复制交接成本太高时使用 Session Orchestration。
+- 只有 Project Manager 明确授权时才使用 Worktree Isolation。
+- 只有结构化 task/evidence records 和 validator closeout 的收益大于成本时才使用 Task Dispatch Profile。
+
+### 初始化新项目
+
+新项目先复制核心模板：
+
+```text
+docs/PROJECT_PROFILE.md
+docs/TECHNICAL_DESIGN.md
+docs/ENGINEERING_SYSTEM.md
+docs/QUALITY_GATES.md
+docs/APPROVAL_GATES.md
+docs/ACTIVE_CONTEXT.md
+docs/DOC_ROUTING.md
+docs/MILESTONE_ROADMAP.md
+docs/agent/
+docs/templates/
+```
+
+然后让 agent 只填写最小有用草稿：
+
+```text
+Use $spec-kit-governance to bootstrap SPEC-Kit for this repository.
+Start with PROJECT_PROFILE, TECHNICAL_DESIGN, QUALITY_GATES, APPROVAL_GATES,
+ACTIVE_CONTEXT, DOC_ROUTING, and a draft MILESTONE_ROADMAP.
+Do not create executable milestones until the capability map or roadmap
+granularity check is complete.
+```
+
+如果项目从宽泛或非工程化想法开始，可以更轻：
+
+```text
+Use $spec-kit-governance and Project Owner Entry.
+Ask me for the project goal, target users, current problem, success behavior,
+and main risks. Then draft PROJECT_OWNER_INTAKE, PROJECT_PROFILE, and
+CAPABILITY_MAP before proposing executable milestones.
+```
+
+### 创建第一个 Milestone
+
+一个 milestone 应该证明一个主要 capability。实现前先创建：
+
+```text
+docs/M<ID>/00-entry-gate.md
+docs/M<ID>/MILESTONE_LEDGER.md
+docs/M<ID>/01-<phase-name>.md
+```
+
+Entry gate 需要回答：
+
+- 这个 milestone 证明哪个 capability；
+- 哪些内容明确不做；
+- 有哪些 phases，以及为什么每个 phase 都可评审；
+- controller 和每个 worker 使用哪个 governance level；
+- 哪些文件 allowed、read-only、forbidden 或 shared；
+- 哪些 gates 保持关闭；
+- 需要哪些 tests、runtime smoke 和 review evidence；
+- 是否允许 Wave Execution、Session Orchestration、Worktree Isolation 或 Task Dispatch Profile。
+
+如果一个 milestone 不能拆成有清晰文件边界、contract、tests 和 smoke evidence 的 phases，就先留在 planning，继续拆小。
+
+### 日常 Agent 工作流
+
+普通实现或评审任务，agent 应该从窄上下文开始：
+
+```text
+Use $spec-kit-governance for this task.
+Read ACTIVE_CONTEXT and DOC_ROUTING first.
+Then read only the active milestone ledger, phase doc, quality gates, approval
+gates, and routed references required for this task.
+Select the governance level, name allowed files, name forbidden files, and stop
+if the task needs scope expansion or a closed approval gate.
+```
+
+一个普通 phase 应该按这个循环执行：
+
+1. 确认 active milestone 和 phase。
+2. 为当前 control scope 选择 `Light`、`Standard` 或 `Heavy`。
+3. 通过 `DOC_ROUTING.md` 读取最小安全文档集。
+4. 先检查代码或文档，再假设结构。
+5. 写明 allowed files、read-only files、forbidden files、shared files、gates、tests、smoke 和 stop conditions。
+6. 只执行已批准的 phase 或 task。
+7. 记录 tests、runtime smoke、skipped checks、blockers 和 evidence。
+8. 更新 completion report 和 milestone ledger。
+9. 当前状态事实改变时，用替换方式更新 `ACTIVE_CONTEXT.md`。
+10. 只有 routing 或文档拓扑改变时才更新 `DOC_ROUTING.md`。
+
+### Governance Level 选择
+
+派发重要工作前先使用 `docs/agent/GOVERNANCE_LEVELS.md`。
+
+- `Light`：窄范围 read-only scan、格式或文档小修、一个不改变 behavior、runtime、gate、security 或 durable state 的小 corrective task。
+- `Standard`：普通 phase 或 task，会改变 behavior、tests、contracts、runtime-visible output 或一个边界内的 durable project docs。
+- `Heavy`：milestone controller、多 phase、多 agent orchestration、共享文件、状态机、public contracts、migrations、release、approval gates、production data 或高 false-completion 风险。
+
+Heavy milestone controller 仍然可以派发 Light 或 Standard worker。Governance 是按局部 control scope 选择，不是全局继承。
+
+### 大型 Milestone 工作流
+
+当一个 milestone 需要在 Project Manager、Coder 和 Final Review sessions 之间反复手动复制交接时，使用 Session Orchestration。
+
+推荐控制流：
+
+```text
+Project Manager Controller
+  -> Milestone Execution Packet
+
+Coder Controller
+  -> phase workers and lane workers
+  -> Milestone Result Packet
+
+Project Manager Controller
+  -> Structural Gate
+
+Final Review Controller
+  -> review workers and validation lanes
+  -> Final Review Packet
+
+Coder Controller or Corrective Worker
+  -> bounded corrections when requested
+
+Project Manager Controller
+  -> accept, handoff, blocked, or next prompt
+```
+
+Coder 和 Final Review controllers 可以在文件所有权、runtime ownership、evidence expectations 和 stop conditions 都明确时派发 subagents。它们也可以针对明确 finding 派发 corrective workers。只要 correction 需要新 scope、approval、public contract change、shared ownership change 或 submit/cleanup authority，就必须停下来交给 Project Manager。
+
+### 外部能力和 Superpowers
+
+SPEC-Kit 不替代专业能力。运行环境暴露 skills、plugins、connectors、MCP tools、CI、browser tools、review tools 或 Superpowers skills 时，只要相关，就应该路由给它们。
+
+边界是：
+
+- SPEC-Kit 决定 scope、file ownership、approval gates、evidence、locks 和 completion status。
+- 外部 capability 只在这些边界内提供执行方法。
+- 外部 capability 的输出是 evidence，不是自动 acceptance。
+- 外部 planning output 必须写入或映射到 SPEC-Kit milestone、phase、ledger 或 packet docs。
+
+Superpowers 可用时，它是 execution discipline 的 reference integration，可以帮助 brainstorming、writing plans、TDD、debugging、subagent execution、review、verification 和 branch finishing。不可用时，SPEC-Kit 仍然通过自己的 phase docs、gates、packets 和 evidence templates 运行。
+
+Continuous execution 只允许发生在已批准的 phase、lane、task 或 corrective boundary 内。遇到 closed approval gates、scope expansion、shared-file 或 resource-lock conflicts、failed required evidence、unapproved runtime/destructive/submit/merge/push/cleanup operations，或任何需要更高 controller decision 的条件，都必须停止。
+
+### 各文档记录什么
+
+每个文档只做一件事：
+
+| 文档 | 记录内容 |
+|---|---|
+| `ACTIVE_CONTEXT.md` | 启动时需要的短当前状态事实。替换过期事实，不追加会话历史。 |
+| `DOC_ROUTING.md` | 按任务类型决定读哪些文档的稳定 routing rules。不记录进度。 |
+| `MILESTONE_LEDGER.md` | Milestone 详细进度、证据、phase 状态、决策、blockers 和当前 next actions。 |
+| Phase docs | 一个 phase 的 scope、file boundary、contract、tests、smoke、gates 和 completion evidence。 |
+| Completion report | 改了什么、验证了什么、跳过了什么、runtime evidence、memory maintenance 和 remaining gaps。 |
+| `MILESTONE_CLOSEOUT.md` | Milestone 当前状态已整理完后，写入紧凑的历史结果索引。 |
+| Task Dispatch records | Task Dispatch Profile 启用时的机器可校验 task/evidence state。 |
+
+Workers 和 parallel lanes 不能直接编辑 `ACTIVE_CONTEXT.md` 或 `DOC_ROUTING.md`。它们只返回 memory update proposals，由 controller 串行应用。
+
+### Review 和 Closeout
+
+宣称工作完成前：
+
+- 跑 required tests 和 runtime smoke，或者说明为什么不能跑；
+- 验证 file boundaries 和 contracts；
+- 验证 approval gates 是 `PASS`、明确 `WAIVED`，或者仍然 blocking；
+- 记录 skipped checks 和 gaps；
+- 更新 completion report 和 milestone ledger；
+- 只用 durable current-state changes 更新 active context；
+- 只有 milestone 真正关闭时才写 milestone closeout。
+
+Final Review 负责建议。Project Manager 决定 milestone acceptance。
 
 历史 closeout 不属于默认启动上下文。只有当 `DOC_ROUTING.md` 指向 prior milestone outcomes、decisions、gaps 或 provenance 时才读取。
 

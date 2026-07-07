@@ -113,6 +113,77 @@ something SPEC-Kit copies.
 The skill can help bootstrap SPEC-Kit in a new project, but the project still
 needs to adopt the relevant templates and maintain its own SPEC documents.
 
+## Copy-Paste Prompts
+
+Use these prompts when onboarding another Codex environment.
+
+### 1. Install The Skill
+
+Paste this into Codex when `spec-kit-governance` is not installed yet:
+
+```text
+Use the skill-installer workflow to install the SPEC-Kit Governance skill from
+GitHub.
+
+Repository: JoeKeepGo/SPEC-Kit
+Path: skills/spec-kit-governance
+
+If the skill is already installed, do not reinstall it. If installation
+succeeds, tell me to restart Codex or open a new Codex session so the new skill
+is discovered.
+```
+
+Codex normally needs a restart or new session before newly installed skills are
+available in the skill list.
+
+### 2. Start A Project From Zero
+
+After restarting Codex, paste this into the target project repository:
+
+```text
+Use $spec-kit-governance to help me start this project from zero.
+
+First, inspect the repository boundary and current files without making
+changes. Then interview me before creating project documents.
+
+Ask me concise questions in this order:
+1. What is the product or project goal?
+2. Who will use it?
+3. What problem does it solve right now?
+4. What should users or operators be able to do when the first usable version is successful?
+5. What are the main risks, constraints, or things that must not happen?
+6. Is this a small project, a standard software project, or a large/high-risk project?
+7. Are AI agents expected to implement and review most of the work?
+8. Are there known approval gates such as production data, credentials, paid APIs, deploys, destructive operations, or external service mutation?
+
+After I answer, propose the lightest SPEC-Kit adoption mode that fits:
+Light, Standard, or Heavy.
+
+Then draft the minimum useful SPEC-Kit documents:
+- PROJECT_PROFILE
+- TECHNICAL_DESIGN when architecture is known or can be sketched
+- QUALITY_GATES
+- APPROVAL_GATES
+- ACTIVE_CONTEXT
+- DOC_ROUTING
+- CAPABILITY_MAP if the idea is broad, non-technical, or roadmap granularity is uncertain
+- MILESTONE_ROADMAP only after the capability map or granularity check is ready
+
+Do not create executable milestones until the milestone granularity check
+passes. Do not enable Wave Execution, Session Orchestration, Worktree Isolation,
+or Task Dispatch Profile unless the project risk justifies them.
+```
+
+For an existing project that already has requirements, replace the interview
+step with:
+
+```text
+Use $spec-kit-governance to adopt SPEC-Kit for this existing repository.
+Read the current README, docs, package/config files, tests, and source layout
+with narrow searches first. Then propose the minimum SPEC-Kit document set and
+ask before writing files.
+```
+
 ## Recommended Project Layout
 
 ```text
@@ -226,6 +297,228 @@ profile.
 17. Keep milestone state in `MILESTONE_LEDGER.md`.
 18. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
     historical outcome index.
+
+## Detailed Usage
+
+### Choose An Adoption Mode
+
+Start with the lightest mode that gives the project enough control.
+
+| Mode | Use When | Minimum Files |
+|---|---|---|
+| Light adoption | Small project, low risk, one or two agents, mostly linear work. | `PROJECT_PROFILE.md`, `QUALITY_GATES.md`, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`, one milestone ledger, one phase doc. |
+| Standard adoption | Normal software project with multiple features, reviews, and recurring agent work. | Light adoption plus `TECHNICAL_DESIGN.md`, `ENGINEERING_SYSTEM.md`, `APPROVAL_GATES.md`, `MILESTONE_ROADMAP.md`, retained phase docs, completion reports. |
+| Heavy adoption | Large milestone, multi-agent work, shared files, state machines, control-plane/runtime split, release risk, or high false-completion risk. | Standard adoption plus Governance Levels, Session Orchestration, optional Wave Execution, optional Worktree Isolation, and optional Task Dispatch Profile. |
+
+Do not enable every control by default. Select the control that matches the
+current risk:
+
+- Use Governance Levels for every non-trivial controller, phase, lane, or worker.
+- Use Wave Execution only when writable lanes have disjoint files.
+- Use Session Orchestration when a milestone is too large for repeated manual
+  handoff.
+- Use Worktree Isolation only when the Project Manager explicitly authorizes it.
+- Use Task Dispatch Profile only when structured task/evidence records and
+  validator closeout are worth the extra overhead.
+
+### Bootstrap A New Project
+
+For a new project, copy the core templates first:
+
+```text
+docs/PROJECT_PROFILE.md
+docs/TECHNICAL_DESIGN.md
+docs/ENGINEERING_SYSTEM.md
+docs/QUALITY_GATES.md
+docs/APPROVAL_GATES.md
+docs/ACTIVE_CONTEXT.md
+docs/DOC_ROUTING.md
+docs/MILESTONE_ROADMAP.md
+docs/agent/
+docs/templates/
+```
+
+Then ask the agent to fill only the minimum useful draft:
+
+```text
+Use $spec-kit-governance to bootstrap SPEC-Kit for this repository.
+Start with PROJECT_PROFILE, TECHNICAL_DESIGN, QUALITY_GATES, APPROVAL_GATES,
+ACTIVE_CONTEXT, DOC_ROUTING, and a draft MILESTONE_ROADMAP.
+Do not create executable milestones until the capability map or roadmap
+granularity check is complete.
+```
+
+If the project begins from a broad or non-technical idea, start even lighter:
+
+```text
+Use $spec-kit-governance and Project Owner Entry.
+Ask me for the project goal, target users, current problem, success behavior,
+and main risks. Then draft PROJECT_OWNER_INTAKE, PROJECT_PROFILE, and
+CAPABILITY_MAP before proposing executable milestones.
+```
+
+### Create The First Milestone
+
+A milestone should prove one primary capability. Before implementation, create:
+
+```text
+docs/M<ID>/00-entry-gate.md
+docs/M<ID>/MILESTONE_LEDGER.md
+docs/M<ID>/01-<phase-name>.md
+```
+
+The entry gate should answer:
+
+- what capability the milestone proves;
+- what is explicitly out of scope;
+- which phases exist and why they are reviewable;
+- which governance level applies to the controller and each worker;
+- which files are allowed, read-only, forbidden, or shared;
+- which gates remain closed;
+- which tests, runtime smoke, and review evidence are required;
+- whether Wave Execution, Session Orchestration, Worktree Isolation, or Task
+  Dispatch Profile is allowed.
+
+If a milestone cannot be decomposed into clear phases with file boundaries,
+contracts, tests, and smoke evidence, keep it in planning and split it further.
+
+### Daily Agent Workflow
+
+For ordinary implementation or review work, the agent should start narrow:
+
+```text
+Use $spec-kit-governance for this task.
+Read ACTIVE_CONTEXT and DOC_ROUTING first.
+Then read only the active milestone ledger, phase doc, quality gates, approval
+gates, and routed references required for this task.
+Select the governance level, name allowed files, name forbidden files, and stop
+if the task needs scope expansion or a closed approval gate.
+```
+
+A normal phase run should follow this loop:
+
+1. Confirm the active milestone and phase.
+2. Select `Light`, `Standard`, or `Heavy` for the current control scope.
+3. Read the smallest safe doc set through `DOC_ROUTING.md`.
+4. Inspect code or docs before assuming structure.
+5. Name allowed files, read-only files, forbidden files, shared files, gates,
+   tests, smoke, and stop conditions.
+6. Execute only the approved phase or task.
+7. Record tests, runtime smoke, skipped checks, blockers, and evidence.
+8. Update the completion report and milestone ledger.
+9. Update `ACTIVE_CONTEXT.md` by replacement when current-state facts changed.
+10. Update `DOC_ROUTING.md` only when routing or document topology changed.
+
+### Governance Level Selection
+
+Use `docs/agent/GOVERNANCE_LEVELS.md` before dispatching substantial work.
+
+- `Light`: narrow read-only scan, formatting/doc correction, or one small
+  corrective task with no behavior, runtime, gate, security, or durable state
+  change.
+- `Standard`: normal phase or task that changes behavior, tests, contracts,
+  runtime-visible output, or durable project docs inside one bounded ownership
+  area.
+- `Heavy`: milestone controller work, multiple phases, multi-agent
+  orchestration, shared files, state machines, public contracts, migrations,
+  releases, approval gates, production data, or high false-completion risk.
+
+A Heavy milestone controller may still delegate Light or Standard workers.
+Governance is selected per local control scope, not inherited globally.
+
+### Large Milestone Workflow
+
+Use Session Orchestration when one milestone would otherwise require repeated
+manual copying between Project Manager, Coder, and Final Review sessions.
+
+The recommended control flow is:
+
+```text
+Project Manager Controller
+  -> Milestone Execution Packet
+
+Coder Controller
+  -> phase workers and lane workers
+  -> Milestone Result Packet
+
+Project Manager Controller
+  -> Structural Gate
+
+Final Review Controller
+  -> review workers and validation lanes
+  -> Final Review Packet
+
+Coder Controller or Corrective Worker
+  -> bounded corrections when requested
+
+Project Manager Controller
+  -> accept, handoff, blocked, or next prompt
+```
+
+Coder and Final Review controllers may dispatch subagents when file ownership,
+runtime ownership, evidence expectations, and stop conditions are explicit.
+They may also dispatch corrective workers for bounded findings. They must stop
+for Project Manager decision when correction needs new scope, approval, public
+contract change, shared ownership change, or submit/cleanup authority.
+
+### External Capabilities And Superpowers
+
+SPEC-Kit does not replace specialist capabilities. When the runtime exposes
+skills, plugins, connectors, MCP tools, CI, browser tools, review tools, or
+Superpowers skills, route to them when they are relevant.
+
+The boundary is:
+
+- SPEC-Kit decides scope, file ownership, approval gates, evidence, locks, and
+  completion status.
+- External capabilities provide execution methods inside those boundaries.
+- External capability output is evidence, not automatic acceptance.
+- External planning output must be written into or mapped to SPEC-Kit milestone,
+  phase, ledger, or packet docs.
+
+When Superpowers is available, it is a reference integration for execution
+discipline. It may help with brainstorming, writing plans, TDD, debugging,
+subagent execution, review, verification, and branch finishing. If it is not
+available, SPEC-Kit still runs through its own phase docs, gates, packets, and
+evidence templates.
+
+Continuous execution is allowed only inside an approved phase, lane, task, or
+corrective boundary. Stop on closed approval gates, scope expansion,
+shared-file or resource-lock conflicts, failed required evidence, unapproved
+runtime/destructive/submit/merge/push/cleanup operations, or any condition that
+requires a higher controller decision.
+
+### What To Record Where
+
+Use each document for one job:
+
+| Document | Record |
+|---|---|
+| `ACTIVE_CONTEXT.md` | Short current-state facts needed at startup. Replace stale facts; do not append session history. |
+| `DOC_ROUTING.md` | Stable routing rules for what to read by task type. Do not record progress here. |
+| `MILESTONE_LEDGER.md` | Detailed milestone progress, evidence, phase status, decisions, blockers, and current next actions. |
+| Phase docs | Scope, file boundary, contract, tests, smoke, gates, and completion evidence for one phase. |
+| Completion report | What changed, what was verified, skipped checks, runtime evidence, memory maintenance, and remaining gaps. |
+| `MILESTONE_CLOSEOUT.md` | Compact historical outcome after the milestone is current and ready to archive. |
+| Task Dispatch records | Machine-checkable task/evidence state when the Task Dispatch Profile is active. |
+
+Workers and parallel lanes must not directly edit `ACTIVE_CONTEXT.md` or
+`DOC_ROUTING.md`. They return memory update proposals; the controller applies
+them serially.
+
+### Review And Closeout
+
+Before calling work complete:
+
+- run required tests and runtime smoke, or state why they cannot run;
+- verify file boundaries and contracts;
+- verify approval gates are `PASS`, explicitly `WAIVED`, or still blocking;
+- record skipped checks and gaps;
+- update completion report and milestone ledger;
+- update active context only with durable current-state changes;
+- write milestone closeout only when the milestone is actually closing.
+
+Final Review recommends. Project Manager decides milestone acceptance.
 
 Historical closeouts are not default startup context. Read them only through
 `DOC_ROUTING.md` when a task needs prior milestone outcomes, decisions, gaps, or
