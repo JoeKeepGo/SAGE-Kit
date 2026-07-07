@@ -225,9 +225,11 @@ docs/
     SESSION_ORCHESTRATION.md
     WORKTREE_ISOLATION.md
     MILESTONE_PLANNING.md
+    CAPABILITY_ADAPTERS.md
   templates/
     PROJECT_OWNER_INTAKE_TEMPLATE.md
     CAPABILITY_MAP_TEMPLATE.md
+    CAPABILITY_ADAPTER_TEMPLATE.md
     PHASE_TEMPLATE.md
     MILESTONE_LEDGER_TEMPLATE.md
     MILESTONE_CLOSEOUT_TEMPLATE.md
@@ -266,6 +268,8 @@ Use this map when adopting SAGE-Kit into a project.
 | `docs/DOC_ROUTING_TEMPLATE.md` | `docs/DOC_ROUTING.md` |
 | `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md` | Optional `docs/PROJECT_OWNER_INTAKE.md` |
 | `docs/templates/CAPABILITY_MAP_TEMPLATE.md` | `docs/CAPABILITY_MAP.md` for broad, non-technical, or coarse-roadmap projects |
+| `docs/agent/CAPABILITY_ADAPTERS.md` | Optional external capability adapter policy |
+| `docs/templates/CAPABILITY_ADAPTER_TEMPLATE.md` | Optional provider-specific adapter record |
 | `docs/templates/MILESTONE_ROADMAP_TEMPLATE.md` | `docs/MILESTONE_ROADMAP.md` |
 | `docs/templates/ENTRY_GATE_TEMPLATE.md` | `docs/M<ID>/00-entry-gate.md` |
 | `docs/templates/MILESTONE_LEDGER_TEMPLATE.md` | `docs/M<ID>/MILESTONE_LEDGER.md` |

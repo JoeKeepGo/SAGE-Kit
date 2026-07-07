@@ -187,9 +187,11 @@ docs/
     SESSION_ORCHESTRATION.md
     WORKTREE_ISOLATION.md
     MILESTONE_PLANNING.md
+    CAPABILITY_ADAPTERS.md
   templates/
     PROJECT_OWNER_INTAKE_TEMPLATE.md
     CAPABILITY_MAP_TEMPLATE.md
+    CAPABILITY_ADAPTER_TEMPLATE.md
     PHASE_TEMPLATE.md
     MILESTONE_LEDGER_TEMPLATE.md
     MILESTONE_CLOSEOUT_TEMPLATE.md
@@ -228,6 +230,8 @@ docs/
 | `docs/DOC_ROUTING_TEMPLATE.md` | `docs/DOC_ROUTING.md` |
 | `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md` | 可选 `docs/PROJECT_OWNER_INTAKE.md` |
 | `docs/templates/CAPABILITY_MAP_TEMPLATE.md` | 面向宽泛、非工程化启动或 roadmap 颗粒度偏粗项目的 `docs/CAPABILITY_MAP.md` |
+| `docs/agent/CAPABILITY_ADAPTERS.md` | 可选外部能力 adapter policy |
+| `docs/templates/CAPABILITY_ADAPTER_TEMPLATE.md` | 可选 provider-specific adapter record |
 | `docs/templates/MILESTONE_ROADMAP_TEMPLATE.md` | `docs/MILESTONE_ROADMAP.md` |
 | `docs/templates/ENTRY_GATE_TEMPLATE.md` | `docs/M<ID>/00-entry-gate.md` |
 | `docs/templates/MILESTONE_LEDGER_TEMPLATE.md` | `docs/M<ID>/MILESTONE_LEDGER.md` |
