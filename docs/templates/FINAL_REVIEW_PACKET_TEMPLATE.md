@@ -41,6 +41,18 @@ Parallelism Reassessment:
 - Unsafe parallelism found:
 - Recommended future execution shape:
 
+Worktree Review:
+- Worktree isolation authorized: `<yes/no/n/a>`
+- Worktree map reviewed:
+- File boundaries preserved:
+- Runtime or dependency conflicts:
+- Integration evidence:
+- Stale worktrees:
+- Submit authority preserved:
+- Cleanup authority preserved:
+- Submit recommendation:
+- Cleanup recommendation:
+
 Phase Findings:
 
 | Phase | Verdict | Findings | Required Corrections |

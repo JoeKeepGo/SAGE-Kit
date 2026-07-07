@@ -40,6 +40,23 @@ Implementation must not start until every phase row is concrete.
 
 State which phases may use Wave Execution and which must remain serial.
 
+## Worktree Isolation Policy
+
+State whether Project Manager allows worktree isolation.
+
+If yes, define:
+
+- allowed mode;
+- maximum worktree count;
+- branch and worktree naming;
+- base branch or commit;
+- phases or lanes eligible for isolation;
+- shared files that remain serial;
+- runtime ownership;
+- integration owner;
+- submit authority;
+- cleanup policy.
+
 ## Capability Routing Policy
 
 State which specialist skills, plugins, connectors, or tools should be used for

@@ -14,6 +14,12 @@ Capability Routing:
 - Forbidden capabilities:
 - Fallback if missing:
 
+Worktree Isolation:
+- Assigned worktree:
+- Branch:
+- Allowed cleanup action:
+- Submit authority:
+
 Findings To Fix:
 
 | Finding ID | Required Fix | Allowed Files | Forbidden Files | Tests | Stop Conditions |

@@ -1,6 +1,6 @@
 ---
 name: spec-kit-governance
-description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, Wave Execution, or Session Orchestration. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
+description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
 ---
 
 # SPEC-Kit Governance
@@ -101,6 +101,9 @@ handoff.
 - Use Session Orchestration only for large milestones where Project Manager,
   Coder, and Final Review controller packets reduce handoff overhead without
   weakening gates.
+- Use Worktree Isolation only when Project Manager authorization names the
+  allowed mode, maximum count, naming, integration owner, submit authority, and
+  cleanup policy.
 
 ## End Of Run
 

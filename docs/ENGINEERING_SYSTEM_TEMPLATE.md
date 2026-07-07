@@ -25,6 +25,7 @@ This document defines the daily development workflow for humans and AI agents.
 | Project Manager Controller | Milestone direction, execution packet, structural gate, final decision. | Perform full technical review. |
 | Coder Controller | Phase and lane worker orchestration for one milestone. | Redefine milestone scope or accept the milestone. |
 | Final Review Controller | Independent review orchestration and verdict. | Trust Coder self-report or accept the milestone directly. |
+| Submit Controller | Authorized commit, push, merge, release, or worktree cleanup. | Submit unverified scope or bypass Project Manager approval. |
 
 ## Explore
 
@@ -58,6 +59,10 @@ For large milestones with many phases or high handoff overhead, use
 `docs/agent/SESSION_ORCHESTRATION.md` and create a milestone execution packet
 instead of manually forwarding each phase between sessions.
 
+Use `docs/agent/WORKTREE_ISOLATION.md` only when Project Manager authorizes
+isolated milestone, phase, lane, or review workspaces and names submit and
+cleanup authority.
+
 ## Implement
 
 - Stay within the approved file boundary.
@@ -89,6 +94,7 @@ Before handoff or commit:
 - inspect changed files;
 - check staged files if staging is used;
 - scan for secrets or local data when applicable;
+- confirm submit and cleanup authority when worktrees were used;
 - maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot;
 - update `docs/DOC_ROUTING.md` only when routing or document topology changed;
 - update completion report with memory maintenance status;

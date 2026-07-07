@@ -19,6 +19,8 @@ milestones, and phase documents.
   historical ledgers into startup context.
 - Use milestone-level session orchestration only when it reduces handoff burden
   without weakening gates, verification, or final decision ownership.
+- Use worktree isolation only when the project explicitly authorizes isolated
+  execution and names submit and cleanup ownership.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
@@ -51,13 +53,14 @@ All other work is non-trivial and requires a retained phase or task document.
 explore -> plan -> implement -> verify -> submit
 ```
 
-SPEC-Kit supports three execution scopes:
+SPEC-Kit supports these execution controls:
 
-| Scope | Use For | Primary Doc |
+| Control | Use For | Primary Doc |
 |---|---|---|
 | Phase Execution | One bounded phase or task. | `docs/agent/PHASE_EXECUTION.md` |
 | Wave Execution | Safe parallel lanes inside one phase. | `docs/agent/WAVE_EXECUTION.md` |
 | Session Orchestration | Large milestones that need Project Manager, Coder, and Final Review controllers. | `docs/agent/SESSION_ORCHESTRATION.md` |
+| Worktree Isolation | Optional isolation policy for authorized milestone, phase, lane, or review workspaces. | `docs/agent/WORKTREE_ISOLATION.md` |
 
 Explore:
 

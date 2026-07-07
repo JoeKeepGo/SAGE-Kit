@@ -1,7 +1,7 @@
 # SPEC-Kit Execution
 
 Use this reference for implementation, debugging, refactoring, subagent work,
-Strict Mode, Wave Execution, or Session Orchestration.
+Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 
 ## Pre-Edit Gate
 
@@ -63,6 +63,22 @@ the domain work.
 Parallel writable lanes must not share files. Parallel lanes must not edit
 `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md`; they return proposals for controller
 integration.
+
+## Worktree Isolation
+
+Use Worktree Isolation only when the Project Manager execution packet allows
+it.
+
+Coder Controller may decide which authorized phases or lanes receive worktrees.
+It must record the worktree map, branch names, owners, integration status, and
+cleanup recommendation in the milestone result packet.
+
+Keep work serial or stop for Project Manager when shared files, migrations,
+lockfiles, generated artifacts, runtime ownership, approval gates, branch base,
+maximum worktree count, submit authority, or cleanup policy are unclear.
+
+Workers must not push, merge, or delete worktrees unless the packet explicitly
+assigns that authority.
 
 ## Session Orchestration
 

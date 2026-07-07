@@ -17,6 +17,7 @@ Review for:
 - ledger or closeout gaps;
 - ignored specialist capabilities when the runtime exposed relevant skills,
   plugins, connectors, or tools;
+- unauthorized or unsafe worktree isolation;
 - session orchestration packet completeness when used.
 
 Lead with blocking findings before summaries.
@@ -84,6 +85,8 @@ When Session Orchestration is used:
 - Final Review verifies independently and returns a verdict.
 - Final Review checks whether Coder self review and capability routing were
   performed.
+- Final Review checks whether Worktree Isolation was authorized, mapped,
+  integrated, and safe when used.
 - Final Review reassesses whether the milestone execution shape was safe:
   serial, waves inside phases, or parallel phases.
 - Final Review cannot accept the milestone directly.
@@ -99,4 +102,5 @@ Before commit, push, PR, or final handoff:
 3. Scan for secrets or local data when applicable.
 4. Run required verification.
 5. Confirm completion report, ledger, and memory maintenance are current.
-6. Commit or hand off only intended scope.
+6. Confirm worktree submit and cleanup authority when worktrees were used.
+7. Commit or hand off only intended scope.

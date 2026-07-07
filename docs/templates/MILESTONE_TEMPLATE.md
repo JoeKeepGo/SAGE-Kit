@@ -22,6 +22,7 @@ Reference:
 - `docs/agent/MILESTONE_PLANNING.md`
 - `docs/agent/SESSION_ORCHESTRATION.md` when milestone-level controller
   handoff is used
+- `docs/agent/WORKTREE_ISOLATION.md` when isolated workspaces are allowed
 - `docs/templates/PHASE_TEMPLATE.md`
 - `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` when Session
   Orchestration is used
@@ -46,6 +47,7 @@ The entry gate must include:
 - file boundary;
 - module ownership;
 - public contract;
+- worktree isolation policy when isolated execution is allowed;
 - test and smoke expectations;
 - capability routing expectations;
 - approval gates;
@@ -100,6 +102,23 @@ agent runtime exposes them.
 The controller must inspect capability metadata before delegating work and
 record the selected capabilities in execution, result, review, or corrective
 packets.
+
+## Worktree Isolation
+
+State whether Project Manager allows Worktree Isolation.
+
+If yes, name:
+
+- allowed isolation mode;
+- maximum worktree count;
+- branch and worktree naming;
+- base branch or commit;
+- eligible phases or lanes;
+- shared files that remain serial;
+- runtime ownership;
+- integration owner;
+- submit authority;
+- cleanup policy.
 
 ## Session Orchestration
 

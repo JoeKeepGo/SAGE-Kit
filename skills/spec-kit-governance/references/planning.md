@@ -1,7 +1,7 @@
 # SPEC-Kit Planning
 
-Use this reference for roadmap, milestone, entry gate, phase, wave, and session
-orchestration planning.
+Use this reference for roadmap, milestone, entry gate, phase, wave, session
+orchestration, and worktree isolation planning.
 
 ## Milestone Granularity
 
@@ -33,6 +33,8 @@ Before implementation starts, the entry gate must answer:
 - Which phases can use Wave Execution?
 - Does this milestone need Session Orchestration to avoid repeated manual
   handoff between Project Manager, Coder, and Final Review controllers?
+- Does Project Manager allow Worktree Isolation, and if yes what mode, maximum
+  count, naming, submit authority, and cleanup policy apply?
 - Which specialist skills, plugins, connectors, or tools should controllers
   route to for implementation, validation, review, or runtime smoke?
 - Which gates remain closed?
@@ -81,6 +83,7 @@ Plan:
 - Project Manager Controller;
 - Coder Controller;
 - Final Review Controller;
+- worktree isolation authorization, if allowed;
 - capability discovery and specialist routing;
 - milestone execution packet;
 - milestone result packet;

@@ -22,6 +22,9 @@ Required Sections Present:
 | Scope implemented / not implemented | `<yes/no>` | `<notes>` |
 | Capability discovery used | `<yes/no>` | `<notes>` |
 | Parallelism assessment | `<yes/no>` | `<notes>` |
+| Worktree authorization or n/a | `<yes/no>` | `<notes>` |
+| Worktree map or n/a | `<yes/no>` | `<notes>` |
+| Submit and cleanup authority or n/a | `<yes/no>` | `<notes>` |
 | Phase results | `<yes/no>` | `<notes>` |
 | Files changed | `<yes/no>` | `<notes>` |
 | Contract evidence | `<yes/no>` | `<notes>` |

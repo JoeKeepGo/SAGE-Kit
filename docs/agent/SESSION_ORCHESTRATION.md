@@ -73,6 +73,14 @@ Project Manager Controller
   packet. This is execution-side integration review, not final acceptance.
 - Coder and Final Review controllers must reassess whether phases or lanes can
   run in parallel, must stay serial, or must stop for Project Manager decision.
+- Coder may decide where to use worktrees only when the Project Manager
+  execution packet authorizes Worktree Isolation.
+- Final Review verifies worktree use and may recommend submit or cleanup, but
+  must not commit, push, merge, or delete worktrees while acting as Final
+  Review.
+- If the same session is later used for submit or cleanup, Project Manager must
+  first record the Final Review verdict, then issue a separate Submit
+  Controller authorization.
 - One milestone should normally use one Coder Controller and one Final Review
   Controller.
 - Additional controllers are exceptional and must be justified by scope,
@@ -133,6 +141,33 @@ Coder and Final Review controllers both assess execution shape:
 Coder uses this assessment to choose worker execution. Final Review uses it to
 verify whether the chosen execution shape was safe.
 
+## Worktree Isolation
+
+Use `docs/agent/WORKTREE_ISOLATION.md` when a milestone, phase, lane, or review
+needs an isolated workspace.
+
+Project Manager decides whether Worktree Isolation is allowed and sets:
+
+- isolation mode;
+- maximum worktree count;
+- branch and worktree naming;
+- base branch or base commit;
+- allowed phases or lanes;
+- shared files that remain serial;
+- runtime ownership;
+- integration owner;
+- submit authority;
+- cleanup policy.
+
+Coder Controller decides which authorized phases or lanes actually receive
+worktrees and records the worktree map in the result packet.
+
+Final Review checks whether the worktree use was authorized, isolated, and
+integrated correctly. Final Review returns submit and cleanup recommendations.
+
+Project Manager or a separately authorized Submit Controller makes the final
+commit, push, merge, and cleanup decision.
+
 ## Project Manager Structural Gate
 
 The Project Manager Controller does not perform technical verification between
@@ -192,12 +227,15 @@ These remain serial even in Session Orchestration:
 - public contract freeze;
 - shared file ownership changes;
 - approval gates;
+- branch base changes;
+- schema, migration, lockfile, and generated artifact changes;
 - real runtime smoke unless exclusive runtime ownership is granted;
 - final integration;
 - active context and routing maintenance;
 - milestone ledger update;
 - milestone closeout;
-- git commit, push, release, publish, merge, or destructive operations.
+- git commit, push, release, publish, merge, or destructive operations;
+- worktree cleanup.
 
 ## Required Packets
 

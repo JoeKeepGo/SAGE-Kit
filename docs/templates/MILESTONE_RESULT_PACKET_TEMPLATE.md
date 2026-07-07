@@ -28,6 +28,21 @@ Parallelism Assessment:
 - Conflicts found:
 - Recommended shape for next run:
 
+Worktree Map:
+
+| Worktree | Branch | Scope | Owner | Allowed Files | Runtime | Status | Integration |
+|---|---|---|---|---|---|---|---|
+| `<path or n/a>` | `<branch>` | `<phase/lane/review>` | `<owner>` | `<files>` | `<runtime or n/a>` | `<status>` | `<owner/action>` |
+
+Worktree Decisions:
+- Worktrees authorized by execution packet:
+- Worktrees created:
+- Work kept serial and why:
+- Integration status:
+- Submit authority:
+- Cleanup authority:
+- Cleanup recommendation:
+
 Phase Results:
 
 | Phase | Status | Files Changed | Contract Evidence | Tests | Runtime Smoke | Skipped Checks | Blockers | Next Action |

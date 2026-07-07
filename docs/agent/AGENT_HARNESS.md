@@ -13,6 +13,9 @@ against the spec without losing context, widening scope, or hiding risk.
 - Use Wave Execution for safe parallel work inside a phase.
 - Use Session Orchestration for large milestone-level work that needs separate
   Project Manager, Coder, and Final Review controllers.
+- Use Worktree Isolation only when Project Manager authorization names the
+  allowed mode, maximum count, naming, integration owner, submit authority, and
+  cleanup policy.
 - Route work to relevant skills, plugins, connectors, or tools when the agent
   runtime exposes a capability list.
 - Keep one task tied to one phase unless a batch execution plan explicitly
@@ -120,6 +123,7 @@ Before batch execution starts, the controller must record:
 - ledger update points;
 - approval gates that remain closed;
 - final integration owner.
+- worktree isolation policy, when allowed.
 
 A batch run must stop when any phase has a blocking `FAIL`, `BLOCKED`, or
 unapproved `WAIVED` gate.
@@ -138,6 +142,11 @@ assign the shared file to a serial controller lane.
 
 For parallel work, use `docs/agent/WAVE_EXECUTION.md` and return lane results
 with `docs/templates/LANE_PACKET_TEMPLATE.md`.
+
+For isolated workspaces, use `docs/agent/WORKTREE_ISOLATION.md`. Coder may
+choose which authorized phases or lanes receive worktrees, but Project Manager
+sets the allowed isolation mode, maximum count, naming, integration owner,
+submit authority, and cleanup policy.
 
 ## Handoff Packet
 

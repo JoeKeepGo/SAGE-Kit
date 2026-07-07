@@ -1,5 +1,7 @@
 # SPEC-Kit
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 SPEC-Kit is a reusable project specification system and AI agent execution
 harness.
 
@@ -18,6 +20,8 @@ and agent workflows can stay aligned over many sessions.
 - Wave Execution for safe parallel development inside a phase.
 - Session Orchestration for milestone-level Project Manager, Coder, and Final
   Review controller workflows.
+- Worktree Isolation for controlled phase, lane, or review workspaces when the
+  Project Manager authorizes isolated execution.
 - Capability routing so controllers can delegate to relevant skills, plugins,
   connectors, or tools instead of letting governance instructions displace
   specialist capabilities.
@@ -48,6 +52,7 @@ docs/
     STRICT_MODE.md
     WAVE_EXECUTION.md
     SESSION_ORCHESTRATION.md
+    WORKTREE_ISOLATION.md
     MILESTONE_PLANNING.md
   profiles/
     state-machine/
@@ -101,6 +106,7 @@ docs/
     STRICT_MODE.md
     WAVE_EXECUTION.md
     SESSION_ORCHESTRATION.md
+    WORKTREE_ISOLATION.md
     MILESTONE_PLANNING.md
   templates/
     PHASE_TEMPLATE.md
@@ -143,6 +149,7 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` | Project Manager structural gate checklist |
 | `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` | Final Review verdict packet |
 | `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` | Bounded corrective work packet |
+| `docs/agent/WORKTREE_ISOLATION.md` | Optional worktree isolation policy |
 
 Copy `docs/agent/` when AI agents will execute or review work. Copy the
 relevant `docs/profiles/<profile>/` templates only when the project uses that
@@ -161,8 +168,10 @@ profile.
 8. Use Wave Execution when safe parallel lanes can speed up the phase.
 9. Use Session Orchestration for large milestones that need Project Manager,
    Coder, and Final Review controller handoff.
-10. Keep milestone state in `MILESTONE_LEDGER.md`.
-11. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
+10. Use Worktree Isolation only when Project Manager authorizes isolated
+    phase, lane, or review workspaces.
+11. Keep milestone state in `MILESTONE_LEDGER.md`.
+12. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
     historical outcome index.
 
 Historical closeouts are not default startup context. Read them only through

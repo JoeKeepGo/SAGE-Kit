@@ -21,6 +21,7 @@ Read first:
 - docs/agent/MILESTONE_PLANNING.md
 - docs/agent/SESSION_ORCHESTRATION.md when this task uses milestone-level
   controller handoff
+- docs/agent/WORKTREE_ISOLATION.md when this task uses isolated workspaces
 - <active milestone ledger>
 - <active phase doc>
 
@@ -54,6 +55,11 @@ Capability routing:
 
 Wave / lane assignment:
 - <lane name, allowed files, expected output, or serial-only>
+
+Worktree isolation:
+- <NONE / MILESTONE_WORKTREE / PHASE_WORKTREE / LANE_WORKTREE / REVIEW_WORKTREE>
+- <assigned worktree or n/a>
+- <branch/worktree naming and cleanup policy or n/a>
 
 Session orchestration assignment:
 - <Project Manager / Coder / Final Review / Phase Worker / Lane Worker /

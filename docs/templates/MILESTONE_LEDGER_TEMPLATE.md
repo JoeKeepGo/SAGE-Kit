@@ -68,6 +68,14 @@ available or expected.
 |---|---|---|---|---|
 | `<task>` | `<skill/plugin/connector/tool>` | `<yes/no/unavailable>` | `<evidence>` | `<fallback>` |
 
+## Worktree Status
+
+Use this table when Worktree Isolation is used.
+
+| Worktree | Branch | Scope | Owner | Status | Integration | Cleanup |
+|---|---|---|---|---|---|---|
+| `<path>` | `<branch>` | `<phase/lane/review>` | `<owner>` | `<status>` | `<evidence>` | `<recommendation/status>` |
+
 ## Session Orchestration Status
 
 Use this table only when Session Orchestration is used.

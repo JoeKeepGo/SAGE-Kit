@@ -24,6 +24,20 @@ Execution Shape:
 
 Parallelism Rationale:
 
+Worktree Isolation Policy:
+- Allowed mode: `NONE | MILESTONE_WORKTREE | PHASE_WORKTREE | LANE_WORKTREE | REVIEW_WORKTREE`
+- Maximum worktree count:
+- Branch naming:
+- Worktree naming:
+- Base branch or commit:
+- Allowed phases or lanes:
+- Shared files that remain serial:
+- Runtime ownership:
+- Integration owner:
+- Submit authority:
+- Cleanup policy:
+- Forbidden scenarios:
+
 Capability Discovery:
 - Capability registry checked: `<yes/no/not available>`
 - Selected skills:
@@ -54,6 +68,7 @@ Worker Delegation Rules:
 - Worker types allowed:
 - Parallel lanes allowed:
 - Parallel phases allowed:
+- Worktree isolation allowed:
 - Worker output format:
 - Worker stop conditions:
 - Integration owner:
