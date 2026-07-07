@@ -28,4 +28,3 @@ approval_gate: <none or gate name>
 - No user-visible transition lacks visibility evidence.
 - No external dependency lacks fake or dry coverage.
 - No real mutation bypasses approval gates.
-

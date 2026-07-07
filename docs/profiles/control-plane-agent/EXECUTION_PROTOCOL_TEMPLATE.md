@@ -61,4 +61,3 @@ Describe transport, versioning, authentication, correlation, and timeout rules.
 | invalid request | `<test>` |
 | capability mismatch | `<test>` |
 | redaction | `<test>` |
-

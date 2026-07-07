@@ -23,4 +23,3 @@ or runtime boundaries.
 - Error behavior is explicit.
 - Compatibility behavior is explicit.
 - Tests exist on owner and consumer sides where applicable.
-

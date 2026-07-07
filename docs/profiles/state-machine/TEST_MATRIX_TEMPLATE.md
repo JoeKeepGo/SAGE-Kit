@@ -26,4 +26,3 @@ Use this matrix to assign test responsibility before implementation.
 - Every user-visible transition has a visibility assertion.
 - Every real external dependency has fake or dry coverage.
 - Approval gates remain closed unless explicitly opened.
-

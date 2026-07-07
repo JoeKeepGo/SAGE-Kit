@@ -30,4 +30,3 @@ execution agent, worker, or runtime component.
 | Contract | Owner | Consumers | Compatibility Rule |
 |---|---|---|---|
 | `<contract>` | `<owner>` | `<consumers>` | `<rule>` |
-

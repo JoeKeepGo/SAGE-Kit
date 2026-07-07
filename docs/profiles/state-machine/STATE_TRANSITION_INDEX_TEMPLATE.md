@@ -14,4 +14,3 @@ Use this file as a lightweight lookup index for transition IDs.
 - Keep one row per transition ID.
 - Do not define transition semantics here; the table remains the source of
   truth.
-
