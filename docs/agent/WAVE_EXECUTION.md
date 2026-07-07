@@ -46,6 +46,7 @@ The controller owns:
 - final verification;
 - milestone ledger updates;
 - active context and document routing maintenance;
+- serial integration of memory update proposals;
 - git operations when used.
 
 ## Safe Parallel Work
@@ -86,6 +87,9 @@ These must remain serial unless the project explicitly defines a safer process:
   the lanes, make one read-only, or assign the shared file to a serial
   controller lane.
 - Shared files require a named integration owner and serial handling.
+- A lane may not edit `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md`;
+  return proposed changes in `Memory Update Proposal` for controller
+  integration.
 - A lane may not expand its file boundary.
 - A lane may not open approval gates.
 - A lane may not stage, commit, push, publish, release, or merge.
@@ -137,6 +141,8 @@ A phase that used waves must report:
 - real runtime smoke run serially by the controller, when applicable;
 - final verification run by the controller;
 - active context and document routing maintenance run serially by the
+  controller;
+- memory update proposals from lanes integrated, compacted, or rejected by the
   controller;
 - skipped checks and remaining gaps.
 

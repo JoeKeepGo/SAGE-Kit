@@ -32,6 +32,10 @@ against the spec without losing context, widening scope, or hiding risk.
 - Update durable docs before handoff.
 - Treat `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot.
 - Treat `docs/DOC_ROUTING.md` as stable routing metadata, not a progress log.
+- Treat `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` as
+  controller-owned serial files during parallel or subagent work. Workers may
+  read them and return a `Memory Update Proposal`, but must not edit them
+  directly.
 
 ## Strict Mode Trigger
 
@@ -185,6 +189,9 @@ Before claiming `DONE`, committing, or handing off:
    the active task, phase, or gate uses that profile.
 6. If neither startup file needs an edit, record that explicitly in the
    completion report or handoff.
+
+Parallel workers and subagents must return memory update proposals for steps
+1-3. The controller applies, compacts, or rejects those proposals serially.
 
 ## Completion Rule
 

@@ -15,6 +15,9 @@ Context hygiene keeps long-running AI work reliable.
 - Maintain active context by replacement, not append-only accumulation.
 - Keep document routing stable unless the documentation topology or routing
   policy changes.
+- Treat `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` as single-writer
+  files during parallel or subagent work. Workers return memory update
+  proposals; the controller applies or rejects them serially.
 
 ## Minimum Read Declaration
 

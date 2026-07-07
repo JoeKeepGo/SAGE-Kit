@@ -69,6 +69,9 @@ Project Manager Controller
 - Controllers integrate worker outputs, resolve conflicts, and produce the
   packet for the next controller. Workers do not hand off directly to the next
   controller unless the packet says so.
+- `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` are controller-owned
+  serial files. Phase, lane, review, and corrective workers return memory
+  update proposals instead of editing those files directly.
 - Coder Controller must perform a self review before returning the result
   packet. This is execution-side integration review, not final acceptance.
 - When Task Dispatch Profile is active, Coder must keep task/evidence records
@@ -266,7 +269,8 @@ These remain serial even in Session Orchestration:
 - task-dispatch validator gate;
 - real runtime smoke unless exclusive runtime ownership is granted;
 - final integration;
-- active context and routing maintenance;
+- active context and routing maintenance, including worker memory update
+  proposal integration;
 - milestone ledger update;
 - milestone closeout;
 - git commit, push, release, publish, merge, or destructive operations;

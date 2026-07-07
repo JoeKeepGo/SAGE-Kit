@@ -91,6 +91,9 @@ handoff.
 - Do not treat historical closeouts as startup context.
 - Do not claim `DONE` unless required verification and memory maintenance are
   complete.
+- Do not let parallel workers or subagents edit `docs/ACTIVE_CONTEXT.md` or
+  `docs/DOC_ROUTING.md` directly. They must return memory update proposals for
+  controller integration.
 - Do not let SPEC-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
