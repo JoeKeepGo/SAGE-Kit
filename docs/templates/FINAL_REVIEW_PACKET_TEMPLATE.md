@@ -7,6 +7,8 @@ Verdict: ACCEPTABLE | ACCEPTABLE_WITH_CONCERNS | NEEDS_CORRECTION | BLOCKED
 
 Milestone:
 
+Primary Capability:
+
 Coder Packet Ref:
 
 Review Scope:
@@ -52,6 +54,16 @@ Worktree Review:
 - Cleanup authority preserved:
 - Submit recommendation:
 - Cleanup recommendation:
+
+Task Dispatch Review:
+- Task Dispatch active: `<yes/no>`
+- Task/evidence records reviewed:
+- Validator command:
+- Validator result:
+- L0-L4 evidence gaps:
+- Resource lock or lease gaps:
+- Mock or fallback concerns:
+- Records needing Project Manager decision:
 
 Phase Findings:
 

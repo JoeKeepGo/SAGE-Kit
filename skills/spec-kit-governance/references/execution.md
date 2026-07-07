@@ -80,6 +80,27 @@ maximum worktree count, submit authority, or cleanup policy are unclear.
 Workers must not push, merge, or delete worktrees unless the packet explicitly
 assigns that authority.
 
+## Task Dispatch
+
+Use Task Dispatch Profile only when the active milestone or execution packet
+adopts it.
+
+When active:
+
+- read the active `task.yaml` and `evidence.yaml` named by routing;
+- keep task status, runs, attempts, resource locks, leases, blockers, and next
+  action current;
+- record L0-L4 evidence in `evidence.yaml` instead of copying long logs into
+  startup docs;
+- run `scripts/validate_task_dispatch.py --gate-ready` before returning a task,
+  phase, or milestone as gate-ready when the packet requires validator
+  closeout;
+- return `HANDOFF` or `BLOCKED` when validator failure reflects missing scope,
+  missing evidence, unsafe fallback, or a Project Manager decision.
+
+Do not create task-dispatch records for ordinary small tasks unless Project
+Manager adopted the profile.
+
 ## Session Orchestration
 
 When Session Orchestration is active:
@@ -93,6 +114,9 @@ When Session Orchestration is active:
 - Final Review Controller orchestrates review workers or validation lanes,
   verifies independently, and returns a verdict.
 - Corrective workers fix only findings named in corrective packets.
+- If Task Dispatch Profile is active, Coder updates task/evidence records and
+  Final Review treats them as an evidence index to verify, not as proof by
+  themselves.
 
 Default corrective round limit is 2.
 

@@ -9,6 +9,8 @@ against the spec without losing context, widening scope, or hiding risk.
 
 - Read the smallest safe context first.
 - Identify the active phase before editing.
+- Treat Project Owner Intake and Capability Map as planning inputs, not
+  implementation authorization.
 - Name allowed files, read-only files, and forbidden files before writable work.
 - Use Wave Execution for safe parallel work inside a phase.
 - Use Session Orchestration for large milestone-level work that needs separate
@@ -16,6 +18,9 @@ against the spec without losing context, widening scope, or hiding risk.
 - Use Worktree Isolation only when Project Manager authorization names the
   allowed mode, maximum count, naming, integration owner, submit authority, and
   cleanup policy.
+- Use Task Dispatch Profile only when the active milestone or execution packet
+  adopts structured task/evidence records, resource locks, leases, and validator
+  closeout.
 - Route work to relevant skills, plugins, connectors, or tools when the agent
   runtime exposes a capability list.
 - Keep one task tied to one phase unless a batch execution plan explicitly
@@ -37,7 +42,8 @@ Strict Mode reduces judgment requirements by turning a phase into a narrow task
 card with explicit reads, allowed files, forbidden files, exact commands,
 completion evidence, and stop conditions.
 
-When in doubt, use Strict Mode.
+When model assurance is unclear, stop for controller classification or use
+Strict Mode.
 
 ## Agent Startup Checklist
 
@@ -46,11 +52,13 @@ When in doubt, use Strict Mode.
 3. Read active milestone ledger and phase doc when applicable.
 4. Check change-control state, such as branch, changelist, revision, and dirty
    files when applicable.
-5. Inspect the available skill, plugin, connector, and tool metadata when the
+5. Read active Task Dispatch records only when the routed task uses that
+   profile.
+6. Inspect the available skill, plugin, connector, and tool metadata when the
    runtime exposes it.
-6. Identify likely files, applicable specialist capabilities, and required
+7. Identify likely files, applicable specialist capabilities, and required
    verification.
-7. Report blockers before editing.
+8. Report blockers before editing.
 
 ## Context Budget
 
@@ -124,6 +132,7 @@ Before batch execution starts, the controller must record:
 - approval gates that remain closed;
 - final integration owner.
 - worktree isolation policy, when allowed.
+- task-dispatch record and validator policy, when adopted.
 
 A batch run must stop when any phase has a blocking `FAIL`, `BLOCKED`, or
 unapproved `WAIVED` gate.
@@ -172,7 +181,9 @@ Before claiming `DONE`, committing, or handing off:
    ownership boundaries, or archive policy changed.
 4. Put evidence and historical detail in the milestone ledger, phase document,
    milestone closeout, completion report, or handoff.
-5. If neither startup file needs an edit, record that explicitly in the
+5. Update task-dispatch task/evidence records and run the validator only when
+   the active task, phase, or gate uses that profile.
+6. If neither startup file needs an edit, record that explicitly in the
    completion report or handoff.
 
 ## Completion Rule

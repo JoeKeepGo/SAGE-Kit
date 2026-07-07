@@ -43,6 +43,10 @@ Before editing:
 For non-trivial work, as defined in `docs/SPEC_CORE.md`, create or update a
 retained phase document before implementation.
 
+For broad or non-technical project starts, use
+`docs/agent/PROJECT_OWNER_ENTRY.md` and create a capability map before
+promoting milestone candidates into an executable roadmap.
+
 The plan must include:
 
 - one observable goal;
@@ -62,6 +66,10 @@ instead of manually forwarding each phase between sessions.
 Use `docs/agent/WORKTREE_ISOLATION.md` only when Project Manager authorizes
 isolated milestone, phase, lane, or review workspaces and names submit and
 cleanup authority.
+
+Use `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` only when Project Manager
+adopts structured task/evidence records, resource locks, leases, and validator
+closeout for the milestone.
 
 ## Implement
 
@@ -95,6 +103,8 @@ Before handoff or commit:
 - check staged files if staging is used;
 - scan for secrets or local data when applicable;
 - confirm submit and cleanup authority when worktrees were used;
+- confirm Task Dispatch validator status when the profile is active and the
+  gate requires it;
 - maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot;
 - update `docs/DOC_ROUTING.md` only when routing or document topology changed;
 - update completion report with memory maintenance status;

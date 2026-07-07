@@ -23,6 +23,8 @@ Reference:
 - `docs/agent/SESSION_ORCHESTRATION.md` when milestone-level controller
   handoff is used
 - `docs/agent/WORKTREE_ISOLATION.md` when isolated workspaces are allowed
+- `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` when structured task
+  dispatch is adopted
 - `docs/templates/PHASE_TEMPLATE.md`
 - `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` when Session
   Orchestration is used
@@ -41,6 +43,7 @@ Reference:
 The entry gate must include:
 
 - milestone objective;
+- primary capability from `docs/CAPABILITY_MAP.md` when a capability map exists;
 - accepted inputs;
 - product constraints and non-goals;
 - phase sequence;
@@ -48,6 +51,7 @@ The entry gate must include:
 - module ownership;
 - public contract;
 - worktree isolation policy when isolated execution is allowed;
+- task-dispatch policy when structured task/evidence records are required;
 - test and smoke expectations;
 - capability routing expectations;
 - approval gates;
@@ -72,6 +76,9 @@ Each phase must have:
 
 Planning is blocked when a phase is too broad to assign exclusive file
 ownership, test independently, or review without reading unrelated history.
+
+Planning is also blocked when the milestone spans multiple primary capabilities
+from `docs/CAPABILITY_MAP.md` and has not been split.
 
 Use `docs/agent/MILESTONE_PLANNING.md` for the decomposition checklist.
 
@@ -119,6 +126,23 @@ If yes, name:
 - integration owner;
 - submit authority;
 - cleanup policy.
+
+## Task Dispatch
+
+State whether Project Manager adopts Task Dispatch Profile for this milestone.
+
+If yes, name:
+
+- dispatch board path;
+- task record root;
+- evidence record root;
+- required L0-L4 levels by task class;
+- resource lock policy;
+- Run/Attempt/Lease policy;
+- validator command;
+- gate where validator success is required;
+- owner of task record updates;
+- owner of evidence record updates.
 
 ## Session Orchestration
 

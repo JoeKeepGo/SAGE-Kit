@@ -2,6 +2,11 @@
 
 ## Objective
 
+## Primary Capability
+
+Name the capability from `docs/CAPABILITY_MAP.md`, or record `N/A` with a
+reason when no capability map is used.
+
 ## Current State
 
 ## Closeout Status
@@ -41,9 +46,9 @@ Acceptance invariant:
 
 ## Decomposition Notes
 
-| Phase | Objective | Owner | Contract | Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|
-| `<phase>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Objective | Primary Capability | Owner | Contract | Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `<objective>` | `<capability or n/a>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 ## Gate Status
 
@@ -75,6 +80,14 @@ Use this table when Worktree Isolation is used.
 | Worktree | Branch | Scope | Owner | Status | Integration | Cleanup |
 |---|---|---|---|---|---|---|
 | `<path>` | `<branch>` | `<phase/lane/review>` | `<owner>` | `<status>` | `<evidence>` | `<recommendation/status>` |
+
+## Task Dispatch Status
+
+Use this table when Task Dispatch Profile is used.
+
+| Task | Status | Required Levels | Validator | Resource Locks | Evidence | Next Action |
+|---|---|---|---|---|---|---|
+| `<task>` | `<status>` | `<L0-L4>` | `<pass/fail/not run>` | `<locks or none>` | `<evidence.yaml>` | `<next action>` |
 
 ## Session Orchestration Status
 

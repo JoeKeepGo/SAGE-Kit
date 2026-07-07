@@ -1,4 +1,4 @@
-# SPEC-Kit
+﻿# SPEC-Kit
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -15,6 +15,9 @@ and agent workflows can stay aligned over many sessions.
 - A core project specification model.
 - Templates for project profiles, milestones, phases, ledgers, closeouts,
   quality gates, approval gates, and completion reports.
+- Project Owner Entry for turning a non-technical idea into a lightweight
+  intake, project profile draft, capability map, and candidate milestones
+  before executable planning starts.
 - An AI agent harness for context control, file ownership, verification,
   handoff, and review.
 - Wave Execution for safe parallel development inside a phase.
@@ -22,10 +25,14 @@ and agent workflows can stay aligned over many sessions.
   Review controller workflows.
 - Worktree Isolation for controlled phase, lane, or review workspaces when the
   Project Manager authorizes isolated execution.
+- Task Dispatch Profile for structured task records, evidence records,
+  resource locks, Run/Attempt/Lease tracking, and validator-backed gate
+  closeout when a milestone needs stronger dispatch control.
 - Capability routing so controllers can delegate to relevant skills, plugins,
   connectors, or tools instead of letting governance instructions displace
   specialist capabilities.
-- Milestone planning rules that force reviewable, testable phase slices.
+- Milestone planning rules that force capability maps, reviewable milestones,
+  and testable phase slices before implementation.
 - Strict Mode for lower-assurance or unknown model families.
 - Optional profile packs for common project shapes, such as state-machine
   systems and control-plane plus execution-agent systems.
@@ -50,6 +57,7 @@ docs/
     AGENT_HARNESS.md
     MODEL_ASSURANCE_POLICY.md
     STRICT_MODE.md
+    PROJECT_OWNER_ENTRY.md
     WAVE_EXECUTION.md
     SESSION_ORCHESTRATION.md
     WORKTREE_ISOLATION.md
@@ -57,8 +65,13 @@ docs/
   profiles/
     state-machine/
     control-plane-agent/
+    task-dispatch/
   templates/
+    PROJECT_OWNER_INTAKE_TEMPLATE.md
+    CAPABILITY_MAP_TEMPLATE.md
     *_TEMPLATE.md
+scripts/
+  validate_task_dispatch.py
 skills/
   spec-kit-governance/
 ```
@@ -99,16 +112,20 @@ docs/
   ENGINEERING_SYSTEM.md
   QUALITY_GATES.md
   APPROVAL_GATES.md
+  CAPABILITY_MAP.md       # conditional for broad, non-technical, or coarse-roadmap projects
   MILESTONE_ROADMAP.md
   agent/
     AGENT_HARNESS.md
     MODEL_ASSURANCE_POLICY.md
     STRICT_MODE.md
+    PROJECT_OWNER_ENTRY.md
     WAVE_EXECUTION.md
     SESSION_ORCHESTRATION.md
     WORKTREE_ISOLATION.md
     MILESTONE_PLANNING.md
   templates/
+    PROJECT_OWNER_INTAKE_TEMPLATE.md
+    CAPABILITY_MAP_TEMPLATE.md
     PHASE_TEMPLATE.md
     MILESTONE_LEDGER_TEMPLATE.md
     MILESTONE_CLOSEOUT_TEMPLATE.md
@@ -124,6 +141,11 @@ docs/
     MILESTONE_LEDGER.md
     MILESTONE_CLOSEOUT.md  # created at milestone closure
     01-phase-name.md
+    dispatch/              # optional task-dispatch profile records
+      DISPATCH_BOARD.md
+      TASK-001/
+        task.yaml
+        evidence.yaml
 ```
 
 ## Copy Map
@@ -139,6 +161,8 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/APPROVAL_GATES_TEMPLATE.md` | `docs/APPROVAL_GATES.md` |
 | `docs/ACTIVE_CONTEXT_TEMPLATE.md` | `docs/ACTIVE_CONTEXT.md` |
 | `docs/DOC_ROUTING_TEMPLATE.md` | `docs/DOC_ROUTING.md` |
+| `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md` | Optional `docs/PROJECT_OWNER_INTAKE.md` |
+| `docs/templates/CAPABILITY_MAP_TEMPLATE.md` | `docs/CAPABILITY_MAP.md` for broad, non-technical, or coarse-roadmap projects |
 | `docs/templates/MILESTONE_ROADMAP_TEMPLATE.md` | `docs/MILESTONE_ROADMAP.md` |
 | `docs/templates/ENTRY_GATE_TEMPLATE.md` | `docs/M<ID>/00-entry-gate.md` |
 | `docs/templates/MILESTONE_LEDGER_TEMPLATE.md` | `docs/M<ID>/MILESTONE_LEDGER.md` |
@@ -149,7 +173,10 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` | Project Manager structural gate checklist |
 | `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` | Final Review verdict packet |
 | `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` | Bounded corrective work packet |
+| `docs/agent/PROJECT_OWNER_ENTRY.md` | Optional lightweight project owner entry policy |
 | `docs/agent/WORKTREE_ISOLATION.md` | Optional worktree isolation policy |
+| `docs/profiles/task-dispatch/` | Optional structured task dispatch profile |
+| `scripts/validate_task_dispatch.py` | Optional task dispatch validator |
 
 Copy `docs/agent/` when AI agents will execute or review work. Copy the
 relevant `docs/profiles/<profile>/` templates only when the project uses that
@@ -157,21 +184,31 @@ profile.
 
 ## Adoption Flow
 
-1. Fill in `PROJECT_PROFILE.md`.
-2. Write or adapt `TECHNICAL_DESIGN.md`.
-3. Define `QUALITY_GATES.md` and `APPROVAL_GATES.md`.
-4. Add `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
-5. Create the first milestone with `00-entry-gate.md`.
-6. Decompose the milestone into reviewable phases with explicit contracts,
+1. If the project starts from a broad or non-technical idea, use Project Owner
+   Entry to create intake notes, a project profile draft, and a capability map.
+2. Fill or refine `PROJECT_PROFILE.md`.
+3. Write or adapt `TECHNICAL_DESIGN.md`.
+4. Define `QUALITY_GATES.md` and `APPROVAL_GATES.md`.
+5. Add `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
+6. Create `CAPABILITY_MAP.md` for broad, non-technical, or coarse-roadmap
+   projects.
+7. Create draft milestone candidates from `CAPABILITY_MAP.md` when it is used.
+8. Promote only candidates that pass Milestone Granularity Gate into the
+   executable roadmap.
+9. Create the first milestone with `00-entry-gate.md`.
+10. Decompose the milestone into reviewable phases with explicit contracts,
    file boundaries, tests, and runtime checks.
-7. Execute each phase through retained phase docs and completion reports.
-8. Use Wave Execution when safe parallel lanes can speed up the phase.
-9. Use Session Orchestration for large milestones that need Project Manager,
+11. Execute each phase through retained phase docs and completion reports.
+12. Use Wave Execution when safe parallel lanes can speed up the phase.
+13. Use Session Orchestration for large milestones that need Project Manager,
    Coder, and Final Review controller handoff.
-10. Use Worktree Isolation only when Project Manager authorizes isolated
+14. Use Worktree Isolation only when Project Manager authorizes isolated
     phase, lane, or review workspaces.
-11. Keep milestone state in `MILESTONE_LEDGER.md`.
-12. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
+15. Use the Task Dispatch Profile only when a milestone needs structured
+    task/evidence records, resource locks, lease tracking, or validator-backed
+    dispatch closeout.
+16. Keep milestone state in `MILESTONE_LEDGER.md`.
+17. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
     historical outcome index.
 
 Historical closeouts are not default startup context. Read them only through

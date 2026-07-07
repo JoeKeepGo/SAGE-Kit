@@ -21,6 +21,8 @@ Security / Data Hygiene:
 
 Memory Maintenance:
 
+Task Dispatch Status:
+
 Skipped Checks:
 
 Remaining Gaps:

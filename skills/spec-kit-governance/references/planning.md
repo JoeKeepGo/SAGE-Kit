@@ -1,7 +1,18 @@
-# SPEC-Kit Planning
+﻿# SPEC-Kit Planning
 
 Use this reference for roadmap, milestone, entry gate, phase, wave, session
 orchestration, and worktree isolation planning.
+
+## Project Owner Entry
+
+For broad or non-technical ideas, use Project Owner Entry before roadmap
+planning:
+
+- collect the five-question intake;
+- draft a simple project profile;
+- create a capability map;
+- generate candidate milestones only after the capability map exists;
+- do not treat candidates as executable until Milestone Granularity Gate passes.
 
 ## Milestone Granularity
 
@@ -20,11 +31,20 @@ decomposed into reviewable phases with:
 Split broad phases such as "build backend", "add UI", "integrate everything",
 "add tests", "polish", or "refactor core".
 
+Split broad milestones such as "backend complete", "frontend complete",
+"agent integration", "admin console", "data layer", "production readiness", or
+"final polish".
+
+For broad, non-technical, or coarse-roadmap projects, compare the roadmap against
+`docs/CAPABILITY_MAP.md`. If a milestone spans multiple primary capabilities,
+it remains a candidate and must be split before execution.
+
 ## Entry Gate Checklist
 
 Before implementation starts, the entry gate must answer:
 
 - What is the milestone objective?
+- Which primary capability from the capability map does it prove?
 - What is out of scope?
 - What are the phases?
 - What contract does each phase own?
@@ -35,6 +55,9 @@ Before implementation starts, the entry gate must answer:
   handoff between Project Manager, Coder, and Final Review controllers?
 - Does Project Manager allow Worktree Isolation, and if yes what mode, maximum
   count, naming, submit authority, and cleanup policy apply?
+- Does this milestone need Task Dispatch Profile for structured task/evidence
+  records, resource locks, Run/Attempt/Lease tracking, or validator-backed
+  gate closeout?
 - Which specialist skills, plugins, connectors, or tools should controllers
   route to for implementation, validation, review, or runtime smoke?
 - Which gates remain closed?
@@ -92,6 +115,25 @@ Plan:
 - corrective round limit.
 
 Do not use Session Orchestration for small single-phase work.
+
+## Task Dispatch Planning
+
+Use Task Dispatch Profile only when structured task tracking is worth the
+extra ceremony.
+
+Plan:
+
+- dispatch board path;
+- task and evidence record roots;
+- required L0-L4 levels by task class;
+- resource lock and lease policy;
+- validator command;
+- which gate requires validator success;
+- who updates task records;
+- who updates evidence records.
+
+Keep full task/evidence records out of startup context unless routing points to
+the active task or gate.
 
 ## Milestone Closure Order
 

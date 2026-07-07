@@ -95,6 +95,20 @@ Change Control Evidence:
 - dirty files before work:
 ```
 
+## Task Dispatch Evidence
+
+Use only when Task Dispatch Profile is active for this phase.
+
+```text
+Task Dispatch Evidence:
+- task record:
+- evidence record:
+- required L0-L4 levels:
+- resource locks:
+- validator command:
+- validator result:
+```
+
 ## Completion Gate
 
 List exact evidence required before this phase can be called complete.
@@ -125,6 +139,8 @@ Security / Data Hygiene:
 Memory Maintenance:
 
 Change Control Status:
+
+Task Dispatch Status:
 
 Gate Status:
 

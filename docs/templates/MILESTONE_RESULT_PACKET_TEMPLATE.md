@@ -8,6 +8,8 @@ Status: DONE | DONE_WITH_CONCERNS | HANDOFF | BLOCKED
 
 Milestone:
 
+Primary Capability:
+
 Execution Packet Ref:
 
 Scope Implemented:
@@ -42,6 +44,17 @@ Worktree Decisions:
 - Submit authority:
 - Cleanup authority:
 - Cleanup recommendation:
+
+Task Dispatch Results:
+- Task Dispatch active: `<yes/no>`
+- Dispatch board:
+- Task records updated:
+- Evidence records updated:
+- Validator command:
+- Validator result:
+- Resource lock status:
+- Lease status:
+- Records needing Project Manager decision:
 
 Phase Results:
 

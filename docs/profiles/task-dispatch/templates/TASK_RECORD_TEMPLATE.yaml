@@ -1,0 +1,42 @@
+id: TASK-000
+type: spec
+title: Example task title
+priority: P2
+status: NEW
+mode: single-surface
+area: []
+owner: unassigned
+
+lifecycle:
+  phase: triage
+  next_action: define scope
+
+scope:
+  objective: Describe the observable result.
+  allowed_files: []
+  read_only_files: []
+  forbidden_files: []
+  non_goals: []
+  stop_conditions: []
+
+verification:
+  required_levels: [L0]
+  evidence_file: evidence.yaml
+  mock_allowed: false
+  required_commands: []
+  runtime_smoke: n/a
+
+dependencies:
+  requires: []
+  blocks: []
+
+resources:
+  locks: []
+
+runs: []
+
+closure:
+  accepted_by: null
+  accepted_at: null
+  closed_at: null
+  notes: null

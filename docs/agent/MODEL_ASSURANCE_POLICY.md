@@ -18,14 +18,17 @@ The starter high-assurance families are:
 Projects may add other model families or specific models when they have enough
 evidence to trust them for the task class.
 
-Use Strict Mode when:
+Strict Mode is required by default when:
 
 - the model family is unknown;
 - the model is not in a high-assurance family;
 - the model is small, routed, fine-tuned, tool-wrapped, or otherwise not
-  explicitly approved for autonomous planning;
-- the task touches approval gates, shared contracts, production data, release,
-  or destructive actions.
+  explicitly approved for autonomous planning.
+
+High-risk tasks that touch approval gates, shared contracts, production data,
+release, or destructive actions require explicit controller or human
+authorization. Projects may require Strict Mode for those tasks even when the
+model family is high-assurance.
 
 ## Controller Responsibility
 

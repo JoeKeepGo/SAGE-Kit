@@ -35,6 +35,7 @@ safely.
 | Product profile | `docs/PROJECT_PROFILE.md` |
 | Technical design | `docs/TECHNICAL_DESIGN.md` |
 | Quality gates | `docs/QUALITY_GATES.md` |
+| Capability map | `docs/CAPABILITY_MAP.md` or `n/a` |
 | Roadmap | `docs/MILESTONE_ROADMAP.md` |
 | Active milestone ledger | `<path>` |
 

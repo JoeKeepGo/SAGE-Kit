@@ -1,4 +1,4 @@
-# Milestone Planning
+﻿# Milestone Planning
 
 Milestone Planning prevents broad milestones from turning into vague,
 hard-to-execute work.
@@ -15,9 +15,20 @@ and stop conditions.
 
 If the milestone cannot be decomposed, it is still planning work.
 
+Broad, non-technical, or coarse-roadmap projects must pass through a capability map before
+their milestone candidates become an executable roadmap.
+
+Project Owner Entry outputs are planning inputs. They are not executable
+roadmaps.
+
 ## Granularity Rules
 
 Each milestone should have one primary capability.
+
+Before accepting a roadmap, compare milestone candidates against
+`docs/CAPABILITY_MAP.md`. If the roadmap has far fewer milestones than the
+capability map has primary capabilities, audit for epic-sized milestones before
+implementation starts.
 
 Each phase should have:
 
@@ -39,6 +50,17 @@ Avoid phases named only by broad activity, such as:
 - polish;
 - refactor core.
 
+Avoid milestones named only by broad areas, such as:
+
+- backend complete;
+- frontend complete;
+- agent integration;
+- admin console;
+- data layer;
+- production readiness;
+- all tests;
+- final polish.
+
 Replace broad phases with capability slices:
 
 - define contract;
@@ -53,24 +75,26 @@ Replace broad phases with capability slices:
 
 Use this ladder before accepting a milestone plan:
 
-1. Product outcome: what user or operator capability changes?
-2. Contract surface: what API, event, UI, CLI, data, or runtime contract is affected?
-3. Ownership boundary: which component owns the behavior?
-4. Durable state: what state changes, if any?
-5. Execution path: what runtime path proves it works?
-6. Failure path: what errors, retries, denials, or blocked states must appear?
-7. Verification path: what tests and smoke prove each claim?
-8. Approval gates: what human approval is required?
-9. Parallel lanes: which work can be split safely?
-10. Capability routing: which specialist skills, plugins, connectors, or tools
+1. Capability map: which primary capability does this milestone prove?
+2. Product outcome: what user or operator capability changes?
+3. Contract surface: what API, event, UI, CLI, data, or runtime contract is affected?
+4. Ownership boundary: which component owns the behavior?
+5. Durable state: what state changes, if any?
+6. Execution path: what runtime path proves it works?
+7. Failure path: what errors, retries, denials, or blocked states must appear?
+8. Verification path: what tests and smoke prove each claim?
+9. Approval gates: what human approval is required?
+10. Parallel lanes: which work can be split safely?
+11. Capability routing: which specialist skills, plugins, connectors, or tools
     should execute or verify domain work?
-11. Integration gate: what must remain serial?
+12. Integration gate: what must remain serial?
 
 ## Milestone Entry Gate Checklist
 
 Before implementation starts, the entry gate must answer:
 
 - What is the one milestone objective?
+- Which primary capability from the capability map does it prove?
 - What is explicitly out of scope?
 - What are the phases?
 - What contract does each phase own?
@@ -90,6 +114,9 @@ Before implementation starts, the entry gate must answer:
 
 Treat these as blockers:
 
+- no capability map exists for a broad, non-technical, or coarse roadmap;
+- project owner intake was promoted directly into an executable roadmap;
+- a roadmap milestone spans multiple primary capabilities without a split;
 - milestone has no phase sequence;
 - a phase has no file boundary;
 - a phase has no test or smoke plan;
@@ -117,6 +144,7 @@ Not every milestone needs every phase, but this shape is a good default:
 
 A well-planned milestone produces:
 
+- capability-map link for broad, non-technical, or coarse-roadmap work;
 - `00-entry-gate.md`;
 - `MILESTONE_LEDGER.md`;
 - one phase file per reviewable slice;

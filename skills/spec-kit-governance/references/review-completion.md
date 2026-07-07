@@ -8,6 +8,7 @@ memory maintenance, closeout, commit, or push.
 Review for:
 
 - spec compliance;
+- milestone granularity and primary capability alignment;
 - file boundary drift;
 - missing tests or smoke;
 - unproven runtime claims;
@@ -18,6 +19,8 @@ Review for:
 - ignored specialist capabilities when the runtime exposed relevant skills,
   plugins, connectors, or tools;
 - unauthorized or unsafe worktree isolation;
+- incomplete task-dispatch records or failed validator results when Task
+  Dispatch Profile is active;
 - session orchestration packet completeness when used.
 
 Lead with blocking findings before summaries.
@@ -30,6 +33,7 @@ Lead with blocking findings before summaries.
 - tests run;
 - runtime smoke or non-applicability reason;
 - approval gates;
+- task-dispatch validator result when the profile is active;
 - security or data hygiene checks;
 - memory maintenance;
 - skipped checks;
@@ -103,4 +107,6 @@ Before commit, push, PR, or final handoff:
 4. Run required verification.
 5. Confirm completion report, ledger, and memory maintenance are current.
 6. Confirm worktree submit and cleanup authority when worktrees were used.
-7. Commit or hand off only intended scope.
+7. Confirm Task Dispatch validator success when the profile is active and the
+   gate requires it.
+8. Commit or hand off only intended scope.

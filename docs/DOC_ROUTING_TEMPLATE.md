@@ -1,4 +1,4 @@
-# Document Routing Template
+﻿# Document Routing Template
 
 This routing guide prevents future sessions from reading the whole documentation
 archive by default.
@@ -27,14 +27,17 @@ Default startup read set:
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` |
+| Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
+| Capability map or roadmap granularity audit | Project profile, `docs/CAPABILITY_MAP.md` if present or `docs/templates/CAPABILITY_MAP_TEMPLATE.md` if creating it, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design, relevant profile templates, prior closeouts only when the capability depends on history |
 | New feature planning | Project profile, technical design, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
 | Milestone planning | Project profile, technical design, roadmap, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
 | Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
 | Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
+| Task dispatch | Active context, this file, active milestone ledger, active task `task.yaml`, active task `evidence.yaml`, `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` | Dispatch board, schemas, validator output, related dependency task records |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
 | UI work | Active phase doc, UI contract, quality gates | Design system or product profile sections |
 | Contract change | Contract owner doc and consumer docs | Relevant closeout decision summary, then historical decision records |
-| Review | Active phase doc, quality gates, changed files | Prior closeout summary, then ledger evidence |
+| Review | Active phase doc, quality gates, changed files | Active task/evidence records when Task Dispatch is used, prior closeout summary, then ledger evidence |
 | Historical outcome lookup | Named `MILESTONE_CLOSEOUT.md` | Ledger, phase docs, and completion reports only for provenance |
 | Release or publish | Approval gates, release phase doc | Packaging docs |
 
@@ -68,6 +71,10 @@ Prefer targeted reads before full archives:
 2. read capability metadata before capability bodies;
 3. search for headings or symbols before reading whole files;
 4. read packet templates only when the current task uses that packet.
+5. read task-dispatch schemas and validator internals only when adopting the
+   profile, debugging validation, or closing a gate that depends on them.
+6. read project owner intake before capability maps, and capability maps before
+   executable roadmaps for broad, non-technical, or coarse-roadmap projects.
 
 Do not read every phase doc, historical ledger, closeout, skill body, plugin
 body, or log unless the task explicitly requires full milestone review,

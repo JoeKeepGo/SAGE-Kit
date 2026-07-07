@@ -71,6 +71,8 @@ Project Manager Controller
   controller unless the packet says so.
 - Coder Controller must perform a self review before returning the result
   packet. This is execution-side integration review, not final acceptance.
+- When Task Dispatch Profile is active, Coder must keep task/evidence records
+  current and include validator results in the milestone result packet.
 - Coder and Final Review controllers must reassess whether phases or lanes can
   run in parallel, must stay serial, or must stop for Project Manager decision.
 - Coder may decide where to use worktrees only when the Project Manager
@@ -78,6 +80,9 @@ Project Manager Controller
 - Final Review verifies worktree use and may recommend submit or cleanup, but
   must not commit, push, merge, or delete worktrees while acting as Final
   Review.
+- When Task Dispatch Profile is active, Final Review must inspect the relevant
+  task/evidence records, run or review the validator result, and use the
+  records as an evidence index rather than as proof by themselves.
 - If the same session is later used for submit or cleanup, Project Manager must
   first record the Final Review verdict, then issue a separate Submit
   Controller authorization.
@@ -168,6 +173,33 @@ integrated correctly. Final Review returns submit and cleanup recommendations.
 Project Manager or a separately authorized Submit Controller makes the final
 commit, push, merge, and cleanup decision.
 
+## Task Dispatch
+
+Use `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` when a milestone needs
+structured task records, evidence records, resource locks, Run/Attempt/Lease
+tracking, and validator-backed closeout.
+
+Project Manager decides whether Task Dispatch Profile is active and sets:
+
+- dispatch board path;
+- task record root;
+- evidence record root;
+- required L0-L4 levels;
+- resource lock policy;
+- Run/Attempt/Lease policy;
+- validator command;
+- the gate where validator success is required;
+- task and evidence update owners.
+
+Coder Controller updates the task and evidence records while integrating worker
+results. Final Review independently checks the records, validator output, and
+underlying evidence needed for the verdict.
+
+Default validator success means the records are structurally ready for review.
+Gate-ready validator success means the records also claim verified status,
+passlike required levels, and no blockers. Neither mode accepts the milestone
+or replaces Final Review judgment.
+
 ## Project Manager Structural Gate
 
 The Project Manager Controller does not perform technical verification between
@@ -176,6 +208,8 @@ Coder and Final Review.
 It checks only whether the Coder packet is structurally ready for review:
 
 - every phase has a status;
+- primary capability and capability-map reference are present or marked not
+  applicable;
 - files changed are listed;
 - contracts and ownership are named;
 - tests and runtime smoke are reported or marked not applicable;
@@ -229,6 +263,7 @@ These remain serial even in Session Orchestration:
 - approval gates;
 - branch base changes;
 - schema, migration, lockfile, and generated artifact changes;
+- task-dispatch validator gate;
 - real runtime smoke unless exclusive runtime ownership is granted;
 - final integration;
 - active context and routing maintenance;
@@ -259,5 +294,7 @@ A milestone run using Session Orchestration is not complete until:
 - corrective rounds are complete or explicitly stopped;
 - Project Manager records the final decision;
 - milestone ledger is current;
+- task-dispatch records and validator result are current when the profile is
+  active;
 - active context and routing maintenance are handled;
 - closeout is written when the milestone closes.

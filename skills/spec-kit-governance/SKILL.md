@@ -1,6 +1,6 @@
 ---
 name: spec-kit-governance
-description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
+description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Project Owner Entry, capability map, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, or Task Dispatch. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
 ---
 
 # SPEC-Kit Governance
@@ -104,6 +104,12 @@ handoff.
 - Use Worktree Isolation only when Project Manager authorization names the
   allowed mode, maximum count, naming, integration owner, submit authority, and
   cleanup policy.
+- Use Task Dispatch Profile only when project routing, the milestone entry
+  gate, or the execution packet adopts structured task/evidence records and
+  validator closeout.
+- Use Project Owner Entry for broad or non-technical ideas, but do not promote
+  its draft outputs into an executable roadmap until a capability map and
+  Milestone Granularity Gate pass.
 
 ## End Of Run
 
@@ -117,4 +123,6 @@ Before final handoff, commit, or completion:
 4. Update the completion report and milestone ledger with memory maintenance
    status when the task owns them.
 5. Write or update `MILESTONE_CLOSEOUT.md` only when closing a milestone.
-6. Report skipped checks, blockers, remaining gaps, and next action.
+6. Update task/evidence records and run the dispatch validator only when Task
+   Dispatch Profile is active for the current task or gate.
+7. Report skipped checks, blockers, remaining gaps, and next action.

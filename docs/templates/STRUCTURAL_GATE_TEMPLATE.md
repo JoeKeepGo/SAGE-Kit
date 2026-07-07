@@ -19,6 +19,7 @@ Required Sections Present:
 | Section | Present | Notes |
 |---|---|---|
 | Status | `<yes/no>` | `<notes>` |
+| Primary capability / capability map or n/a | `<yes/no>` | `<notes>` |
 | Scope implemented / not implemented | `<yes/no>` | `<notes>` |
 | Capability discovery used | `<yes/no>` | `<notes>` |
 | Parallelism assessment | `<yes/no>` | `<notes>` |

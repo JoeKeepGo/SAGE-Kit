@@ -7,11 +7,14 @@ Milestone:
 
 Objective:
 
+Primary Capability:
+
 Source Docs:
 - Active context:
 - Document routing:
 - Entry gate:
 - Milestone ledger:
+- Capability map:
 - Phase docs:
 - Quality gates:
 - Approval gates:
@@ -37,6 +40,18 @@ Worktree Isolation Policy:
 - Submit authority:
 - Cleanup policy:
 - Forbidden scenarios:
+
+Task Dispatch Policy:
+- Active: `<yes/no>`
+- Dispatch board:
+- Task record root:
+- Evidence record root:
+- Required L0-L4 levels:
+- Resource lock policy:
+- Run/Attempt/Lease policy:
+- Validator command:
+- Validator required before: `<task gate/phase gate/milestone gate/n/a>`
+- Task/evidence update owner:
 
 Capability Discovery:
 - Capability registry checked: `<yes/no/not available>`

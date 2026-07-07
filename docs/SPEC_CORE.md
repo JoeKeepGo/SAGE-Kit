@@ -1,4 +1,4 @@
-# SPEC Core
+﻿# SPEC Core
 
 SPEC Core defines the reusable rules that every project using SPEC-Kit should
 follow. Project-specific details belong in project profiles, technical designs,
@@ -17,10 +17,16 @@ milestones, and phase documents.
   session history.
 - Summarize closed milestones in compact closeouts instead of promoting
   historical ledgers into startup context.
+- Use Project Owner Entry when a project starts from a broad or non-technical
+  idea, but treat its output as planning input, not implementation authority.
+- Build a capability map before promoting broad ideas into executable
+  milestone roadmaps.
 - Use milestone-level session orchestration only when it reduces handoff burden
   without weakening gates, verification, or final decision ownership.
 - Use worktree isolation only when the project explicitly authorizes isolated
   execution and names submit and cleanup ownership.
+- Use structured task dispatch only when the project explicitly adopts it and
+  needs machine-checkable task/evidence records.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
@@ -47,6 +53,13 @@ All other work is non-trivial and requires a retained phase or task document.
 | `docs/DOC_ROUTING.md` | Smallest safe read set by task type. |
 | `docs/MILESTONE_ROADMAP.md` | Milestone sequence and review gates. |
 
+Conditional project documents:
+
+| File | Required When |
+|---|---|
+| `docs/PROJECT_OWNER_INTAKE.md` | The project starts from a broad or non-technical idea. |
+| `docs/CAPABILITY_MAP.md` | The project starts from a broad or non-technical idea, or roadmap granularity is uncertain. |
+
 ## Standard Workflow
 
 ```text
@@ -57,10 +70,13 @@ SPEC-Kit supports these execution controls:
 
 | Control | Use For | Primary Doc |
 |---|---|---|
+| Project Owner Entry | Lightweight intake for broad or non-technical project ideas. | `docs/agent/PROJECT_OWNER_ENTRY.md` |
+| Capability Map | Planning layer before executable milestone roadmaps. | `docs/templates/CAPABILITY_MAP_TEMPLATE.md` |
 | Phase Execution | One bounded phase or task. | `docs/agent/PHASE_EXECUTION.md` |
 | Wave Execution | Safe parallel lanes inside one phase. | `docs/agent/WAVE_EXECUTION.md` |
 | Session Orchestration | Large milestones that need Project Manager, Coder, and Final Review controllers. | `docs/agent/SESSION_ORCHESTRATION.md` |
 | Worktree Isolation | Optional isolation policy for authorized milestone, phase, lane, or review workspaces. | `docs/agent/WORKTREE_ISOLATION.md` |
+| Task Dispatch Profile | Optional structured task/evidence records, resource locks, leases, and validator-backed gate closeout. | `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` |
 
 Explore:
 
@@ -71,6 +87,8 @@ Explore:
 
 Plan:
 
+- For broad, non-technical, or coarse-roadmap projects, create project owner intake and a
+  capability map before an executable roadmap.
 - Write or update the retained phase document.
 - Name requirement IDs and contracts.
 - Define allowed files, read-only files, and forbidden files.
@@ -96,6 +114,8 @@ Submit:
 - Maintain `docs/ACTIVE_CONTEXT.md` as a current-state snapshot.
 - Update `docs/DOC_ROUTING.md` only when routing or document topology changed.
 - Update completion reports and ledgers with memory maintenance status.
+- Update task/evidence records and run the dispatch validator when the project
+  adopted Task Dispatch Profile for the active task or gate.
 - Commit or hand off only the intended scope.
 
 ## Universal Completion Rule
@@ -118,6 +138,15 @@ blocking gate means the work is `BLOCKED` or `HANDOFF`, not complete.
 
 Runtime, UI, service, worker, database, device, or external integration evidence
 is required only when that surface is in scope.
+
+## Roadmap Granularity Rule
+
+Project Owner Entry must not produce an executable roadmap directly. It
+produces intake notes, a project profile draft, a capability map, and draft
+milestone candidates.
+
+Only milestone candidates that pass Milestone Granularity Gate may be promoted
+into `docs/MILESTONE_ROADMAP.md` for implementation planning.
 
 ## Milestone Closeout Rule
 

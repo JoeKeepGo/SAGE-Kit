@@ -1,4 +1,4 @@
-# Quality Gates Template
+﻿# Quality Gates Template
 
 This document defines the evidence required before project work can be called
 complete.
@@ -35,8 +35,9 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Gate | Required Evidence |
 |---|---|
 | Read gate | Completion report names docs read, phase doc, files, and verification plan. |
+| Project owner entry gate | Broad, non-technical, or coarse-roadmap projects produce intake and a capability map before executable roadmap planning. |
 | Phase documentation gate | Non-trivial work uses a retained phase document. |
-| Milestone granularity gate | Milestone has reviewable phases with contracts, file boundaries, tests, and smoke plans. |
+| Milestone granularity gate | Milestone candidate maps to one primary capability and has reviewable phases with contracts, file boundaries, tests, and smoke plans. |
 | Contract gate | Request, response, event, config, UI, CLI, or data contract is named before implementation. |
 | Test gate | Focused tests exist and run, or a manual-only exception is justified. |
 | Runtime gate | Runtime claims are proven by live evidence. |
@@ -45,13 +46,18 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Security gate | Secrets and sensitive data are not exposed or staged. |
 | No fallback gate | No guessed fields, hidden success, speculative aliases, or silent downgrade paths. |
 | Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
+| Structured dispatch gate | When Task Dispatch Profile is active, task and evidence records exist, required L0-L4 levels are present, resource locks and leases are recorded, and the validator passes in gate-ready mode before acceptance. |
 
 ## Universal Blockers
 
 - behavior changed but no test or smoke path exists;
 - implementation started without the required retained phase document;
+- a broad, non-technical, or coarse-roadmap project generated an executable roadmap directly
+  from intake without a capability map and granularity audit;
 - milestone implementation started before phases were decomposed into
   reviewable slices;
+- a milestone candidate spans multiple primary capabilities without being
+  split;
 - a phase mixes unrelated ownership domains without a wave plan and integration
   owner;
 - parallel lanes edit the same file without controller-owned serialization;
@@ -63,6 +69,8 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
   are staged or committed.
 - a blocking gate is skipped without an explicit `WAIVED` status from the
   project owner.
+- Task Dispatch Profile is active and a task, phase, or milestone is accepted
+  without a passing gate-ready dispatch validator result.
 
 ## Required Gate Status Table
 
@@ -99,3 +107,18 @@ This should work.
 ```
 
 Evidence beats confidence.
+
+## Optional Structured Evidence Levels
+
+Use these levels when a project adopts the Task Dispatch Profile:
+
+| Level | Meaning |
+|---|---|
+| `L0` | Static and structural evidence. |
+| `L1` | Focused behavior evidence. |
+| `L2` | Contract or integration evidence. |
+| `L3` | Runtime evidence. |
+| `L4` | Release or production-path evidence. |
+
+These levels complement the gate table above. They do not replace normal
+quality gates, owner waivers, or Final Review judgment.
