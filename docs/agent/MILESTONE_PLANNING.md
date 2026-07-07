@@ -85,9 +85,11 @@ Use this ladder before accepting a milestone plan:
 8. Verification path: what tests and smoke prove each claim?
 9. Approval gates: what human approval is required?
 10. Parallel lanes: which work can be split safely?
-11. Capability routing: which specialist skills, plugins, connectors, or tools
-    should execute or verify domain work?
-12. Integration gate: what must remain serial?
+11. Capability routing: which specialist skills, plugins, connectors, MCP
+    tools, CI, or reviewers should execute or verify domain work under
+    `docs/SPEC_CORE.md#external-capability-boundary`?
+12. Governance Level: is this control scope Light, Standard, or Heavy?
+13. Integration gate: what must remain serial?
 
 ## Milestone Entry Gate Checklist
 
@@ -101,10 +103,14 @@ Before implementation starts, the entry gate must answer:
 - What files or modules are likely to change?
 - Which files are shared and need exclusive ownership?
 - Which phases can use waves?
+- What governance level applies to the milestone controller, and what level
+  should each worker or lane use?
 - Does the milestone need Session Orchestration to avoid repeated manual
   handoff across phases?
-- Which specialist skills, plugins, connectors, or tools should be routed to
-  for implementation, validation, review, or runtime smoke?
+- Which specialist skills, plugins, connectors, MCP tools, CI, or reviewers
+  should be routed to for implementation, validation, review, or runtime smoke?
+- If an external planning workflow is used, where is its plan written into or
+  mapped to the milestone, phase, or packet docs?
 - Which gates remain closed?
 - Which runtime checks prove the milestone?
 - What review or handoff phase closes the milestone?
@@ -118,6 +124,9 @@ Treat these as blockers:
 - project owner intake was promoted directly into an executable roadmap;
 - a roadmap milestone spans multiple primary capabilities without a split;
 - milestone has no phase sequence;
+- milestone controller governance level is not named;
+- Heavy milestone governance was inherited by every worker without checking
+  worker-specific scope and risk;
 - a phase has no file boundary;
 - a phase has no test or smoke plan;
 - a phase mixes unrelated ownership domains;
@@ -149,10 +158,11 @@ A well-planned milestone produces:
 - `MILESTONE_LEDGER.md`;
 - one phase file per reviewable slice;
 - wave plan for phases that can run in parallel;
+- governance level selector result for the controller and delegated workers;
 - session orchestration packet plan when Project Manager, Coder, and Final
   Review controllers are used;
-- capability routing plan for specialist skills, plugins, connectors, or
-  tools;
+- capability routing plan for specialist skills, plugins, connectors, MCP
+  tools, CI, or reviewers;
 - approval gates and stop conditions;
 - final review or handoff criteria;
 - `MILESTONE_CLOSEOUT.md` after the milestone closes.

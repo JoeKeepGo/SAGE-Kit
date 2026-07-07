@@ -7,6 +7,17 @@ placeholders with concrete content before implementation starts.
 
 State the one observable result this phase must produce.
 
+## Governance Level
+
+Select `Light`, `Standard`, or `Heavy` using
+`docs/agent/GOVERNANCE_LEVELS.md`.
+
+- Level:
+- Why this level:
+- Controls Enabled:
+- Controls Not Enabled:
+- Upgrade triggers:
+
 ## Requirement IDs
 
 List product, architecture, API, security, UI, data, runtime, or local feature
@@ -51,6 +62,7 @@ If yes, list:
 - read-only lanes;
 - writable lanes and exclusive allowed files;
 - validation lanes;
+- governance level per lane;
 - shared files requiring serial ownership;
 - gates that must remain serial.
 
@@ -65,6 +77,20 @@ Define request, response, event, config, UI, CLI, or data contract. Include:
 - success shape;
 - error shape;
 - security boundary.
+
+## Capability Routing
+
+State which specialist skills, plugins, connectors, or tools may be used for
+this phase. SPEC-Kit owns scope, authorization, files, gates, locks, evidence,
+and completion status; external capabilities provide execution methods inside
+that boundary.
+
+If superpowers is available, list the specific skills allowed for this phase and
+the boundary they must stay inside. If unavailable, use the SPEC-Kit-native
+phase, gate, packet, and evidence path.
+
+External planning outputs must be written into or mapped to this phase doc, the
+milestone ledger, or the controlling packet.
 
 ## Test Plan
 
@@ -112,6 +138,8 @@ Task Dispatch Evidence:
 ## Completion Gate
 
 List exact evidence required before this phase can be called complete.
+External capability completion is evidence only; it is not phase acceptance or
+SPEC-Kit gate completion.
 
 ## Completion Report
 
@@ -120,11 +148,29 @@ Fill this after execution.
 ```markdown
 Conclusion:
 
+Governance Level:
+
+Controls Enabled:
+
+Controls Not Enabled:
+
+Upgrade Triggers:
+
+Stopped Worker / Controller Decision:
+
 Scope Implemented:
 
 Files Changed:
 
 Contract Evidence:
+
+Capabilities Used:
+
+superpowers Skills Used:
+
+External Capability Evidence:
+
+External Planning Output Mapped To:
 
 Wave / Lane Evidence:
 
@@ -146,7 +192,7 @@ Gate Status:
 
 | Gate | Status | Evidence | Blocking | Owner | Notes |
 |---|---|---|---|---|---|
-| `<gate>` | `PASS | FAIL | BLOCKED | WAIVED | N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
+| `<gate>` | `PASS`, `FAIL`, `BLOCKED`, `WAIVED`, or `N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
 
 Skipped Checks:
 

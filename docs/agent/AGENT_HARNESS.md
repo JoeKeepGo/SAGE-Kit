@@ -8,6 +8,8 @@ against the spec without losing context, widening scope, or hiding risk.
 ## Operating Rules
 
 - Read the smallest safe context first.
+- Select the lightest safe governance level for the current control scope using
+  `docs/agent/GOVERNANCE_LEVELS.md`.
 - Identify the active phase before editing.
 - Treat Project Owner Intake and Capability Map as planning inputs, not
   implementation authorization.
@@ -21,8 +23,8 @@ against the spec without losing context, widening scope, or hiding risk.
 - Use Task Dispatch Profile only when the active milestone or execution packet
   adopts structured task/evidence records, resource locks, leases, and validator
   closeout.
-- Route work to relevant skills, plugins, connectors, or tools when the agent
-  runtime exposes a capability list.
+- Route work to relevant external capabilities when the agent runtime exposes a
+  capability list.
 - Keep one task tied to one phase unless a batch execution plan explicitly
   defines phase order, gates, and stop conditions, or Session Orchestration
   defines the milestone controller packet flow.
@@ -58,11 +60,13 @@ Strict Mode.
    files when applicable.
 5. Read active Task Dispatch records only when the routed task uses that
    profile.
-6. Inspect the available skill, plugin, connector, and tool metadata when the
-   runtime exposes it.
-7. Identify likely files, applicable specialist capabilities, and required
+6. Select governance level for this control scope: `Light`, `Standard`, or
+   `Heavy`.
+7. Inspect available skill, plugin, connector, MCP tool, CI, and review
+   metadata when the runtime exposes it.
+8. Identify likely files, applicable specialist capabilities, and required
    verification.
-8. Report blockers before editing.
+9. Report blockers before editing.
 
 ## Context Budget
 
@@ -107,15 +111,22 @@ capability.
 Delegation prompts must name:
 
 - required SPEC-Kit docs and packet templates;
-- applicable specialist skills, plugins, connectors, or tools;
+- applicable specialist skills, plugins, connectors, MCP tools, CI, or
+  reviewers;
 - capabilities that are explicitly forbidden or unavailable;
 - whether the worker must inspect its own available capability list;
 - the fallback when a selected capability is missing.
 
-SPEC-Kit governance does not replace domain skills or plugins. If a frontend,
-review, GitHub, database, document, browser, runtime, or other specialist
-capability applies, the controller should route the worker to that capability
-and keep SPEC-Kit as the boundary and evidence contract.
+SPEC-Kit governance does not replace domain skills, plugins, tools, CI, or
+human review. If a frontend, review, GitHub, database, document, browser,
+runtime, or other specialist capability applies, the controller should route
+the worker to that capability and keep SPEC-Kit as the boundary and evidence
+contract.
+
+Follow `docs/SPEC_CORE.md#external-capability-boundary`: external capability
+outputs are evidence inputs, not automatic `DONE`, gate completion, milestone
+acceptance, or approval. Superpowers is a reference integration for execution
+discipline when available, not a required dependency.
 
 ## Batch Execution
 
@@ -128,10 +139,13 @@ manual handoff.
 
 Before batch execution starts, the controller must record:
 
+- controller governance level;
+- worker or lane governance levels;
 - phase order;
 - gate status required between phases;
 - stop conditions;
-- applicable specialist skills, plugins, connectors, or tools;
+- applicable specialist skills, plugins, connectors, MCP tools, CI, or
+  reviewers;
 - ledger update points;
 - approval gates that remain closed;
 - final integration owner.
@@ -155,6 +169,10 @@ assign the shared file to a serial controller lane.
 
 For parallel work, use `docs/agent/WAVE_EXECUTION.md` and return lane results
 with `docs/templates/LANE_PACKET_TEMPLATE.md`.
+
+Do not globally inherit governance level. A Heavy controller may assign Light
+or Standard lanes when their file boundary, evidence, and stop conditions are
+narrow.
 
 For isolated workspaces, use `docs/agent/WORKTREE_ISOLATION.md`. Coder may
 choose which authorized phases or lanes receive worktrees, but Project Manager

@@ -11,6 +11,7 @@ phase must satisfy.
 
 Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:
 
+- governance level;
 - goal;
 - requirement IDs;
 - inputs;
@@ -19,6 +20,7 @@ Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:
 - file boundary;
 - module ownership;
 - public contract;
+- capability routing;
 - test plan;
 - runtime smoke;
 - edge cases;
@@ -27,18 +29,23 @@ Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:
 ## Execution Loop
 
 1. Read the phase doc and quality gates.
-2. Check change-control state.
-3. Confirm file ownership.
-4. Create a wave plan when parallel lanes can help.
-5. Freeze public contracts and shared file ownership before writable lanes.
-6. Write or update focused tests when behavior changes.
-7. Implement the narrowest change.
-8. Run focused checks.
-9. Run runtime smoke if the phase makes runtime claims.
-10. Maintain active context and document routing.
-11. Update completion report with memory maintenance status.
-12. Update milestone ledger.
-13. Hand off or submit.
+2. Select `Light`, `Standard`, or `Heavy` for the phase or task scope.
+3. Inspect capability metadata and select specialist skills, plugins,
+   connectors, or tools when available.
+4. If superpowers is available and relevant, select the specific execution
+   skills that fit the approved phase boundary.
+5. Check change-control state.
+6. Confirm file ownership.
+7. Create a wave plan when parallel lanes can help.
+8. Freeze public contracts and shared file ownership before writable lanes.
+9. Write or update focused tests when behavior changes.
+10. Implement the narrowest change.
+11. Run focused checks.
+12. Run runtime smoke if the phase makes runtime claims.
+13. Maintain active context and document routing.
+14. Update completion report with memory maintenance status.
+15. Update milestone ledger.
+16. Hand off or submit.
 
 ## Wave Execution
 

@@ -13,6 +13,7 @@ The rule is:
 phase stays linear
 waves run in parallel where safe
 gates stay serial
+governance level is assigned per lane
 ```
 
 ## Why Waves Exist
@@ -38,6 +39,7 @@ parallel.
 The controller owns:
 
 - phase scope;
+- lane governance levels;
 - wave plan;
 - file ownership table;
 - lane prompts or task cards;
@@ -61,6 +63,10 @@ These lanes are usually safe to parallelize:
 - independent module implementation;
 - independent test file implementation;
 - independent validation after changes.
+
+Read-only and small corrective lanes are usually `Light`. Bounded implementation
+lanes are usually `Standard`. Shared contract, runtime, migration, release, or
+approval-sensitive lanes are `Heavy` and must protect serial gates.
 
 Parallel validation lanes may run local, fake, dry, fixture, static, or isolated
 checks. Real runtime smoke remains a serial controller responsibility unless the
@@ -105,8 +111,12 @@ Wave 0 - Controller Setup:
 - integration owner:
 
 Wave 1 - Parallel Read-Only Lanes:
-- lane:
-- lane:
+- lane: `<name>`
+  governance level: `Light, Standard, or Heavy`
+  selected capabilities:
+- lane: `<name>`
+  governance level: `Light, Standard, or Heavy`
+  selected capabilities:
 
 Wave 2 - Serial Freeze:
 - contracts frozen:
@@ -114,12 +124,20 @@ Wave 2 - Serial Freeze:
 - writable ownership:
 
 Wave 3 - Parallel Writable Lanes:
-- lane:
-- lane:
+- lane: `<name>`
+  governance level: `Light, Standard, or Heavy`
+  selected capabilities:
+- lane: `<name>`
+  governance level: `Light, Standard, or Heavy`
+  selected capabilities:
 
 Wave 4 - Parallel Validation Lanes:
-- lane:
-- lane:
+- lane: `<name>`
+  governance level: `Light, Standard, or Heavy`
+  selected capabilities:
+- lane: `<name>`
+  governance level: `Light, Standard, or Heavy`
+  selected capabilities:
 
 Wave 5 - Serial Integration:
 - final checks:
@@ -135,6 +153,7 @@ A phase that used waves must report:
 
 - wave plan used;
 - lanes assigned;
+- governance level assigned per lane;
 - writable file ownership;
 - conflicts found;
 - tests and local, fake, dry, or isolated validation run by lanes;

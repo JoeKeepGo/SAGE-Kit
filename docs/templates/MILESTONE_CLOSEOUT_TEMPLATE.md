@@ -12,7 +12,7 @@ command output.
 
 ## Outcome
 
-- Status: `DONE | DONE_WITH_CONCERNS | HANDOFF | BLOCKED | SUPERSEDED`
+- Status: `DONE`, `DONE_WITH_CONCERNS`, `HANDOFF`, `BLOCKED`, or `SUPERSEDED`
 - Closed on: `<date or change ref>`
 - Owner: `<owner>`
 - Change refs: `<commit, PR, changelist, release, or n/a>`
@@ -51,7 +51,7 @@ command output.
 
 | Gate | Final Status | Evidence | Notes |
 |---|---|---|---|
-| `<gate>` | `PASS | WAIVED | BLOCKED | N/A` | `<source>` | `<notes>` |
+| `<gate>` | `PASS`, `WAIVED`, `BLOCKED`, or `N/A` | `<source>` | `<notes>` |
 
 ## Known Gaps
 

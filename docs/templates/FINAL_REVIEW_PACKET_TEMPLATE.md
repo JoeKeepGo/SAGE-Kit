@@ -3,7 +3,7 @@
 Use this packet from Final Review Controller to Project Manager Controller.
 
 ```markdown
-Verdict: ACCEPTABLE | ACCEPTABLE_WITH_CONCERNS | NEEDS_CORRECTION | BLOCKED
+Verdict: ACCEPTABLE, ACCEPTABLE_WITH_CONCERNS, NEEDS_CORRECTION, or BLOCKED
 
 Milestone:
 
@@ -13,11 +13,23 @@ Coder Packet Ref:
 
 Review Scope:
 
+Governance Review:
+- Controller level reviewed:
+- Worker levels reviewed:
+- Heavy controls enabled only when triggered:
+- Over-governance found:
+- Under-governance found:
+
 Capability Discovery Used:
 - Capability registry checked:
+- SPEC-Kit boundary preserved:
 - Skills used:
+- superpowers skills used:
+- superpowers boundary violations:
 - Plugins/connectors used:
 - Tools used:
+- External capability evidence verified:
+- External planning output mapped to SPEC-Kit docs:
 - Missing capabilities and fallback:
 
 Review Delegation Plan:
@@ -34,10 +46,16 @@ Review Workers:
 |---|---|---|---|---|
 | `<worker>` | `<phase/contract/runtime/security/etc>` | `<status>` | `<evidence>` | `<findings>` |
 
+Worker Governance Findings:
+
+| Worker | Governance Level | Appropriate | Finding |
+|---|---|---|---|
+| `<worker>` | `Light, Standard, or Heavy` | `<yes/no>` | `<finding or none>` |
+
 Independent Checks:
 
 Parallelism Reassessment:
-- Execution shape reviewed: `SERIAL | PARALLEL_WITH_WAVES | PARALLEL_PHASES`
+- Execution shape reviewed: `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
 - Safe as executed: `<yes/no/blocked>`
 - Serial gates protected:
 - Unsafe parallelism found:
@@ -87,8 +105,9 @@ Corrective Packet:
 - `<path or inline summary>`
 
 Corrective Delegation:
-- Allowed executor: `Coder Controller | Corrective Worker | Project Manager decision required`
+- Allowed executor: `Coder Controller`, `Corrective Worker`, or `Project Manager decision required`
 - Allowed capabilities:
+- SPEC-Kit boundary for external capabilities:
 - Stop conditions:
 
 Residual Risks:

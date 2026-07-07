@@ -27,13 +27,23 @@ with a reason when no capability map is used.
 
 - `<gate>`
 
+## Governance Level
+
+Use `docs/agent/GOVERNANCE_LEVELS.md`.
+
+- Milestone controller level: `Light`, `Standard`, or `Heavy`
+- Why this level:
+- Controls Enabled:
+- Controls Not Enabled:
+- Worker or lane level policy:
+
 ## Phase Decomposition Matrix
 
 Implementation must not start until every phase row is concrete.
 
-| Phase | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 ## Shared Files
 
@@ -84,6 +94,9 @@ If yes, define:
 State which specialist skills, plugins, connectors, or tools should be used for
 implementation, validation, review, runtime smoke, or artifact work when the
 agent runtime exposes them.
+
+If superpowers is available, list the specific skills that may be used for
+execution discipline inside this milestone boundary.
 
 Do not require loading every capability body by default. Select from metadata
 and load only the selected capability instructions.

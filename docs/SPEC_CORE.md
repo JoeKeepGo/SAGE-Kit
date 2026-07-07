@@ -23,14 +23,56 @@ milestones, and phase documents.
   milestone roadmaps.
 - Use milestone-level session orchestration only when it reduces handoff burden
   without weakening gates, verification, or final decision ownership.
+- Use proportional governance: start with the lightest safe governance level
+  and upgrade only when risk, scope, or control responsibility requires it.
 - Use worktree isolation only when the project explicitly authorizes isolated
   execution and names submit and cleanup ownership.
 - Use structured task dispatch only when the project explicitly adopts it and
   needs machine-checkable task/evidence records.
+- Treat external skills, plugins, tools, CI systems, and human reviews as
+  execution and evidence inputs inside SPEC-Kit governance, not as replacements
+  for SPEC-Kit gates.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
   paths.
+
+## External Capability Boundary
+
+SPEC-Kit is not a skill library. It is the governance and evidence layer that
+lets skill libraries, coding agents, plugins, MCP tools, CI systems, and human
+reviewers cooperate under a shared project contract.
+
+SPEC-Kit governs authorization, milestone and phase boundaries, file ownership,
+approval gates, evidence requirements, resource locks, and completion status.
+External capabilities provide execution methods inside those boundaries.
+
+Within project execution, apply this authority order:
+
+1. Project SPEC and approval gates.
+2. SPEC-Kit harness rules.
+3. External skill, plugin, connector, MCP tool, CI, or reviewer workflow.
+4. Agent default behavior.
+
+This order applies inside the project contract and does not override platform,
+system, or developer instructions.
+
+External capability outputs are evidence inputs. They do not automatically mark
+work `DONE`, open or close approval gates, accept milestones, or satisfy
+completion requirements.
+
+Continuous execution by an external capability is allowed only inside approved
+phase, lane, task, or corrective boundaries. It must stop at closed approval
+gates, scope expansion, shared-file or resource-lock conflict, failed required
+evidence, unapproved runtime, destructive, submit, merge, push, or cleanup
+operations, or any condition that requires a higher controller decision.
+
+Plans produced by external planning workflows should be written into or mapped
+to SPEC-Kit milestone, phase, or packet documents so the project keeps one
+durable source of truth.
+
+Superpowers is a reference integration for execution discipline when available.
+SPEC-Kit does not require it and does not copy it.
 
 ## Trivial And Non-Trivial Work
 
@@ -72,6 +114,7 @@ SPEC-Kit supports these execution controls:
 |---|---|---|
 | Project Owner Entry | Lightweight intake for broad or non-technical project ideas. | `docs/agent/PROJECT_OWNER_ENTRY.md` |
 | Capability Map | Planning layer before executable milestone roadmaps. | `docs/templates/CAPABILITY_MAP_TEMPLATE.md` |
+| Governance Levels | Proportional Light, Standard, or Heavy control selection by scope. | `docs/agent/GOVERNANCE_LEVELS.md` |
 | Phase Execution | One bounded phase or task. | `docs/agent/PHASE_EXECUTION.md` |
 | Wave Execution | Safe parallel lanes inside one phase. | `docs/agent/WAVE_EXECUTION.md` |
 | Session Orchestration | Large milestones that need Project Manager, Coder, and Final Review controllers. | `docs/agent/SESSION_ORCHESTRATION.md` |
@@ -87,11 +130,15 @@ Explore:
 
 Plan:
 
+- Select `Light`, `Standard`, or `Heavy` governance for the current control
+  scope using `docs/agent/GOVERNANCE_LEVELS.md`.
 - For broad, non-technical, or coarse-roadmap projects, create project owner intake and a
   capability map before an executable roadmap.
 - Write or update the retained phase document.
 - Name requirement IDs and contracts.
 - Define allowed files, read-only files, and forbidden files.
+- Select specialist external capabilities from available metadata when they are
+  relevant.
 - Define tests, runtime smoke, and completion gate.
 
 Implement:
@@ -125,6 +172,7 @@ No work is complete until the completion report names:
 - scope implemented;
 - files changed;
 - contract evidence;
+- selected capability use and fallback when relevant;
 - tests run;
 - runtime smoke or reason it is not applicable;
 - skipped checks;

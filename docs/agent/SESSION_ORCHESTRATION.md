@@ -14,6 +14,11 @@ review needs, or repeated handoff overhead.
 Do not use this mode for small tasks, typo fixes, narrow bug fixes, or a single
 phase that can be completed cleanly in one controller session.
 
+Session Orchestration is normally Heavy at the controller layer. Delegated
+phase, lane, review, validation, and corrective workers must still receive
+their own `Light`, `Standard`, or `Heavy` governance level based on their local
+scope and risk.
+
 ## Role Model
 
 | Role | Lifetime | Responsibility | Must Not Do |
@@ -63,6 +68,8 @@ Project Manager Controller
 - Coder and Final Review controllers should delegate work to phase, lane,
   review, validation, or corrective workers when doing so reduces serial
   handoff and file ownership remains clear.
+- Controllers must assign each worker a governance level. Heavy milestone
+  control does not automatically make every worker Heavy.
 - Controllers may run workers in parallel only when the execution packet names
   disjoint file ownership, runtime ownership, evidence expectations, and stop
   conditions.
@@ -97,8 +104,8 @@ Project Manager Controller
 ## Capability Routing
 
 Before creating worker prompts, Coder and Final Review controllers must inspect
-the available skill, plugin, connector, and tool metadata exposed by the
-runtime.
+the available skill, plugin, connector, MCP tool, CI, and review metadata
+exposed by the runtime.
 
 They must route workers to specialist capabilities when relevant, such as code
 review, frontend testing, browser automation, GitHub, database, document, PDF,
@@ -109,14 +116,25 @@ instructions needed for the worker's task.
 
 Each worker prompt or packet must name:
 
-- selected skills, plugins, connectors, or tools;
+- selected skills, plugins, connectors, MCP tools, CI, or reviewers;
 - capabilities the worker should check for in its own runtime;
 - unavailable capabilities and fallback;
 - SPEC-Kit docs and packets that still govern scope, files, gates, and
   evidence.
 
 SPEC-Kit remains the governance harness. Specialist capabilities perform the
-domain work.
+domain work under `docs/SPEC_CORE.md#external-capability-boundary`.
+
+External planning outputs must be written into or mapped to the milestone
+execution packet, phase docs, lane packets, or corrective packets. External
+execution may continue only inside the approved packet boundary and must stop
+for closed gates, scope expansion, shared-file or resource-lock conflicts,
+failed required evidence, unapproved runtime, destructive, submit, merge, push,
+or cleanup operations, or higher controller decisions.
+
+Superpowers is a reference integration for execution discipline when available.
+It does not change Project Manager, Coder, Final Review, or Submit Controller
+authority.
 
 ## Coder Self Review
 
@@ -148,6 +166,26 @@ Coder and Final Review controllers both assess execution shape:
 
 Coder uses this assessment to choose worker execution. Final Review uses it to
 verify whether the chosen execution shape was safe.
+
+## Governance Level Assignment
+
+Use `docs/agent/GOVERNANCE_LEVELS.md` before dispatching workers.
+
+Default controller level:
+
+- Project Manager milestone controller: `Heavy`.
+- Coder Controller for a whole milestone: `Heavy`.
+- Final Review Controller for a whole milestone: `Heavy`.
+
+Default worker level:
+
+- read-only review, scan, or small corrective lane: `Light`;
+- bounded phase or module implementation: `Standard`;
+- integration, shared contract, state, release, or approval-sensitive lane:
+  `Heavy`.
+
+Workers must stop for controller decision when they discover a higher-level
+trigger that was not in their packet.
 
 ## Worktree Isolation
 

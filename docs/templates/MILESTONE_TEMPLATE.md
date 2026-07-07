@@ -44,6 +44,7 @@ The entry gate must include:
 
 - milestone objective;
 - primary capability from `docs/CAPABILITY_MAP.md` when a capability map exists;
+- governance level for the milestone controller and delegated workers;
 - accepted inputs;
 - product constraints and non-goals;
 - phase sequence;
@@ -64,6 +65,7 @@ phases.
 
 Each phase must have:
 
+- one governance level selected for its local scope;
 - one observable result;
 - one primary ownership boundary;
 - one public contract or clear no-contract reason;
@@ -86,9 +88,9 @@ Use `docs/agent/MILESTONE_PLANNING.md` for the decomposition checklist.
 
 Every milestone entry gate must include this matrix.
 
-| Phase | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 ## Auto-Advance Policy
 
@@ -106,9 +108,23 @@ State which specialist skills, plugins, connectors, or tools should be used for
 implementation, validation, review, runtime smoke, or artifact work when the
 agent runtime exposes them.
 
+If superpowers is available, name the specific skills that may be used as
+execution discipline inside this milestone boundary.
+
 The controller must inspect capability metadata before delegating work and
 record the selected capabilities in execution, result, review, or corrective
 packets.
+
+## Governance Levels
+
+Use `docs/agent/GOVERNANCE_LEVELS.md`.
+
+State:
+
+- milestone controller governance level;
+- worker, phase, lane, review, and corrective governance levels;
+- controls enabled and explicitly not enabled;
+- triggers that require stopping for Project Manager or controller decision.
 
 ## Worktree Isolation
 

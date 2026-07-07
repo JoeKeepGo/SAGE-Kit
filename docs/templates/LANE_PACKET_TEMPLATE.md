@@ -3,13 +3,23 @@
 Use this template for subagent or parallel lane handoff.
 
 ```markdown
-Status: DONE | DONE_WITH_CONCERNS | BLOCKED
+Status: DONE, DONE_WITH_CONCERNS, or BLOCKED
 
 Lane:
 
 Role:
 
 Objective:
+
+Governance Level:
+
+Controls Enabled:
+
+Controls Not Enabled:
+
+Upgrade Triggers:
+
+Controller Decision Needed:
 
 Allowed Files:
 
@@ -26,6 +36,16 @@ Commands Run:
 Failed Commands:
 
 Capabilities Used:
+
+superpowers Skills Used:
+
+SPEC-Kit Boundary Served:
+
+External Capability Evidence:
+
+Missing Capability Fallback:
+
+External Planning Output Destination:
 
 Evidence:
 

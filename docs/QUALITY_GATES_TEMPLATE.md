@@ -78,7 +78,7 @@ Every phase completion report must include:
 
 | Gate | Status | Evidence | Blocking | Owner | Notes |
 |---|---|---|---|---|---|
-| `<gate>` | `PASS | FAIL | BLOCKED | WAIVED | N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
+| `<gate>` | `PASS`, `FAIL`, `BLOCKED`, `WAIVED`, or `N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
 
 ## Baseline Commands
 

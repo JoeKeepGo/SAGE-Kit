@@ -20,15 +20,21 @@ Source Docs:
 - Approval gates:
 
 Execution Mode:
-- `Phase Execution | Wave Execution | Session Orchestration`
+- `Phase Execution`, `Wave Execution`, or `Session Orchestration`
+
+Governance:
+- Controller level: `Light`, `Standard`, or `Heavy`
+- Why this level:
+- Controls Enabled:
+- Controls Not Enabled:
 
 Execution Shape:
-- `SERIAL | PARALLEL_WITH_WAVES | PARALLEL_PHASES | STOP_FOR_PM`
+- `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
 
 Parallelism Rationale:
 
 Worktree Isolation Policy:
-- Allowed mode: `NONE | MILESTONE_WORKTREE | PHASE_WORKTREE | LANE_WORKTREE | REVIEW_WORKTREE`
+- Allowed mode: `NONE`, `MILESTONE_WORKTREE`, `PHASE_WORKTREE`, `LANE_WORKTREE`, or `REVIEW_WORKTREE`
 - Maximum worktree count:
 - Branch naming:
 - Worktree naming:
@@ -55,12 +61,17 @@ Task Dispatch Policy:
 
 Capability Discovery:
 - Capability registry checked: `<yes/no/not available>`
+- SPEC-Kit boundary: `<scope/files/gates/locks/evidence controlled by this packet>`
 - Selected skills:
+- Selected superpowers skills:
+- superpowers boundary:
 - Selected plugins/connectors:
 - Selected tools:
 - Forbidden capabilities:
 - Worker must check own capability list: `<yes/no>`
 - Fallback if capability is missing:
+- External planning output destination:
+- External capability completion counts as: `execution evidence only`
 
 Allowed Scope:
 
@@ -68,9 +79,15 @@ Non-Goals:
 
 Phase Plan:
 
-| Phase | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+
+Worker Governance:
+
+| Worker Or Lane | Scope | Governance Level | Controls Enabled | Controls Not Enabled | Upgrade Triggers | Stop For Controller |
+|---|---|---|---|---|---|---|
+| `<worker>` | `<scope>` | `Light, Standard, or Heavy` | `<controls>` | `<controls or none>` | `<triggers or none>` | `<conditions>` |
 
 Shared Files:
 
@@ -88,6 +105,7 @@ Worker Delegation Rules:
 - Worker stop conditions:
 - Integration owner:
 - Required capability routing:
+- Continuous execution allowed only within approved phase/task/lane boundaries:
 
 Review Expectations:
 

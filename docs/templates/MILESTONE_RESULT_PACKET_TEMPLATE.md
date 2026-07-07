@@ -4,7 +4,7 @@ Use this packet from Coder Controller to Project Manager Controller and Final
 Review Controller.
 
 ```markdown
-Status: DONE | DONE_WITH_CONCERNS | HANDOFF | BLOCKED
+Status: DONE, DONE_WITH_CONCERNS, HANDOFF, or BLOCKED
 
 Milestone:
 
@@ -16,15 +16,28 @@ Scope Implemented:
 
 Scope Not Implemented:
 
+Governance Used:
+- Controller level:
+- Worker levels:
+- Controls Enabled:
+- Controls Not Enabled:
+- Upgrade triggers found:
+- Workers stopped for controller:
+
 Capability Discovery Used:
 - Capability registry checked:
+- SPEC-Kit boundary preserved:
 - Skills used:
+- superpowers skills used:
+- superpowers boundary notes:
 - Plugins/connectors used:
 - Tools used:
+- External capability evidence produced:
+- External planning output mapped to:
 - Missing capabilities and fallback:
 
 Parallelism Assessment:
-- Execution shape used: `SERIAL | PARALLEL_WITH_WAVES | PARALLEL_PHASES`
+- Execution shape used: `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
 - Why this was safe:
 - What remained serial:
 - Conflicts found:
@@ -60,13 +73,19 @@ Phase Results:
 
 | Phase | Status | Files Changed | Contract Evidence | Tests | Runtime Smoke | Skipped Checks | Blockers | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| `<phase>` | `DONE | DONE_WITH_CONCERNS | HANDOFF | BLOCKED | SUPERSEDED` | `<files>` | `<evidence>` | `<commands>` | `<evidence or n/a>` | `<checks>` | `<blockers>` | `<action>` |
+| `<phase>` | `DONE`, `DONE_WITH_CONCERNS`, `HANDOFF`, `BLOCKED`, or `SUPERSEDED` | `<files>` | `<evidence>` | `<commands>` | `<evidence or n/a>` | `<checks>` | `<blockers>` | `<action>` |
 
 Worker / Lane Summary:
 
 | Worker Or Lane | Role | Status | Files | Evidence | Notes |
 |---|---|---|---|---|---|
 | `<worker>` | `<phase/lane/review/corrective>` | `<status>` | `<files>` | `<evidence>` | `<notes>` |
+
+Worker Governance Summary:
+
+| Worker Or Lane | Governance Level | Stayed In Level | Upgrade Trigger | Controller Decision |
+|---|---|---|---|---|
+| `<worker>` | `Light, Standard, or Heavy` | `<yes/no>` | `<trigger or none>` | `<decision or n/a>` |
 
 Contracts:
 
@@ -98,6 +117,11 @@ Skipped Checks:
 Known Gaps:
 
 Stop Conditions Triggered:
+- Closed approval gate:
+- Scope expansion:
+- Shared-file or resource lock conflict:
+- Failed required evidence:
+- Unapproved runtime/destructive/submit operation:
 
 Suggested Final Review Focus:
 

@@ -21,7 +21,7 @@ implementation and release.
 ## Capability Map Link
 
 - Capability map: `docs/CAPABILITY_MAP.md` or `N/A` with reason
-- Granularity audit status: `pending | pass | fail | n/a`
+- Granularity audit status: `pending`, `pass`, `fail`, or `n/a`
 - Candidates not promoted:
 
 ## Overview

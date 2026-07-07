@@ -6,7 +6,7 @@ sending it to Final Review.
 This is a completeness gate, not a technical review.
 
 ```markdown
-Structural Gate Status: PASS | REPAIR_REQUIRED | BLOCKED
+Structural Gate Status: PASS, REPAIR_REQUIRED, or BLOCKED
 
 Milestone:
 
@@ -21,7 +21,9 @@ Required Sections Present:
 | Status | `<yes/no>` | `<notes>` |
 | Primary capability / capability map or n/a | `<yes/no>` | `<notes>` |
 | Scope implemented / not implemented | `<yes/no>` | `<notes>` |
+| Governance Level and controls | `<yes/no>` | `<notes>` |
 | Capability discovery used | `<yes/no>` | `<notes>` |
+| superpowers boundary recorded when used | `<yes/no/n/a>` | `<notes>` |
 | Parallelism assessment | `<yes/no>` | `<notes>` |
 | Worktree authorization or n/a | `<yes/no>` | `<notes>` |
 | Worktree map or n/a | `<yes/no>` | `<notes>` |

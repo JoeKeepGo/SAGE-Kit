@@ -27,6 +27,7 @@ Default startup read set:
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` |
+| Governance level selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
 | Capability map or roadmap granularity audit | Project profile, `docs/CAPABILITY_MAP.md` if present or `docs/templates/CAPABILITY_MAP_TEMPLATE.md` if creating it, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design, relevant profile templates, prior closeouts only when the capability depends on history |
 | New feature planning | Project profile, technical design, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
@@ -34,6 +35,7 @@ Default startup read set:
 | Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
 | Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
 | Task dispatch | Active context, this file, active milestone ledger, active task `task.yaml`, active task `evidence.yaml`, `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` | Dispatch board, schemas, validator output, related dependency task records |
+| External capability routing | Active context, this file, `docs/SPEC_CORE.md#external-capability-boundary`, `docs/agent/AGENT_HARNESS.md`, `docs/agent/GOVERNANCE_LEVELS.md` | Selected skill, plugin, connector, MCP tool, CI, or review instructions only when the task will use that execution method |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
 | UI work | Active phase doc, UI contract, quality gates | Design system or product profile sections |
 | Contract change | Contract owner doc and consumer docs | Relevant closeout decision summary, then historical decision records |
@@ -98,5 +100,5 @@ document, completion report, or handoff.
 At the end of a run, record `No routing change needed` in the handoff or
 completion report when this file does not require an edit.
 
-Target size: keep this file under 100 lines unless the project profile
-explicitly raises the routing budget.
+Target size: keep this file compact. If it grows beyond the project routing
+budget, split rarely used routes into profile-specific routing notes.

@@ -84,7 +84,7 @@ Stop and report `BLOCKED` when:
 ## Return Format
 
 ```markdown
-Status: DONE | BLOCKED
+Status: DONE or BLOCKED
 
 Files Read:
 

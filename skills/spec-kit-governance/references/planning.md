@@ -43,6 +43,10 @@ it remains a candidate and must be split before execution.
 
 Before implementation starts, the entry gate must answer:
 
+- What governance level applies to this control scope: `Light`, `Standard`, or
+  `Heavy`?
+- If this is Heavy controller work, which worker or lane scopes can remain
+  Light or Standard?
 - What is the milestone objective?
 - Which primary capability from the capability map does it prove?
 - What is out of scope?
@@ -60,6 +64,12 @@ Before implementation starts, the entry gate must answer:
   gate closeout?
 - Which specialist skills, plugins, connectors, or tools should controllers
   route to for implementation, validation, review, or runtime smoke?
+- If superpowers is available, which specific skills should be used as
+  execution discipline, and inside which SPEC-Kit boundary? If it is not
+  available, what SPEC-Kit-native packet, phase, gate, and evidence path will
+  be used instead?
+- Where will external planning outputs be written or mapped so the milestone
+  ledger, phase docs, and packets remain the source of truth?
 - Which gates remain closed?
 - Which tests and runtime checks prove the milestone?
 - What review, handoff, or closeout closes the milestone?
@@ -68,6 +78,7 @@ Before implementation starts, the entry gate must answer:
 
 Before a phase can be executed:
 
+- governance level is selected for this phase or task;
 - goal is observable;
 - requirement IDs are named;
 - inputs and outputs are concrete;
@@ -106,6 +117,8 @@ Plan:
 - Project Manager Controller;
 - Coder Controller;
 - Final Review Controller;
+- controller governance level, normally `Heavy`;
+- worker and lane governance levels, selected per scope;
 - worktree isolation authorization, if allowed;
 - capability discovery and specialist routing;
 - milestone execution packet;
@@ -115,6 +128,17 @@ Plan:
 - corrective round limit.
 
 Do not use Session Orchestration for small single-phase work.
+
+## External Planning Outputs
+
+External planning skills or tools may help shape execution, but their outputs
+must be summarized into the active SPEC-Kit artifact that controls the work:
+entry gate, milestone ledger, phase doc, execution packet, or result packet.
+
+Do not keep a separate untracked plan as the authoritative source. If an
+external plan changes scope, files, gates, sequencing, locks, tests, runtime
+requirements, or acceptance criteria, stop until the relevant SPEC-Kit artifact
+is updated and approved.
 
 ## Task Dispatch Planning
 

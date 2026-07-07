@@ -3,12 +3,22 @@
 Use this packet for bounded fixes after Final Review.
 
 ```markdown
-Corrective Round: `<1 | 2>`
+Corrective Round: `<1>` or `<2>`
 
 Source Review Packet:
 
+Governance Level:
+- `Light`, `Standard`, or `Heavy`
+- Controls Enabled:
+- Controls Not Enabled:
+- Upgrade triggers:
+- Stop for controller when:
+- Controller decision needed:
+
 Capability Routing:
 - Required skills:
+- Selected superpowers skills, if available:
+- superpowers boundary, if used:
 - Required plugins/connectors:
 - Required tools:
 - Forbidden capabilities:

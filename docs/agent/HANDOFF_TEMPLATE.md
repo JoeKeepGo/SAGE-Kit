@@ -4,9 +4,15 @@ Use this template at phase boundaries, review boundaries, or when a session must
 pause.
 
 ```markdown
-Status: DONE | DONE_WITH_CONCERNS | BLOCKED | HANDOFF
+Status: DONE, DONE_WITH_CONCERNS, BLOCKED, or HANDOFF
 
 Objective:
+
+Governance Level:
+
+Controls Enabled:
+
+Controls Not Enabled:
 
 Scope Implemented:
 
@@ -19,6 +25,20 @@ Contracts:
 Tests Run:
 
 Runtime Smoke:
+
+Capability Routing:
+
+Capabilities Used:
+
+superpowers Skills Used:
+
+SPEC-Kit Boundary Served:
+
+External Capability Evidence:
+
+Missing Capability Fallback:
+
+External Planning Output Destination:
 
 Wave / Lane Evidence:
 

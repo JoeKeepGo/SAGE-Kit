@@ -1,6 +1,6 @@
 interface:
   display_name: "SPEC-Kit Governance"
-  short_description: "Keep AI work aligned with SPEC-Kit"
+  short_description: "Govern SPEC-Kit scope and evidence"
   default_prompt: "Use $spec-kit-governance to plan and execute this task under SPEC-Kit."
 
 policy:

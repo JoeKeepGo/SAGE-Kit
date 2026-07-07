@@ -12,7 +12,7 @@ reason when no capability map is used.
 ## Closeout Status
 
 - Closeout file: `docs/M<ID>/MILESTONE_CLOSEOUT.md`
-- Closeout status: `not_started | drafted | finalized | blocked | superseded`
+- Closeout status: `not_started`, `drafted`, `finalized`, `blocked`, or `superseded`
 - Closeout change ref: `<commit, PR, changelist, or n/a>`
 - Closeout notes: `<short note or n/a>`
 
@@ -46,15 +46,15 @@ Acceptance invariant:
 
 ## Decomposition Notes
 
-| Phase | Objective | Primary Capability | Owner | Contract | Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `<objective>` | `<capability or n/a>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Objective | Primary Capability | Owner | Contract | Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<capability or n/a>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 ## Gate Status
 
 | Phase | Gate | Status | Evidence | Blocking | Owner | Notes |
 |---|---|---|---|---|---|---|
-| `<phase>` | `<gate>` | `PASS | FAIL | BLOCKED | WAIVED | N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
+| `<phase>` | `<gate>` | `PASS`, `FAIL`, `BLOCKED`, `WAIVED`, or `N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
 
 ## Wave Status
 
@@ -72,6 +72,14 @@ available or expected.
 | Task | Capability | Used | Evidence | Fallback |
 |---|---|---|---|---|
 | `<task>` | `<skill/plugin/connector/tool>` | `<yes/no/unavailable>` | `<evidence>` | `<fallback>` |
+
+When superpowers is used, record the selected skill name and the SPEC-Kit
+boundary it served. A superpowers completion signal is execution evidence, not
+milestone acceptance.
+
+When any external planning output is used, record the SPEC-Kit artifact where
+it was written or mapped. Do not rely on an untracked external plan as the
+source of truth.
 
 ## Worktree Status
 

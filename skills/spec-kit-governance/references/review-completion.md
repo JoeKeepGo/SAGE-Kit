@@ -18,6 +18,8 @@ Review for:
 - ledger or closeout gaps;
 - ignored specialist capabilities when the runtime exposed relevant skills,
   plugins, connectors, or tools;
+- external capability output treated as gate completion instead of evidence;
+- external plans that were not mapped into tracked SPEC-Kit docs;
 - unauthorized or unsafe worktree isolation;
 - incomplete task-dispatch records or failed validator results when Task
   Dispatch Profile is active;
@@ -28,8 +30,16 @@ Lead with blocking findings before summaries.
 ## Completion Report Must Name
 
 - scope implemented;
+- governance level;
+- controls enabled and controls not enabled;
+- upgrade triggers or a `none` note;
+- stopped worker or controller decision status when applicable;
 - files changed;
 - contract evidence;
+- capabilities used;
+- superpowers skills used;
+- external capability boundary and evidence produced;
+- external planning output destination, or `n/a`;
 - tests run;
 - runtime smoke or non-applicability reason;
 - approval gates;
@@ -89,6 +99,11 @@ When Session Orchestration is used:
 - Final Review verifies independently and returns a verdict.
 - Final Review checks whether Coder self review and capability routing were
   performed.
+- Final Review checks whether selected superpowers skills, if available and
+  relevant, stayed inside SPEC-Kit scope, locks, gates, and evidence
+  requirements.
+- Final Review treats external skill, plugin, connector, or tool completion as
+  evidence to verify, not as SPEC-Kit acceptance.
 - Final Review checks whether Worktree Isolation was authorized, mapped,
   integrated, and safe when used.
 - Final Review reassesses whether the milestone execution shape was safe:

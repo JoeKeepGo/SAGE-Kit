@@ -20,6 +20,8 @@ and agent workflows can stay aligned over many sessions.
   before executable planning starts.
 - An AI agent harness for context control, file ownership, verification,
   handoff, and review.
+- Governance Levels for choosing Light, Standard, or Heavy controls by local
+  scope instead of making the whole project heavy.
 - Wave Execution for safe parallel development inside a phase.
 - Session Orchestration for milestone-level Project Manager, Coder, and Final
   Review controller workflows.
@@ -28,9 +30,12 @@ and agent workflows can stay aligned over many sessions.
 - Task Dispatch Profile for structured task records, evidence records,
   resource locks, Run/Attempt/Lease tracking, and validator-backed gate
   closeout when a milestone needs stronger dispatch control.
-- Capability routing so controllers can delegate to relevant skills, plugins,
-  connectors, or tools instead of letting governance instructions displace
-  specialist capabilities.
+- Capability routing so controllers can delegate to relevant external
+  capabilities instead of letting governance instructions displace specialist
+  execution methods.
+- An external capability boundary that keeps SPEC-Kit as the governance and
+  evidence layer while external skills, plugins, tools, CI, and reviewers
+  provide execution methods.
 - Milestone planning rules that force capability maps, reviewable milestones,
   and testable phase slices before implementation.
 - Strict Mode for lower-assurance or unknown model families.
@@ -57,6 +62,7 @@ docs/
     AGENT_HARNESS.md
     MODEL_ASSURANCE_POLICY.md
     STRICT_MODE.md
+    GOVERNANCE_LEVELS.md
     PROJECT_OWNER_ENTRY.md
     WAVE_EXECUTION.md
     SESSION_ORCHESTRATION.md
@@ -95,8 +101,14 @@ Use $spec-kit-governance to plan and execute this task under SPEC-Kit.
 ```
 
 The skill is designed for explicit invocation so it does not displace more
-specific coding, frontend, document, GitHub, or review skills during ordinary
-work.
+specific coding, frontend, document, GitHub, review, CI, or runtime
+capabilities during ordinary work.
+
+SPEC-Kit is not a skill library. See `docs/SPEC_CORE.md#external-capability-boundary`
+for the rule that external capabilities execute inside SPEC-Kit authorization,
+scope, ownership, evidence, lock, and gate boundaries. Superpowers is a
+reference integration when available, not a required dependency and not
+something SPEC-Kit copies.
 
 The skill can help bootstrap SPEC-Kit in a new project, but the project still
 needs to adopt the relevant templates and maintain its own SPEC documents.
@@ -118,6 +130,7 @@ docs/
     AGENT_HARNESS.md
     MODEL_ASSURANCE_POLICY.md
     STRICT_MODE.md
+    GOVERNANCE_LEVELS.md
     PROJECT_OWNER_ENTRY.md
     WAVE_EXECUTION.md
     SESSION_ORCHESTRATION.md
@@ -173,6 +186,7 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` | Project Manager structural gate checklist |
 | `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` | Final Review verdict packet |
 | `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` | Bounded corrective work packet |
+| `docs/agent/GOVERNANCE_LEVELS.md` | Light, Standard, or Heavy governance selector |
 | `docs/agent/PROJECT_OWNER_ENTRY.md` | Optional lightweight project owner entry policy |
 | `docs/agent/WORKTREE_ISOLATION.md` | Optional worktree isolation policy |
 | `docs/profiles/task-dispatch/` | Optional structured task dispatch profile |
@@ -198,17 +212,19 @@ profile.
 9. Create the first milestone with `00-entry-gate.md`.
 10. Decompose the milestone into reviewable phases with explicit contracts,
    file boundaries, tests, and runtime checks.
-11. Execute each phase through retained phase docs and completion reports.
-12. Use Wave Execution when safe parallel lanes can speed up the phase.
-13. Use Session Orchestration for large milestones that need Project Manager,
+11. Select the lightest safe governance level for each controller, phase, lane,
+    or worker.
+12. Execute each phase through retained phase docs and completion reports.
+13. Use Wave Execution when safe parallel lanes can speed up the phase.
+14. Use Session Orchestration for large milestones that need Project Manager,
    Coder, and Final Review controller handoff.
-14. Use Worktree Isolation only when Project Manager authorizes isolated
+15. Use Worktree Isolation only when Project Manager authorizes isolated
     phase, lane, or review workspaces.
-15. Use the Task Dispatch Profile only when a milestone needs structured
+16. Use the Task Dispatch Profile only when a milestone needs structured
     task/evidence records, resource locks, lease tracking, or validator-backed
     dispatch closeout.
-16. Keep milestone state in `MILESTONE_LEDGER.md`.
-17. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
+17. Keep milestone state in `MILESTONE_LEDGER.md`.
+18. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
     historical outcome index.
 
 Historical closeouts are not default startup context. Read them only through

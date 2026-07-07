@@ -1,6 +1,6 @@
 ---
 name: spec-kit-governance
-description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Project Owner Entry, capability map, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, or Task Dispatch. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
+description: "Use when SPEC-Kit is explicit: the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or references SPEC-Kit docs or constructs such as ACTIVE_CONTEXT, DOC_ROUTING, Governance Levels, Agent Harness, milestones, phase docs, ledgers, closeouts, gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, or Task Dispatch. Do not use for ordinary coding, planning, review, or debugging unless SPEC-Kit is explicit."
 ---
 
 # SPEC-Kit Governance
@@ -8,10 +8,15 @@ description: Governance workflow for projects explicitly using SPEC-Kit. Use whe
 Use this skill to keep AI work aligned with SPEC-Kit without loading the whole
 framework into context.
 
-This skill is an execution and governance aid. It does not replace the
-project's own SPEC documents. The project remains responsible for maintaining
-its `docs/` profile, design, gates, active context, routing, milestones, phase
-docs, ledgers, completion reports, and closeouts.
+SPEC-Kit is governance, not a skill library. It controls scope,
+authorization, file boundaries, gates, evidence, locks, memory, and completion
+status. External skills, plugins, connectors, and tools provide execution
+methods inside those approved boundaries.
+
+This skill does not replace the project's own SPEC documents. The project
+remains responsible for maintaining its `docs/` profile, design, gates, active
+context, routing, milestones, phase docs, ledgers, completion reports, and
+closeouts.
 
 ## Core Rule
 
@@ -49,7 +54,10 @@ For a SPEC-Kit governed project:
 2. Read `docs/DOC_ROUTING.md`.
 3. Read only the active milestone ledger, phase doc, contract docs, or gates
    named by routing and task scope.
-4. Before writable work, name allowed files, read-only files, forbidden files,
+4. Select the governance level for the current control scope using
+   `docs/agent/GOVERNANCE_LEVELS.md` when the task is non-trivial, delegated,
+   or controller-level.
+5. Before writable work, name allowed files, read-only files, forbidden files,
    gates, verification commands, and stop conditions.
 
 If required startup docs are missing or contradictory, stop and report the gap
@@ -91,12 +99,21 @@ handoff.
 - Do not treat historical closeouts as startup context.
 - Do not claim `DONE` unless required verification and memory maintenance are
   complete.
+- Use `docs/agent/GOVERNANCE_LEVELS.md` to choose the lightest governance level
+  that safely preserves scope, evidence, memory, and approval boundaries.
+  Heavy controller work may delegate Light or Standard workers.
 - Do not let parallel workers or subagents edit `docs/ACTIVE_CONTEXT.md` or
   `docs/DOC_ROUTING.md` directly. They must return memory update proposals for
   controller integration.
 - Do not let SPEC-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
+- Treat superpowers as a reference integration, not a dependency. When
+  available and relevant, selected superpowers skills may guide execution
+  inside an approved SPEC-Kit boundary. If unavailable, continue with SPEC-Kit
+  phase, gate, packet, and evidence templates.
+- Do not treat external capability completion as SPEC-Kit gate completion.
+  Record it as execution evidence and keep gate decisions in SPEC-Kit docs.
 - Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`; do not
   guess the policy from memory.
 - Use Wave Execution only when file ownership is disjoint and serial gates stay

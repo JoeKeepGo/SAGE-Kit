@@ -10,8 +10,12 @@ This document defines the daily development workflow for humans and AI agents.
 - Do not add speculative aliases or guessed fallback behavior.
 - Preserve a runnable baseline.
 - Keep planning, implementation, review, and release gates distinct.
+- Use the lightest governance level that safely preserves scope, evidence,
+  memory, and approval boundaries.
 - Make runtime behavior visible through tests, logs, UI, API responses, or
   smoke checks.
+- Route execution to available specialist skills, plugins, connectors, tools,
+  CI, or reviewers under `docs/SPEC_CORE.md#external-capability-boundary`.
 - Keep local data and secrets out of commits and reports.
 
 ## Session Roles
@@ -49,6 +53,7 @@ promoting milestone candidates into an executable roadmap.
 
 The plan must include:
 
+- governance level: `Light`, `Standard`, or `Heavy`;
 - one observable goal;
 - requirement IDs;
 - file boundary;
@@ -58,6 +63,10 @@ The plan must include:
 - runtime smoke;
 - non-goals;
 - completion gate.
+
+External planning outputs must be written into or mapped to the retained
+milestone, phase, or packet documents. Do not maintain a second planning source
+of truth.
 
 For large milestones with many phases or high handoff overhead, use
 `docs/agent/SESSION_ORCHESTRATION.md` and create a milestone execution packet
@@ -78,6 +87,9 @@ closeout for the milestone.
 - Add or update tests with behavior changes.
 - Stop and return to planning if a shared file or external approval gate is
   needed but not listed.
+- Stop if an external capability reaches a closed approval gate, expands scope,
+  conflicts on shared files or resource locks, fails required evidence, or needs
+  unapproved runtime, destructive, submit, merge, push, or cleanup operations.
 
 ## Verify
 

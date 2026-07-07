@@ -47,7 +47,7 @@ Mark `FAIL` when any candidate milestone:
 
 | Candidate Milestone | Status | Reason | Required Split |
 |---|---|---|---|
-| `<candidate>` | `PASS | FAIL` | `<reason>` | `<split or n/a>` |
+| `<candidate>` | `PASS` or `FAIL` | `<reason>` | `<split or n/a>` |
 
 ## Roadmap Promotion
 

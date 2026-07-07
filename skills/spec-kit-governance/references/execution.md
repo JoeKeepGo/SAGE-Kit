@@ -9,9 +9,10 @@ Before editing files:
 
 1. Read the routed SPEC docs.
 2. Inspect current code or docs with narrow searches.
-3. State allowed files, read-only files, forbidden files, and shared files.
-4. Identify quality gates, approval gates, tests, smoke, and stop conditions.
-5. Stop if the required change falls outside the phase boundary.
+3. Select the governance level for the current control scope.
+4. State allowed files, read-only files, forbidden files, and shared files.
+5. Identify quality gates, approval gates, tests, smoke, and stop conditions.
+6. Stop if the required change falls outside the phase boundary.
 
 ## Execution Loop
 
@@ -46,6 +47,7 @@ Use subagents only for bounded tasks with clear ownership. For each lane, define
 
 - role;
 - objective;
+- governance level;
 - allowed files;
 - forbidden files;
 - applicable skills, plugins, connectors, or tools;
@@ -60,9 +62,62 @@ the selected capability instructions needed for the worker.
 SPEC-Kit governs scope, gates, files, and evidence. Specialist capabilities do
 the domain work.
 
+## External Capability Integration
+
+Use external skills, plugins, connectors, and tools only when they are relevant
+to the approved SPEC-Kit phase, lane, task, or corrective boundary.
+
+External capabilities may supply execution methods. They must not redefine
+scope, create new file authority, bypass locks, open approval gates, downgrade
+required evidence, or mark SPEC-Kit gates complete.
+
+Superpowers is a reference integration, not a hard dependency. If it is
+available, route only to the named skills that fit the current need. If it is
+unavailable, continue with SPEC-Kit phase, gate, packet, and evidence
+templates.
+
+Recommended routing:
+
+| Need | superpowers Skill |
+|---|---|
+| Clarify broad intent before planning | `superpowers:brainstorming` |
+| Convert an approved phase into an execution plan | `superpowers:writing-plans` |
+| Implement a feature or bug fix | `superpowers:test-driven-development` |
+| Diagnose failures or unexpected behavior | `superpowers:systematic-debugging` |
+| Run bounded worker tasks | `superpowers:subagent-driven-development` or `superpowers:dispatching-parallel-agents` |
+| Request implementation review | `superpowers:requesting-code-review` |
+| Prove work before completion claims | `superpowers:verification-before-completion` |
+| Finish branch work after submit authority exists | `superpowers:finishing-a-development-branch` |
+
+SPEC-Kit remains authoritative for scope, file ownership, governance level,
+resource locks, quality gates, approval gates, memory maintenance, milestone
+state, and final acceptance.
+
+Do not copy full external workflows into SPEC-Kit docs. Record the selected
+capability name, the boundary it served, and concise evidence produced.
+
+External planning outputs must be written into, or explicitly mapped to, the
+active milestone ledger, phase doc, execution packet, or result packet. Do not
+leave an untracked second source of truth.
+
+External capability completion is execution evidence. It is not acceptance,
+gate completion, milestone closure, or authorization to continue past a closed
+SPEC-Kit gate.
+
+Continuous execution may proceed only inside the approved phase, task, lane, or
+corrective boundary. Stop for controller or user decision on closed approval
+gates, scope expansion, shared-file conflicts, resource lock conflicts, failed
+required evidence, or unapproved runtime, destructive, submit, merge, push, or
+cleanup operations.
+
 Parallel writable lanes must not share files. Parallel lanes must not edit
 `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md`; they return proposals for controller
 integration.
+
+Do not inherit Heavy governance globally. A Heavy milestone controller may
+delegate Light or Standard workers when their scope is narrow and risk is
+bounded. Workers that discover Heavy triggers must stop for controller
+decision.
 
 ## Worktree Isolation
 
@@ -137,6 +192,13 @@ Stop or return to planning when:
 
 - required files are outside the phase boundary;
 - a closed approval gate is needed;
+- an external capability suggests scope, file, runtime, or gate changes outside
+  the approved boundary;
+- an external planning output has not been mapped into tracked SPEC-Kit docs;
+- a shared-file conflict or resource lock conflict appears;
+- required evidence fails or cannot be produced;
+- unapproved runtime, destructive, submit, merge, push, or cleanup operations
+  are needed;
 - contract owner and consumer disagree;
 - runtime verification contradicts assumptions;
 - local data hygiene is at risk;
