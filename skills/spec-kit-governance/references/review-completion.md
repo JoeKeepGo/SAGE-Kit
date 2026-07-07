@@ -19,11 +19,22 @@ Review for:
 - ignored specialist capabilities when the runtime exposed relevant skills,
   plugins, connectors, or tools;
 - external capability output treated as gate completion instead of evidence;
+- adapter authorization, fallback, or evidence mapping missing when an external
+  capability was selected;
 - external plans that were not mapped into tracked SPEC-Kit docs;
 - unauthorized or unsafe worktree isolation;
 - incomplete task-dispatch records or failed validator results when Task
   Dispatch Profile is active;
 - session orchestration packet completeness when used.
+- Coder Controller self-executed broad milestone work instead of staying within
+  the execution packet's self-execution policy;
+- Wave Execution was claimed without lane independence, exclusive writable
+  files, runtime ownership, integration owner, or serial gate protection.
+- governance level was recorded without a matching permission mode;
+- read-only review was treated as closure after required corrections were
+  found;
+- `Corrective Packet Required: yes` appeared without a corrective packet,
+  Project Manager decision request, blocker, or waiver path.
 
 Lead with blocking findings before summaries.
 
@@ -31,12 +42,19 @@ Lead with blocking findings before summaries.
 
 - scope implemented;
 - governance level;
+- permission mode;
 - controls enabled and controls not enabled;
 - upgrade triggers or a `none` note;
 - stopped worker or controller decision status when applicable;
+- Coder execution mode and self-execution policy status when Session
+  Orchestration is used;
+- wave readiness decision when Wave Execution or parallel phases are used;
+- corrective closure status when a review finds required corrections;
 - files changed;
 - contract evidence;
 - capabilities used;
+- capability adapters selected, authorization level, fallback, and evidence
+  mapping;
 - superpowers skills used;
 - external capability boundary and evidence produced;
 - external planning output destination, or `n/a`;
@@ -97,6 +115,8 @@ When Session Orchestration is used:
 
 - Project Manager structural gate checks packet completeness only.
 - Final Review verifies independently and returns a verdict.
+- Final Review records its permission mode and preserves write, corrective,
+  submit, and cleanup authority boundaries.
 - Final Review checks whether Coder self review and capability routing were
   performed.
 - Final Review checks whether selected superpowers skills, if available and
@@ -108,8 +128,18 @@ When Session Orchestration is used:
   integrated, and safe when used.
 - Final Review reassesses whether the milestone execution shape was safe:
   serial, waves inside phases, or parallel phases.
+- Final Review checks whether Coder self-execution was allowed, narrow, and
+  independently verified. Broad self-executed milestone implementation is a
+  review risk and may require correction or Project Manager decision.
 - Final Review cannot accept the milestone directly.
-- Corrective packets must name findings, files, commands, and stop conditions.
+- Final Review classifies each required correction as `AUTO_CORRECTIVE`,
+  `PM_DECISION`, `BLOCKED`, or `DEFER`.
+- If Final Review is read-only, it must return a packet-only corrective handoff,
+  Project Manager decision request, blocker, or waiver path instead of editing.
+- If corrective execution is authorized, Final Review may open a bounded
+  corrective round and must require verification and re-review.
+- Corrective packets must name findings, classification, files, commands,
+  permission mode, and stop conditions.
 - After the corrective round limit, return `HANDOFF` or `BLOCKED`.
 
 ## Submit Gate

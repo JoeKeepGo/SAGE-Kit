@@ -21,9 +21,13 @@ Required Sections Present:
 | Status | `<yes/no>` | `<notes>` |
 | Primary capability / capability map or n/a | `<yes/no>` | `<notes>` |
 | Scope implemented / not implemented | `<yes/no>` | `<notes>` |
-| Governance Level and controls | `<yes/no>` | `<notes>` |
+| Governance level and controls | `<yes/no>` | `<notes>` |
+| Permission mode and authority boundaries | `<yes/no>` | `<notes>` |
 | Capability discovery used | `<yes/no>` | `<notes>` |
+| Capability adapter authorization/fallback recorded when used | `<yes/no/n/a>` | `<notes>` |
 | superpowers boundary recorded when used | `<yes/no/n/a>` | `<notes>` |
+| Coder execution mode and self-execution policy recorded | `<yes/no/n/a>` | `<notes>` |
+| Wave readiness decision recorded when parallelism was used | `<yes/no/n/a>` | `<notes>` |
 | Parallelism assessment | `<yes/no>` | `<notes>` |
 | Worktree authorization or n/a | `<yes/no>` | `<notes>` |
 | Worktree map or n/a | `<yes/no>` | `<notes>` |
@@ -52,4 +56,34 @@ Decision:
 - Send to Final Review
 - Return to Coder for packet repair only
 - Stop for Project Manager / human decision
+```
+
+## Post-Final-Review Closure Gate
+
+Use this short check after Final Review when the verdict is not cleanly
+acceptable.
+
+```markdown
+Review Closure Status: CLOSED, CORRECTIVE_OPENED, PM_DECISION_REQUIRED, or BLOCKED
+
+Final Review Packet Ref:
+
+Verdict:
+
+Corrective Required:
+
+| Check | Status | Notes |
+|---|---|---|
+| Permission mode recorded | `<yes/no>` | `<notes>` |
+| Findings classified | `<yes/no>` | `<notes>` |
+| Corrective packet attached when required | `<yes/no/n/a>` | `<notes>` |
+| PM decision request attached when required | `<yes/no/n/a>` | `<notes>` |
+| Blocker named when correction cannot proceed | `<yes/no/n/a>` | `<notes>` |
+| Re-review required and owner named | `<yes/no/n/a>` | `<notes>` |
+
+Decision:
+- Open corrective round
+- Return to Project Manager for decision
+- Mark blocked
+- Accept with recorded concerns or waiver
 ```

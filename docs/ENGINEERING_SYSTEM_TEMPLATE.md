@@ -16,6 +16,8 @@ This document defines the daily development workflow for humans and AI agents.
   smoke checks.
 - Route execution to available specialist skills, plugins, connectors, tools,
   CI, or reviewers under `docs/SPEC_CORE.md#external-capability-boundary`.
+- Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers so external
+  capability use has authorization, evidence mapping, and fallback.
 - Keep local data and secrets out of commits and reports.
 
 ## Session Roles
@@ -26,9 +28,9 @@ This document defines the daily development workflow for humans and AI agents.
 | Implementation | One approved phase or task. | Expand scope without updating the phase doc. |
 | Review | Findings, risks, missing evidence, go/no-go recommendation. | Edit files during review-only work. |
 | Coordinator | Context routing, lane ownership, integration, ledger updates. | Hide unresolved conflicts or skipped verification. |
-| Project Manager Controller | Milestone direction, execution packet, structural gate, final decision. | Perform full technical review. |
+| Project Manager Controller | Milestone direction, authority matrix, execution packet, structural gate, final decision. | Perform full technical review. |
 | Coder Controller | Phase and lane worker orchestration for one milestone. | Redefine milestone scope or accept the milestone. |
-| Final Review Controller | Independent review orchestration and verdict. | Trust Coder self-report or accept the milestone directly. |
+| Final Review Controller | Independent review orchestration, corrective classification, and verdict. | Trust Coder self-report, accept the milestone directly, or fix code unless corrective-authorized. |
 | Submit Controller | Authorized commit, push, merge, release, or worktree cleanup. | Submit unverified scope or bypass Project Manager approval. |
 
 ## Explore
@@ -54,6 +56,8 @@ promoting milestone candidates into an executable roadmap.
 The plan must include:
 
 - governance level: `Light`, `Standard`, or `Heavy`;
+- permission mode: read-only, write-authorized, corrective-authorized,
+  environment-write-authorized, or submit-authorized;
 - one observable goal;
 - requirement IDs;
 - file boundary;
@@ -61,6 +65,8 @@ The plan must include:
 - public contract;
 - test plan;
 - runtime smoke;
+- selected capability adapters, authorization levels, and fallback paths when
+  relevant;
 - non-goals;
 - completion gate.
 
@@ -90,6 +96,8 @@ closeout for the milestone.
 - Stop if an external capability reaches a closed approval gate, expands scope,
   conflicts on shared files or resource locks, fails required evidence, or needs
   unapproved runtime, destructive, submit, merge, push, or cleanup operations.
+- Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
+  skills, or global configuration.
 
 ## Verify
 
@@ -120,5 +128,7 @@ Before handoff or commit:
 - maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot;
 - update `docs/DOC_ROUTING.md` only when routing or document topology changed;
 - update completion report with memory maintenance status;
+- record capability adapter use, authorization, evidence, and fallback when
+  relevant;
 - update milestone ledger;
 - name skipped checks and remaining gaps.

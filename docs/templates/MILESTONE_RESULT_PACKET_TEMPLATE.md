@@ -24,6 +24,16 @@ Governance Used:
 - Upgrade triggers found:
 - Workers stopped for controller:
 
+Permission Used:
+- Controller permission mode:
+- Worker permission modes:
+- Write authority used:
+- Corrective authority used:
+- Environment-write authority used:
+- Submit/cleanup authority used:
+- Permission upgrade triggers found:
+- Permission gaps needing Project Manager:
+
 Capability Discovery Used:
 - Capability registry checked:
 - SPEC-Kit boundary preserved:
@@ -32,16 +42,29 @@ Capability Discovery Used:
 - superpowers boundary notes:
 - Plugins/connectors used:
 - Tools used:
+- Capability adapters used:
+- Adapter authorization/fallback:
 - External capability evidence produced:
 - External planning output mapped to:
 - Missing capabilities and fallback:
 
 Parallelism Assessment:
 - Execution shape used: `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
+- Wave readiness decision:
+- Wave readiness gaps:
 - Why this was safe:
 - What remained serial:
 - Conflicts found:
 - Recommended shape for next run:
+
+Coder Execution Mode:
+- Mode used: `WORKER_ORCHESTRATION`, `BOUNDED_SELF_EXECUTION`, or `MIXED`
+- Self-execution allowed by packet: `<yes/no>`
+- Why self-execution was used:
+- Worker dispatch skipped:
+- Why dispatch was skipped:
+- Files changed directly by Coder Controller:
+- Independent review risk:
 
 Worktree Map:
 
@@ -83,9 +106,9 @@ Worker / Lane Summary:
 
 Worker Governance Summary:
 
-| Worker Or Lane | Governance Level | Stayed In Level | Upgrade Trigger | Controller Decision |
-|---|---|---|---|---|
-| `<worker>` | `Light, Standard, or Heavy` | `<yes/no>` | `<trigger or none>` | `<decision or n/a>` |
+| Worker Or Lane | Governance Level | Permission Mode | Stayed In Level/Mode | Upgrade Trigger | Controller Decision |
+|---|---|---|---|---|---|
+| `<worker>` | `Light, Standard, or Heavy` | `<mode>` | `<yes/no>` | `<trigger or none>` | `<decision or n/a>` |
 
 Contracts:
 
@@ -95,6 +118,9 @@ Coder Self Review:
 - File boundary review:
 - Contract review:
 - Test and smoke review:
+- Self-execution policy review:
+- Worker separation review:
+- Permission mode review:
 - Runtime gap review:
 - Security or data hygiene review:
 - Issues corrected before Final Review:

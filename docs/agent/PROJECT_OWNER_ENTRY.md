@@ -95,3 +95,13 @@ Do not enable Task Dispatch Profile by default for Project Owner Entry.
 Recommend Task Dispatch only when the candidate milestone has many worker tasks,
 resource contention, repeated attempts, cross-surface integration, or a high
 risk of unverifiable completion claims.
+
+## Capability Adapter Decision
+
+Project Owner Entry may identify likely external capability adapters, such as
+frontend skills, OpenSpec, GitNexus, browser QA, database tools, CI, or
+reviewers.
+
+Do not install or enable adapters by default during intake. Record them as
+planning options until a milestone entry gate or phase authorizes the adapter,
+its authorization level, evidence requirement, and fallback path.

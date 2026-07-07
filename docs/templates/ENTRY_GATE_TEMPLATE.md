@@ -37,13 +37,26 @@ Use `docs/agent/GOVERNANCE_LEVELS.md`.
 - Controls Not Enabled:
 - Worker or lane level policy:
 
+## Permission Mode
+
+Use `docs/agent/GOVERNANCE_LEVELS.md#authority-matrix`.
+
+- Milestone controller mode: `READ_ONLY_REVIEW`, `WRITE_AUTHORIZED`,
+  `CORRECTIVE_AUTHORIZED`, `ENVIRONMENT_WRITE_AUTHORIZED`, or
+  `SUBMIT_AUTHORIZED`
+- Why this mode:
+- Worker or lane permission policy:
+- Corrective auto-open allowed:
+- Packet-only corrective handoff when read-only:
+- Permission upgrade requires:
+
 ## Phase Decomposition Matrix
 
 Implementation must not start until every phase row is concrete.
 
-| Phase | Governance Level | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Permission Mode | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<mode>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 ## Shared Files
 
@@ -54,6 +67,33 @@ Implementation must not start until every phase row is concrete.
 ## Wave Policy
 
 State which phases may use Wave Execution and which must remain serial.
+
+For every phase proposed for waves, record:
+
+- useful parallel lanes;
+- exclusive writable files;
+- shared files kept serial;
+- contracts frozen before writable work;
+- runtime ownership;
+- validation lanes;
+- integration owner;
+- conflict stop conditions.
+
+If these are unclear, mark the phase serial.
+
+## Coder Self-Execution Policy
+
+State whether Coder Controller may self-execute any work.
+
+Default: `no`.
+
+If yes, define:
+
+- exact phase, glue step, or corrective fix allowed;
+- maximum files or surfaces;
+- worker dispatch still required for;
+- why worker dispatch would add more handoff overhead than risk reduction;
+- result packet evidence required.
 
 ## Worktree Isolation Policy
 
@@ -94,6 +134,17 @@ If yes, define:
 State which specialist skills, plugins, connectors, or tools should be used for
 implementation, validation, review, runtime smoke, or artifact work when the
 agent runtime exposes them.
+
+Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers. For each
+adapter, define:
+
+- provider type;
+- default authorization level;
+- documentation source that must be read before install or init;
+- SPEC-Kit boundary served;
+- installation or environment-write policy;
+- evidence required;
+- fallback if unavailable or inconclusive.
 
 If superpowers is available, list the specific skills that may be used for
 execution discipline inside this milestone boundary.

@@ -45,8 +45,13 @@ Before implementation starts, the entry gate must answer:
 
 - What governance level applies to this control scope: `Light`, `Standard`, or
   `Heavy`?
+- What permission mode applies to this role or packet:
+  `READ_ONLY_REVIEW`, `WRITE_AUTHORIZED`, `CORRECTIVE_AUTHORIZED`,
+  `ENVIRONMENT_WRITE_AUTHORIZED`, or `SUBMIT_AUTHORIZED`?
 - If this is Heavy controller work, which worker or lane scopes can remain
   Light or Standard?
+- If this is read-only review, what packet, decision request, blocker, or
+  waiver path closes the run when correction is required?
 - What is the milestone objective?
 - Which primary capability from the capability map does it prove?
 - What is out of scope?
@@ -57,6 +62,11 @@ Before implementation starts, the entry gate must answer:
 - Which phases can use Wave Execution?
 - Does this milestone need Session Orchestration to avoid repeated manual
   handoff between Project Manager, Coder, and Final Review controllers?
+- If Session Orchestration is used, may Coder Controller self-execute any work?
+  If yes, what exact narrow phase, glue step, or corrective fix is allowed?
+- If Wave Execution or parallel phases are proposed, do lanes pass Wave
+  Readiness Gate with exclusive writable files, frozen contracts, runtime
+  ownership, validation lanes, and integration owner?
 - Does Project Manager allow Worktree Isolation, and if yes what mode, maximum
   count, naming, submit authority, and cleanup policy apply?
 - Does this milestone need Task Dispatch Profile for structured task/evidence
@@ -64,6 +74,8 @@ Before implementation starts, the entry gate must answer:
   gate closeout?
 - Which specialist skills, plugins, connectors, or tools should controllers
   route to for implementation, validation, review, or runtime smoke?
+- Which Capability Adapters apply, and what authorization level, fallback, and
+  evidence mapping does each one use?
 - If superpowers is available, which specific skills should be used as
   execution discipline, and inside which SPEC-Kit boundary? If it is not
   available, what SPEC-Kit-native packet, phase, gate, and evidence path will
@@ -118,7 +130,12 @@ Plan:
 - Coder Controller;
 - Final Review Controller;
 - controller governance level, normally `Heavy`;
+- controller and worker permission modes;
 - worker and lane governance levels, selected per scope;
+- Coder self-execution policy, normally `not allowed` except narrow glue or
+  corrective work;
+- wave readiness decision, with serial fallback when lane independence is not
+  proven;
 - worktree isolation authorization, if allowed;
 - capability discovery and specialist routing;
 - milestone execution packet;
@@ -139,6 +156,41 @@ Do not keep a separate untracked plan as the authoritative source. If an
 external plan changes scope, files, gates, sequencing, locks, tests, runtime
 requirements, or acceptance criteria, stop until the relevant SPEC-Kit artifact
 is updated and approved.
+
+## Capability Adapter Planning
+
+Use `docs/agent/CAPABILITY_ADAPTERS.md` when a phase, milestone, or controller
+expects an external skill, plugin, MCP tool, CLI, CI system, reviewer, frontend
+tool, OpenSpec, GitNexus, browser QA, or database tool.
+
+Plan:
+
+- adapter name and provider type;
+- default authorization level;
+- current provider documentation, package metadata, or installed-tool help that
+  must be read before install or init;
+- whether installation or environment writes are forbidden, allowed, or gated;
+- SPEC-Kit boundary the adapter serves;
+- allowed files and forbidden files;
+- evidence required from the adapter;
+- fallback path when unavailable or inconclusive;
+- where adapter output is mapped into SPEC-Kit docs.
+
+Do not make optional adapters startup or completion dependencies. Missing
+adapter support should degrade to the SPEC-Kit-native path unless the active
+gate requires that capability and has no safe fallback.
+
+Approved install candidates may be requested after explicit approval, not
+installed silently. Current approved candidates are `ui-ux-pro-max`, `OpenSpec`,
+and `GitNexus`. Before requesting installation, read the current provider docs
+and state exact commands, write targets, runtime requirements, uninstall or
+rollback path, and fallback.
+
+For `ui-ux-pro-max`, plan the narrowest assistant target. In Codex work, prefer
+a single Codex-targeted route and treat `--ai all`, global install, or
+multi-assistant generation as separate environment-write approval. Plan
+`design-system/` writes only when the phase or packet includes that directory
+in allowed files.
 
 ## Task Dispatch Planning
 

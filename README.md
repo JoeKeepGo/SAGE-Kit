@@ -20,8 +20,8 @@ and agent workflows can stay aligned over many sessions.
   before executable planning starts.
 - An AI agent harness for context control, file ownership, verification,
   handoff, and review.
-- Governance Levels for choosing Light, Standard, or Heavy controls by local
-  scope instead of making the whole project heavy.
+- Governance Levels and an Authority Matrix for choosing Light, Standard, or
+  Heavy controls plus read/write/corrective permission by local scope.
 - Wave Execution for safe parallel development inside a phase.
 - Session Orchestration for milestone-level Project Manager, Coder, and Final
   Review controller workflows.
@@ -33,6 +33,9 @@ and agent workflows can stay aligned over many sessions.
 - Capability routing so controllers can delegate to relevant external
   capabilities instead of letting governance instructions displace specialist
   execution methods.
+- Capability Adapters for optional skills, plugins, MCP tools, CLIs, CI,
+  reviewers, frontend tools, OpenSpec, GitNexus, and browser QA without making
+  them startup or completion dependencies.
 - An external capability boundary that keeps SPEC-Kit as the governance and
   evidence layer while external skills, plugins, tools, CI, and reviewers
   provide execution methods.
@@ -68,6 +71,7 @@ docs/
     SESSION_ORCHESTRATION.md
     WORKTREE_ISOLATION.md
     MILESTONE_PLANNING.md
+    CAPABILITY_ADAPTERS.md
   profiles/
     state-machine/
     control-plane-agent/
@@ -75,6 +79,7 @@ docs/
   templates/
     PROJECT_OWNER_INTAKE_TEMPLATE.md
     CAPABILITY_MAP_TEMPLATE.md
+    CAPABILITY_ADAPTER_TEMPLATE.md
     *_TEMPLATE.md
 scripts/
   validate_task_dispatch.py
@@ -109,6 +114,19 @@ for the rule that external capabilities execute inside SPEC-Kit authorization,
 scope, ownership, evidence, lock, and gate boundaries. Superpowers is a
 reference integration when available, not a required dependency and not
 something SPEC-Kit copies.
+
+Use `docs/agent/CAPABILITY_ADAPTERS.md` when a project wants to route through
+optional specialist providers such as frontend skills, OpenSpec, GitNexus,
+browser QA, database tools, or CI. Adapters detect, authorize, bound, invoke,
+capture, map, and fall back without silently installing tools or changing
+environment configuration.
+
+`ui-ux-pro-max`, OpenSpec, and GitNexus are approved install candidates, not
+default dependencies. New environments must read current provider docs before
+requesting approval and must disclose commands, write targets, rollback, and
+fallback.
+For `ui-ux-pro-max`, prefer a single Codex-targeted route; multi-assistant,
+global, or `design-system/` writes require explicit authorization.
 
 The skill can help bootstrap SPEC-Kit in a new project, but the project still
 needs to adopt the relevant templates and maintain its own SPEC documents.
@@ -257,7 +275,7 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` | Project Manager structural gate checklist |
 | `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` | Final Review verdict packet |
 | `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` | Bounded corrective work packet |
-| `docs/agent/GOVERNANCE_LEVELS.md` | Light, Standard, or Heavy governance selector |
+| `docs/agent/GOVERNANCE_LEVELS.md` | Light, Standard, or Heavy governance selector plus Authority Matrix |
 | `docs/agent/PROJECT_OWNER_ENTRY.md` | Optional lightweight project owner entry policy |
 | `docs/agent/WORKTREE_ISOLATION.md` | Optional worktree isolation policy |
 | `docs/profiles/task-dispatch/` | Optional structured task dispatch profile |
@@ -313,7 +331,8 @@ Start with the lightest mode that gives the project enough control.
 Do not enable every control by default. Select the control that matches the
 current risk:
 
-- Use Governance Levels for every non-trivial controller, phase, lane, or worker.
+- Use Governance Levels and permission modes for every non-trivial controller,
+  phase, lane, or worker.
 - Use Wave Execution only when writable lanes have disjoint files.
 - Use Session Orchestration when a milestone is too large for repeated manual
   handoff.
@@ -391,14 +410,42 @@ Use $spec-kit-governance for this task.
 Read ACTIVE_CONTEXT and DOC_ROUTING first.
 Then read only the active milestone ledger, phase doc, quality gates, approval
 gates, and routed references required for this task.
-Select the governance level, name allowed files, name forbidden files, and stop
-if the task needs scope expansion or a closed approval gate.
+Select the governance level and permission mode, name allowed files, name
+forbidden files, and stop if the task needs scope expansion or a closed
+approval gate.
+```
+
+```mermaid
+flowchart TD
+  A["Task or idea"] --> B["Read ACTIVE_CONTEXT.md"]
+  B --> C["Read DOC_ROUTING.md"]
+  C --> D["Read only routed milestone, phase, gate, or packet docs"]
+  D --> E["Select Governance Level: Light / Standard / Heavy"]
+  E --> F["Select Permission Mode: read-only / write / corrective / environment / submit"]
+  F --> G["Name files, gates, tests, smoke, evidence, and stop conditions"]
+  G --> H{"Closed gate or scope expansion?"}
+  H -- "Yes" --> I["Stop for Project Manager or user decision"]
+  H -- "No" --> J{"Specialist capability useful?"}
+  J -- "Yes" --> K["Use Capability Adapter: detect, authorize, bound, invoke, capture, map, fallback"]
+  J -- "No" --> L["Use SPEC-Kit-native phase or review path"]
+  K --> L
+  L --> M{"Work type"}
+  M -- "Implementation" --> N["Execute approved phase, lane, or corrective task"]
+  M -- "Review" --> O["Verify independently and classify findings"]
+  N --> P["Run tests, runtime smoke, and collect evidence"]
+  P --> O
+  O --> Q{"Correction required?"}
+  Q -- "Yes" --> R["Corrective packet, PM decision request, blocker, or waiver path"]
+  R --> N
+  Q -- "No" --> S["Completion report, ledger, and memory maintenance"]
+  S --> T["Handoff, accept decision, or next prompt"]
 ```
 
 A normal phase run should follow this loop:
 
 1. Confirm the active milestone and phase.
-2. Select `Light`, `Standard`, or `Heavy` for the current control scope.
+2. Select `Light`, `Standard`, or `Heavy` and the permission mode for the
+   current control scope.
 3. Read the smallest safe doc set through `DOC_ROUTING.md`.
 4. Inspect code or docs before assuming structure.
 5. Name allowed files, read-only files, forbidden files, shared files, gates,
@@ -409,7 +456,7 @@ A normal phase run should follow this loop:
 9. Update `ACTIVE_CONTEXT.md` by replacement when current-state facts changed.
 10. Update `DOC_ROUTING.md` only when routing or document topology changed.
 
-### Governance Level Selection
+### Governance And Authority Selection
 
 Use `docs/agent/GOVERNANCE_LEVELS.md` before dispatching substantial work.
 
@@ -425,6 +472,8 @@ Use `docs/agent/GOVERNANCE_LEVELS.md` before dispatching substantial work.
 
 A Heavy milestone controller may still delegate Light or Standard workers.
 Governance is selected per local control scope, not inherited globally.
+Permission mode is selected separately: read-only review, write-authorized,
+corrective-authorized, environment-write-authorized, or submit-authorized.
 
 ### Large Milestone Workflow
 
@@ -481,6 +530,11 @@ discipline. It may help with brainstorming, writing plans, TDD, debugging,
 subagent execution, review, verification, and branch finishing. If it is not
 available, SPEC-Kit still runs through its own phase docs, gates, packets, and
 evidence templates.
+
+Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers such as frontend
+skills, OpenSpec, GitNexus, browser QA, database tools, or CI. Adapters default
+to metadata-only or read-only. Installation, hooks, MCP config, generated
+skills, or global settings require explicit approval and a fallback path.
 
 Continuous execution is allowed only inside an approved phase, lane, task, or
 corrective boundary. Stop on closed approval gates, scope expansion,

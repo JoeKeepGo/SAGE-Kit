@@ -43,9 +43,14 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Runtime gate | Runtime claims are proven by live evidence. |
 | UI visibility gate | UI claims are proven by visible state checks when UI is in scope. |
 | Wave safety gate | When Wave Execution is used, parallel lanes have exclusive file ownership and controller integration evidence. |
+| Wave readiness gate | Wave or parallel phase execution names independent lanes, exclusive writable files, serial shared files, frozen contracts, runtime ownership, validation lanes, integration owner, and conflict stop conditions. |
+| Coder separation gate | In Session Orchestration, Coder Controller self-execution is absent or explicitly allowed, narrow, recorded, and independently reviewed. |
+| Authority gate | Every active packet names both governance level and permission mode; write, corrective, environment-write, and submit authority are explicit. |
+| Corrective closure gate | When review returns required corrections, it provides a corrective packet, Project Manager decision request, blocker, or waiver path. |
 | Security gate | Secrets and sensitive data are not exposed or staged. |
 | No fallback gate | No guessed fields, hidden success, speculative aliases, or silent downgrade paths. |
 | Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
+| Capability adapter gate | External capability use records adapter name, authorization level, boundary served, evidence produced, and fallback when relevant. |
 | Structured dispatch gate | When Task Dispatch Profile is active, task and evidence records exist, required L0-L4 levels are present, resource locks and leases are recorded, and the validator passes in gate-ready mode before acceptance. |
 
 ## Universal Blockers
@@ -63,7 +68,20 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 - parallel lanes edit the same file without controller-owned serialization;
 - a runtime behavior was claimed from static checks only;
 - UI behavior was claimed without opening or smoke-checking the UI surface;
+- Wave Execution or parallel phases are used without Wave Readiness Gate
+  evidence;
+- Coder Controller self-executes broad milestone work without explicit
+  self-execution policy and independent review;
+- a packet or handoff names governance level but omits permission mode;
+- a read-only review returns `NEEDS_CORRECTION`, `BLOCKED`, or
+  `Corrective Packet Required: yes` without a corrective packet, Project
+  Manager decision request, blocker, or waiver path;
+- write, corrective, environment-write, submit, merge, publish, release, or
+  cleanup work occurs without the matching permission mode;
 - a hidden fallback path masks failure as success;
+- an external capability writes files, installs tools, changes environment
+  configuration, or claims completion without adapter authorization and
+  evidence mapping;
 - a shared contract changed without updating both owner and consumer evidence;
 - secrets, credentials, tokens, private keys, account data, or production data
   are staged or committed.

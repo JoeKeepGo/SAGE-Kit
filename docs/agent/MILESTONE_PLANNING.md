@@ -89,7 +89,9 @@ Use this ladder before accepting a milestone plan:
     tools, CI, or reviewers should execute or verify domain work under
     `docs/SPEC_CORE.md#external-capability-boundary`?
 12. Governance Level: is this control scope Light, Standard, or Heavy?
-13. Integration gate: what must remain serial?
+13. Permission Mode: is this role read-only, write-authorized,
+    corrective-authorized, environment-write-authorized, or submit-authorized?
+14. Integration gate: what must remain serial?
 
 ## Milestone Entry Gate Checklist
 
@@ -105,6 +107,8 @@ Before implementation starts, the entry gate must answer:
 - Which phases can use waves?
 - What governance level applies to the milestone controller, and what level
   should each worker or lane use?
+- What permission mode applies to the milestone controller, and what mode
+  should each worker, lane, review, and corrective round use?
 - Does the milestone need Session Orchestration to avoid repeated manual
   handoff across phases?
 - Which specialist skills, plugins, connectors, MCP tools, CI, or reviewers
@@ -125,6 +129,7 @@ Treat these as blockers:
 - a roadmap milestone spans multiple primary capabilities without a split;
 - milestone has no phase sequence;
 - milestone controller governance level is not named;
+- permission mode is not named for the controller or active worker/lane;
 - Heavy milestone governance was inherited by every worker without checking
   worker-specific scope and risk;
 - a phase has no file boundary;

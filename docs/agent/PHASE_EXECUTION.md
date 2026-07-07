@@ -30,22 +30,26 @@ Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:
 
 1. Read the phase doc and quality gates.
 2. Select `Light`, `Standard`, or `Heavy` for the phase or task scope.
-3. Inspect capability metadata and select specialist skills, plugins,
+3. Select the permission mode for the phase, lane, review, or corrective task.
+4. Inspect capability metadata and select specialist skills, plugins,
    connectors, or tools when available.
-4. If superpowers is available and relevant, select the specific execution
+5. Use `docs/agent/CAPABILITY_ADAPTERS.md` for selected external capabilities,
+   unavailable capability fallback, installation, hooks, MCP config, or
+   frontend/browser adapter evidence.
+6. If superpowers is available and relevant, select the specific execution
    skills that fit the approved phase boundary.
-5. Check change-control state.
-6. Confirm file ownership.
-7. Create a wave plan when parallel lanes can help.
-8. Freeze public contracts and shared file ownership before writable lanes.
-9. Write or update focused tests when behavior changes.
-10. Implement the narrowest change.
-11. Run focused checks.
-12. Run runtime smoke if the phase makes runtime claims.
-13. Maintain active context and document routing.
-14. Update completion report with memory maintenance status.
-15. Update milestone ledger.
-16. Hand off or submit.
+7. Check change-control state.
+8. Confirm file ownership.
+9. Create a wave plan when parallel lanes can help.
+10. Freeze public contracts and shared file ownership before writable lanes.
+11. Write or update focused tests when behavior changes.
+12. Implement the narrowest change.
+13. Run focused checks.
+14. Run runtime smoke if the phase makes runtime claims.
+15. Maintain active context and document routing.
+16. Update completion report with memory maintenance status.
+17. Update milestone ledger.
+18. Hand off or submit.
 
 ## Wave Execution
 
@@ -62,6 +66,10 @@ The controller may parallelize safe lanes, but these remain serial:
 - ledger update;
 - active context and routing maintenance;
 - git operations when used.
+
+Do not use Wave Execution unless the phase passes the Wave Readiness Gate in
+`docs/agent/WAVE_EXECUTION.md`. If lane independence, exclusive writable files,
+runtime ownership, or integration ownership is unclear, keep the phase serial.
 
 ## Strict Mode Execution
 
@@ -80,6 +88,8 @@ Stop and return to planning when:
 
 - required files are outside the phase boundary;
 - a closed approval gate is needed;
+- an external capability needs unapproved installation, hooks, MCP config,
+  environment writes, destructive actions, submit authority, or scope expansion;
 - contract owner and consumer disagree;
 - runtime verification contradicts the phase assumptions;
 - local data hygiene is at risk;

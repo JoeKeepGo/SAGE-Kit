@@ -32,6 +32,10 @@ milestones, and phase documents.
 - Treat external skills, plugins, tools, CI systems, and human reviews as
   execution and evidence inputs inside SPEC-Kit governance, not as replacements
   for SPEC-Kit gates.
+- Use Capability Adapters for optional external skills, plugins, MCP tools,
+  CLIs, CI systems, or reviewers so SPEC-Kit can detect, authorize, invoke,
+  capture evidence, map outputs, and fall back without making them core
+  dependencies.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
@@ -74,6 +78,12 @@ durable source of truth.
 Superpowers is a reference integration for execution discipline when available.
 SPEC-Kit does not require it and does not copy it.
 
+Use `docs/agent/CAPABILITY_ADAPTERS.md` for the adapter lifecycle,
+authorization levels, evidence contract, frontend adapter rules, and
+installation policy. Adapters default to metadata-only or read-only. Installing
+external skills, plugins, CLIs, MCP servers, hooks, or global configuration
+requires explicit approval when it writes environment or user configuration.
+
 ## Trivial And Non-Trivial Work
 
 Trivial work is limited to typo fixes, formatting-only documentation edits, or
@@ -114,12 +124,13 @@ SPEC-Kit supports these execution controls:
 |---|---|---|
 | Project Owner Entry | Lightweight intake for broad or non-technical project ideas. | `docs/agent/PROJECT_OWNER_ENTRY.md` |
 | Capability Map | Planning layer before executable milestone roadmaps. | `docs/templates/CAPABILITY_MAP_TEMPLATE.md` |
-| Governance Levels | Proportional Light, Standard, or Heavy control selection by scope. | `docs/agent/GOVERNANCE_LEVELS.md` |
+| Governance Levels | Proportional Light, Standard, or Heavy control selection plus Authority Matrix by scope. | `docs/agent/GOVERNANCE_LEVELS.md` |
 | Phase Execution | One bounded phase or task. | `docs/agent/PHASE_EXECUTION.md` |
 | Wave Execution | Safe parallel lanes inside one phase. | `docs/agent/WAVE_EXECUTION.md` |
 | Session Orchestration | Large milestones that need Project Manager, Coder, and Final Review controllers. | `docs/agent/SESSION_ORCHESTRATION.md` |
 | Worktree Isolation | Optional isolation policy for authorized milestone, phase, lane, or review workspaces. | `docs/agent/WORKTREE_ISOLATION.md` |
 | Task Dispatch Profile | Optional structured task/evidence records, resource locks, leases, and validator-backed gate closeout. | `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` |
+| Capability Adapters | Optional external capability routing with authorization, evidence mapping, and fallback policy. | `docs/agent/CAPABILITY_ADAPTERS.md` |
 
 Explore:
 
@@ -132,6 +143,8 @@ Plan:
 
 - Select `Light`, `Standard`, or `Heavy` governance for the current control
   scope using `docs/agent/GOVERNANCE_LEVELS.md`.
+- Select the permission mode for the current role using the Authority Matrix in
+  `docs/agent/GOVERNANCE_LEVELS.md`.
 - For broad, non-technical, or coarse-roadmap projects, create project owner intake and a
   capability map before an executable roadmap.
 - Write or update the retained phase document.
@@ -139,6 +152,8 @@ Plan:
 - Define allowed files, read-only files, and forbidden files.
 - Select specialist external capabilities from available metadata when they are
   relevant.
+- Apply the Capability Adapter lifecycle for selected external skills, plugins,
+  MCP tools, CLIs, CI systems, or reviewers.
 - Define tests, runtime smoke, and completion gate.
 
 Implement:
@@ -173,8 +188,11 @@ No work is complete until the completion report names:
 - files changed;
 - contract evidence;
 - selected capability use and fallback when relevant;
+- capability adapter authorization level and evidence mapping when relevant;
 - tests run;
 - runtime smoke or reason it is not applicable;
+- governance level and permission mode;
+- corrective closure status when review finds required corrections;
 - skipped checks;
 - security or data hygiene checks;
 - active context and document routing maintenance;

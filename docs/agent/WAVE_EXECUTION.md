@@ -14,7 +14,11 @@ phase stays linear
 waves run in parallel where safe
 gates stay serial
 governance level is assigned per lane
+permission mode is assigned per lane
 ```
+
+Heavy governance does not create wave readiness by itself. If lanes cannot be
+made independent, keep the phase serial.
 
 ## Why Waves Exist
 
@@ -40,6 +44,7 @@ The controller owns:
 
 - phase scope;
 - lane governance levels;
+- lane permission modes;
 - wave plan;
 - file ownership table;
 - lane prompts or task cards;
@@ -50,6 +55,34 @@ The controller owns:
 - active context and document routing maintenance;
 - serial integration of memory update proposals;
 - git operations when used.
+
+The controller should not use waves as a label for doing all implementation
+work directly. If the controller is also the only writable executor, the phase
+is serial unless it meets the Coder self-execution policy in
+`docs/agent/SESSION_ORCHESTRATION.md`.
+
+## Wave Readiness Gate
+
+Before Wave 1 starts, the controller must prove that wave execution is useful
+and safe.
+
+Wave readiness requires:
+
+- at least two lanes with distinct objectives or evidence roles;
+- exclusive writable files for every writable lane;
+- shared files assigned to a serial controller or integration lane;
+- frozen public contracts before writable lanes;
+- named runtime ownership for browser, server, database, queue, device, or
+  external service checks;
+- clear lane evidence and return packet expectations;
+- a named integration owner;
+- stop conditions for file conflicts, contract drift, runtime conflicts, and
+  failed required evidence.
+
+If any readiness item is missing, use serial phase execution or return
+`STOP_FOR_PM`. Do not start parallel writable lanes from broad labels such as
+"frontend", "backend", "tests", or "polish" unless each lane has concrete file
+ownership and evidence.
 
 ## Safe Parallel Work
 
@@ -105,6 +138,17 @@ These must remain serial unless the project explicitly defines a safer process:
 ```markdown
 Wave Plan:
 
+Wave Readiness:
+- useful parallel lanes:
+- exclusive writable files:
+- shared files kept serial:
+- contracts frozen before writable work:
+- runtime ownership:
+- validation lanes:
+- integration owner:
+- conflict stop conditions:
+- decision: `SERIAL`, `PARALLEL_WITH_WAVES`, or `STOP_FOR_PM`
+
 Wave 0 - Controller Setup:
 - scope:
 - phase doc:
@@ -113,9 +157,11 @@ Wave 0 - Controller Setup:
 Wave 1 - Parallel Read-Only Lanes:
 - lane: `<name>`
   governance level: `Light, Standard, or Heavy`
+  permission mode: `READ_ONLY_REVIEW`
   selected capabilities:
 - lane: `<name>`
   governance level: `Light, Standard, or Heavy`
+  permission mode: `READ_ONLY_REVIEW`
   selected capabilities:
 
 Wave 2 - Serial Freeze:
@@ -126,17 +172,21 @@ Wave 2 - Serial Freeze:
 Wave 3 - Parallel Writable Lanes:
 - lane: `<name>`
   governance level: `Light, Standard, or Heavy`
+  permission mode: `WRITE_AUTHORIZED`
   selected capabilities:
 - lane: `<name>`
   governance level: `Light, Standard, or Heavy`
+  permission mode: `WRITE_AUTHORIZED`
   selected capabilities:
 
 Wave 4 - Parallel Validation Lanes:
 - lane: `<name>`
   governance level: `Light, Standard, or Heavy`
+  permission mode: `READ_ONLY_REVIEW`
   selected capabilities:
 - lane: `<name>`
   governance level: `Light, Standard, or Heavy`
+  permission mode: `READ_ONLY_REVIEW`
   selected capabilities:
 
 Wave 5 - Serial Integration:
@@ -151,9 +201,11 @@ Wave 5 - Serial Integration:
 
 A phase that used waves must report:
 
+- wave readiness decision and missing readiness items, if any;
 - wave plan used;
 - lanes assigned;
 - governance level assigned per lane;
+- permission mode assigned per lane;
 - writable file ownership;
 - conflicts found;
 - tests and local, fake, dry, or isolated validation run by lanes;

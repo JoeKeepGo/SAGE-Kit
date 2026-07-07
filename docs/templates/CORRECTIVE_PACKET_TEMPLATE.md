@@ -15,12 +15,24 @@ Governance Level:
 - Stop for controller when:
 - Controller decision needed:
 
+Permission Mode:
+- `CORRECTIVE_AUTHORIZED` or `READ_ONLY_REVIEW`
+- Why this mode:
+- Auto-opened by Final Review: `<yes/no>`
+- Packet-only because review was read-only: `<yes/no>`
+- Write authority:
+- Environment-write authority:
+- Submit/cleanup authority:
+- Permission upgrade requires:
+
 Capability Routing:
 - Required skills:
 - Selected superpowers skills, if available:
 - superpowers boundary, if used:
 - Required plugins/connectors:
 - Required tools:
+- Required capability adapters:
+- Adapter authorization/fallback:
 - Forbidden capabilities:
 - Fallback if missing:
 
@@ -32,15 +44,21 @@ Worktree Isolation:
 
 Findings To Fix:
 
-| Finding ID | Required Fix | Allowed Files | Forbidden Files | Tests | Stop Conditions |
-|---|---|---|---|---|---|
-| `<id>` | `<fix>` | `<files>` | `<files>` | `<commands>` | `<stops>` |
+| Finding ID | Classification | Required Fix | Allowed Files | Forbidden Files | Tests | Stop Conditions |
+|---|---|---|---|---|---|---|
+| `<id>` | `AUTO_CORRECTIVE`, `PM_DECISION`, `BLOCKED`, or `DEFER` | `<fix>` | `<files>` | `<files>` | `<commands>` | `<stops>` |
 
 Non-Goals:
 
 Approval Gates:
 
 Runtime Smoke:
+
+Re-Review:
+- Required: `<yes/no>`
+- Re-review owner:
+- Evidence to inspect:
+- Acceptance criteria:
 
 Expected Output:
 - files changed;

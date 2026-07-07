@@ -10,6 +10,8 @@ against the spec without losing context, widening scope, or hiding risk.
 - Read the smallest safe context first.
 - Select the lightest safe governance level for the current control scope using
   `docs/agent/GOVERNANCE_LEVELS.md`.
+- Select the permission mode for the current role: read-only, writable,
+  corrective, environment-writing, or submit authority.
 - Identify the active phase before editing.
 - Treat Project Owner Intake and Capability Map as planning inputs, not
   implementation authorization.
@@ -17,6 +19,9 @@ against the spec without losing context, widening scope, or hiding risk.
 - Use Wave Execution for safe parallel work inside a phase.
 - Use Session Orchestration for large milestone-level work that needs separate
   Project Manager, Coder, and Final Review controllers.
+- In Session Orchestration, Coder Controller should orchestrate workers by
+  default. It may self-execute only when the execution packet explicitly allows
+  a narrow phase, glue step, or corrective fix.
 - Use Worktree Isolation only when Project Manager authorization names the
   allowed mode, maximum count, naming, integration owner, submit authority, and
   cleanup policy.
@@ -25,6 +30,9 @@ against the spec without losing context, widening scope, or hiding risk.
   closeout.
 - Route work to relevant external capabilities when the agent runtime exposes a
   capability list.
+- Use `docs/agent/CAPABILITY_ADAPTERS.md` when an external capability is
+  selected, unavailable, needs installation, writes environment configuration,
+  or requires fallback.
 - Keep one task tied to one phase unless a batch execution plan explicitly
   defines phase order, gates, and stop conditions, or Session Orchestration
   defines the milestone controller packet flow.
@@ -62,11 +70,12 @@ Strict Mode.
    profile.
 6. Select governance level for this control scope: `Light`, `Standard`, or
    `Heavy`.
-7. Inspect available skill, plugin, connector, MCP tool, CI, and review
+7. Select permission mode for this role and packet.
+8. Inspect available skill, plugin, connector, MCP tool, CI, and review
    metadata when the runtime exposes it.
-8. Identify likely files, applicable specialist capabilities, and required
+9. Identify likely files, applicable specialist capabilities, and required
    verification.
-9. Report blockers before editing.
+10. Report blockers before editing.
 
 ## Context Budget
 
@@ -128,6 +137,25 @@ outputs are evidence inputs, not automatic `DONE`, gate completion, milestone
 acceptance, or approval. Superpowers is a reference integration for execution
 discipline when available, not a required dependency.
 
+For each selected external capability, apply the Capability Adapter lifecycle:
+
+1. Detect availability from metadata, CLI, MCP, connector, or project config.
+2. Authorize the capability for the active phase, lane, task, gate, or
+   corrective packet.
+3. Bound allowed files, forbidden files, approval gates, evidence levels,
+   runtime limits, and stop conditions.
+4. Invoke only the selected instructions or tools needed for the task.
+5. Capture concise outputs as evidence, context, planning input, or findings.
+6. Map useful outputs into the active SPEC-Kit artifact.
+7. Fall back to SPEC-Kit-native workflow or return `HANDOFF` or `BLOCKED`.
+
+Missing optional capabilities are not project failure. Treat them as
+unavailable and continue when a safe fallback exists.
+
+Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
+skills, or global configuration. Installation or environment writes require
+explicit authority in the active SPEC-Kit artifact or user approval.
+
 ## Batch Execution
 
 Batch execution across phases is opt-in.
@@ -146,11 +174,14 @@ Before batch execution starts, the controller must record:
 - stop conditions;
 - applicable specialist skills, plugins, connectors, MCP tools, CI, or
   reviewers;
+- selected capability adapters, authorization levels, and fallbacks;
 - ledger update points;
 - approval gates that remain closed;
 - final integration owner.
 - worktree isolation policy, when allowed.
 - task-dispatch record and validator policy, when adopted.
+- Coder self-execution policy and wave readiness decision when Session
+  Orchestration is used.
 
 A batch run must stop when any phase has a blocking `FAIL`, `BLOCKED`, or
 unapproved `WAIVED` gate.
@@ -205,7 +236,9 @@ Before claiming `DONE`, committing, or handing off:
    milestone closeout, completion report, or handoff.
 5. Update task-dispatch task/evidence records and run the validator only when
    the active task, phase, or gate uses that profile.
-6. If neither startup file needs an edit, record that explicitly in the
+6. Record selected capability adapter use, fallback, and evidence mapping when
+   relevant.
+7. If neither startup file needs an edit, record that explicitly in the
    completion report or handoff.
 
 Parallel workers and subagents must return memory update proposals for steps

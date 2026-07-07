@@ -18,7 +18,7 @@ Read first:
 - Read `docs/QUALITY_GATES.md` when gates, review, completion, or
   verification are in scope.
 - Read `docs/agent/GOVERNANCE_LEVELS.md` when selecting or reviewing the
-  governance level.
+  governance level or permission mode.
 - Read `docs/agent/MODEL_ASSURANCE_POLICY.md` and `docs/agent/STRICT_MODE.md`
   when Strict Mode may apply or is selected.
 - Read `docs/agent/WAVE_EXECUTION.md` when wave or parallel lane execution is
@@ -28,6 +28,9 @@ Read first:
 - Read `docs/agent/WORKTREE_ISOLATION.md` when isolated workspaces are used.
 - Read `docs/agent/MILESTONE_PLANNING.md` when planning a milestone or phase
   decomposition.
+- Read `docs/agent/CAPABILITY_ADAPTERS.md` when external capability use,
+  unavailable capability fallback, installation, hooks, MCP config, or
+  frontend/browser adapter evidence is in scope.
 - Read the active milestone entry gate or ledger only when the task belongs to
   a milestone.
 - Read the active phase doc only when implementation or review is requested.
@@ -40,6 +43,13 @@ Governance Level:
 - <why this level>
 - <controls enabled>
 - <stop for controller when>
+
+Permission Mode:
+- <READ_ONLY_REVIEW / WRITE_AUTHORIZED / CORRECTIVE_AUTHORIZED /
+  ENVIRONMENT_WRITE_AUTHORIZED / SUBMIT_AUTHORIZED>
+- <why this mode>
+- <write/corrective/environment/submit authority or none>
+- <permission upgrade requires>
 
 Allowed files:
 - <files>
@@ -68,11 +78,20 @@ Capability routing:
 - If superpowers is available, use only the selected skills that fit this
   boundary. If unavailable, use the SPEC-Kit packet, phase, gate, and evidence
   path instead.
+- Use Capability Adapters for optional external providers. Default to
+  metadata-only or read-only unless the active packet authorizes writes.
+- Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
+  skills, or global configuration.
+- Before installing or initializing an approved adapter, read current provider
+  docs, package metadata, or installed-tool help and report exact command,
+  write targets, runtime requirements, rollback path, and fallback.
 - Do not let external capabilities expand scope, bypass locks, create a second
   source of truth, or mark SPEC-Kit gates complete.
 - Use these selected capabilities:
+- Selected adapters and authorization levels:
 - Do not use these capabilities:
 - If a selected capability is unavailable:
+- Adapter evidence destination:
 - External planning output destination:
 - Treat external capability completion as evidence only: `<yes>`
 

@@ -5,6 +5,8 @@ Conclusion:
 
 Governance Level:
 
+Permission Mode:
+
 Controls Enabled:
 
 Controls Not Enabled:
@@ -13,6 +15,8 @@ Upgrade Triggers:
 
 Stopped Worker / Controller Decision:
 
+Corrective Closure:
+
 Scope Implemented:
 
 Files Changed:
@@ -20,6 +24,10 @@ Files Changed:
 Contract Evidence:
 
 Capabilities Used:
+
+Capability Adapters:
+
+Adapter Authorization / Fallback:
 
 superpowers Skills Used:
 

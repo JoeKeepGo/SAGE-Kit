@@ -18,6 +18,17 @@ Select `Light`, `Standard`, or `Heavy` using
 - Controls Not Enabled:
 - Upgrade triggers:
 
+## Permission Mode
+
+Select the permission mode using
+`docs/agent/GOVERNANCE_LEVELS.md#authority-matrix`.
+
+- Mode:
+- Why this mode:
+- Write/corrective/environment/submit authority:
+- Permission upgrade triggers:
+- Stop for controller when:
+
 ## Requirement IDs
 
 List product, architecture, API, security, UI, data, runtime, or local feature
@@ -85,6 +96,17 @@ this phase. SPEC-Kit owns scope, authorization, files, gates, locks, evidence,
 and completion status; external capabilities provide execution methods inside
 that boundary.
 
+Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers. Name:
+
+- adapter name;
+- provider type;
+- authorization level;
+- documentation source that must be read before install or init;
+- allowed files or read-only scope;
+- approval gates;
+- evidence expected;
+- fallback path.
+
 If superpowers is available, list the specific skills allowed for this phase and
 the boundary they must stay inside. If unavailable, use the SPEC-Kit-native
 phase, gate, packet, and evidence path.
@@ -150,6 +172,8 @@ Conclusion:
 
 Governance Level:
 
+Permission Mode:
+
 Controls Enabled:
 
 Controls Not Enabled:
@@ -158,6 +182,8 @@ Upgrade Triggers:
 
 Stopped Worker / Controller Decision:
 
+Corrective Closure:
+
 Scope Implemented:
 
 Files Changed:
@@ -165,6 +191,10 @@ Files Changed:
 Contract Evidence:
 
 Capabilities Used:
+
+Capability Adapters:
+
+Adapter Authorization / Fallback:
 
 superpowers Skills Used:
 

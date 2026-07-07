@@ -46,9 +46,9 @@ Acceptance invariant:
 
 ## Decomposition Notes
 
-| Phase | Governance Level | Objective | Primary Capability | Owner | Contract | Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<capability or n/a>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Permission Mode | Objective | Primary Capability | Owner | Contract | Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<mode>` | `<objective>` | `<capability or n/a>` | `<owner>` | `<contract or none>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 ## Gate Status
 
@@ -69,9 +69,9 @@ Use this table only when Wave Execution is used.
 Use this table when specialist skills, plugins, connectors, or tools are
 available or expected.
 
-| Task | Capability | Used | Evidence | Fallback |
-|---|---|---|---|---|
-| `<task>` | `<skill/plugin/connector/tool>` | `<yes/no/unavailable>` | `<evidence>` | `<fallback>` |
+| Task | Capability | Adapter Type | Authorization | Used | Evidence | Fallback |
+|---|---|---|---|---|---|---|
+| `<task>` | `<skill/plugin/connector/tool/CLI/CI/reviewer>` | `<built-in/reference/external>` | `<metadata/read/write/gated>` | `<yes/no/unavailable>` | `<evidence>` | `<fallback>` |
 
 When superpowers is used, record the selected skill name and the SPEC-Kit
 boundary it served. A superpowers completion signal is execution evidence, not
@@ -106,6 +106,10 @@ Use this table only when Session Orchestration is used.
 | `Project Manager` | `<execution/structural/final decision packet>` | `<status>` | `<evidence>` | `<next action>` |
 | `Coder` | `<milestone result packet>` | `<status>` | `<evidence>` | `<next action>` |
 | `Final Review` | `<review verdict packet>` | `<status>` | `<evidence>` | `<next action>` |
+
+When Final Review returns `NEEDS_CORRECTION` or `BLOCKED`, the next action must
+name a corrective packet, Project Manager decision request, blocker, or waiver
+path.
 
 ## Agent Lanes
 

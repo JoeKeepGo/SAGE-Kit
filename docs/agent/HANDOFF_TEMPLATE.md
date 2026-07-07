@@ -10,6 +10,8 @@ Objective:
 
 Governance Level:
 
+Permission Mode:
+
 Controls Enabled:
 
 Controls Not Enabled:
@@ -29,6 +31,10 @@ Runtime Smoke:
 Capability Routing:
 
 Capabilities Used:
+
+Capability Adapters:
+
+Adapter Authorization / Fallback:
 
 superpowers Skills Used:
 
@@ -55,6 +61,8 @@ Change Control Status:
 Skipped Checks:
 
 Remaining Gaps:
+
+Corrective Closure:
 
 Blockers:
 

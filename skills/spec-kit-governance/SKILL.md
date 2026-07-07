@@ -1,6 +1,6 @@
 ---
 name: spec-kit-governance
-description: "Use when SPEC-Kit is explicit: the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or references SPEC-Kit docs or constructs such as ACTIVE_CONTEXT, DOC_ROUTING, Governance Levels, Agent Harness, milestones, phase docs, ledgers, closeouts, gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, or Task Dispatch. Do not use for ordinary coding, planning, review, or debugging unless SPEC-Kit is explicit."
+description: "Use when SPEC-Kit is explicit: the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or references SPEC-Kit docs or constructs such as ACTIVE_CONTEXT, DOC_ROUTING, Governance Levels, Authority Matrix, Agent Harness, milestones, phase docs, ledgers, closeouts, gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch, or Capability Adapters. Do not use for ordinary coding, planning, review, or debugging unless SPEC-Kit is explicit."
 ---
 
 # SPEC-Kit Governance
@@ -12,6 +12,11 @@ SPEC-Kit is governance, not a skill library. It controls scope,
 authorization, file boundaries, gates, evidence, locks, memory, and completion
 status. External skills, plugins, connectors, and tools provide execution
 methods inside those approved boundaries.
+
+Task Dispatch is an internal optional SPEC-Kit profile. Superpowers and other
+skills, plugins, MCP tools, CLIs, CI systems, reviewers, frontend builders,
+OpenSpec, GitNexus, browser tools, and database tools are optional capability
+adapters unless a project explicitly defines a narrower policy.
 
 This skill does not replace the project's own SPEC documents. The project
 remains responsible for maintaining its `docs/` profile, design, gates, active
@@ -54,10 +59,14 @@ For a SPEC-Kit governed project:
 2. Read `docs/DOC_ROUTING.md`.
 3. Read only the active milestone ledger, phase doc, contract docs, or gates
    named by routing and task scope.
-4. Select the governance level for the current control scope using
-   `docs/agent/GOVERNANCE_LEVELS.md` when the task is non-trivial, delegated,
-   or controller-level.
-5. Before writable work, name allowed files, read-only files, forbidden files,
+4. Select the governance level and permission mode for the current control
+   scope using `docs/agent/GOVERNANCE_LEVELS.md` when the task is non-trivial,
+   delegated, controller-level, review, corrective, environment-writing, or
+   submit-related.
+5. When external capabilities are relevant, read
+   `docs/agent/CAPABILITY_ADAPTERS.md` or the project routing entry that
+   defines the adapter boundary.
+6. Before writable work, name allowed files, read-only files, forbidden files,
    gates, verification commands, and stop conditions.
 
 If required startup docs are missing or contradictory, stop and report the gap
@@ -100,14 +109,27 @@ handoff.
 - Do not claim `DONE` unless required verification and memory maintenance are
   complete.
 - Use `docs/agent/GOVERNANCE_LEVELS.md` to choose the lightest governance level
-  that safely preserves scope, evidence, memory, and approval boundaries.
-  Heavy controller work may delegate Light or Standard workers.
+  that safely preserves scope, evidence, memory, and approval boundaries, and
+  choose the matching permission mode for read-only, write, corrective,
+  environment-write, or submit authority. Heavy controller work may delegate
+  Light or Standard workers.
+- Do not treat `READ_ONLY_REVIEW` as closure when findings require correction,
+  Project Manager decision, blocker handling, or waiver. A read-only review
+  that returns `NEEDS_CORRECTION` must include a corrective packet, handoff, or
+  blocker.
 - Do not let parallel workers or subagents edit `docs/ACTIVE_CONTEXT.md` or
   `docs/DOC_ROUTING.md` directly. They must return memory update proposals for
   controller integration.
 - Do not let SPEC-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
+- Use Capability Adapters for optional external skills, plugins, MCP tools,
+  CLIs, CI systems, reviewers, frontend skills, OpenSpec, GitNexus, browser
+  QA, and database tools. Detect, authorize, bound, invoke, capture, map, and
+  fall back without making them core dependencies.
+- Do not silently install external skills, plugins, CLIs, MCP servers, hooks,
+  generated skills, or global configuration. Recommend or request installation
+  only when the source, writes, fallback, and approval path are explicit.
 - Treat superpowers as a reference integration, not a dependency. When
   available and relevant, selected superpowers skills may guide execution
   inside an approved SPEC-Kit boundary. If unavailable, continue with SPEC-Kit
@@ -121,6 +143,17 @@ handoff.
 - Use Session Orchestration only for large milestones where Project Manager,
   Coder, and Final Review controller packets reduce handoff overhead without
   weakening gates.
+- In Session Orchestration, Coder Controller orchestrates workers by default.
+  It may self-execute only when the execution packet explicitly allows a narrow
+  phase, glue step, or corrective fix, and it must record why worker dispatch
+  was skipped.
+- Final Review must classify required corrections as `AUTO_CORRECTIVE`,
+  `PM_DECISION`, `BLOCKED`, or `DEFER`. If corrective execution is authorized,
+  it may open a bounded corrective round; if review is read-only, it must return
+  a packet-only corrective handoff or blocker.
+- Do not claim Wave Execution or parallel phases unless Wave Readiness is
+  proven with independent lanes, exclusive writable files, serial shared files,
+  frozen contracts, runtime ownership, validation lanes, and integration owner.
 - Use Worktree Isolation only when Project Manager authorization names the
   allowed mode, maximum count, naming, integration owner, submit authority, and
   cleanup policy.

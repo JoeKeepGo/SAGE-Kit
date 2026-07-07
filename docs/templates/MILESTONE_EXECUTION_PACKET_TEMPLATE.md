@@ -28,10 +28,42 @@ Governance:
 - Controls Enabled:
 - Controls Not Enabled:
 
+Permission Mode:
+- Current mode: `READ_ONLY_REVIEW`, `WRITE_AUTHORIZED`,
+  `CORRECTIVE_AUTHORIZED`, `ENVIRONMENT_WRITE_AUTHORIZED`, or
+  `SUBMIT_AUTHORIZED`
+- Why this mode:
+- Writable authority:
+- Corrective auto-open allowed: `<yes/no>`
+- Corrective packet-only when read-only: `<yes/no>`
+- Maximum corrective rounds:
+- Environment-write authority:
+- Submit/cleanup authority:
+- Permission upgrade requires:
+
 Execution Shape:
 - `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
 
 Parallelism Rationale:
+
+Wave Readiness:
+- Useful parallel lanes:
+- Exclusive writable files:
+- Shared files kept serial:
+- Contracts frozen before writable work:
+- Runtime ownership:
+- Validation lanes:
+- Integration owner:
+- Conflict stop conditions:
+- Decision: `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
+
+Coder Self-Execution Policy:
+- Self-execution allowed: `<yes/no>`
+- Allowed only for: `<single phase/glue step/corrective fix/n/a>`
+- Maximum files or surfaces:
+- Worker dispatch required for:
+- Self-execution forbidden when:
+- Result packet must explain skipped worker dispatch: `<yes/no>`
 
 Worktree Isolation Policy:
 - Allowed mode: `NONE`, `MILESTONE_WORKTREE`, `PHASE_WORKTREE`, `LANE_WORKTREE`, or `REVIEW_WORKTREE`
@@ -67,6 +99,9 @@ Capability Discovery:
 - superpowers boundary:
 - Selected plugins/connectors:
 - Selected tools:
+- Selected capability adapters:
+- Adapter authorization levels:
+- Adapter fallback policy:
 - Forbidden capabilities:
 - Worker must check own capability list: `<yes/no>`
 - Fallback if capability is missing:
@@ -79,15 +114,15 @@ Non-Goals:
 
 Phase Plan:
 
-| Phase | Governance Level | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Permission Mode | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<mode>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
 
 Worker Governance:
 
-| Worker Or Lane | Scope | Governance Level | Controls Enabled | Controls Not Enabled | Upgrade Triggers | Stop For Controller |
-|---|---|---|---|---|---|---|
-| `<worker>` | `<scope>` | `Light, Standard, or Heavy` | `<controls>` | `<controls or none>` | `<triggers or none>` | `<conditions>` |
+| Worker Or Lane | Scope | Governance Level | Permission Mode | Controls Enabled | Controls Not Enabled | Upgrade Triggers | Stop For Controller |
+|---|---|---|---|---|---|---|---|
+| `<worker>` | `<scope>` | `Light, Standard, or Heavy` | `<mode>` | `<controls>` | `<controls or none>` | `<triggers or none>` | `<conditions>` |
 
 Shared Files:
 
@@ -97,7 +132,11 @@ Shared Files:
 
 Worker Delegation Rules:
 - Controller role:
+- Controller permission mode:
 - Worker types allowed:
+- Worker permission modes:
+- Coder self-execution allowed:
+- Self-execution criteria:
 - Parallel lanes allowed:
 - Parallel phases allowed:
 - Worktree isolation allowed:

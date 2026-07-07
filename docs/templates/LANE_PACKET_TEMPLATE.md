@@ -13,6 +13,8 @@ Objective:
 
 Governance Level:
 
+Permission Mode:
+
 Controls Enabled:
 
 Controls Not Enabled:
@@ -20,6 +22,8 @@ Controls Not Enabled:
 Upgrade Triggers:
 
 Controller Decision Needed:
+
+Corrective Closure:
 
 Allowed Files:
 
@@ -36,6 +40,10 @@ Commands Run:
 Failed Commands:
 
 Capabilities Used:
+
+Capability Adapters:
+
+Adapter Authorization / Fallback:
 
 superpowers Skills Used:
 

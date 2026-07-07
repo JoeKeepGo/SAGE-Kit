@@ -23,6 +23,8 @@ Reference:
 - `docs/agent/SESSION_ORCHESTRATION.md` when milestone-level controller
   handoff is used
 - `docs/agent/WORKTREE_ISOLATION.md` when isolated workspaces are allowed
+- `docs/agent/CAPABILITY_ADAPTERS.md` when optional external providers are
+  expected or selected
 - `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` when structured task
   dispatch is adopted
 - `docs/templates/PHASE_TEMPLATE.md`
@@ -55,6 +57,10 @@ The entry gate must include:
 - task-dispatch policy when structured task/evidence records are required;
 - test and smoke expectations;
 - capability routing expectations;
+- capability adapter authorization, evidence, and fallback policy when optional
+  providers are expected;
+- Coder self-execution policy when Session Orchestration is used;
+- wave readiness decision when Wave Execution or parallel phases are proposed;
 - approval gates;
 - completion gate.
 
@@ -66,6 +72,7 @@ phases.
 Each phase must have:
 
 - one governance level selected for its local scope;
+- one permission mode selected for its current authority;
 - one observable result;
 - one primary ownership boundary;
 - one public contract or clear no-contract reason;
@@ -84,13 +91,35 @@ from `docs/CAPABILITY_MAP.md` and has not been split.
 
 Use `docs/agent/MILESTONE_PLANNING.md` for the decomposition checklist.
 
+When Session Orchestration is used, Coder Controller self-execution is not the
+default. The entry gate must explicitly allow any narrow self-execution scope,
+or Coder Controller must dispatch phase, lane, validation, review, or
+corrective workers.
+
 ## Phase Decomposition Matrix
 
 Every milestone entry gate must include this matrix.
 
-| Phase | Governance Level | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `Light, Standard, or Heavy` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+| Phase | Governance Level | Permission Mode | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `Light, Standard, or Heavy` | `<mode>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
+
+## Wave Readiness
+
+Use waves only when lane independence is proven.
+
+Record:
+
+- useful parallel lanes;
+- exclusive writable files;
+- shared files kept serial;
+- contracts frozen before writable work;
+- runtime ownership;
+- validation lanes;
+- integration owner;
+- conflict stop conditions.
+
+If readiness is not proven, keep execution serial.
 
 ## Auto-Advance Policy
 
@@ -111,11 +140,15 @@ agent runtime exposes them.
 If superpowers is available, name the specific skills that may be used as
 execution discipline inside this milestone boundary.
 
+For optional providers such as frontend skills, OpenSpec, GitNexus, browser QA,
+database tools, CI, or reviewers, use `docs/agent/CAPABILITY_ADAPTERS.md` and
+record authorization level, evidence required, and fallback behavior.
+
 The controller must inspect capability metadata before delegating work and
 record the selected capabilities in execution, result, review, or corrective
 packets.
 
-## Governance Levels
+## Governance Levels And Authority
 
 Use `docs/agent/GOVERNANCE_LEVELS.md`.
 
@@ -123,6 +156,8 @@ State:
 
 - milestone controller governance level;
 - worker, phase, lane, review, and corrective governance levels;
+- milestone, worker, phase, lane, review, and corrective permission modes;
+- whether corrective auto-open is allowed or packet-only;
 - controls enabled and explicitly not enabled;
 - triggers that require stopping for Project Manager or controller decision.
 

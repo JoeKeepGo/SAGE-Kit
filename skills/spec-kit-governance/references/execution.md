@@ -10,9 +10,10 @@ Before editing files:
 1. Read the routed SPEC docs.
 2. Inspect current code or docs with narrow searches.
 3. Select the governance level for the current control scope.
-4. State allowed files, read-only files, forbidden files, and shared files.
-5. Identify quality gates, approval gates, tests, smoke, and stop conditions.
-6. Stop if the required change falls outside the phase boundary.
+4. State governance level and permission mode.
+5. State allowed files, read-only files, forbidden files, and shared files.
+6. Identify quality gates, approval gates, tests, smoke, and stop conditions.
+7. Stop if the required change falls outside the phase boundary.
 
 ## Execution Loop
 
@@ -76,6 +77,24 @@ available, route only to the named skills that fit the current need. If it is
 unavailable, continue with SPEC-Kit phase, gate, packet, and evidence
 templates.
 
+Apply `docs/agent/CAPABILITY_ADAPTERS.md` for external capabilities. Use
+metadata-only or read-only behavior by default. Do not install capabilities,
+write MCP config, add hooks, generate global skills, or mutate environment
+configuration unless the active SPEC-Kit boundary or user approval explicitly
+allows it.
+
+For approved install candidates such as `ui-ux-pro-max`, `OpenSpec`, or
+`GitNexus`, do not rely on remembered commands. Read current provider
+documentation, package metadata, or installed-tool help first; then request
+approval with exact command, write list, runtime requirements, rollback path,
+and fallback. If docs are unclear or conflict, return `HANDOFF`.
+
+For `ui-ux-pro-max`, prefer a single Codex-targeted install path when approved.
+Do not use `--ai all`, global install, or multi-assistant generation unless the
+user explicitly approves the wider environment write. `design-system/` outputs
+require allowed-file coverage and remain design evidence, not SPEC-Kit source
+of truth.
+
 Recommended routing:
 
 | Need | superpowers Skill |
@@ -88,6 +107,12 @@ Recommended routing:
 | Request implementation review | `superpowers:requesting-code-review` |
 | Prove work before completion claims | `superpowers:verification-before-completion` |
 | Finish branch work after submit authority exists | `superpowers:finishing-a-development-branch` |
+
+Frontend work should route to an available frontend or browser-testing adapter
+when UI, styling, responsive layout, design-system components, accessibility,
+or visual QA is in scope. It must return runtime, screenshot, console, network,
+responsive, or accessibility evidence as applicable, but SPEC-Kit still decides
+the gate.
 
 SPEC-Kit remains authoritative for scope, file ownership, governance level,
 resource locks, quality gates, approval gates, memory maintenance, milestone
@@ -161,13 +186,18 @@ Manager adopted the profile.
 When Session Orchestration is active:
 
 - Project Manager creates the milestone execution packet.
-- Coder Controller orchestrates phase and lane workers; it should not perform
-  all phase work itself when bounded workers can reduce serial handoff safely.
+- Coder Controller orchestrates phase and lane workers by default.
+- Coder Controller may self-execute only when the execution packet explicitly
+  allows a narrow phase, integration glue step, or bounded corrective fix; it
+  must record why worker dispatch was skipped.
 - Coder performs integration self review, runs bounded corrective workers when
   allowed, and returns a milestone result packet.
 - Project Manager runs only the structural gate.
 - Final Review Controller orchestrates review workers or validation lanes,
   verifies independently, and returns a verdict.
+- Final Review classifies required corrections and either opens an authorized
+  corrective round or returns a packet-only handoff, Project Manager decision
+  request, or blocker.
 - Corrective workers fix only findings named in corrective packets.
 - If Task Dispatch Profile is active, Coder updates task/evidence records and
   Final Review treats them as an evidence index to verify, not as proof by
@@ -176,9 +206,10 @@ When Session Orchestration is active:
 Default corrective round limit is 2.
 
 Coder and Final Review controllers must reassess whether the milestone should
-run serially, with waves inside phases, or with parallel phases. Stop for
-Project Manager when a sequencing change affects scope, approval gates, public
-contracts, shared ownership, or final decision authority.
+run serially, with waves inside phases, or with parallel phases. Heavy mode
+does not imply wave readiness. Stop for Project Manager when a sequencing
+change affects scope, approval gates, public contracts, shared ownership, or
+final decision authority.
 
 ## Runtime And Integration Claims
 

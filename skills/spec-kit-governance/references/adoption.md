@@ -31,12 +31,15 @@ throwaway prototype, or informal exploration without retained governance.
 5. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
    `docs/MILESTONE_ROADMAP.md`.
 6. Copy `docs/agent/` when AI agents will execute or review work.
-7. Copy profile templates only when the project matches that profile.
-8. Create the first milestone:
+7. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
+   external skills, plugins, MCP tools, CLIs, CI, reviewers, frontend tools,
+   OpenSpec, GitNexus, browser QA, or database tools.
+8. Copy profile templates only when the project matches that profile.
+9. Create the first milestone:
    - `docs/M<ID>/00-entry-gate.md`
    - `docs/M<ID>/MILESTONE_LEDGER.md`
    - one phase doc per reviewable slice
-9. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
+10. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
 
 ## Minimum Viable SPEC
 
@@ -72,5 +75,6 @@ When bootstrapping, summarize:
 - unresolved project decisions;
 - first milestone and phase boundary;
 - capability map and any candidate milestones not promoted;
+- optional capability adapters and fallbacks;
 - required verification and approval gates;
 - next action.
