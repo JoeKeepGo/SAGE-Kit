@@ -10,6 +10,11 @@ Read narrow first, then expand only when the task requires it.
 Maintain this file as a stable routing table, not a session log. Do not update
 it for ordinary task progress.
 
+Context budget is a guardrail, not a correctness cap. Agents may expand beyond
+the default read set when correctness, safety, provenance, full milestone
+review, or final acceptance requires it, but they must record why the extra
+context is needed and what decision it supports.
+
 Default startup read set:
 
 1. `docs/ACTIVE_CONTEXT.md`
@@ -24,6 +29,7 @@ Default startup read set:
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` |
 | New feature planning | Project profile, technical design, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
 | Milestone planning | Project profile, technical design, roadmap, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
+| Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
 | UI work | Active phase doc, UI contract, quality gates | Design system or product profile sections |
 | Contract change | Contract owner doc and consumer docs | Relevant closeout decision summary, then historical decision records |
@@ -54,6 +60,17 @@ Before opening broad files or long logs, record:
 - why the file is needed;
 - what symbols, headings, or ranges are needed;
 - what decision the read should support.
+
+Prefer targeted reads before full archives:
+
+1. read closeouts before historical ledgers;
+2. read capability metadata before capability bodies;
+3. search for headings or symbols before reading whole files;
+4. read packet templates only when the current task uses that packet.
+
+Do not read every phase doc, historical ledger, closeout, skill body, plugin
+body, or log unless the task explicitly requires full milestone review,
+provenance, safety analysis, or final acceptance.
 
 ## Maintenance Rule
 

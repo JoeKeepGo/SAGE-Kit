@@ -11,8 +11,13 @@ against the spec without losing context, widening scope, or hiding risk.
 - Identify the active phase before editing.
 - Name allowed files, read-only files, and forbidden files before writable work.
 - Use Wave Execution for safe parallel work inside a phase.
+- Use Session Orchestration for large milestone-level work that needs separate
+  Project Manager, Coder, and Final Review controllers.
+- Route work to relevant skills, plugins, connectors, or tools when the agent
+  runtime exposes a capability list.
 - Keep one task tied to one phase unless a batch execution plan explicitly
-  defines phase order, gates, and stop conditions.
+  defines phase order, gates, and stop conditions, or Session Orchestration
+  defines the milestone controller packet flow.
 - Do not invent missing contracts.
 - Do not use placeholder success for failed runtime behavior.
 - Do not touch closed approval gates.
@@ -38,18 +43,80 @@ When in doubt, use Strict Mode.
 3. Read active milestone ledger and phase doc when applicable.
 4. Check change-control state, such as branch, changelist, revision, and dirty
    files when applicable.
-5. Identify likely files and required verification.
-6. Report blockers before editing.
+5. Inspect the available skill, plugin, connector, and tool metadata when the
+   runtime exposes it.
+6. Identify likely files, applicable specialist capabilities, and required
+   verification.
+7. Report blockers before editing.
+
+## Context Budget
+
+Context budget is a guardrail, not a correctness cap. Start narrow, then expand
+when the task needs more evidence.
+
+Default startup should stay limited to active context, document routing, the
+active milestone or phase docs needed by the task, and capability metadata when
+the runtime exposes it.
+
+Before broad reads, record:
+
+- why the extra context is needed;
+- which headings, symbols, files, or ranges will be read;
+- what decision the read supports.
+
+Prefer this order:
+
+1. routing table and active context;
+2. active phase, milestone, gate, or packet docs;
+3. capability metadata before capability bodies;
+4. milestone closeout before historical ledgers;
+5. targeted searches or file ranges before full archives.
+
+Do not read every phase doc, historical ledger, closeout, skill body, plugin
+body, or log by default. Do read more when required for correctness, full
+milestone review, provenance, safety, or final acceptance.
+
+If the needed context is too large, summarize into the milestone ledger,
+closeout, completion report, or handoff, then resume from routing.
+
+## Capability Routing
+
+Before delegating to a worker or subagent, the controller must inspect the
+available capability metadata exposed by the runtime, such as skill names and
+descriptions, plugin or connector names, and tool availability.
+
+Do not load every skill or plugin body by default. Select capabilities from
+metadata first, then load only the instructions required by the selected
+capability.
+
+Delegation prompts must name:
+
+- required SPEC-Kit docs and packet templates;
+- applicable specialist skills, plugins, connectors, or tools;
+- capabilities that are explicitly forbidden or unavailable;
+- whether the worker must inspect its own available capability list;
+- the fallback when a selected capability is missing.
+
+SPEC-Kit governance does not replace domain skills or plugins. If a frontend,
+review, GitHub, database, document, browser, runtime, or other specialist
+capability applies, the controller should route the worker to that capability
+and keep SPEC-Kit as the boundary and evidence contract.
 
 ## Batch Execution
 
 Batch execution across phases is opt-in.
+
+For large milestones, prefer `docs/agent/SESSION_ORCHESTRATION.md` over ad hoc
+batch execution. Session Orchestration keeps Project Manager, Coder, and Final
+Review responsibilities separate and uses standard packet templates to reduce
+manual handoff.
 
 Before batch execution starts, the controller must record:
 
 - phase order;
 - gate status required between phases;
 - stop conditions;
+- applicable specialist skills, plugins, connectors, or tools;
 - ledger update points;
 - approval gates that remain closed;
 - final integration owner.
@@ -76,6 +143,14 @@ with `docs/templates/LANE_PACKET_TEMPLATE.md`.
 
 Use `docs/agent/HANDOFF_TEMPLATE.md` for phase/session handoff and
 `docs/templates/LANE_PACKET_TEMPLATE.md` for lane handoff.
+
+Use Session Orchestration packets for milestone-level multi-session handoff:
+
+- `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md`
+- `docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md`
+- `docs/templates/STRUCTURAL_GATE_TEMPLATE.md`
+- `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md`
+- `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md`
 
 ## End-Of-Run Memory Maintenance
 

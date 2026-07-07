@@ -1,6 +1,7 @@
 # SPEC-Kit Planning
 
-Use this reference for roadmap, milestone, entry gate, phase, and wave planning.
+Use this reference for roadmap, milestone, entry gate, phase, wave, and session
+orchestration planning.
 
 ## Milestone Granularity
 
@@ -30,6 +31,10 @@ Before implementation starts, the entry gate must answer:
 - What files or modules are likely to change?
 - Which files are shared and need serial ownership?
 - Which phases can use Wave Execution?
+- Does this milestone need Session Orchestration to avoid repeated manual
+  handoff between Project Manager, Coder, and Final Review controllers?
+- Which specialist skills, plugins, connectors, or tools should controllers
+  route to for implementation, validation, review, or runtime smoke?
 - Which gates remain closed?
 - Which tests and runtime checks prove the milestone?
 - What review, handoff, or closeout closes the milestone?
@@ -65,6 +70,25 @@ Use waves when parallel work is safe. Keep these serial:
 Parallel lanes must have disjoint writable files. If a lane needs a shared
 startup context file, it returns a proposal and the controller applies it
 serially.
+
+## Session Orchestration Planning
+
+Use Session Orchestration for large milestones with many phases, repeated
+handoff, or separate Coder and Final Review controllers.
+
+Plan:
+
+- Project Manager Controller;
+- Coder Controller;
+- Final Review Controller;
+- capability discovery and specialist routing;
+- milestone execution packet;
+- milestone result packet;
+- structural gate owner;
+- final review packet;
+- corrective round limit.
+
+Do not use Session Orchestration for small single-phase work.
 
 ## Milestone Closure Order
 

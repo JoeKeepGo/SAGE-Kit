@@ -40,6 +40,27 @@ Implementation must not start until every phase row is concrete.
 
 State which phases may use Wave Execution and which must remain serial.
 
+## Capability Routing Policy
+
+State which specialist skills, plugins, connectors, or tools should be used for
+implementation, validation, review, runtime smoke, or artifact work when the
+agent runtime exposes them.
+
+Do not require loading every capability body by default. Select from metadata
+and load only the selected capability instructions.
+
+## Session Orchestration Policy
+
+State whether this milestone uses Session Orchestration.
+
+If yes, name:
+
+- Project Manager Controller;
+- Coder Controller;
+- Final Review Controller;
+- corrective round limit;
+- packet storage location.
+
 ## Milestone Closure Gate
 
 Final milestone acceptance follows this order:

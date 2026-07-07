@@ -59,6 +59,25 @@ Use this table only when Wave Execution is used.
 |---|---|---|---|---|
 | `<phase>` | `<yes/no>` | `<lanes>` | `<conflicts>` | `<evidence>` |
 
+## Capability Routing Status
+
+Use this table when specialist skills, plugins, connectors, or tools are
+available or expected.
+
+| Task | Capability | Used | Evidence | Fallback |
+|---|---|---|---|---|
+| `<task>` | `<skill/plugin/connector/tool>` | `<yes/no/unavailable>` | `<evidence>` | `<fallback>` |
+
+## Session Orchestration Status
+
+Use this table only when Session Orchestration is used.
+
+| Controller | Packet | Status | Evidence | Next Action |
+|---|---|---|---|---|
+| `Project Manager` | `<execution/structural/final decision packet>` | `<status>` | `<evidence>` | `<next action>` |
+| `Coder` | `<milestone result packet>` | `<status>` | `<evidence>` | `<next action>` |
+| `Final Review` | `<review verdict packet>` | `<status>` | `<evidence>` | `<next action>` |
+
 ## Agent Lanes
 
 ## Verification Evidence

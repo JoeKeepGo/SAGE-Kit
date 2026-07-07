@@ -20,7 +20,19 @@ Reference:
 - `docs/DOC_ROUTING.md`
 - `docs/QUALITY_GATES.md`
 - `docs/agent/MILESTONE_PLANNING.md`
+- `docs/agent/SESSION_ORCHESTRATION.md` when milestone-level controller
+  handoff is used
 - `docs/templates/PHASE_TEMPLATE.md`
+- `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` when Session
+  Orchestration is used
+- `docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md` when Session
+  Orchestration is used
+- `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` when Session Orchestration is
+  used
+- `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` when Session Orchestration
+  is used
+- `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` when Session Orchestration is
+  used
 - `docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md`
 
 ## Entry Gate Requirements
@@ -35,6 +47,7 @@ The entry gate must include:
 - module ownership;
 - public contract;
 - test and smoke expectations;
+- capability routing expectations;
 - approval gates;
 - completion gate.
 
@@ -77,6 +90,31 @@ the next only when:
 - the ledger is current;
 - verification evidence does not contradict the ledger;
 - no approval gate, blocker, or review stop is required.
+
+## Capability Routing
+
+State which specialist skills, plugins, connectors, or tools should be used for
+implementation, validation, review, runtime smoke, or artifact work when the
+agent runtime exposes them.
+
+The controller must inspect capability metadata before delegating work and
+record the selected capabilities in execution, result, review, or corrective
+packets.
+
+## Session Orchestration
+
+State whether this milestone uses Session Orchestration.
+
+If yes, name:
+
+- Project Manager Controller;
+- Coder Controller;
+- Final Review Controller;
+- execution packet path;
+- result packet path;
+- structural gate owner;
+- final review packet path;
+- corrective round limit.
 
 ## Milestone Closeout
 

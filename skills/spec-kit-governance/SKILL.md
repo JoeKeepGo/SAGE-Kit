@@ -1,6 +1,6 @@
 ---
 name: spec-kit-governance
-description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, or Wave Execution. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
+description: Governance workflow for projects explicitly using SPEC-Kit. Use when the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or directly references SPEC-Kit docs such as ACTIVE_CONTEXT, DOC_ROUTING, Agent Harness, milestones, phase docs, ledgers, closeouts, quality gates, approval gates, Strict Mode, Wave Execution, or Session Orchestration. Do not use for ordinary coding, debugging, review, planning, or implementation unless SPEC-Kit is explicitly in scope.
 ---
 
 # SPEC-Kit Governance
@@ -20,6 +20,11 @@ context and let `docs/DOC_ROUTING.md` decide the narrow read set.
 
 Historical ledgers, phase docs, completion reports, and closeouts are not
 startup context.
+
+Context budget is a guardrail, not a correctness cap. Expand the read set when
+correctness, safety, provenance, full milestone review, or final acceptance
+requires it, but state why the extra context is needed and what decision it
+supports.
 
 ## Detect The Situation
 
@@ -61,6 +66,21 @@ before editing.
 
 Read only the reference files needed for the current task.
 
+## Context Budget
+
+Prefer narrow reads in this order:
+
+1. active context and routing;
+2. active milestone, phase, gate, or packet docs;
+3. capability metadata before capability bodies;
+4. closeouts before historical ledgers;
+5. targeted searches or ranges before full archives.
+
+Do not read every SPEC document, phase doc, ledger, closeout, skill body,
+plugin body, or log by default. If a broad read is required, say why and
+summarize the useful result into the ledger, closeout, completion report, or
+handoff.
+
 ## Guardrails
 
 - Keep one task tied to one approved phase unless a batch plan defines order,
@@ -71,10 +91,16 @@ Read only the reference files needed for the current task.
 - Do not treat historical closeouts as startup context.
 - Do not claim `DONE` unless required verification and memory maintenance are
   complete.
+- Do not let SPEC-Kit displace specialist skills, plugins, connectors, or
+  tools. Use available capability metadata to select the right specialist
+  capability before delegating or executing domain work.
 - Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`; do not
   guess the policy from memory.
 - Use Wave Execution only when file ownership is disjoint and serial gates stay
   serial.
+- Use Session Orchestration only for large milestones where Project Manager,
+  Coder, and Final Review controller packets reduce handoff overhead without
+  weakening gates.
 
 ## End Of Run
 

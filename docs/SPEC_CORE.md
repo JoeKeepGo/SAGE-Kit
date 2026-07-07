@@ -17,6 +17,8 @@ milestones, and phase documents.
   session history.
 - Summarize closed milestones in compact closeouts instead of promoting
   historical ledgers into startup context.
+- Use milestone-level session orchestration only when it reduces handoff burden
+  without weakening gates, verification, or final decision ownership.
 - Keep secrets, local data, credentials, and production artifacts out of
   commits and reports.
 - Avoid guessed fields, placeholder success, silent fallback, and hidden error
@@ -48,6 +50,14 @@ All other work is non-trivial and requires a retained phase or task document.
 ```text
 explore -> plan -> implement -> verify -> submit
 ```
+
+SPEC-Kit supports three execution scopes:
+
+| Scope | Use For | Primary Doc |
+|---|---|---|
+| Phase Execution | One bounded phase or task. | `docs/agent/PHASE_EXECUTION.md` |
+| Wave Execution | Safe parallel lanes inside one phase. | `docs/agent/WAVE_EXECUTION.md` |
+| Session Orchestration | Large milestones that need Project Manager, Coder, and Final Review controllers. | `docs/agent/SESSION_ORCHESTRATION.md` |
 
 Explore:
 

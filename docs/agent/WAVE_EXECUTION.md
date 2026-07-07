@@ -3,6 +3,10 @@
 Wave Execution speeds up development by parallelizing safe work inside a phase
 while keeping integration, verification, approval gates, and submission serial.
 
+For milestone-level Project Manager, Coder, and Final Review controller
+handoff, use `docs/agent/SESSION_ORCHESTRATION.md`. Wave Execution remains the
+rule for safe parallel lanes inside a phase.
+
 The rule is:
 
 ```text
@@ -72,7 +76,7 @@ These must remain serial unless the project explicitly defines a safer process:
 - production data or credential use;
 - destructive actions;
 - release, publish, merge, push, or protected-branch operations;
-- final completion report and milestone ledger update.
+- final completion report and milestone ledger update;
 - active context and document routing maintenance.
 
 ## Writable Lane Rules

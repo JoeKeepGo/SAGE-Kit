@@ -16,6 +16,11 @@ and agent workflows can stay aligned over many sessions.
 - An AI agent harness for context control, file ownership, verification,
   handoff, and review.
 - Wave Execution for safe parallel development inside a phase.
+- Session Orchestration for milestone-level Project Manager, Coder, and Final
+  Review controller workflows.
+- Capability routing so controllers can delegate to relevant skills, plugins,
+  connectors, or tools instead of letting governance instructions displace
+  specialist capabilities.
 - Milestone planning rules that force reviewable, testable phase slices.
 - Strict Mode for lower-assurance or unknown model families.
 - Optional profile packs for common project shapes, such as state-machine
@@ -42,6 +47,7 @@ docs/
     MODEL_ASSURANCE_POLICY.md
     STRICT_MODE.md
     WAVE_EXECUTION.md
+    SESSION_ORCHESTRATION.md
     MILESTONE_PLANNING.md
   profiles/
     state-machine/
@@ -94,11 +100,17 @@ docs/
     MODEL_ASSURANCE_POLICY.md
     STRICT_MODE.md
     WAVE_EXECUTION.md
+    SESSION_ORCHESTRATION.md
     MILESTONE_PLANNING.md
   templates/
     PHASE_TEMPLATE.md
     MILESTONE_LEDGER_TEMPLATE.md
     MILESTONE_CLOSEOUT_TEMPLATE.md
+    MILESTONE_EXECUTION_PACKET_TEMPLATE.md
+    MILESTONE_RESULT_PACKET_TEMPLATE.md
+    STRUCTURAL_GATE_TEMPLATE.md
+    FINAL_REVIEW_PACKET_TEMPLATE.md
+    CORRECTIVE_PACKET_TEMPLATE.md
     COMPLETION_REPORT_TEMPLATE.md
     LANE_PACKET_TEMPLATE.md
   M<ID>/
@@ -126,6 +138,11 @@ Use this map when adopting SPEC-Kit into a project.
 | `docs/templates/MILESTONE_LEDGER_TEMPLATE.md` | `docs/M<ID>/MILESTONE_LEDGER.md` |
 | `docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md` | `docs/M<ID>/MILESTONE_CLOSEOUT.md` at milestone closure |
 | `docs/templates/PHASE_TEMPLATE.md` | `docs/M<ID>/<NN>-<phase-name>.md` |
+| `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` | Milestone-level Project Manager to Coder packet |
+| `docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md` | Milestone-level Coder result packet |
+| `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` | Project Manager structural gate checklist |
+| `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` | Final Review verdict packet |
+| `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` | Bounded corrective work packet |
 
 Copy `docs/agent/` when AI agents will execute or review work. Copy the
 relevant `docs/profiles/<profile>/` templates only when the project uses that
@@ -142,8 +159,10 @@ profile.
    file boundaries, tests, and runtime checks.
 7. Execute each phase through retained phase docs and completion reports.
 8. Use Wave Execution when safe parallel lanes can speed up the phase.
-9. Keep milestone state in `MILESTONE_LEDGER.md`.
-10. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
+9. Use Session Orchestration for large milestones that need Project Manager,
+   Coder, and Final Review controller handoff.
+10. Keep milestone state in `MILESTONE_LEDGER.md`.
+11. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
     historical outcome index.
 
 Historical closeouts are not default startup context. Read them only through

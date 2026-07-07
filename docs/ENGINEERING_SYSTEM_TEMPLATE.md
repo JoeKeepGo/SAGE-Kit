@@ -22,6 +22,9 @@ This document defines the daily development workflow for humans and AI agents.
 | Implementation | One approved phase or task. | Expand scope without updating the phase doc. |
 | Review | Findings, risks, missing evidence, go/no-go recommendation. | Edit files during review-only work. |
 | Coordinator | Context routing, lane ownership, integration, ledger updates. | Hide unresolved conflicts or skipped verification. |
+| Project Manager Controller | Milestone direction, execution packet, structural gate, final decision. | Perform full technical review. |
+| Coder Controller | Phase and lane worker orchestration for one milestone. | Redefine milestone scope or accept the milestone. |
+| Final Review Controller | Independent review orchestration and verdict. | Trust Coder self-report or accept the milestone directly. |
 
 ## Explore
 
@@ -50,6 +53,10 @@ The plan must include:
 - runtime smoke;
 - non-goals;
 - completion gate.
+
+For large milestones with many phases or high handoff overhead, use
+`docs/agent/SESSION_ORCHESTRATION.md` and create a milestone execution packet
+instead of manually forwarding each phase between sessions.
 
 ## Implement
 

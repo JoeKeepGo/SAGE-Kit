@@ -19,6 +19,8 @@ Read first:
 - docs/agent/STRICT_MODE.md
 - docs/agent/WAVE_EXECUTION.md
 - docs/agent/MILESTONE_PLANNING.md
+- docs/agent/SESSION_ORCHESTRATION.md when this task uses milestone-level
+  controller handoff
 - <active milestone ledger>
 - <active phase doc>
 
@@ -43,8 +45,20 @@ Tests:
 Runtime smoke:
 - <commands or not applicable reason>
 
+Capability routing:
+- Check available skill/plugin/connector/tool metadata before delegating or
+  executing when the runtime exposes it.
+- Use these selected capabilities:
+- Do not use these capabilities:
+- If a selected capability is unavailable:
+
 Wave / lane assignment:
 - <lane name, allowed files, expected output, or serial-only>
+
+Session orchestration assignment:
+- <Project Manager / Coder / Final Review / Phase Worker / Lane Worker /
+  Review Worker / Corrective Worker or n/a>
+- <packet path or expected packet output>
 
 Approval gates:
 - <closed gates>

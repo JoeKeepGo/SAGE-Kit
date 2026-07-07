@@ -25,6 +25,8 @@ Commands Run:
 
 Failed Commands:
 
+Capabilities Used:
+
 Evidence:
 
 Approval Gates:

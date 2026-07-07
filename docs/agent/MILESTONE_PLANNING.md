@@ -62,7 +62,9 @@ Use this ladder before accepting a milestone plan:
 7. Verification path: what tests and smoke prove each claim?
 8. Approval gates: what human approval is required?
 9. Parallel lanes: which work can be split safely?
-10. Integration gate: what must remain serial?
+10. Capability routing: which specialist skills, plugins, connectors, or tools
+    should execute or verify domain work?
+11. Integration gate: what must remain serial?
 
 ## Milestone Entry Gate Checklist
 
@@ -75,6 +77,10 @@ Before implementation starts, the entry gate must answer:
 - What files or modules are likely to change?
 - Which files are shared and need exclusive ownership?
 - Which phases can use waves?
+- Does the milestone need Session Orchestration to avoid repeated manual
+  handoff across phases?
+- Which specialist skills, plugins, connectors, or tools should be routed to
+  for implementation, validation, review, or runtime smoke?
 - Which gates remain closed?
 - Which runtime checks prove the milestone?
 - What review or handoff phase closes the milestone?
@@ -115,6 +121,10 @@ A well-planned milestone produces:
 - `MILESTONE_LEDGER.md`;
 - one phase file per reviewable slice;
 - wave plan for phases that can run in parallel;
+- session orchestration packet plan when Project Manager, Coder, and Final
+  Review controllers are used;
+- capability routing plan for specialist skills, plugins, connectors, or
+  tools;
 - approval gates and stop conditions;
 - final review or handoff criteria;
 - `MILESTONE_CLOSEOUT.md` after the milestone closes.

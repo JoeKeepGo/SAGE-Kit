@@ -2,6 +2,11 @@
 
 Phase execution keeps work reviewable and bounded.
 
+For large milestones with multiple phases and separate Project Manager, Coder,
+and Final Review controllers, wrap phase execution with
+`docs/agent/SESSION_ORCHESTRATION.md`. Phase Execution still defines what each
+phase must satisfy.
+
 ## Phase Requirements
 
 Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:

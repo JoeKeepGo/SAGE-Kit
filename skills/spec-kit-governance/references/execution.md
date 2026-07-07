@@ -1,7 +1,7 @@
 # SPEC-Kit Execution
 
 Use this reference for implementation, debugging, refactoring, subagent work,
-Strict Mode, or Wave Execution.
+Strict Mode, Wave Execution, or Session Orchestration.
 
 ## Pre-Edit Gate
 
@@ -48,13 +48,42 @@ Use subagents only for bounded tasks with clear ownership. For each lane, define
 - objective;
 - allowed files;
 - forbidden files;
+- applicable skills, plugins, connectors, or tools;
 - commands;
 - expected evidence;
 - return format.
 
+Before delegating, inspect available capability metadata when the runtime
+exposes it. Select specialist capabilities from metadata first, then load only
+the selected capability instructions needed for the worker.
+
+SPEC-Kit governs scope, gates, files, and evidence. Specialist capabilities do
+the domain work.
+
 Parallel writable lanes must not share files. Parallel lanes must not edit
 `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md`; they return proposals for controller
 integration.
+
+## Session Orchestration
+
+When Session Orchestration is active:
+
+- Project Manager creates the milestone execution packet.
+- Coder Controller orchestrates phase and lane workers; it should not perform
+  all phase work itself when bounded workers can reduce serial handoff safely.
+- Coder performs integration self review, runs bounded corrective workers when
+  allowed, and returns a milestone result packet.
+- Project Manager runs only the structural gate.
+- Final Review Controller orchestrates review workers or validation lanes,
+  verifies independently, and returns a verdict.
+- Corrective workers fix only findings named in corrective packets.
+
+Default corrective round limit is 2.
+
+Coder and Final Review controllers must reassess whether the milestone should
+run serially, with waves inside phases, or with parallel phases. Stop for
+Project Manager when a sequencing change affects scope, approval gates, public
+contracts, shared ownership, or final decision authority.
 
 ## Runtime And Integration Claims
 

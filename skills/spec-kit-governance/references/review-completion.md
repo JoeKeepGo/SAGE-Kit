@@ -14,7 +14,10 @@ Review for:
 - approval gate violations;
 - hidden fallback behavior;
 - stale active context;
-- ledger or closeout gaps.
+- ledger or closeout gaps;
+- ignored specialist capabilities when the runtime exposed relevant skills,
+  plugins, connectors, or tools;
+- session orchestration packet completeness when used.
 
 Lead with blocking findings before summaries.
 
@@ -72,6 +75,20 @@ The closeout is a compact historical outcome index. It records:
 
 Do not copy raw logs, full evidence tables, or full phase reports into the
 closeout. Link to evidence.
+
+## Session Orchestration Review
+
+When Session Orchestration is used:
+
+- Project Manager structural gate checks packet completeness only.
+- Final Review verifies independently and returns a verdict.
+- Final Review checks whether Coder self review and capability routing were
+  performed.
+- Final Review reassesses whether the milestone execution shape was safe:
+  serial, waves inside phases, or parallel phases.
+- Final Review cannot accept the milestone directly.
+- Corrective packets must name findings, files, commands, and stop conditions.
+- After the corrective round limit, return `HANDOFF` or `BLOCKED`.
 
 ## Submit Gate
 
