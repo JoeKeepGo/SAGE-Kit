@@ -15,7 +15,7 @@ This document defines the daily development workflow for humans and AI agents.
 - Make runtime behavior visible through tests, logs, UI, API responses, or
   smoke checks.
 - Route execution to available specialist skills, plugins, connectors, tools,
-  CI, or reviewers under `docs/SPEC_CORE.md#external-capability-boundary`.
+  CI, or reviewers under `docs/SAGE_CORE.md#external-capability-boundary`.
 - Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers so external
   capability use has authorization, evidence mapping, and fallback.
 - Keep local data and secrets out of commits and reports.
@@ -46,7 +46,7 @@ Before editing:
 
 ## Plan
 
-For non-trivial work, as defined in `docs/SPEC_CORE.md`, create or update a
+For non-trivial work, as defined in `docs/SAGE_CORE.md`, create or update a
 retained phase document before implementation.
 
 For broad or non-technical project starts, use

@@ -1,6 +1,6 @@
-﻿# SPEC Core
+﻿# SAGE Core
 
-SPEC Core defines the reusable rules that every project using SPEC-Kit should
+SAGE Core defines the reusable rules that every project using SAGE-Kit should
 follow. Project-specific details belong in project profiles, technical designs,
 milestones, and phase documents.
 
@@ -30,10 +30,10 @@ milestones, and phase documents.
 - Use structured task dispatch only when the project explicitly adopts it and
   needs machine-checkable task/evidence records.
 - Treat external skills, plugins, tools, CI systems, and human reviews as
-  execution and evidence inputs inside SPEC-Kit governance, not as replacements
-  for SPEC-Kit gates.
+  execution and evidence inputs inside SAGE-Kit governance, not as replacements
+  for SAGE-Kit gates.
 - Use Capability Adapters for optional external skills, plugins, MCP tools,
-  CLIs, CI systems, or reviewers so SPEC-Kit can detect, authorize, invoke,
+  CLIs, CI systems, or reviewers so SAGE-Kit can detect, authorize, invoke,
   capture evidence, map outputs, and fall back without making them core
   dependencies.
 - Keep secrets, local data, credentials, and production artifacts out of
@@ -43,18 +43,18 @@ milestones, and phase documents.
 
 ## External Capability Boundary
 
-SPEC-Kit is not a skill library. It is the governance and evidence layer that
+SAGE-Kit is not a skill library. It is the governance and evidence layer that
 lets skill libraries, coding agents, plugins, MCP tools, CI systems, and human
 reviewers cooperate under a shared project contract.
 
-SPEC-Kit governs authorization, milestone and phase boundaries, file ownership,
+SAGE-Kit governs authorization, milestone and phase boundaries, file ownership,
 approval gates, evidence requirements, resource locks, and completion status.
 External capabilities provide execution methods inside those boundaries.
 
 Within project execution, apply this authority order:
 
-1. Project SPEC and approval gates.
-2. SPEC-Kit harness rules.
+1. Project specification and approval gates.
+2. SAGE-Kit harness rules.
 3. External skill, plugin, connector, MCP tool, CI, or reviewer workflow.
 4. Agent default behavior.
 
@@ -72,11 +72,11 @@ evidence, unapproved runtime, destructive, submit, merge, push, or cleanup
 operations, or any condition that requires a higher controller decision.
 
 Plans produced by external planning workflows should be written into or mapped
-to SPEC-Kit milestone, phase, or packet documents so the project keeps one
+to SAGE-Kit milestone, phase, or packet documents so the project keeps one
 durable source of truth.
 
 Superpowers is a reference integration for execution discipline when available.
-SPEC-Kit does not require it and does not copy it.
+SAGE-Kit does not require it and does not copy it.
 
 Use `docs/agent/CAPABILITY_ADAPTERS.md` for the adapter lifecycle,
 authorization levels, evidence contract, frontend adapter rules, and
@@ -118,7 +118,7 @@ Conditional project documents:
 explore -> plan -> implement -> verify -> submit
 ```
 
-SPEC-Kit supports these execution controls:
+SAGE-Kit supports these execution controls:
 
 | Control | Use For | Primary Doc |
 |---|---|---|

@@ -36,7 +36,7 @@ Permission Used:
 
 Capability Discovery Used:
 - Capability registry checked:
-- SPEC-Kit boundary preserved:
+- SAGE-Kit boundary preserved:
 - Skills used:
 - superpowers skills used:
 - superpowers boundary notes:

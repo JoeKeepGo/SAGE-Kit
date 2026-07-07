@@ -87,7 +87,7 @@ Use this ladder before accepting a milestone plan:
 10. Parallel lanes: which work can be split safely?
 11. Capability routing: which specialist skills, plugins, connectors, MCP
     tools, CI, or reviewers should execute or verify domain work under
-    `docs/SPEC_CORE.md#external-capability-boundary`?
+    `docs/SAGE_CORE.md#external-capability-boundary`?
 12. Governance Level: is this control scope Light, Standard, or Heavy?
 13. Permission Mode: is this role read-only, write-authorized,
     corrective-authorized, environment-write-authorized, or submit-authorized?

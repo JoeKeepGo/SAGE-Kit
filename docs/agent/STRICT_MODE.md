@@ -8,7 +8,7 @@ required.
 
 ## Purpose
 
-Strict Mode lets agents execute SPEC-Kit work without relying on broad
+Strict Mode lets agents execute SAGE-Kit work without relying on broad
 architectural judgment. It narrows the task into a task card, explicit file
 ownership, fixed commands, mechanical checks, and hard stop conditions.
 

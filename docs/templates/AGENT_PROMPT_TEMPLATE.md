@@ -3,7 +3,7 @@
 Use this template to start a focused AI agent task.
 
 ```markdown
-You are working inside a SPEC-Kit governed project.
+You are working inside a SAGE-Kit governed project.
 
 Strict Mode:
 - The controller or human decides whether this task uses Strict Mode according
@@ -72,11 +72,11 @@ Runtime smoke:
 Capability routing:
 - Check available skill/plugin/connector/tool metadata before delegating or
   executing when the runtime exposes it.
-- SPEC-Kit governs scope, authorization, files, gates, locks, evidence, and
+- SAGE-Kit governs scope, authorization, files, gates, locks, evidence, and
   completion status; external capabilities provide execution methods inside
   this boundary.
 - If superpowers is available, use only the selected skills that fit this
-  boundary. If unavailable, use the SPEC-Kit packet, phase, gate, and evidence
+  boundary. If unavailable, use the SAGE-Kit packet, phase, gate, and evidence
   path instead.
 - Use Capability Adapters for optional external providers. Default to
   metadata-only or read-only unless the active packet authorizes writes.
@@ -86,7 +86,7 @@ Capability routing:
   docs, package metadata, or installed-tool help and report exact command,
   write targets, runtime requirements, rollback path, and fallback.
 - Do not let external capabilities expand scope, bypass locks, create a second
-  source of truth, or mark SPEC-Kit gates complete.
+  source of truth, or mark SAGE-Kit gates complete.
 - Use these selected capabilities:
 - Selected adapters and authorization levels:
 - Do not use these capabilities:

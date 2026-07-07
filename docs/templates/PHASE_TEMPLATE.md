@@ -92,7 +92,7 @@ Define request, response, event, config, UI, CLI, or data contract. Include:
 ## Capability Routing
 
 State which specialist skills, plugins, connectors, or tools may be used for
-this phase. SPEC-Kit owns scope, authorization, files, gates, locks, evidence,
+this phase. SAGE-Kit owns scope, authorization, files, gates, locks, evidence,
 and completion status; external capabilities provide execution methods inside
 that boundary.
 
@@ -108,7 +108,7 @@ Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers. Name:
 - fallback path.
 
 If superpowers is available, list the specific skills allowed for this phase and
-the boundary they must stay inside. If unavailable, use the SPEC-Kit-native
+the boundary they must stay inside. If unavailable, use the SAGE-Kit-native
 phase, gate, packet, and evidence path.
 
 External planning outputs must be written into or mapped to this phase doc, the
@@ -161,7 +161,7 @@ Task Dispatch Evidence:
 
 List exact evidence required before this phase can be called complete.
 External capability completion is evidence only; it is not phase acceptance or
-SPEC-Kit gate completion.
+SAGE-Kit gate completion.
 
 ## Completion Report
 

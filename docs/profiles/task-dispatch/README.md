@@ -1,6 +1,6 @@
 # Task Dispatch Profile
 
-Task Dispatch is an optional SPEC-Kit profile for milestones that need stronger
+Task Dispatch is an optional SAGE-Kit profile for milestones that need stronger
 task dispatch, evidence capture, resource coordination, and gate closeout than
 plain phase documents provide.
 

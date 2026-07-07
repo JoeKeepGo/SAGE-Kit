@@ -1,6 +1,6 @@
 # Project Owner Entry
 
-Project Owner Entry is the lightweight SPEC-Kit path for a person who knows the
+Project Owner Entry is the lightweight SAGE-Kit path for a person who knows the
 goal, business need, or user problem but may not know how to describe software
 architecture or implementation work yet.
 
@@ -11,7 +11,7 @@ roadmap directly.
 
 - the project starts from a non-technical idea;
 - the user can describe desired outcomes but not code structure;
-- the project needs a safe first SPEC-Kit bootstrap without overwhelming the
+- the project needs a safe first SAGE-Kit bootstrap without overwhelming the
   project owner;
 - a current roadmap looks too small, too broad, or too module-shaped.
 

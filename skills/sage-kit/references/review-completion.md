@@ -1,4 +1,4 @@
-# SPEC-Kit Review And Completion
+# SAGE-Kit Review And Completion
 
 Use this reference for reviews, handoff, completion reports, milestone ledgers,
 memory maintenance, closeout, commit, or push.
@@ -21,7 +21,7 @@ Review for:
 - external capability output treated as gate completion instead of evidence;
 - adapter authorization, fallback, or evidence mapping missing when an external
   capability was selected;
-- external plans that were not mapped into tracked SPEC-Kit docs;
+- external plans that were not mapped into tracked SAGE-Kit docs;
 - unauthorized or unsafe worktree isolation;
 - incomplete task-dispatch records or failed validator results when Task
   Dispatch Profile is active;
@@ -120,10 +120,10 @@ When Session Orchestration is used:
 - Final Review checks whether Coder self review and capability routing were
   performed.
 - Final Review checks whether selected superpowers skills, if available and
-  relevant, stayed inside SPEC-Kit scope, locks, gates, and evidence
+  relevant, stayed inside SAGE-Kit scope, locks, gates, and evidence
   requirements.
 - Final Review treats external skill, plugin, connector, or tool completion as
-  evidence to verify, not as SPEC-Kit acceptance.
+  evidence to verify, not as SAGE-Kit acceptance.
 - Final Review checks whether Worktree Isolation was authorized, mapped,
   integrated, and safe when used.
 - Final Review reassesses whether the milestone execution shape was safe:

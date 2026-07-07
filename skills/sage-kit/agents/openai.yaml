@@ -1,0 +1,7 @@
+interface:
+  display_name: "SAGE-Kit"
+  short_description: "Align SAGE-Kit scope, adapters, and evidence"
+  default_prompt: "Use $sage-kit to plan and execute this task under SAGE-Kit."
+
+policy:
+  allow_implicit_invocation: false

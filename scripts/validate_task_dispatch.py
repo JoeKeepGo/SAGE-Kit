@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate SPEC-Kit Task Dispatch task/evidence records.
+"""Validate SAGE-Kit Task Dispatch task/evidence records.
 
 The validator intentionally has no required third-party dependencies. If
 PyYAML is installed, it is used. Otherwise a small YAML subset parser handles
@@ -537,7 +537,7 @@ def validate_records(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate SPEC-Kit Task Dispatch records.")
+    parser = argparse.ArgumentParser(description="Validate SAGE-Kit Task Dispatch records.")
     parser.add_argument("--task", required=True, type=Path, help="Path to task.yaml")
     parser.add_argument("--evidence", required=True, type=Path, help="Path to evidence.yaml")
     parser.add_argument("--schema-dir", type=Path, help="Optional directory containing profile schemas")

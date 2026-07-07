@@ -141,7 +141,7 @@ adapter, define:
 - provider type;
 - default authorization level;
 - documentation source that must be read before install or init;
-- SPEC-Kit boundary served;
+- SAGE-Kit boundary served;
 - installation or environment-write policy;
 - evidence required;
 - fallback if unavailable or inconclusive.

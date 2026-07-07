@@ -1,6 +1,6 @@
 # Task Dispatch Profile
 
-This profile adds machine-checkable task and evidence records to SPEC-Kit. It
+This profile adds machine-checkable task and evidence records to SAGE-Kit. It
 is optional and should be activated by the Project Manager in the milestone
 entry gate or execution packet.
 
@@ -18,7 +18,7 @@ Use this profile when at least one condition is true:
 - Final Review needs a compact index of what was tested, blocked, waived, or
   proven.
 
-Do not enable it only because a project uses SPEC-Kit. For small work, normal
+Do not enable it only because a project uses SAGE-Kit. For small work, normal
 phase docs and completion reports are lighter and usually better.
 
 ## Records

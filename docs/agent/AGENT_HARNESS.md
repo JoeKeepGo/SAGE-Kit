@@ -1,6 +1,6 @@
 # Agent Harness
 
-The Agent Harness defines how AI agents work inside a SPEC-Kit project.
+The Agent Harness defines how AI agents work inside a SAGE-Kit project.
 
 The harness does not replace the project spec. It tells agents how to execute
 against the spec without losing context, widening scope, or hiding risk.
@@ -119,20 +119,20 @@ capability.
 
 Delegation prompts must name:
 
-- required SPEC-Kit docs and packet templates;
+- required SAGE-Kit docs and packet templates;
 - applicable specialist skills, plugins, connectors, MCP tools, CI, or
   reviewers;
 - capabilities that are explicitly forbidden or unavailable;
 - whether the worker must inspect its own available capability list;
 - the fallback when a selected capability is missing.
 
-SPEC-Kit governance does not replace domain skills, plugins, tools, CI, or
+SAGE-Kit governance does not replace domain skills, plugins, tools, CI, or
 human review. If a frontend, review, GitHub, database, document, browser,
 runtime, or other specialist capability applies, the controller should route
-the worker to that capability and keep SPEC-Kit as the boundary and evidence
+the worker to that capability and keep SAGE-Kit as the boundary and evidence
 contract.
 
-Follow `docs/SPEC_CORE.md#external-capability-boundary`: external capability
+Follow `docs/SAGE_CORE.md#external-capability-boundary`: external capability
 outputs are evidence inputs, not automatic `DONE`, gate completion, milestone
 acceptance, or approval. Superpowers is a reference integration for execution
 discipline when available, not a required dependency.
@@ -146,15 +146,15 @@ For each selected external capability, apply the Capability Adapter lifecycle:
    runtime limits, and stop conditions.
 4. Invoke only the selected instructions or tools needed for the task.
 5. Capture concise outputs as evidence, context, planning input, or findings.
-6. Map useful outputs into the active SPEC-Kit artifact.
-7. Fall back to SPEC-Kit-native workflow or return `HANDOFF` or `BLOCKED`.
+6. Map useful outputs into the active SAGE-Kit artifact.
+7. Fall back to SAGE-Kit-native workflow or return `HANDOFF` or `BLOCKED`.
 
 Missing optional capabilities are not project failure. Treat them as
 unavailable and continue when a safe fallback exists.
 
 Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
 skills, or global configuration. Installation or environment writes require
-explicit authority in the active SPEC-Kit artifact or user approval.
+explicit authority in the active SAGE-Kit artifact or user approval.
 
 ## Batch Execution
 

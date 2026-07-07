@@ -93,7 +93,7 @@ Task Dispatch Policy:
 
 Capability Discovery:
 - Capability registry checked: `<yes/no/not available>`
-- SPEC-Kit boundary: `<scope/files/gates/locks/evidence controlled by this packet>`
+- SAGE-Kit boundary: `<scope/files/gates/locks/evidence controlled by this packet>`
 - Selected skills:
 - Selected superpowers skills:
 - superpowers boundary:

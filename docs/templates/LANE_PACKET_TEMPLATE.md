@@ -47,7 +47,7 @@ Adapter Authorization / Fallback:
 
 superpowers Skills Used:
 
-SPEC-Kit Boundary Served:
+SAGE-Kit Boundary Served:
 
 External Capability Evidence:
 

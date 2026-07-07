@@ -1,6 +1,6 @@
 # Governance Levels
 
-Governance Levels keep SPEC-Kit proportional. Use the lightest control level
+Governance Levels keep SAGE-Kit proportional. Use the lightest control level
 that preserves scope, evidence, memory, and approval boundaries.
 
 Governance level is selected per control scope, not inherited globally. A Heavy
@@ -61,7 +61,7 @@ Start at `Light`.
 
 Upgrade to `Standard` when any condition is true:
 
-- the task is non-trivial under `docs/SPEC_CORE.md`;
+- the task is non-trivial under `docs/SAGE_CORE.md`;
 - behavior, contract, tests, runtime-visible output, or durable documentation
   changes;
 - a retained phase/task document or milestone ledger evidence is needed;
@@ -134,10 +134,10 @@ Heavy does not automatically enable every control.
 - Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`, not
   merely because the project is large.
 - Use external skills, plugins, tools, CI, or reviewers only under
-  `docs/SPEC_CORE.md#external-capability-boundary` and
+  `docs/SAGE_CORE.md#external-capability-boundary` and
   `docs/agent/CAPABILITY_ADAPTERS.md`. Superpowers is a reference integration
   for execution discipline when available, but it does not change the selected
-  governance level or override SPEC-Kit authority.
+  governance level or override SAGE-Kit authority.
 
 ## Packet Requirement
 

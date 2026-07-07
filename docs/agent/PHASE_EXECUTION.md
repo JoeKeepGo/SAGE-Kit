@@ -9,7 +9,7 @@ phase must satisfy.
 
 ## Phase Requirements
 
-Every non-trivial phase, as defined in `docs/SPEC_CORE.md`, must define:
+Every non-trivial phase, as defined in `docs/SAGE_CORE.md`, must define:
 
 - governance level;
 - goal;

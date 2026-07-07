@@ -1,7 +1,0 @@
-interface:
-  display_name: "SPEC-Kit Governance"
-  short_description: "Govern SPEC-Kit scope, adapters, and evidence"
-  default_prompt: "Use $spec-kit-governance to plan and execute this task under SPEC-Kit."
-
-policy:
-  allow_implicit_invocation: false

@@ -30,7 +30,7 @@ Permission Review:
 
 Capability Discovery Used:
 - Capability registry checked:
-- SPEC-Kit boundary preserved:
+- SAGE-Kit boundary preserved:
 - Skills used:
 - superpowers skills used:
 - superpowers boundary violations:
@@ -39,7 +39,7 @@ Capability Discovery Used:
 - Capability adapters reviewed:
 - Adapter authorization/fallback reviewed:
 - External capability evidence verified:
-- External planning output mapped to SPEC-Kit docs:
+- External planning output mapped to SAGE-Kit docs:
 - Missing capabilities and fallback:
 
 Review Delegation Plan:
@@ -143,7 +143,7 @@ Corrective Delegation:
 - Allowed executor: `Coder Controller`, `Corrective Worker`, or `Project Manager decision required`
 - Allowed capabilities:
 - Capability adapter boundaries:
-- SPEC-Kit boundary for external capabilities:
+- SAGE-Kit boundary for external capabilities:
 - Stop conditions:
 
 Residual Risks:

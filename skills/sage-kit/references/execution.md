@@ -1,4 +1,4 @@
-# SPEC-Kit Execution
+# SAGE-Kit Execution
 
 Use this reference for implementation, debugging, refactoring, subagent work,
 Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
@@ -7,7 +7,7 @@ Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 
 Before editing files:
 
-1. Read the routed SPEC docs.
+1. Read the routed specification docs.
 2. Inspect current code or docs with narrow searches.
 3. Select the governance level for the current control scope.
 4. State governance level and permission mode.
@@ -60,27 +60,27 @@ Before delegating, inspect available capability metadata when the runtime
 exposes it. Select specialist capabilities from metadata first, then load only
 the selected capability instructions needed for the worker.
 
-SPEC-Kit governs scope, gates, files, and evidence. Specialist capabilities do
+SAGE-Kit governs scope, gates, files, and evidence. Specialist capabilities do
 the domain work.
 
 ## External Capability Integration
 
 Use external skills, plugins, connectors, and tools only when they are relevant
-to the approved SPEC-Kit phase, lane, task, or corrective boundary.
+to the approved SAGE-Kit phase, lane, task, or corrective boundary.
 
 External capabilities may supply execution methods. They must not redefine
 scope, create new file authority, bypass locks, open approval gates, downgrade
-required evidence, or mark SPEC-Kit gates complete.
+required evidence, or mark SAGE-Kit gates complete.
 
 Superpowers is a reference integration, not a hard dependency. If it is
 available, route only to the named skills that fit the current need. If it is
-unavailable, continue with SPEC-Kit phase, gate, packet, and evidence
+unavailable, continue with SAGE-Kit phase, gate, packet, and evidence
 templates.
 
 Apply `docs/agent/CAPABILITY_ADAPTERS.md` for external capabilities. Use
 metadata-only or read-only behavior by default. Do not install capabilities,
 write MCP config, add hooks, generate global skills, or mutate environment
-configuration unless the active SPEC-Kit boundary or user approval explicitly
+configuration unless the active SAGE-Kit boundary or user approval explicitly
 allows it.
 
 For approved install candidates such as `ui-ux-pro-max`, `OpenSpec`, or
@@ -92,7 +92,7 @@ and fallback. If docs are unclear or conflict, return `HANDOFF`.
 For `ui-ux-pro-max`, prefer a single Codex-targeted install path when approved.
 Do not use `--ai all`, global install, or multi-assistant generation unless the
 user explicitly approves the wider environment write. `design-system/` outputs
-require allowed-file coverage and remain design evidence, not SPEC-Kit source
+require allowed-file coverage and remain design evidence, not SAGE-Kit source
 of truth.
 
 Recommended routing:
@@ -111,14 +111,14 @@ Recommended routing:
 Frontend work should route to an available frontend or browser-testing adapter
 when UI, styling, responsive layout, design-system components, accessibility,
 or visual QA is in scope. It must return runtime, screenshot, console, network,
-responsive, or accessibility evidence as applicable, but SPEC-Kit still decides
+responsive, or accessibility evidence as applicable, but SAGE-Kit still decides
 the gate.
 
-SPEC-Kit remains authoritative for scope, file ownership, governance level,
+SAGE-Kit remains authoritative for scope, file ownership, governance level,
 resource locks, quality gates, approval gates, memory maintenance, milestone
 state, and final acceptance.
 
-Do not copy full external workflows into SPEC-Kit docs. Record the selected
+Do not copy full external workflows into SAGE-Kit docs. Record the selected
 capability name, the boundary it served, and concise evidence produced.
 
 External planning outputs must be written into, or explicitly mapped to, the
@@ -127,7 +127,7 @@ leave an untracked second source of truth.
 
 External capability completion is execution evidence. It is not acceptance,
 gate completion, milestone closure, or authorization to continue past a closed
-SPEC-Kit gate.
+SAGE-Kit gate.
 
 Continuous execution may proceed only inside the approved phase, task, lane, or
 corrective boundary. Stop for controller or user decision on closed approval
@@ -225,7 +225,7 @@ Stop or return to planning when:
 - a closed approval gate is needed;
 - an external capability suggests scope, file, runtime, or gate changes outside
   the approved boundary;
-- an external planning output has not been mapped into tracked SPEC-Kit docs;
+- an external planning output has not been mapped into tracked SAGE-Kit docs;
 - a shared-file conflict or resource lock conflict appears;
 - required evidence fails or cannot be produced;
 - unapproved runtime, destructive, submit, merge, push, or cleanup operations

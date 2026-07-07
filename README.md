@@ -1,16 +1,15 @@
-﻿# SPEC-Kit
+﻿# SAGE-Kit
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-SPEC-Kit is a reusable project specification system and AI agent execution
-harness.
+SAGE-Kit is a reusable framework for Spec-driven Agent Governance & Execution.
 
 It helps teams define what a project is, how it should evolve, and how AI
 agents should safely perform work inside it. The kit separates durable project
 specification from execution governance so that product, architecture, tests,
 and agent workflows can stay aligned over many sessions.
 
-## What SPEC-Kit Provides
+## What SAGE-Kit Provides
 
 - A core project specification model.
 - Templates for project profiles, milestones, phases, ledgers, closeouts,
@@ -36,7 +35,7 @@ and agent workflows can stay aligned over many sessions.
 - Capability Adapters for optional skills, plugins, MCP tools, CLIs, CI,
   reviewers, frontend tools, OpenSpec, GitNexus, and browser QA without making
   them startup or completion dependencies.
-- An external capability boundary that keeps SPEC-Kit as the governance and
+- An external capability boundary that keeps SAGE-Kit as the governance and
   evidence layer while external skills, plugins, tools, CI, and reviewers
   provide execution methods.
 - Milestone planning rules that force capability maps, reviewable milestones,
@@ -48,7 +47,7 @@ and agent workflows can stay aligned over many sessions.
 
 ## Core Idea
 
-SPEC defines the project contract.
+Specification defines the project contract.
 
 Harness defines how AI agents execute against that contract.
 
@@ -59,7 +58,7 @@ polluting the reusable core.
 
 ```text
 docs/
-  SPEC_CORE.md
+  SAGE_CORE.md
   *_TEMPLATE.md
   agent/
     AGENT_HARNESS.md
@@ -84,36 +83,36 @@ docs/
 scripts/
   validate_task_dispatch.py
 skills/
-  spec-kit-governance/
+  sage-kit/
 ```
 
 ## Bundled Skill
 
-SPEC-Kit includes `skills/spec-kit-governance`, a Codex skill that helps agents
+SAGE-Kit includes `skills/sage-kit`, a Codex skill that helps agents
 stay aligned with the framework during adoption, planning, implementation,
 review, handoff, and milestone closeout.
 
 The skill is intentionally a governance entrypoint, not a copy of every
-SPEC-Kit document. It tells agents to read `ACTIVE_CONTEXT.md` and
+SAGE-Kit document. It tells agents to read `ACTIVE_CONTEXT.md` and
 `DOC_ROUTING.md` first, then load only the milestone, phase, gate, or historical
 closeout files required by the task.
 
-To use it in another environment, copy `skills/spec-kit-governance` into the
+To use it in another environment, copy `skills/sage-kit` into the
 Codex skills directory and invoke:
 
 ```text
-Use $spec-kit-governance to plan and execute this task under SPEC-Kit.
+Use $sage-kit to plan and execute this task under SAGE-Kit.
 ```
 
 The skill is designed for explicit invocation so it does not displace more
 specific coding, frontend, document, GitHub, review, CI, or runtime
 capabilities during ordinary work.
 
-SPEC-Kit is not a skill library. See `docs/SPEC_CORE.md#external-capability-boundary`
-for the rule that external capabilities execute inside SPEC-Kit authorization,
+SAGE-Kit is not a skill library. See `docs/SAGE_CORE.md#external-capability-boundary`
+for the rule that external capabilities execute inside SAGE-Kit authorization,
 scope, ownership, evidence, lock, and gate boundaries. Superpowers is a
 reference integration when available, not a required dependency and not
-something SPEC-Kit copies.
+something SAGE-Kit copies.
 
 Use `docs/agent/CAPABILITY_ADAPTERS.md` when a project wants to route through
 optional specialist providers such as frontend skills, OpenSpec, GitNexus,
@@ -128,8 +127,9 @@ fallback.
 For `ui-ux-pro-max`, prefer a single Codex-targeted route; multi-assistant,
 global, or `design-system/` writes require explicit authorization.
 
-The skill can help bootstrap SPEC-Kit in a new project, but the project still
-needs to adopt the relevant templates and maintain its own SPEC documents.
+The skill can help bootstrap SAGE-Kit in a new project, but the project still
+needs to adopt the relevant templates and maintain its own project
+specification documents.
 
 ## Copy-Paste Prompts
 
@@ -137,14 +137,14 @@ Use these prompts when onboarding another Codex environment.
 
 ### 1. Install The Skill
 
-Paste this into Codex when `spec-kit-governance` is not installed yet:
+Paste this into Codex when `sage-kit` is not installed yet:
 
 ```text
-Use the skill-installer workflow to install the SPEC-Kit Governance skill from
+Use the skill-installer workflow to install the SAGE-Kit skill from
 GitHub.
 
-Repository: JoeKeepGo/SPEC-Kit
-Path: skills/spec-kit-governance
+Repository: JoeKeepGo/SAGE-Kit
+Path: skills/sage-kit
 
 If the skill is already installed, do not reinstall it. If installation
 succeeds, tell me to restart Codex or open a new Codex session so the new skill
@@ -159,7 +159,7 @@ available in the skill list.
 After restarting Codex, paste this into the target project repository:
 
 ```text
-Use $spec-kit-governance to help me start this project from zero.
+Use $sage-kit to help me start this project from zero.
 
 First, inspect the repository boundary and current files without making
 changes. Then interview me before creating project documents.
@@ -174,10 +174,10 @@ Ask me concise questions in this order:
 7. Are AI agents expected to implement and review most of the work?
 8. Are there known approval gates such as production data, credentials, paid APIs, deploys, destructive operations, or external service mutation?
 
-After I answer, propose the lightest SPEC-Kit adoption mode that fits:
+After I answer, propose the lightest SAGE-Kit adoption mode that fits:
 Light, Standard, or Heavy.
 
-Then draft the minimum useful SPEC-Kit documents:
+Then draft the minimum useful SAGE-Kit documents:
 - PROJECT_PROFILE
 - TECHNICAL_DESIGN when architecture is known or can be sketched
 - QUALITY_GATES
@@ -196,9 +196,9 @@ For an existing project that already has requirements, replace the interview
 step with:
 
 ```text
-Use $spec-kit-governance to adopt SPEC-Kit for this existing repository.
+Use $sage-kit to adopt SAGE-Kit for this existing repository.
 Read the current README, docs, package/config files, tests, and source layout
-with narrow searches first. Then propose the minimum SPEC-Kit document set and
+with narrow searches first. Then propose the minimum SAGE-Kit document set and
 ask before writing files.
 ```
 
@@ -252,10 +252,11 @@ docs/
 
 ## Copy Map
 
-Use this map when adopting SPEC-Kit into a project.
+Use this map when adopting SAGE-Kit into a project.
 
-| SPEC-Kit Source | Project Destination |
+| SAGE-Kit Source | Project Destination |
 |---|---|
+| `docs/SAGE_CORE.md` | `docs/SAGE_CORE.md` |
 | `docs/PROJECT_PROFILE_TEMPLATE.md` | `docs/PROJECT_PROFILE.md` |
 | `docs/TECHNICAL_DESIGN_TEMPLATE.md` | `docs/TECHNICAL_DESIGN.md` |
 | `docs/ENGINEERING_SYSTEM_TEMPLATE.md` | `docs/ENGINEERING_SYSTEM.md` |
@@ -345,6 +346,7 @@ current risk:
 For a new project, copy the core templates first:
 
 ```text
+docs/SAGE_CORE.md
 docs/PROJECT_PROFILE.md
 docs/TECHNICAL_DESIGN.md
 docs/ENGINEERING_SYSTEM.md
@@ -360,7 +362,7 @@ docs/templates/
 Then ask the agent to fill only the minimum useful draft:
 
 ```text
-Use $spec-kit-governance to bootstrap SPEC-Kit for this repository.
+Use $sage-kit to bootstrap SAGE-Kit for this repository.
 Start with PROJECT_PROFILE, TECHNICAL_DESIGN, QUALITY_GATES, APPROVAL_GATES,
 ACTIVE_CONTEXT, DOC_ROUTING, and a draft MILESTONE_ROADMAP.
 Do not create executable milestones until the capability map or roadmap
@@ -370,7 +372,7 @@ granularity check is complete.
 If the project begins from a broad or non-technical idea, start even lighter:
 
 ```text
-Use $spec-kit-governance and Project Owner Entry.
+Use $sage-kit and Project Owner Entry.
 Ask me for the project goal, target users, current problem, success behavior,
 and main risks. Then draft PROJECT_OWNER_INTAKE, PROJECT_PROFILE, and
 CAPABILITY_MAP before proposing executable milestones.
@@ -406,7 +408,7 @@ contracts, tests, and smoke evidence, keep it in planning and split it further.
 For ordinary implementation or review work, the agent should start narrow:
 
 ```text
-Use $spec-kit-governance for this task.
+Use $sage-kit for this task.
 Read ACTIVE_CONTEXT and DOC_ROUTING first.
 Then read only the active milestone ledger, phase doc, quality gates, approval
 gates, and routed references required for this task.
@@ -427,7 +429,7 @@ flowchart TD
   H -- "Yes" --> I["Stop for Project Manager or user decision"]
   H -- "No" --> J{"Specialist capability useful?"}
   J -- "Yes" --> K["Use Capability Adapter: detect, authorize, bound, invoke, capture, map, fallback"]
-  J -- "No" --> L["Use SPEC-Kit-native phase or review path"]
+  J -- "No" --> L["Use SAGE-Kit-native phase or review path"]
   K --> L
   L --> M{"Work type"}
   M -- "Implementation" --> N["Execute approved phase, lane, or corrective task"]
@@ -512,23 +514,23 @@ contract change, shared ownership change, or submit/cleanup authority.
 
 ### External Capabilities And Superpowers
 
-SPEC-Kit does not replace specialist capabilities. When the runtime exposes
+SAGE-Kit does not replace specialist capabilities. When the runtime exposes
 skills, plugins, connectors, MCP tools, CI, browser tools, review tools, or
 Superpowers skills, route to them when they are relevant.
 
 The boundary is:
 
-- SPEC-Kit decides scope, file ownership, approval gates, evidence, locks, and
+- SAGE-Kit decides scope, file ownership, approval gates, evidence, locks, and
   completion status.
 - External capabilities provide execution methods inside those boundaries.
 - External capability output is evidence, not automatic acceptance.
-- External planning output must be written into or mapped to SPEC-Kit milestone,
+- External planning output must be written into or mapped to SAGE-Kit milestone,
   phase, ledger, or packet docs.
 
 When Superpowers is available, it is a reference integration for execution
 discipline. It may help with brainstorming, writing plans, TDD, debugging,
 subagent execution, review, verification, and branch finishing. If it is not
-available, SPEC-Kit still runs through its own phase docs, gates, packets, and
+available, SAGE-Kit still runs through its own phase docs, gates, packets, and
 evidence templates.
 
 Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers such as frontend
@@ -580,13 +582,13 @@ provenance.
 
 ## Applicability
 
-SPEC-Kit is not a fit for every project. Review the kit before adopting it to
+SAGE-Kit is not a fit for every project. Review the kit before adopting it to
 confirm that its planning depth, documentation structure, and AI agent workflow
 match the project you want to run.
 
 ## Non-Goals
 
-- SPEC-Kit is not a project management application.
-- SPEC-Kit is not a replacement for tests, reviews, or runtime verification.
-- SPEC-Kit does not prescribe one programming language, framework, hosting
+- SAGE-Kit is not a project management application.
+- SAGE-Kit is not a replacement for tests, reviews, or runtime verification.
+- SAGE-Kit does not prescribe one programming language, framework, hosting
   model, database, or agent provider.

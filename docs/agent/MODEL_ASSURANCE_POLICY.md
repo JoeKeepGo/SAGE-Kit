@@ -2,7 +2,7 @@
 
 This policy decides when an AI agent must use Strict Mode.
 
-SPEC-Kit does not require a specific provider. Projects may replace or tighten
+SAGE-Kit does not require a specific provider. Projects may replace or tighten
 this policy in their own `docs/agent/MODEL_ASSURANCE_POLICY.md`.
 
 ## Default Policy

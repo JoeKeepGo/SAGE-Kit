@@ -4,9 +4,9 @@
 
 - Capability:
 - Provider type: `<skill / plugin / MCP / CLI / CI / reviewer / other>`
-- SPEC-Kit role: `<planning / execution / context / validation / review>`
+- SAGE-Kit role: `<planning / execution / context / validation / review>`
 - Default authorization level: `<metadata-only / read-only / write-inside-boundary>`
-- Required SPEC-Kit permission mode: `<READ_ONLY_REVIEW / WRITE_AUTHORIZED /
+- Required SAGE-Kit permission mode: `<READ_ONLY_REVIEW / WRITE_AUTHORIZED /
   CORRECTIVE_AUTHORIZED / ENVIRONMENT_WRITE_AUTHORIZED / SUBMIT_AUTHORIZED>`
 
 ## Trigger
@@ -41,7 +41,7 @@ Required before install, init, or environment writes:
 
 ## Authorization
 
-- Allowed SPEC-Kit boundary:
+- Allowed SAGE-Kit boundary:
 - Required permission mode:
 - Allowed files:
 - Read-only files:
@@ -65,7 +65,7 @@ handoff:
 - capability name and version/source;
 - selected reason;
 - authorization level;
-- SPEC-Kit boundary served;
+- SAGE-Kit boundary served;
 - files, contracts, or runtime surfaces inspected or changed;
 - output summary or artifact link;
 - tests, smoke, screenshots, logs, or review findings;
@@ -76,6 +76,6 @@ handoff:
 
 If unavailable, unsafe, or inconclusive:
 
-- SPEC-Kit-native path:
+- SAGE-Kit-native path:
 - Evidence limitation:
 - Handoff or blocker rule:

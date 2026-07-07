@@ -73,11 +73,11 @@ available or expected.
 |---|---|---|---|---|---|---|
 | `<task>` | `<skill/plugin/connector/tool/CLI/CI/reviewer>` | `<built-in/reference/external>` | `<metadata/read/write/gated>` | `<yes/no/unavailable>` | `<evidence>` | `<fallback>` |
 
-When superpowers is used, record the selected skill name and the SPEC-Kit
+When superpowers is used, record the selected skill name and the SAGE-Kit
 boundary it served. A superpowers completion signal is execution evidence, not
 milestone acceptance.
 
-When any external planning output is used, record the SPEC-Kit artifact where
+When any external planning output is used, record the SAGE-Kit artifact where
 it was written or mapped. Do not rely on an untracked external plan as the
 source of truth.
 

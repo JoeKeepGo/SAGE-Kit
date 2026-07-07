@@ -1,14 +1,14 @@
-# SPEC-Kit Adoption
+# SAGE-Kit Adoption
 
-Use this reference when a project is being evaluated for SPEC-Kit or when
-SPEC-Kit docs need to be bootstrapped.
+Use this reference when a project is being evaluated for SAGE-Kit or when
+SAGE-Kit docs need to be bootstrapped.
 
 ## Fit Check
 
-SPEC-Kit is useful when the project needs durable planning, explicit contracts,
+SAGE-Kit is useful when the project needs durable planning, explicit contracts,
 AI agent execution boundaries, quality gates, and repeatable handoff.
 
-Do not force SPEC-Kit onto a project when the user wants a small one-off script,
+Do not force SAGE-Kit onto a project when the user wants a small one-off script,
 throwaway prototype, or informal exploration without retained governance.
 
 ## Bootstrap Order
@@ -18,7 +18,9 @@ throwaway prototype, or informal exploration without retained governance.
    - `docs/PROJECT_OWNER_INTAKE.md`
    - `docs/CAPABILITY_MAP.md`
    These are planning inputs, not implementation authorization.
-3. Create or adapt:
+3. Copy the reusable core rules:
+   - `docs/SAGE_CORE.md`
+4. Create or adapt:
    - `docs/PROJECT_PROFILE.md`
    - `docs/TECHNICAL_DESIGN.md`
    - `docs/ENGINEERING_SYSTEM.md`
@@ -26,26 +28,27 @@ throwaway prototype, or informal exploration without retained governance.
    - `docs/APPROVAL_GATES.md`
    - `docs/ACTIVE_CONTEXT.md`
    - `docs/DOC_ROUTING.md`
-4. Run Milestone Granularity Gate on milestone candidates. For projects that do
+5. Run Milestone Granularity Gate on milestone candidates. For projects that do
    not use a capability map, record why roadmap granularity is already clear.
-5. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
+6. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
    `docs/MILESTONE_ROADMAP.md`.
-6. Copy `docs/agent/` when AI agents will execute or review work.
-7. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
+7. Copy `docs/agent/` when AI agents will execute or review work.
+8. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
    external skills, plugins, MCP tools, CLIs, CI, reviewers, frontend tools,
    OpenSpec, GitNexus, browser QA, or database tools.
-8. Copy profile templates only when the project matches that profile.
-9. Create the first milestone:
+9. Copy profile templates only when the project matches that profile.
+10. Create the first milestone:
    - `docs/M<ID>/00-entry-gate.md`
    - `docs/M<ID>/MILESTONE_LEDGER.md`
    - one phase doc per reviewable slice
-10. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
+11. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
 
-## Minimum Viable SPEC
+## Minimum Viable Specification
 
-For a new project, the minimum useful SPEC-Kit setup is:
+For a new project, the minimum useful SAGE-Kit setup is:
 
 - project profile;
+- SAGE Core rules;
 - capability map for broad, non-technical, or coarse-roadmap projects;
 - technical design or architecture boundary;
 - quality and approval gates;
@@ -64,8 +67,8 @@ Stop and ask for direction when:
   capability map;
 - the architecture boundary cannot be stated;
 - approval gates are unknown;
-- the user wants low-process work that conflicts with SPEC-Kit;
-- adopting SPEC-Kit would require changing unrelated project files.
+- the user wants low-process work that conflicts with SAGE-Kit;
+- adopting SAGE-Kit would require changing unrelated project files.
 
 ## Output
 

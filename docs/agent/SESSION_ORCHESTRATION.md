@@ -1,7 +1,7 @@
 # Session Orchestration
 
 Session Orchestration is the optional milestone-level execution mode for large
-SPEC-Kit work.
+SAGE-Kit work.
 
 It reduces manual copy/paste by separating long-running control from temporary
 execution and review controllers. It does not replace Phase Execution or Wave
@@ -155,11 +155,11 @@ Each worker prompt or packet must name:
 - selected capability adapter type and authorization level when applicable;
 - capabilities the worker should check for in its own runtime;
 - unavailable capabilities and fallback;
-- SPEC-Kit docs and packets that still govern scope, files, gates, and
+- SAGE-Kit docs and packets that still govern scope, files, gates, and
   evidence.
 
-SPEC-Kit remains the governance harness. Specialist capabilities perform the
-domain work under `docs/SPEC_CORE.md#external-capability-boundary`.
+SAGE-Kit remains the governance harness. Specialist capabilities perform the
+domain work under `docs/SAGE_CORE.md#external-capability-boundary`.
 
 External planning outputs must be written into or mapped to the milestone
 execution packet, phase docs, lane packets, or corrective packets. External

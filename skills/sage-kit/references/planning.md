@@ -1,4 +1,4 @@
-﻿# SPEC-Kit Planning
+﻿# SAGE-Kit Planning
 
 Use this reference for roadmap, milestone, entry gate, phase, wave, session
 orchestration, and worktree isolation planning.
@@ -77,8 +77,8 @@ Before implementation starts, the entry gate must answer:
 - Which Capability Adapters apply, and what authorization level, fallback, and
   evidence mapping does each one use?
 - If superpowers is available, which specific skills should be used as
-  execution discipline, and inside which SPEC-Kit boundary? If it is not
-  available, what SPEC-Kit-native packet, phase, gate, and evidence path will
+  execution discipline, and inside which SAGE-Kit boundary? If it is not
+  available, what SAGE-Kit-native packet, phase, gate, and evidence path will
   be used instead?
 - Where will external planning outputs be written or mapped so the milestone
   ledger, phase docs, and packets remain the source of truth?
@@ -149,12 +149,12 @@ Do not use Session Orchestration for small single-phase work.
 ## External Planning Outputs
 
 External planning skills or tools may help shape execution, but their outputs
-must be summarized into the active SPEC-Kit artifact that controls the work:
+must be summarized into the active SAGE-Kit artifact that controls the work:
 entry gate, milestone ledger, phase doc, execution packet, or result packet.
 
 Do not keep a separate untracked plan as the authoritative source. If an
 external plan changes scope, files, gates, sequencing, locks, tests, runtime
-requirements, or acceptance criteria, stop until the relevant SPEC-Kit artifact
+requirements, or acceptance criteria, stop until the relevant SAGE-Kit artifact
 is updated and approved.
 
 ## Capability Adapter Planning
@@ -170,14 +170,14 @@ Plan:
 - current provider documentation, package metadata, or installed-tool help that
   must be read before install or init;
 - whether installation or environment writes are forbidden, allowed, or gated;
-- SPEC-Kit boundary the adapter serves;
+- SAGE-Kit boundary the adapter serves;
 - allowed files and forbidden files;
 - evidence required from the adapter;
 - fallback path when unavailable or inconclusive;
-- where adapter output is mapped into SPEC-Kit docs.
+- where adapter output is mapped into SAGE-Kit docs.
 
 Do not make optional adapters startup or completion dependencies. Missing
-adapter support should degrade to the SPEC-Kit-native path unless the active
+adapter support should degrade to the SAGE-Kit-native path unless the active
 gate requires that capability and has no safe fallback.
 
 Approved install candidates may be requested after explicit approval, not

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/spec-kit/task-dispatch/evidence.schema.json",
-  "title": "SPEC-Kit Task Dispatch Evidence Record",
+  "$id": "https://example.invalid/sage-kit/task-dispatch/evidence.schema.json",
+  "title": "SAGE-Kit Task Dispatch Evidence Record",
   "type": "object",
   "required": [
     "task_id",

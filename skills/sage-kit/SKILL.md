@@ -1,31 +1,31 @@
 ---
-name: spec-kit-governance
-description: "Use when SPEC-Kit is explicit: the user invokes $spec-kit-governance, asks to adopt or bootstrap SPEC-Kit, or references SPEC-Kit docs or constructs such as ACTIVE_CONTEXT, DOC_ROUTING, Governance Levels, Authority Matrix, Agent Harness, milestones, phase docs, ledgers, closeouts, gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch, or Capability Adapters. Do not use for ordinary coding, planning, review, or debugging unless SPEC-Kit is explicit."
+name: sage-kit
+description: "Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt or bootstrap SAGE-Kit, or references SAGE-Kit docs or constructs such as ACTIVE_CONTEXT, DOC_ROUTING, Governance Levels, Authority Matrix, Agent Harness, milestones, phase docs, ledgers, closeouts, gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch, or Capability Adapters. Do not use for ordinary coding, planning, review, or debugging unless SAGE-Kit is explicit."
 ---
 
-# SPEC-Kit Governance
+# SAGE-Kit
 
-Use this skill to keep AI work aligned with SPEC-Kit without loading the whole
+Use this skill to keep AI work aligned with SAGE-Kit without loading the whole
 framework into context.
 
-SPEC-Kit is governance, not a skill library. It controls scope,
+SAGE-Kit is governance, not a skill library. It controls scope,
 authorization, file boundaries, gates, evidence, locks, memory, and completion
 status. External skills, plugins, connectors, and tools provide execution
 methods inside those approved boundaries.
 
-Task Dispatch is an internal optional SPEC-Kit profile. Superpowers and other
+Task Dispatch is an internal optional SAGE-Kit profile. Superpowers and other
 skills, plugins, MCP tools, CLIs, CI systems, reviewers, frontend builders,
 OpenSpec, GitNexus, browser tools, and database tools are optional capability
 adapters unless a project explicitly defines a narrower policy.
 
-This skill does not replace the project's own SPEC documents. The project
+This skill does not replace the project's own specification documents. The project
 remains responsible for maintaining its `docs/` profile, design, gates, active
 context, routing, milestones, phase docs, ledgers, completion reports, and
 closeouts.
 
 ## Core Rule
 
-Do not read every SPEC-Kit document by default. Start from the active project
+Do not read every SAGE-Kit document by default. Start from the active project
 context and let `docs/DOC_ROUTING.md` decide the narrow read set.
 
 Historical ledgers, phase docs, completion reports, and closeouts are not
@@ -39,21 +39,21 @@ supports.
 ## Detect The Situation
 
 1. Identify the active repository boundary and change-control state.
-2. Check for SPEC-Kit project markers:
+2. Check for SAGE-Kit project markers:
    - `docs/ACTIVE_CONTEXT.md`
    - `docs/DOC_ROUTING.md`
    - `docs/PROJECT_PROFILE.md`
    - `docs/agent/AGENT_HARNESS.md`
 3. If project docs are missing but the user wants to adopt or bootstrap
-   SPEC-Kit, read `references/adoption.md`.
-4. If this is the SPEC-Kit source repository, edit kit templates or skills only
+   SAGE-Kit, read `references/adoption.md`.
+4. If this is the SAGE-Kit source repository, edit kit templates or skills only
    when requested; do not expect instantiated project docs to exist.
-5. If the repo is not SPEC-Kit governed and the user did not ask to adopt it,
-   do not impose SPEC-Kit.
+5. If the repo is not SAGE-Kit governed and the user did not ask to adopt it,
+   do not impose SAGE-Kit.
 
 ## Default Startup
 
-For a SPEC-Kit governed project:
+For a SAGE-Kit governed project:
 
 1. Read `docs/ACTIVE_CONTEXT.md`.
 2. Read `docs/DOC_ROUTING.md`.
@@ -93,7 +93,7 @@ Prefer narrow reads in this order:
 4. closeouts before historical ledgers;
 5. targeted searches or ranges before full archives.
 
-Do not read every SPEC document, phase doc, ledger, closeout, skill body,
+Do not read every specification document, phase doc, ledger, closeout, skill body,
 plugin body, or log by default. If a broad read is required, say why and
 summarize the useful result into the ledger, closeout, completion report, or
 handoff.
@@ -120,7 +120,7 @@ handoff.
 - Do not let parallel workers or subagents edit `docs/ACTIVE_CONTEXT.md` or
   `docs/DOC_ROUTING.md` directly. They must return memory update proposals for
   controller integration.
-- Do not let SPEC-Kit displace specialist skills, plugins, connectors, or
+- Do not let SAGE-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
 - Use Capability Adapters for optional external skills, plugins, MCP tools,
@@ -132,10 +132,10 @@ handoff.
   only when the source, writes, fallback, and approval path are explicit.
 - Treat superpowers as a reference integration, not a dependency. When
   available and relevant, selected superpowers skills may guide execution
-  inside an approved SPEC-Kit boundary. If unavailable, continue with SPEC-Kit
+  inside an approved SAGE-Kit boundary. If unavailable, continue with SAGE-Kit
   phase, gate, packet, and evidence templates.
-- Do not treat external capability completion as SPEC-Kit gate completion.
-  Record it as execution evidence and keep gate decisions in SPEC-Kit docs.
+- Do not treat external capability completion as SAGE-Kit gate completion.
+  Record it as execution evidence and keep gate decisions in SAGE-Kit docs.
 - Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`; do not
   guess the policy from memory.
 - Use Wave Execution only when file ownership is disjoint and serial gates stay
