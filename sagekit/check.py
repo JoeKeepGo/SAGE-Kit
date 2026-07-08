@@ -85,6 +85,10 @@ FORBIDDEN_RUNTIME_STACK_PATHS = [
     "node_modules/**",
 ]
 
+RESOURCE_REFERENCE_RE = re.compile(
+    r"docs/(?:agent|templates|profiles)/[A-Za-z0-9_./-]+\.(?:md|yaml|json)"
+)
+
 
 def run_check(start: Path, gate_ready: bool = False, mode: str | None = None) -> list[Finding]:
     if mode is not None and mode not in MODES:
@@ -135,6 +139,8 @@ def run_source_repo_check(start: Path) -> list[Finding]:
 
     findings.extend(check_source_required_files(root))
     findings.extend(check_source_init_resources(root))
+    findings.extend(check_source_resource_references(root))
+    findings.extend(check_source_resource_mirrors(root))
     findings.extend(check_source_pyproject(root))
     findings.extend(check_source_gitignore(root))
     findings.extend(check_source_tracked_runtime(root))
@@ -238,6 +244,150 @@ def check_source_init_resources(root: Path) -> list[Finding]:
                     display,
                     None,
                     f"{item.source} missing, empty, or not a file",
+                )
+            )
+    return findings
+
+
+def check_source_resource_references(root: Path) -> list[Finding]:
+    try:
+        from .init import package_resource_root
+    except Exception as exc:
+        return [
+            Finding(
+                "FAIL",
+                "source-resource-reference",
+                "sagekit/init.py",
+                None,
+                f"could not load packaged resource root: {exc}",
+            )
+        ]
+
+    source_root = package_resource_root()
+    docs_root = source_root / "docs"
+    if not docs_root.exists():
+        return [
+            Finding(
+                "FAIL",
+                "source-resource-reference",
+                relpath(root, docs_root),
+                None,
+                "packaged docs resource root missing",
+            )
+        ]
+
+    references = collect_packaged_doc_references(docs_root)
+    findings: list[Finding] = []
+    for target, sources in sorted(references.items()):
+        path = source_root / target
+        display = relpath(root, path)
+        source_summary = summarize_reference_sources(sources)
+        if path.exists() and path.is_file() and read_text(path).strip():
+            findings.append(
+                Finding(
+                    "PASS",
+                    "source-resource-reference",
+                    display,
+                    None,
+                    f"{target} referenced by {source_summary} resolves",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "source-resource-reference",
+                    display,
+                    None,
+                    f"{target} referenced by {source_summary} is missing, empty, or not a file",
+                    "Mirror the referenced SAGE-Kit doc under sagekit/resources/docs or remove the packaged reference.",
+                )
+            )
+    return findings
+
+
+def collect_packaged_doc_references(docs_root: Path) -> dict[str, set[str]]:
+    references: dict[str, set[str]] = {}
+    for path in sorted(docs_root.rglob("*")):
+        if not path.is_file():
+            continue
+        text = read_text(path)
+        source = path.relative_to(docs_root.parent).as_posix()
+        for match in RESOURCE_REFERENCE_RE.findall(text):
+            references.setdefault(match, set()).add(source)
+    return references
+
+
+def summarize_reference_sources(sources: set[str]) -> str:
+    ordered = sorted(sources)
+    if len(ordered) <= 3:
+        return ", ".join(ordered)
+    return ", ".join(ordered[:3]) + f", and {len(ordered) - 3} more"
+
+
+def check_source_resource_mirrors(root: Path) -> list[Finding]:
+    try:
+        from .init import package_resource_root
+    except Exception as exc:
+        return [
+            Finding(
+                "FAIL",
+                "source-resource-mirror",
+                "sagekit/init.py",
+                None,
+                f"could not load packaged resource root: {exc}",
+            )
+        ]
+
+    source_root = package_resource_root()
+    docs_root = source_root / "docs"
+    if not docs_root.exists():
+        return [
+            Finding(
+                "FAIL",
+                "source-resource-mirror",
+                relpath(root, docs_root),
+                None,
+                "packaged docs resource root missing",
+            )
+        ]
+
+    findings: list[Finding] = []
+    for resource_path in sorted(path for path in docs_root.rglob("*") if path.is_file()):
+        relative = resource_path.relative_to(source_root).as_posix()
+        source_path = root / relative
+        display = relpath(root, resource_path)
+        if not source_path.exists() or not source_path.is_file():
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "source-resource-mirror",
+                    display,
+                    None,
+                    f"{relative} has no source document",
+                    "Remove the orphan packaged resource or add the matching source document.",
+                )
+            )
+            continue
+        if read_text(resource_path) == read_text(source_path):
+            findings.append(
+                Finding(
+                    "PASS",
+                    "source-resource-mirror",
+                    display,
+                    None,
+                    f"{relative} matches source document",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "source-resource-mirror",
+                    display,
+                    None,
+                    f"{relative} differs from source document",
+                    "Copy the updated source document into sagekit/resources before release.",
                 )
             )
     return findings

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/sage-kit/task-dispatch/evidence.schema.json",
+  "title": "SAGE-Kit Task Dispatch Evidence Record",
+  "type": "object",
+  "required": [
+    "task_id",
+    "changed_surface",
+    "runtime_shape",
+    "levels",
+    "artifacts",
+    "runs",
+    "blockers",
+    "conclusion"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "changed_surface": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "original_user_path": {
+      "type": "string"
+    },
+    "runtime_shape": {
+      "type": "string"
+    },
+    "levels": {
+      "type": "object",
+      "required": ["L0", "L1", "L2", "L3", "L4"],
+      "properties": {
+        "L0": { "$ref": "#/$defs/levelRecord" },
+        "L1": { "$ref": "#/$defs/levelRecord" },
+        "L2": { "$ref": "#/$defs/levelRecord" },
+        "L3": { "$ref": "#/$defs/levelRecord" },
+        "L4": { "$ref": "#/$defs/levelRecord" }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "commands",
+        "files_changed",
+        "api",
+        "sql",
+        "browser",
+        "logs",
+        "screenshots",
+        "release",
+        "ids"
+      ]
+    },
+    "runs": {
+      "type": "array"
+    },
+    "blockers": {
+      "type": "array"
+    },
+    "conclusion": {
+      "type": "object",
+      "required": [
+        "status",
+        "highest_level",
+        "mock_used",
+        "accepted_fallback",
+        "next_action"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "VERIFIED",
+            "PARTIAL",
+            "ENV_BLOCKED",
+            "CONTRACT_BLOCKED",
+            "WORKER_BLOCKED",
+            "PM_BLOCKED"
+          ]
+        },
+        "mock_used": {
+          "type": "boolean"
+        },
+        "accepted_fallback": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "levelRecord": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "PASS", "FAIL", "BLOCKED", "WAIVED", "N/A"]
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reason": {
+          "type": ["string", "null"]
+        },
+        "waived_by": {
+          "type": ["string", "null"]
+        },
+        "waiver_scope": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

@@ -260,11 +260,12 @@ Light, Standard, or Heavy.
 
 Then draft the minimum useful SAGE-Kit documents:
 - PROJECT_PROFILE
-- TECHNICAL_DESIGN when architecture is known or can be sketched
 - QUALITY_GATES
-- APPROVAL_GATES
 - ACTIVE_CONTEXT
 - DOC_ROUTING
+- TECHNICAL_DESIGN when architecture is known, can be sketched, or Standard/Heavy adoption is selected
+- ENGINEERING_SYSTEM when recurring human/AI workflow needs governance or Standard/Heavy adoption is selected
+- APPROVAL_GATES when approval-sensitive actions exist or Standard/Heavy adoption is selected
 - CAPABILITY_MAP if the idea is broad, non-technical, or roadmap granularity is uncertain
 - MILESTONE_ROADMAP only after the capability map or granularity check is ready
 
@@ -372,9 +373,10 @@ docs/
 
 1. 如果项目从宽泛或非工程化想法开始，先用 Project Owner Entry 生成 intake、project profile draft 和 capability map。
 2. 填写或完善 `PROJECT_PROFILE.md`。
-3. 编写或适配 `TECHNICAL_DESIGN.md`。
-4. 定义 `QUALITY_GATES.md` 和 `APPROVAL_GATES.md`。
-5. 添加 `ACTIVE_CONTEXT.md` 和 `DOC_ROUTING.md`。
+3. 定义 `QUALITY_GATES.md`。
+4. 添加 `ACTIVE_CONTEXT.md` 和 `DOC_ROUTING.md`。
+5. 当选择 Standard/Heavy adoption，或风险要求时，编写或适配
+   `TECHNICAL_DESIGN.md`、`ENGINEERING_SYSTEM.md` 和 `APPROVAL_GATES.md`。
 6. 对宽泛、非工程化启动或 roadmap 颗粒度偏粗的项目创建 `CAPABILITY_MAP.md`。
 7. 当使用 `CAPABILITY_MAP.md` 时，从中生成候选 milestones。
 8. 只有通过 Milestone Granularity Gate 的候选 milestone 才能进入可执行 roadmap。
@@ -412,28 +414,30 @@ docs/
 
 ### 初始化新项目
 
-新项目先复制核心模板：
+新项目先复制当前 adoption mode 选择的模板。Light 从 baseline 文件开始：
 
 ```text
 docs/SAGE_CORE.md
 docs/PROJECT_PROFILE.md
-docs/TECHNICAL_DESIGN.md
-docs/ENGINEERING_SYSTEM.md
 docs/QUALITY_GATES.md
-docs/APPROVAL_GATES.md
 docs/ACTIVE_CONTEXT.md
 docs/DOC_ROUTING.md
-docs/MILESTONE_ROADMAP.md
 docs/agent/
 docs/templates/
 ```
+
+当选择 Standard/Heavy adoption，或项目风险需要这些控制时，再添加
+`TECHNICAL_DESIGN.md`、`ENGINEERING_SYSTEM.md`、`APPROVAL_GATES.md` 和
+`MILESTONE_ROADMAP.md`。
 
 然后让 agent 只填写最小有用草稿：
 
 ```text
 Use $sage-kit to bootstrap SAGE-Kit for this repository.
-Start with PROJECT_PROFILE, TECHNICAL_DESIGN, QUALITY_GATES, APPROVAL_GATES,
-ACTIVE_CONTEXT, DOC_ROUTING, and a draft MILESTONE_ROADMAP.
+Start with the Light baseline: PROJECT_PROFILE, QUALITY_GATES,
+ACTIVE_CONTEXT, and DOC_ROUTING. Add TECHNICAL_DESIGN, ENGINEERING_SYSTEM,
+APPROVAL_GATES, and a draft MILESTONE_ROADMAP only when Standard or Heavy
+adoption is selected or the project risk requires them.
 Do not create executable milestones until the capability map or roadmap
 granularity check is complete.
 ```
@@ -524,8 +528,8 @@ flowchart TD
 6. 只执行已批准的 phase 或 task。
 7. 记录 tests、runtime smoke、skipped checks、blockers 和 evidence。
 8. 更新 completion report 和 milestone ledger。
-9. 当前状态事实改变时，用替换方式更新 `ACTIVE_CONTEXT.md`。
-10. 只有 routing 或文档拓扑改变时才更新 `DOC_ROUTING.md`。
+9. 只有当前状态事实改变，且 permission mode 与 ownership 都允许直接写入时，才用替换方式更新 `ACTIVE_CONTEXT.md`；否则返回 memory update proposal 或 no-change note。
+10. 只有 routing 或文档拓扑改变，且 permission mode 与 ownership 都允许直接写入时，才更新 `DOC_ROUTING.md`；否则返回 memory update proposal 或 no-change note。
 
 ### Governance 与 Authority 选择
 
@@ -563,11 +567,15 @@ Final Review Controller
 Coder Controller or Corrective Worker
   -> bounded corrections when requested
 
+Final Review Controller
+  -> independent corrective re-review
+  -> updated Final Review Packet
+
 Project Manager Controller
   -> accept, handoff, blocked, or next prompt
 ```
 
-Coder 和 Final Review controllers 可以在文件所有权、runtime ownership、evidence expectations 和 stop conditions 都明确时派发 subagents。它们也可以针对明确 finding 派发 corrective workers。只要 correction 需要新 scope、approval、public contract change、shared ownership change 或 submit/cleanup authority，就必须停下来交给 Project Manager。
+Coder 和 Final Review controllers 可以在文件所有权、runtime ownership、evidence expectations 和 stop conditions 都明确时派发 subagents。Coder 只能在 Final Review 前、且 fix 仍处于 execution packet 边界内时派发 integration repair workers。Final Review 只能在 review 后针对 `AUTO_CORRECTIVE` findings 派发 corrective workers。只要 correction 需要新 scope、approval、public contract change、shared ownership change 或 submit/cleanup authority，就必须停下来交给 Project Manager。Bounded corrections 完成后，Final Review 必须先复审受影响 findings，然后 Project Manager 才能 acceptance。
 
 ### 外部能力和 Superpowers
 
@@ -602,7 +610,7 @@ Continuous execution 只允许发生在已批准的 phase、lane、task 或 corr
 | `MILESTONE_CLOSEOUT.md` | Milestone 当前状态已整理完后，写入紧凑的历史结果索引。 |
 | Task Dispatch records | Task Dispatch Profile 启用时的机器可校验 task/evidence state。 |
 
-Workers 和 parallel lanes 不能直接编辑 `ACTIVE_CONTEXT.md` 或 `DOC_ROUTING.md`。它们只返回 memory update proposals，由 controller 串行应用。
+Workers、parallel lanes，或任何没有 `ACTIVE_CONTEXT.md` / `DOC_ROUTING.md` 写权限和 ownership 的角色，都不能直接编辑这些文件。它们只返回 memory update proposals 或明确的 no-change note，由 controller 串行应用已接受的 proposals。
 
 ### Review 和 Closeout
 

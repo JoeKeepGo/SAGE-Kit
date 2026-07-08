@@ -89,7 +89,8 @@ Default: `no`.
 
 If yes, define:
 
-- exact phase, glue step, or corrective fix allowed;
+- exact phase, glue step, or integration repair before Final Review allowed;
+- do not use corrective round language for Coder self-review fixes;
 - maximum files or surfaces;
 - worker dispatch still required for;
 - why worker dispatch would add more handoff overhead than risk reduction;
@@ -126,6 +127,8 @@ If yes, define:
 - Run/Attempt/Lease policy;
 - validator command;
 - gate where validator success is required;
+- gate-ready validator requirement for task, phase, or milestone acceptance;
+- explicit non-acceptance task or gate when validator is not required;
 - owner of task record updates;
 - owner of evidence record updates.
 
@@ -177,8 +180,10 @@ The milestone can be closed only after:
 
 - every required phase is `accepted` or explicitly `superseded`;
 - blocking gates are `PASS` or explicitly `WAIVED` by the project owner;
-- Task Dispatch validator passes when the profile is active and the gate
-  requires it;
+- Task Dispatch gate-ready validator passes when the profile is active and a
+  task, phase, or milestone acceptance gate is being advanced;
+- Task Dispatch validator is not marked `n/a` for an acceptance gate unless the
+  specific task is recorded as not an acceptance gate;
 - runtime evidence is fresh where applicable;
 - closed approval gates remain closed unless explicitly opened;
 - `MILESTONE_CLOSEOUT.md` summarizes the milestone outcome and links to

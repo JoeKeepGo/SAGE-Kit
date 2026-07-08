@@ -1,0 +1,56 @@
+task_id: TASK-000
+changed_surface: []
+original_user_path: n/a
+runtime_shape: n/a
+
+levels:
+  L0:
+    status: PENDING
+    evidence: []
+    commands: []
+    reason: initial record
+  L1:
+    status: N/A
+    evidence: []
+    commands: []
+    reason: not required
+  L2:
+    status: N/A
+    evidence: []
+    commands: []
+    reason: not required
+  L3:
+    status: N/A
+    evidence: []
+    commands: []
+    reason: not required
+  L4:
+    status: N/A
+    evidence: []
+    commands: []
+    reason: not required
+
+artifacts:
+  commands: []
+  files_changed: []
+  api: []
+  sql: []
+  browser: []
+  logs: []
+  screenshots: []
+  release: []
+  ids: []
+
+runs: []
+
+blockers: []
+
+conclusion:
+  status: PENDING
+  highest_level: none
+  mock_used: false
+  accepted_fallback: false
+  accepted_fallback_by: null
+  accepted_fallback_scope: null
+  accepted_fallback_reason: null
+  next_action: collect required evidence

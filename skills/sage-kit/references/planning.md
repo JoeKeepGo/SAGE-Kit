@@ -41,50 +41,63 @@ it remains a candidate and must be split before execution.
 
 ## Entry Gate Checklist
 
-Before implementation starts, the entry gate must answer:
+Before implementation starts, answer the required core gate. Optional controls
+are conditional: record their details only when enabled, proposed, or needed by
+the active risk. Otherwise write `Not enabled: <reason>` instead of filling the
+whole optional checklist.
+
+Required core gate:
 
 - What governance level applies to this control scope: `Light`, `Standard`, or
   `Heavy`?
 - What permission mode applies to this role or packet:
   `READ_ONLY_REVIEW`, `WRITE_AUTHORIZED`, `CORRECTIVE_AUTHORIZED`,
   `ENVIRONMENT_WRITE_AUTHORIZED`, or `SUBMIT_AUTHORIZED`?
-- If this is Heavy controller work, which worker or lane scopes can remain
-  Light or Standard?
-- If this is read-only review, what packet, decision request, blocker, or
-  waiver path closes the run when correction is required?
 - What is the milestone objective?
-- Which primary capability from the capability map does it prove?
+- Which primary capability from the capability map does it prove, or why is no
+  capability map enabled?
 - What is out of scope?
 - What are the phases?
 - What contract does each phase own?
 - What files or modules are likely to change?
 - Which files are shared and need serial ownership?
-- Which phases can use Wave Execution?
-- Does this milestone need Session Orchestration to avoid repeated manual
-  handoff between Project Manager, Coder, and Final Review controllers?
-- If Session Orchestration is used, may Coder Controller self-execute any work?
-  If yes, what exact narrow phase, glue step, or corrective fix is allowed?
-- If Wave Execution or parallel phases are proposed, do lanes pass Wave
-  Readiness Gate with exclusive writable files, frozen contracts, runtime
-  ownership, validation lanes, and integration owner?
-- Does Project Manager allow Worktree Isolation, and if yes what mode, maximum
-  count, naming, submit authority, and cleanup policy apply?
-- Does this milestone need Task Dispatch Profile for structured task/evidence
-  records, resource locks, Run/Attempt/Lease tracking, or validator-backed
-  gate closeout?
-- Which specialist skills, plugins, connectors, or tools should controllers
-  route to for implementation, validation, review, or runtime smoke?
-- Which Capability Adapters apply, and what authorization level, fallback, and
-  evidence mapping does each one use?
-- If superpowers is available, which specific skills should be used as
-  execution discipline, and inside which SAGE-Kit boundary? If it is not
-  available, what SAGE-Kit-native packet, phase, gate, and evidence path will
-  be used instead?
-- Where will external planning outputs be written or mapped so the milestone
-  ledger, phase docs, and packets remain the source of truth?
 - Which gates remain closed?
 - Which tests and runtime checks prove the milestone?
 - What review, handoff, or closeout closes the milestone?
+
+Conditional optional controls:
+
+- Heavy controller decomposition: if this is Heavy controller work, which
+  worker or lane scopes can remain Light or Standard? Otherwise:
+  `Not enabled: <reason>`.
+- Read-only review closure: if this is read-only review, what packet, decision
+  request, blocker, or waiver path closes the run when correction is required?
+  Otherwise: `Not enabled: <reason>`.
+- Wave Execution: if waves or parallel phases are proposed, which phases can
+  use them and do lanes pass Wave Readiness Gate with exclusive writable files,
+  frozen contracts, runtime ownership, validation lanes, and integration owner?
+  Otherwise: `Not enabled: <reason>`.
+- Session Orchestration: if repeated manual handoff justifies it, define Project
+  Manager, Coder, Final Review, and Coder self-execution policy. Otherwise:
+  `Not enabled: <reason>`.
+- Worktree Isolation: if Project Manager allows it, name mode, maximum count,
+  naming, submit authority, and cleanup policy. Otherwise:
+  `Not enabled: <reason>`.
+- Task Dispatch Profile: if structured task/evidence records, resource locks,
+  Run/Attempt/Lease tracking, or validator-backed gate closeout are needed,
+  define the profile use. Otherwise: `Not enabled: <reason>`.
+- Specialist capabilities: when implementation, validation, review, or runtime
+  smoke benefits from available skills, plugins, connectors, or tools, name the
+  routing. Otherwise: `Not enabled: <reason>`.
+- Capability Adapters: when an external capability is selected, unavailable
+  but relevant, or needs fallback, name authorization level, fallback, and
+  evidence mapping. Otherwise: `Not enabled: <reason>`.
+- Superpowers: when available and relevant, name the specific skills and
+  SAGE-Kit boundary. If unavailable or irrelevant, record
+  `Not enabled: <reason>`.
+- External planning outputs: when used, name where outputs are written or
+  mapped so the milestone ledger, phase docs, and packets remain the source of
+  truth. Otherwise: `Not enabled: <reason>`.
 
 ## Phase Boundary Checklist
 
@@ -133,7 +146,7 @@ Plan:
 - controller and worker permission modes;
 - worker and lane governance levels, selected per scope;
 - Coder self-execution policy, normally `not allowed` except narrow glue or
-  corrective work;
+  integration repair before Final Review;
 - wave readiness decision, with serial fallback when lane independence is not
   proven;
 - worktree isolation authorization, if allowed;

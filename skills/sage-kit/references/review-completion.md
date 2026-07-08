@@ -43,8 +43,10 @@ Lead with blocking findings before summaries.
 - scope implemented;
 - governance level;
 - permission mode;
-- controls enabled and controls not enabled;
-- upgrade triggers or a `none` note;
+- controls enabled, and controls not enabled when the control was considered or
+  relevant;
+- upgrade triggers when relevant, or a `none` note when the governance decision
+  needs an explicit record;
 - stopped worker or controller decision status when applicable;
 - Coder execution mode and self-execution policy status when Session
   Orchestration is used;
@@ -52,16 +54,19 @@ Lead with blocking findings before summaries.
 - corrective closure status when a review finds required corrections;
 - files changed;
 - contract evidence;
-- capabilities used;
+- specialist capabilities used when relevant;
 - capability adapters selected, authorization level, fallback, and evidence
-  mapping;
-- superpowers skills used;
-- external capability boundary and evidence produced;
-- external planning output destination, or `n/a`;
+  mapping when an adapter was selected, considered, unavailable, or produced
+  evidence;
+- superpowers skills used when available and relevant;
+- external capability boundary and evidence produced when external capability
+  output was used;
+- external planning output destination when external planning was used;
 - tests run;
 - runtime smoke or non-applicability reason;
 - approval gates;
-- task-dispatch validator result when the profile is active;
+- task-dispatch validator result when the profile is active for the current
+  task, phase, or gate;
 - security or data hygiene checks;
 - memory maintenance;
 - skipped checks;
@@ -82,6 +87,10 @@ Maintain `ACTIVE_CONTEXT.md` as a current-state snapshot:
 
 Update `DOC_ROUTING.md` only when routing policy, document paths, ownership
 boundaries, or archive policy changed.
+
+Direct edits to `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md` require permission mode
+and ownership. If either is missing, return a `Memory Update Proposal` or record
+an explicit no-change note.
 
 If neither file needs an edit, record:
 

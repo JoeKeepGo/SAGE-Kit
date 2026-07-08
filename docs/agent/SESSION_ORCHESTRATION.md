@@ -39,10 +39,11 @@ Project Manager Controller
 
 Coder Controller
   -> phase workers and lane workers, or bounded self-execution only when allowed
-  -> Milestone Result Packet
+  -> Milestone Result Packet to Project Manager Controller
 
 Project Manager Controller
   -> Structural Gate only
+  -> forwards to Final Review only on Structural Gate PASS
 
 Final Review Controller
   -> review workers, validation lanes, corrective packets
@@ -120,8 +121,9 @@ Project Manager must select both:
 Governance level does not grant write authority by itself. Permission mode does
 not reduce the governance level. A Heavy controller may start in
 `READ_ONLY_REVIEW`, but it must still perform Heavy controller duties such as
-scope decision, packet completeness, corrective routing, final decision, or
-handoff when those duties are in scope.
+scope decision, packet completeness, corrective routing, or handoff when those
+duties are in scope. Project Manager final decisions are recorded as separate
+PM decision authority and are not Final Review read-only acceptance.
 
 Every worker or lane packet must name its permission mode. Default to
 `READ_ONLY_REVIEW` unless the active packet explicitly authorizes writes,
@@ -180,7 +182,7 @@ main implementation worker.
 Coder Controller may self-execute only when every condition is true:
 
 - the work is one narrow phase, one integration glue step, or one bounded
-  corrective fix;
+  integration repair before Final Review;
 - allowed files, read-only files, forbidden files, tests, smoke, and stop
   conditions are already explicit in the execution packet or phase doc;
 - no safe parallelism is available or worker dispatch would add more handoff
@@ -242,11 +244,13 @@ integration self review:
   and evidence;
 - verify worker outputs stayed inside allowed files and non-goals;
 - identify missing tests, skipped checks, runtime gaps, and contract risks;
-- run bounded corrective workers for issues inside the execution packet;
+- run bounded integration repair workers under `WRITE_AUTHORIZED` for issues
+  inside the execution packet;
 - stop and return `HANDOFF` or `BLOCKED` when correction needs new scope,
   approval, public contract change, or shared ownership change.
 
-Coder self review does not replace Final Review.
+Coder self review does not replace Final Review. Fixes made before the Coder
+packet reaches Final Review are integration repairs, not corrective rounds.
 
 ## Parallelism Assessment
 
@@ -338,6 +342,10 @@ Gate-ready validator success means the records also claim verified status,
 passlike required levels, and no blockers. Neither mode accepts the milestone
 or replaces Final Review judgment.
 
+When Task Dispatch Profile is active, task, phase, or milestone acceptance gates
+require gate-ready validator success. `n/a` is valid only when the named task is
+explicitly recorded as not an acceptance gate.
+
 ## Project Manager Structural Gate
 
 The Project Manager Controller does not perform technical verification between
@@ -389,7 +397,7 @@ Review is in `CORRECTIVE_AUTHORIZED` and findings are `AUTO_CORRECTIVE`, it
 should open a corrective round up to the configured round limit.
 
 Final Review cannot mark the milestone accepted. The Project Manager Controller
-makes the final decision.
+makes the final decision through a separate PM decision authority record.
 
 ## Corrective Rules
 
@@ -399,8 +407,9 @@ Corrective work is bounded by the Final Review findings.
   commands, and stop conditions.
 - A corrective packet must name the permission mode and whether the round was
   packet-only, auto-opened, or waiting for Project Manager decision.
-- Coder may dispatch corrective workers for self-review findings only when the
-  fix is inside the original execution packet.
+- Coder may dispatch integration repair workers for self-review findings only
+  when the fix is inside the original execution packet. Do not call this a
+  corrective round before Final Review.
 - Final Review may request correction only through a corrective packet,
   Project Manager decision request, or by returning `BLOCKED` with the blocking
   authority/evidence gap named.
@@ -417,7 +426,8 @@ Corrective work is bounded by the Final Review findings.
 - Corrective workers must not redesign the feature.
 - Corrective workers must not expand milestone scope.
 - Corrective workers must not open approval gates.
-- Default maximum corrective rounds: 2.
+- Maximum corrective rounds must be configured by the execution or Final Review
+  packet.
 - After the maximum rounds, return `HANDOFF` or `BLOCKED` to Project Manager.
 
 ## Serial Gates
@@ -445,7 +455,8 @@ These remain serial even in Session Orchestration:
 - Use `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` from Project
   Manager to Coder.
 - Use `docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md` from Coder to Project
-  Manager and Final Review.
+  Manager. Project Manager forwards it to Final Review only after Structural
+  Gate `PASS`.
 - Use `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` for Project Manager packet
   completeness checks.
 - Use `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` from Final Review to

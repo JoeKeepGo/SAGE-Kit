@@ -310,11 +310,12 @@ Light, Standard, or Heavy.
 
 Then draft the minimum useful SAGE-Kit documents:
 - PROJECT_PROFILE
-- TECHNICAL_DESIGN when architecture is known or can be sketched
 - QUALITY_GATES
-- APPROVAL_GATES
 - ACTIVE_CONTEXT
 - DOC_ROUTING
+- TECHNICAL_DESIGN when architecture is known, can be sketched, or Standard/Heavy adoption is selected
+- ENGINEERING_SYSTEM when recurring human/AI workflow needs governance or Standard/Heavy adoption is selected
+- APPROVAL_GATES when approval-sensitive actions exist or Standard/Heavy adoption is selected
 - CAPABILITY_MAP if the idea is broad, non-technical, or roadmap granularity is uncertain
 - MILESTONE_ROADMAP only after the capability map or granularity check is ready
 
@@ -426,9 +427,10 @@ profile.
 1. If the project starts from a broad or non-technical idea, use Project Owner
    Entry to create intake notes, a project profile draft, and a capability map.
 2. Fill or refine `PROJECT_PROFILE.md`.
-3. Write or adapt `TECHNICAL_DESIGN.md`.
-4. Define `QUALITY_GATES.md` and `APPROVAL_GATES.md`.
-5. Add `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
+3. Define `QUALITY_GATES.md`.
+4. Add `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
+5. For Standard or Heavy adoption, or when risk requires them, write or adapt
+   `TECHNICAL_DESIGN.md`, `ENGINEERING_SYSTEM.md`, and `APPROVAL_GATES.md`.
 6. Create `CAPABILITY_MAP.md` for broad, non-technical, or coarse-roadmap
    projects.
 7. Create draft milestone candidates from `CAPABILITY_MAP.md` when it is used.
@@ -478,28 +480,31 @@ current risk:
 
 ### Bootstrap A New Project
 
-For a new project, copy the core templates first:
+For a new project, copy the templates selected by the adoption mode. Light
+starts with the baseline files:
 
 ```text
 docs/SAGE_CORE.md
 docs/PROJECT_PROFILE.md
-docs/TECHNICAL_DESIGN.md
-docs/ENGINEERING_SYSTEM.md
 docs/QUALITY_GATES.md
-docs/APPROVAL_GATES.md
 docs/ACTIVE_CONTEXT.md
 docs/DOC_ROUTING.md
-docs/MILESTONE_ROADMAP.md
 docs/agent/
 docs/templates/
 ```
+
+Add `TECHNICAL_DESIGN.md`, `ENGINEERING_SYSTEM.md`, `APPROVAL_GATES.md`, and
+`MILESTONE_ROADMAP.md` when Standard or Heavy adoption is selected, or when the
+project risk requires those controls.
 
 Then ask the agent to fill only the minimum useful draft:
 
 ```text
 Use $sage-kit to bootstrap SAGE-Kit for this repository.
-Start with PROJECT_PROFILE, TECHNICAL_DESIGN, QUALITY_GATES, APPROVAL_GATES,
-ACTIVE_CONTEXT, DOC_ROUTING, and a draft MILESTONE_ROADMAP.
+Start with the Light baseline: PROJECT_PROFILE, QUALITY_GATES,
+ACTIVE_CONTEXT, and DOC_ROUTING. Add TECHNICAL_DESIGN, ENGINEERING_SYSTEM,
+APPROVAL_GATES, and a draft MILESTONE_ROADMAP only when Standard or Heavy
+adoption is selected or the project risk requires them.
 Do not create executable milestones until the capability map or roadmap
 granularity check is complete.
 ```
@@ -594,8 +599,12 @@ A normal phase run should follow this loop:
 6. Execute only the approved phase or task.
 7. Record tests, runtime smoke, skipped checks, blockers, and evidence.
 8. Update the completion report and milestone ledger.
-9. Update `ACTIVE_CONTEXT.md` by replacement when current-state facts changed.
-10. Update `DOC_ROUTING.md` only when routing or document topology changed.
+9. Update `ACTIVE_CONTEXT.md` by replacement only when current-state facts
+   changed and permission mode plus ownership allow direct writes; otherwise
+   return a memory update proposal or no-change note.
+10. Update `DOC_ROUTING.md` only when routing or document topology changed and
+    permission mode plus ownership allow direct writes; otherwise return a
+    memory update proposal or no-change note.
 
 ### Governance And Authority Selection
 
@@ -641,15 +650,23 @@ Final Review Controller
 Coder Controller or Corrective Worker
   -> bounded corrections when requested
 
+Final Review Controller
+  -> independent corrective re-review
+  -> updated Final Review Packet
+
 Project Manager Controller
   -> accept, handoff, blocked, or next prompt
 ```
 
 Coder and Final Review controllers may dispatch subagents when file ownership,
 runtime ownership, evidence expectations, and stop conditions are explicit.
-They may also dispatch corrective workers for bounded findings. They must stop
-for Project Manager decision when correction needs new scope, approval, public
-contract change, shared ownership change, or submit/cleanup authority.
+Coder may dispatch integration repair workers before Final Review when the fix
+stays inside the execution packet. Final Review may dispatch corrective workers
+only for `AUTO_CORRECTIVE` findings after review. They must stop for Project
+Manager decision when correction needs new scope, approval, public contract
+change, shared ownership change, or submit/cleanup authority. After bounded
+corrections, Final Review must re-review the affected findings before Project
+Manager acceptance.
 
 ### External Capabilities And Superpowers
 
@@ -697,9 +714,10 @@ Use each document for one job:
 | `MILESTONE_CLOSEOUT.md` | Compact historical outcome after the milestone is current and ready to archive. |
 | Task Dispatch records | Machine-checkable task/evidence state when the Task Dispatch Profile is active. |
 
-Workers and parallel lanes must not directly edit `ACTIVE_CONTEXT.md` or
-`DOC_ROUTING.md`. They return memory update proposals; the controller applies
-them serially.
+Workers and parallel lanes, or any role that lacks write permission and
+ownership for `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md`, must not directly edit
+those files. They return memory update proposals or an explicit no-change note;
+the controller applies accepted proposals serially.
 
 ### Review And Closeout
 

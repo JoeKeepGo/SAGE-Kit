@@ -26,12 +26,12 @@ Default startup read set:
 
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
-| General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` |
+| General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` if present |
 | Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
 | Capability map or roadmap granularity audit | Project profile, `docs/CAPABILITY_MAP.md` if present or `docs/templates/CAPABILITY_MAP_TEMPLATE.md` if creating it, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design, relevant profile templates, prior closeouts only when the capability depends on history |
-| New feature planning | Project profile, technical design, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
-| Milestone planning | Project profile, technical design, roadmap, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Named or relevant prior milestone closeouts, then ledgers only if needed |
+| New feature planning | Project profile, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design if present or risk-enabled; named or relevant prior milestone closeouts, then ledgers only if needed |
+| Milestone planning | Project profile, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design or roadmap if present or Standard/Heavy; named or relevant prior milestone closeouts, then ledgers only if needed |
 | Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
 | Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
 | Task dispatch | Active context, this file, active milestone ledger, active task `task.yaml`, active task `evidence.yaml`, `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` | Dispatch board, schemas, validator output, related dependency task records |
@@ -87,13 +87,16 @@ provenance, safety analysis, or final acceptance.
 
 ## Maintenance Rule
 
-Update this file only when the documentation topology or routing policy changes,
-such as:
+Update this file only when the active permission mode and ownership allow direct
+writes and the documentation topology or routing policy changes, such as:
 
 - a required project document is added, removed, renamed, or moved;
 - a profile adds a new default read path;
 - task types or ownership boundaries change;
 - a new archive or historical evidence policy is adopted.
+
+If direct writes are not allowed, return a `Memory Update Proposal` or explicit
+no-change note.
 
 Do not write task status, command output, review notes, milestone progress, or
 agent observations here. Durable current-state facts belong in active context;

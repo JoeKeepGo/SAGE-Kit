@@ -601,6 +601,22 @@ class SagekitCheckTests(unittest.TestCase):
             self.assertFalse((root / "docs/profiles/task-dispatch/DISPATCH_PROFILE.md").exists())
             self.assertFalse(list(root.glob("docs/M*/dispatch/**/task.yaml")))
 
+    def test_init_heavy_creates_session_orchestration_packet_templates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            result = run_sagekit("init", "--mode", "heavy", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for path in [
+                "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+                "docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
+                "docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
+                "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md",
+                "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md",
+            ]:
+                self.assertTrue((root / path).exists(), path)
+
     def test_init_does_not_overwrite_without_force(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -718,6 +734,68 @@ class SagekitCheckTests(unittest.TestCase):
         rules = {(item["level"], item["rule"]) for item in payload["findings"]}
         self.assertIn(("PASS", "source-gitignore-runtime"), rules)
         self.assertIn(("PASS", "source-tracked-runtime"), rules)
+
+    def test_source_repo_check_reports_packaged_resource_reference_closure(self):
+        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        references = [
+            item for item in payload["findings"] if item["rule"] == "source-resource-reference"
+        ]
+        passed_paths = {item["path"] for item in references if item["level"] == "PASS"}
+
+        self.assertTrue(references, payload)
+        for path in [
+            "sagekit/resources/docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+            "sagekit/resources/docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
+            "sagekit/resources/docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
+            "sagekit/resources/docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md",
+            "sagekit/resources/docs/templates/CORRECTIVE_PACKET_TEMPLATE.md",
+        ]:
+            self.assertIn(path, passed_paths)
+        self.assertFalse(
+            [item for item in references if item["level"] == "FAIL"],
+            references,
+        )
+
+    def test_source_repo_check_reports_packaged_resource_mirror_parity(self):
+        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        mirrors = [
+            item for item in payload["findings"] if item["rule"] == "source-resource-mirror"
+        ]
+        passed_paths = {item["path"] for item in mirrors if item["level"] == "PASS"}
+
+        self.assertIn("sagekit/resources/docs/SAGE_CORE.md", passed_paths)
+        self.assertIn(
+            "sagekit/resources/docs/agent/MILESTONE_PLANNING.md",
+            passed_paths,
+        )
+        self.assertFalse(
+            [item for item in mirrors if item["level"] == "FAIL"],
+            mirrors,
+        )
+
+    def test_source_resource_mirror_reports_orphan_packaged_resource(self):
+        from sagekit.check import check_source_resource_mirrors
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            resource_root = Path(tmp) / "resources"
+            orphan = resource_root / "docs/templates/ORPHAN_TEMPLATE.md"
+            orphan.parent.mkdir(parents=True)
+            orphan.write_text("# Orphan\n", encoding="utf-8")
+
+            with patch("sagekit.init.package_resource_root", return_value=resource_root):
+                findings = check_source_resource_mirrors(root)
+
+        failures = [item for item in findings if item.level == "FAIL"]
+        self.assertEqual(len(failures), 1, findings)
+        self.assertEqual(failures[0].rule, "source-resource-mirror")
+        self.assertIn("has no source document", failures[0].message)
 
     def test_source_gitignore_runtime_patterns_require_numeric_milestone_dirs(self):
         from sagekit.check import GITIGNORE_RUNTIME_PATTERNS

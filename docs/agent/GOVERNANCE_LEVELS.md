@@ -7,8 +7,9 @@ Governance level is selected per control scope, not inherited globally. A Heavy
 milestone controller may delegate Light or Standard worker tasks when their
 scope is narrow and risk is bounded.
 
-Formal reviews that decide or unblock gates, milestone acceptance, durable
-state, or verdicts are Standard or Heavy by controller scope.
+Formal reviews that verify gates, milestone readiness, durable state, or
+verdict evidence are Standard or Heavy by controller scope. Final acceptance is
+a Project Manager decision, not a read-only review action.
 
 Governance level and permission mode are separate decisions. The governance
 level decides how much structure is required. The permission mode decides what
@@ -28,6 +29,12 @@ current role and control scope.
 | `ENVIRONMENT_WRITE_AUTHORIZED` | Install, initialize, index, configure, or mutate environment-local tools only within the named adapter boundary. | Silent installs, global configuration, hooks, credentials, destructive changes, or treating tool setup as project completion. |
 | `SUBMIT_AUTHORIZED` | Commit, push, merge, publish, release, or clean up worktrees only after the required review and Project Manager decision. | Submitting unreviewed scope, bypassing approval gates, or accepting technical risk without recorded owner decision. |
 
+`PM_DECISION_AUTHORIZED` is a Project Manager decision record, not a worker
+permission mode. It allows the Project Manager to record accept, accept with
+concerns, waive, defer, block, or hand off after the required evidence and Final
+Review verdict. It does not grant Final Review authority to accept a milestone,
+and it does not grant file, environment, submit, or cleanup writes.
+
 `READ_ONLY_REVIEW` is a permission mode, not a completion state. If a read-only
 review returns `NEEDS_CORRECTION`, `BLOCKED`, or gate-affecting concerns, it
 must produce a corrective packet, a Project Manager decision request, or an
@@ -43,7 +50,7 @@ Common combinations:
 | `Standard + READ_ONLY_REVIEW` | Formal bounded review within one phase or ownership area. | Verdict plus corrective packet, handoff, blocker, or no-correction rationale. |
 | `Standard + WRITE_AUTHORIZED` | Bounded implementation in one module, phase, or ownership area. | Tests or smoke evidence and completion report. |
 | `Standard + CORRECTIVE_AUTHORIZED` | Fix named findings inside an existing boundary. | Required checks, evidence, and re-review request. |
-| `Heavy + READ_ONLY_REVIEW` | Milestone, multi-phase, multi-agent, release, approval, or high-risk review. | Final Review packet plus corrective packet, PM decision request, blocker, or waiver path. |
+| `Heavy + READ_ONLY_REVIEW` | Milestone, multi-phase, multi-agent, release, approval, or high-risk review. | Final Review packet plus corrective packet, PM decision request, blocker, or recommended waiver path for Project Manager decision. |
 | `Heavy + CORRECTIVE_AUTHORIZED` | Controller-managed corrective round for milestone-blocking findings. | Corrective packet, bounded executor, verification, re-review, and PM final decision. |
 | `Heavy + SUBMIT_AUTHORIZED` | Post-review submit, release, merge, publish, or cleanup. | Recorded Final Review verdict and explicit Project Manager submit authority. |
 

@@ -117,18 +117,32 @@ runtime operation, release process, or agent execution.
 
 All other work is non-trivial and requires a retained phase or task document.
 
-## Required Project Documents
+## Project Document Baselines
+
+SAGE-Kit document requirements are proportional. Light adoption does not require
+teams to backfill Standard documents unless the selected mode, project risk, or
+active gate upgrades the work.
+
+Light baseline:
 
 | File | Purpose |
 |---|---|
 | `docs/PROJECT_PROFILE.md` | Product identity, goals, users, constraints, and non-goals. |
-| `docs/TECHNICAL_DESIGN.md` | Architecture, runtime boundaries, data ownership, and integration contracts. |
-| `docs/ENGINEERING_SYSTEM.md` | Day-to-day workflow for humans and AI agents. |
 | `docs/QUALITY_GATES.md` | Evidence required before work can be called complete. |
-| `docs/APPROVAL_GATES.md` | Actions that require explicit human approval. |
 | `docs/ACTIVE_CONTEXT.md` | Short current-state summary for future sessions. |
 | `docs/DOC_ROUTING.md` | Smallest safe read set by task type. |
-| `docs/MILESTONE_ROADMAP.md` | Milestone sequence and review gates. |
+| `docs/M<ID>/MILESTONE_LEDGER.md` | Current milestone state when executable work starts. |
+| `docs/M<ID>/<NN>-<phase-name>.md` | One retained phase doc for the active executable slice. |
+
+Standard required documents:
+
+| File | Required When |
+|---|---|
+| `docs/TECHNICAL_DESIGN.md` | Standard or Heavy adoption, or architecture and runtime contracts affect the work. |
+| `docs/ENGINEERING_SYSTEM.md` | Standard or Heavy adoption, or recurring human/AI workflow must be governed. |
+| `docs/APPROVAL_GATES.md` | Standard or Heavy adoption, or any closed approval gate can affect execution. |
+| `docs/MILESTONE_ROADMAP.md` | Standard or Heavy adoption, or more than one executable milestone is planned. |
+| `docs/M<ID>/COMPLETION_REPORT.md` | Standard or Heavy adoption, or the phase needs retained completion evidence. |
 
 Conditional project documents:
 
@@ -198,8 +212,12 @@ Submit:
 
 - Review changed files.
 - Check local data hygiene.
-- Maintain `docs/ACTIVE_CONTEXT.md` as a current-state snapshot.
-- Update `docs/DOC_ROUTING.md` only when routing or document topology changed.
+- Maintain `docs/ACTIVE_CONTEXT.md` as a current-state snapshot only when the
+  role or packet has both write permission and ownership; otherwise return a
+  memory update proposal or no-change note.
+- Update `docs/DOC_ROUTING.md` only when routing or document topology changed
+  and the role or packet has both write permission and ownership; otherwise
+  return a memory update proposal or no-change note.
 - Update completion reports and ledgers with memory maintenance status.
 - Update task/evidence records and run the dispatch validator when the project
   adopted Task Dispatch Profile for the active task or gate.

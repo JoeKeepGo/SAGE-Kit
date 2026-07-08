@@ -1,6 +1,6 @@
 ---
 name: sage-kit
-description: "Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt or bootstrap SAGE-Kit, or references SAGE-Kit docs or constructs such as ACTIVE_CONTEXT, DOC_ROUTING, Governance Levels, Authority Matrix, Agent Harness, milestones, phase docs, ledgers, closeouts, gates, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch, or Capability Adapters. Do not use for ordinary coding, planning, review, or debugging unless SAGE-Kit is explicit."
+description: "Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt/bootstrap SAGE-Kit, or references SAGE-Kit-owned docs or constructs such as docs/ACTIVE_CONTEXT.md, docs/DOC_ROUTING.md, docs/agent/AGENT_HARNESS.md, SAGE-Kit Governance Levels, Authority Matrix, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch Profile, or Capability Adapters. Do not use for generic milestones, gates, phase docs, planning, review, or debugging unless tied to SAGE-Kit."
 ---
 
 # SAGE-Kit
@@ -120,6 +120,9 @@ handoff.
 - Do not let parallel workers or subagents edit `docs/ACTIVE_CONTEXT.md` or
   `docs/DOC_ROUTING.md` directly. They must return memory update proposals for
   controller integration.
+- Direct edits to `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md` require
+  both permission mode and ownership. If either is missing, return a memory
+  update proposal or no-change note.
 - Do not let SAGE-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
@@ -145,8 +148,8 @@ handoff.
   weakening gates.
 - In Session Orchestration, Coder Controller orchestrates workers by default.
   It may self-execute only when the execution packet explicitly allows a narrow
-  phase, glue step, or corrective fix, and it must record why worker dispatch
-  was skipped.
+  phase, glue step, or integration repair before Final Review, and it must
+  record why worker dispatch was skipped.
 - Final Review must classify required corrections as `AUTO_CORRECTIVE`,
   `PM_DECISION`, `BLOCKED`, or `DEFER`. If corrective execution is authorized,
   it may open a bounded corrective round; if review is read-only, it must return
@@ -174,9 +177,11 @@ Before final handoff, commit, or completion:
 
 1. Run the required checks or state why they cannot run.
 2. Maintain `docs/ACTIVE_CONTEXT.md` by replacement, not append-only history,
-   or return a memory update proposal when the task does not own that file.
-3. Update `docs/DOC_ROUTING.md` only when routing or document topology changed,
-   or record that no routing change is needed.
+   only when permission mode and ownership allow direct writes; otherwise
+   return a memory update proposal or no-change note.
+3. Update `docs/DOC_ROUTING.md` only when routing or document topology changed
+   and permission mode plus ownership allow direct writes; otherwise record a
+   memory update proposal or no-change note.
 4. Update the completion report and milestone ledger with memory maintenance
    status when the task owns them.
 5. Write or update `MILESTONE_CLOSEOUT.md` only when closing a milestone.

@@ -29,6 +29,14 @@ OPTIONAL_TEMPLATE_DOCS = [
     "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
 ]
 
+HEAVY_TEMPLATE_DOCS = [
+    "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+    "docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
+    "docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
+    "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md",
+    "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md",
+]
+
 
 @dataclass(frozen=True)
 class InitFile:
@@ -107,7 +115,10 @@ def init_files_for_mode(mode: str, source_root: Path) -> list[InitFile]:
         InitFile(destination=destination, source=SOURCE_TEMPLATE_MAP.get(destination, destination))
         for destination in destinations
     ]
-    files.extend(InitFile(destination=path, source=path) for path in OPTIONAL_TEMPLATE_DOCS)
+    template_docs = list(OPTIONAL_TEMPLATE_DOCS)
+    if mode == "heavy":
+        template_docs.extend(HEAVY_TEMPLATE_DOCS)
+    files.extend(InitFile(destination=path, source=path) for path in template_docs)
     return dedupe(files)
 
 

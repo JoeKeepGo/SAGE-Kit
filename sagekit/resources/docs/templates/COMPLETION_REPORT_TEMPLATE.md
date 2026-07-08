@@ -17,6 +17,11 @@ Stopped Worker / Controller Decision:
 
 Corrective Closure:
 
+Corrective Re-Review Evidence:
+- Re-review owner:
+- Affected checks/workers rerun:
+- Evidence:
+
 Scope Implemented:
 
 Files Changed:

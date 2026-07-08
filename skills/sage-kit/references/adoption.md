@@ -20,24 +20,24 @@ throwaway prototype, or informal exploration without retained governance.
    These are planning inputs, not implementation authorization.
 3. Copy the reusable core rules:
    - `docs/SAGE_CORE.md`
-4. Create or adapt:
+4. Create or adapt the Light baseline:
    - `docs/PROJECT_PROFILE.md`
-   - `docs/TECHNICAL_DESIGN.md`
-   - `docs/ENGINEERING_SYSTEM.md`
    - `docs/QUALITY_GATES.md`
-   - `docs/APPROVAL_GATES.md`
    - `docs/ACTIVE_CONTEXT.md`
    - `docs/DOC_ROUTING.md`
-5. Run Milestone Granularity Gate on milestone candidates. For projects that do
+5. Add `docs/TECHNICAL_DESIGN.md`, `docs/ENGINEERING_SYSTEM.md`, and
+   `docs/APPROVAL_GATES.md` when Standard/Heavy adoption is selected or project
+   risk requires them.
+6. Run Milestone Granularity Gate on milestone candidates. For projects that do
    not use a capability map, record why roadmap granularity is already clear.
-6. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
+7. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
    `docs/MILESTONE_ROADMAP.md`.
-7. Copy `docs/agent/` when AI agents will execute or review work.
-8. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
+8. Copy `docs/agent/` when AI agents will execute or review work.
+9. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
    external skills, plugins, MCP tools, CLIs, CI, reviewers, frontend tools,
    OpenSpec, GitNexus, browser QA, or database tools.
-9. Copy profile templates only when the project matches that profile.
-10. Create the first milestone:
+10. Copy profile templates only when the project matches that profile.
+11. Create the first milestone:
    - `docs/M<ID>/00-entry-gate.md`
    - `docs/M<ID>/MILESTONE_LEDGER.md`
    - one phase doc per reviewable slice

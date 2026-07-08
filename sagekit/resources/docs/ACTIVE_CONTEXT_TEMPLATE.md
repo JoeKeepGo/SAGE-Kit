@@ -33,10 +33,10 @@ safely.
 | Role | File |
 |---|---|
 | Product profile | `docs/PROJECT_PROFILE.md` |
-| Technical design | `docs/TECHNICAL_DESIGN.md` |
+| Technical design | `docs/TECHNICAL_DESIGN.md` if Standard/Heavy or risk-enabled; otherwise `n/a` |
 | Quality gates | `docs/QUALITY_GATES.md` |
 | Capability map | `docs/CAPABILITY_MAP.md` or `n/a` |
-| Roadmap | `docs/MILESTONE_ROADMAP.md` |
+| Roadmap | `docs/MILESTONE_ROADMAP.md` if present; otherwise `n/a` |
 | Active milestone ledger | `<path>` |
 
 ## Closed Gates
@@ -64,7 +64,11 @@ For most future work:
 
 ## End-Of-Run Maintenance
 
-Before handoff, commit, or completion:
+Before handoff, commit, or completion, update this file only when the active
+permission mode and ownership allow direct writes. Otherwise return a
+`Memory Update Proposal` or explicit no-change note.
+
+When direct writes are allowed:
 
 1. Update repository, branch, milestone, phase, objective, next action, and
    blocker fields when they changed.

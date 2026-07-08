@@ -125,8 +125,12 @@ Before handoff or commit:
 - confirm submit and cleanup authority when worktrees were used;
 - confirm Task Dispatch validator status when the profile is active and the
   gate requires it;
-- maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot;
-- update `docs/DOC_ROUTING.md` only when routing or document topology changed;
+- maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot only
+  when permission mode and ownership allow direct writes; otherwise return a
+  memory update proposal or no-change note;
+- update `docs/DOC_ROUTING.md` only when routing or document topology changed
+  and permission mode plus ownership allow direct writes; otherwise return a
+  memory update proposal or no-change note;
 - update completion report with memory maintenance status;
 - record capability adapter use, authorization, evidence, and fallback when
   relevant;

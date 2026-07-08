@@ -155,6 +155,8 @@ Task Dispatch Evidence:
 - resource locks:
 - validator command:
 - validator result:
+- acceptance gate covered: `<task/phase/not an acceptance gate>`
+- gate-ready validator evidence: `<command/result, or n/a only when not an acceptance gate>`
 ```
 
 ## Completion Gate
@@ -183,6 +185,11 @@ Upgrade Triggers:
 Stopped Worker / Controller Decision:
 
 Corrective Closure:
+
+Corrective Re-Review Evidence:
+- Re-review owner:
+- Affected checks/workers rerun:
+- Evidence:
 
 Scope Implemented:
 

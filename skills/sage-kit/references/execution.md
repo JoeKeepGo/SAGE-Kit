@@ -108,11 +108,13 @@ Recommended routing:
 | Prove work before completion claims | `superpowers:verification-before-completion` |
 | Finish branch work after submit authority exists | `superpowers:finishing-a-development-branch` |
 
-Frontend work should route to an available frontend or browser-testing adapter
-when UI, styling, responsive layout, design-system components, accessibility,
-or visual QA is in scope. It must return runtime, screenshot, console, network,
-responsive, or accessibility evidence as applicable, but SAGE-Kit still decides
-the gate.
+Frontend work should detect and select an available frontend or browser-testing
+adapter when UI, styling, responsive layout, design-system components,
+accessibility, or visual QA is in scope and the adapter is useful. If no
+adapter is available, authorized, or useful, record the fallback and continue
+through the SAGE-Kit-native path when safe. Selected adapters must return
+runtime, screenshot, console, network, responsive, or accessibility evidence as
+applicable, but SAGE-Kit still decides the gate.
 
 SAGE-Kit remains authoritative for scope, file ownership, governance level,
 resource locks, quality gates, approval gates, memory maintenance, milestone
@@ -138,6 +140,9 @@ cleanup operations.
 Parallel writable lanes must not share files. Parallel lanes must not edit
 `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md`; they return proposals for controller
 integration.
+
+Direct memory-file edits require both permission mode and ownership. Without
+both, return a `Memory Update Proposal` or explicit no-change note.
 
 Do not inherit Heavy governance globally. A Heavy milestone controller may
 delegate Light or Standard workers when their scope is narrow and risk is
@@ -188,10 +193,10 @@ When Session Orchestration is active:
 - Project Manager creates the milestone execution packet.
 - Coder Controller orchestrates phase and lane workers by default.
 - Coder Controller may self-execute only when the execution packet explicitly
-  allows a narrow phase, integration glue step, or bounded corrective fix; it
-  must record why worker dispatch was skipped.
-- Coder performs integration self review, runs bounded corrective workers when
-  allowed, and returns a milestone result packet.
+  allows a narrow phase, integration glue step, or integration repair before
+  Final Review; it must record why worker dispatch was skipped.
+- Coder performs integration self review, runs bounded integration repair
+  workers when allowed, and returns a milestone result packet.
 - Project Manager runs only the structural gate.
 - Final Review Controller orchestrates review workers or validation lanes,
   verifies independently, and returns a verdict.
@@ -207,7 +212,8 @@ When Session Orchestration is active:
   Final Review treats them as an evidence index to verify, not as proof by
   themselves.
 
-Default corrective round limit is 2.
+Maximum corrective rounds must be configured by the execution or Final Review
+packet.
 
 Coder and Final Review controllers must reassess whether the milestone should
 run serially, with waves inside phases, or with parallel phases. Heavy mode
