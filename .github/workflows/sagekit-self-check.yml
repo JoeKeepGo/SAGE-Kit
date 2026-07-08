@@ -1,0 +1,36 @@
+name: SAGE-Kit self-check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  self-check:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run unittest suite
+        run: python -B -m unittest discover -s tests
+
+      - name: Run CLI help smoke
+        run: |
+          python -B -m sagekit --help
+          python -B -m sagekit --version
+          python -B -m sagekit check --help
+          python -B -m sagekit init --help
+          python -B -m sagekit doctor --help
+
+      - name: Run source repository check
+        run: python -B -m sagekit check --source-repo
