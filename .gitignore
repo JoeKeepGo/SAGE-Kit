@@ -4,3 +4,12 @@ __pycache__/
 build/
 dist/
 .venv/
+.worktrees/
+local/
+.sagekit/
+.runtime/
+docs/ACTIVE_CONTEXT.md
+docs/DOC_ROUTING.md
+docs/M[0-9]*/
+docs/runs/
+docs/task-records/

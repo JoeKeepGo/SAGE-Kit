@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
-from .check import detect_root, relpath
-from .doctor import is_kit_source_repo
+from .check import detect_root, is_kit_source_repo, relpath
 from .findings import Finding
 from .modes import HEAVY_CONTROL_DOCS, LEGACY_REQUIRED_DOCS, MODES, STANDARD_DOCS
 
@@ -37,23 +36,30 @@ class InitFile:
     source: str | None = None
 
 
-def run_init(start: Path, mode: str, dry_run: bool = False, force: bool = False) -> list[Finding]:
+def run_init(
+    start: Path,
+    mode: str,
+    dry_run: bool = False,
+    force: bool = False,
+    exact_root: bool = False,
+) -> list[Finding]:
     if mode not in MODES:
         raise ValueError(f"unknown SAGE-Kit mode: {mode}")
 
-    root = detect_root(start)
+    root = start.resolve(strict=False) if exact_root else detect_root(start)
     source_root = package_resource_root()
     findings: list[Finding] = [
         Finding("PASS", "project-root", relpath(root, root), None, f"using {root}"),
         Finding("PASS", "init-mode", None, None, f"mode: {mode}"),
     ]
-    if is_kit_source_repo(root):
+    detected_root = detect_root(root)
+    if is_kit_source_repo(root) or is_kit_source_repo(detected_root):
         return [
             *findings,
             Finding(
                 "FAIL",
                 "init-source-repo",
-                relpath(root, root / "docs/SAGE_CORE.md"),
+                relpath(root, detected_root / "docs/SAGE_CORE.md"),
                 None,
                 "refusing to initialize inside the SAGE-Kit source repository",
                 "Run init from the project that will adopt SAGE-Kit.",
