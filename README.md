@@ -44,6 +44,8 @@ and agent workflows can stay aligned over many sessions.
 - Optional profile packs for common project shapes, such as state-machine
   systems and control-plane plus execution-agent systems.
 - A default model assurance policy that projects may make stricter.
+- A zero-dependency local CLI prototype for read-only diagnostics and
+  governance structure checks.
 
 ## Core Idea
 
@@ -82,6 +84,11 @@ docs/
     *_TEMPLATE.md
 scripts/
   validate_task_dispatch.py
+sagekit/
+  cli.py
+  check.py
+  doctor.py
+pyproject.toml
 skills/
   sage-kit/
 ```
@@ -130,6 +137,47 @@ global, or `design-system/` writes require explicit authorization.
 The skill can help bootstrap SAGE-Kit in a new project, but the project still
 needs to adopt the relevant templates and maintain its own project
 specification documents.
+
+## Local CLI Runtime
+
+SAGE-Kit also includes a small Python CLI prototype. The CLI is not an AI
+coding agent and does not replace the bundled skill. It gives humans, agents,
+and CI a stable way to inspect governance artifacts.
+
+Use the cross-platform Python module entrypoint without installation:
+
+```bash
+python -m sagekit doctor
+python -m sagekit check
+python -m sagekit check --json
+```
+
+For a reusable local command on Windows, macOS, and Linux, install the package
+entrypoint from the repository:
+
+```bash
+python -m pip install -e .
+sagekit doctor
+sagekit check
+```
+
+`sagekit doctor` is a read-only diagnostic command. It is useful for checking
+whether the current directory looks like the SAGE-Kit source repository or an
+adopted project, whether package entrypoints exist, and whether the bundled
+Task Dispatch validator is importable.
+
+`sagekit check` is the gate-oriented validator. It checks required and
+recommended project docs, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`, phase docs,
+completion reports, adapter evidence, and Task Dispatch records. It exits `1`
+when any `FAIL` finding exists and `0` when findings are only `PASS` or `WARN`.
+
+Validator success means the governance structure is ready for review. It does
+not prove product correctness, replace runtime tests, or mark milestones
+accepted.
+
+The repository still includes `sagekit.cmd` as a Windows development
+convenience, but the package console script is the preferred cross-platform
+entrypoint.
 
 ## Copy-Paste Prompts
 

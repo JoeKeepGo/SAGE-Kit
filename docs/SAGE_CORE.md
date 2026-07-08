@@ -29,6 +29,8 @@ milestones, and phase documents.
   execution and names submit and cleanup ownership.
 - Use structured task dispatch only when the project explicitly adopts it and
   needs machine-checkable task/evidence records.
+- Use local validators as evidence checks for governance structure, not as
+  product acceptance or proof of runtime correctness.
 - Treat external skills, plugins, tools, CI systems, and human reviews as
   execution and evidence inputs inside SAGE-Kit governance, not as replacements
   for SAGE-Kit gates.
@@ -83,6 +85,18 @@ authorization levels, evidence contract, frontend adapter rules, and
 installation policy. Adapters default to metadata-only or read-only. Installing
 external skills, plugins, CLIs, MCP servers, hooks, or global configuration
 requires explicit approval when it writes environment or user configuration.
+
+## Local Runtime Boundary
+
+The `sagekit` CLI is a read-only governance runtime for diagnostics and
+structure checks. It exists below project authority:
+
+- `sagekit doctor` diagnoses repository and runtime state.
+- `sagekit check` checks SAGE-Kit documents and task/evidence records for
+  review readiness.
+
+CLI output is evidence. It does not replace tests, runtime smoke, human review,
+Project Manager acceptance, approval gates, or milestone closeout decisions.
 
 ## Trivial And Non-Trivial Work
 

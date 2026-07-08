@@ -1,0 +1,406 @@
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_sagekit(*args, cwd):
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    return subprocess.run(
+        [sys.executable, "-m", "sagekit", *args],
+        cwd=cwd,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def write_file(root, path, text):
+    target = root / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text.strip() + "\n", encoding="utf-8")
+    return target
+
+
+def write_required_docs(root):
+    write_file(
+        root,
+        "docs/PROJECT_PROFILE.md",
+        """
+        # Project Profile
+
+        Goal: keep SAGE-Kit governance artifacts reviewable.
+        """,
+    )
+    write_file(
+        root,
+        "docs/QUALITY_GATES.md",
+        """
+        # Quality Gates
+
+        Tests and runtime smoke must be recorded or marked N/A with a reason.
+        """,
+    )
+    write_file(
+        root,
+        "docs/ACTIVE_CONTEXT.md",
+        """
+        # Active Context
+
+        Current focus: local SAGE-Kit governance checks.
+        Next action: run sagekit check.
+        """,
+    )
+    write_file(
+        root,
+        "docs/DOC_ROUTING.md",
+        """
+        # Document Routing
+
+        Routing policy:
+        - Implementation tasks read the active phase doc and quality gates.
+        - Review tasks read completion reports and milestone ledgers.
+        """,
+    )
+
+
+def write_valid_planning_phase(root):
+    write_file(
+        root,
+        "docs/M1/01-planning.md",
+        """
+        # M1 Phase 1: Planning
+
+        ## Goal
+
+        Define the local runtime MVP boundary.
+
+        ## Governance Level
+
+        Level: Standard
+
+        ## Permission Mode
+
+        Mode: WRITE_AUTHORIZED
+
+        ## File Boundary
+
+        Allowed files:
+        - docs/M1/01-planning.md
+
+        Read-only files:
+        - docs/SAGE_CORE.md
+
+        Forbidden files:
+        - secrets/
+
+        ## Test Plan
+
+        Tests: N/A because this phase only records the product boundary.
+
+        ## Runtime Smoke
+
+        Runtime smoke: N/A because this is a planning-only phase.
+
+        ## Stop Conditions
+
+        Stop if runtime implementation scope is requested.
+        """,
+    )
+
+
+class SagekitCheckTests(unittest.TestCase):
+    def test_json_check_warns_for_missing_recommended_docs_without_failing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            levels = {finding["level"] for finding in payload["findings"]}
+            rules = {finding["rule"] for finding in payload["findings"]}
+            self.assertIn("PASS", levels)
+            self.assertIn("WARN", levels)
+            self.assertNotIn("FAIL", levels)
+            self.assertIn("required-docs", rules)
+            self.assertIn("recommended-docs", rules)
+
+    def test_missing_required_docs_exit_nonzero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_file(root, "docs/ACTIVE_CONTEXT.md", "# Active Context\n\nShort.")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            failures = [item for item in payload["findings"] if item["level"] == "FAIL"]
+            self.assertTrue(any(item["rule"] == "required-docs" for item in failures))
+
+    def test_human_check_prints_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+
+            result = run_sagekit("check", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("PASS required-docs:", result.stdout)
+            self.assertIn("WARN recommended-docs:", result.stdout)
+
+    def test_planning_only_phase_allows_runtime_smoke_na_with_reason(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_valid_planning_phase(root)
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertFalse(
+                [
+                    item
+                    for item in payload["findings"]
+                    if item["level"] == "FAIL" and item["rule"] == "phase-runtime-smoke"
+                ]
+            )
+
+    def test_phase_missing_runtime_smoke_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_file(
+                root,
+                "docs/M1/01-build.md",
+                """
+                # M1 Phase 1: Build
+
+                ## Goal
+                Build the checker.
+
+                ## Governance Level
+                Level: Standard
+
+                ## Permission Mode
+                Mode: WRITE_AUTHORIZED
+
+                ## File Boundary
+                Allowed files:
+                - sagekit/
+
+                Forbidden files:
+                - secrets/
+
+                ## Test Plan
+                Tests: python -m unittest discover -s tests
+
+                ## Stop Conditions
+                Stop if publishing is requested.
+                """,
+            )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "FAIL" and item["rule"] == "phase-runtime-smoke"
+                    for item in payload["findings"]
+                )
+            )
+
+    def test_empty_runtime_smoke_section_fails_even_when_tests_have_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_file(
+                root,
+                "docs/M1/01-build.md",
+                """
+                # M1 Phase 1: Build
+
+                ## Goal
+                Build the checker.
+
+                ## Governance Level
+                Level: Standard
+
+                ## Permission Mode
+                Mode: WRITE_AUTHORIZED
+
+                ## File Boundary
+                Allowed files:
+                - sagekit/
+
+                Forbidden files:
+                - secrets/
+
+                ## Test Plan
+                Tests: python -m unittest discover -s tests
+
+                ## Runtime Smoke
+
+                ## Stop Conditions
+                Stop if publishing is requested.
+                """,
+            )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "FAIL" and item["rule"] == "phase-runtime-smoke"
+                    for item in payload["findings"]
+                )
+            )
+
+    def test_task_dispatch_records_are_wrapped_as_unified_findings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_file(root, "docs/M1/dispatch/TASK-001/task.yaml", "id: TASK-001")
+            write_file(root, "docs/M1/dispatch/TASK-001/evidence.yaml", "task_id: TASK-001")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "FAIL" and item["rule"] == "task-dispatch"
+                    for item in payload["findings"]
+                )
+            )
+
+    def test_check_does_not_write_project_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            before = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            after = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertEqual(before, after)
+
+    def test_local_command_wrapper_runs_outside_repo_when_on_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            env = os.environ.copy()
+            env["PATH"] = f"{REPO_ROOT}{os.pathsep}{env['PATH']}"
+            env.pop("PYTHONPATH", None)
+
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "sagekit check --json"],
+                cwd=root,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["findings"])
+
+    def test_local_command_wrapper_does_not_write_bytecode_to_package_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            tool_root = workspace / "tool"
+            project_root = workspace / "project"
+            tool_root.mkdir()
+            project_root.mkdir()
+            shutil.copytree(
+                REPO_ROOT / "sagekit",
+                tool_root / "sagekit",
+                ignore=shutil.ignore_patterns("__pycache__"),
+            )
+            shutil.copy2(REPO_ROOT / "sagekit.cmd", tool_root / "sagekit.cmd")
+            write_required_docs(project_root)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{tool_root}{os.pathsep}{env['PATH']}"
+            env.pop("PYTHONPATH", None)
+            env.pop("PYTHONDONTWRITEBYTECODE", None)
+
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "sagekit check --json"],
+                cwd=project_root,
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((tool_root / "sagekit" / "__pycache__").exists())
+
+    def test_pyproject_declares_cross_platform_console_script(self):
+        pyproject = REPO_ROOT / "pyproject.toml"
+        self.assertTrue(pyproject.exists(), "pyproject.toml should define the installable CLI entrypoint")
+
+        text = pyproject.read_text(encoding="utf-8")
+
+        self.assertIn('name = "sagekit"', text)
+        self.assertIn('sagekit = "sagekit.cli:main"', text)
+
+    def test_doctor_json_reports_source_repo_without_failing(self):
+        result = run_sagekit("doctor", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(
+            any(item["level"] == "PASS" and item["rule"] == "kit-source" for item in payload["findings"]),
+            payload,
+        )
+
+    def test_doctor_does_not_write_project_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            before = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
+
+            result = run_sagekit("doctor", "--json", cwd=root)
+
+            after = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(before, after)
+
+    def test_doctor_reports_adopted_project_without_source_repo_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+
+            result = run_sagekit("doctor", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "PASS" and item["rule"] == "adopted-project" for item in payload["findings"]),
+                payload,
+            )
+            self.assertFalse(
+                any(item["level"] == "WARN" and item["rule"] == "kit-source" for item in payload["findings"]),
+                payload,
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
