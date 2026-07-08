@@ -245,7 +245,7 @@ such as `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md`.
 
 Repository hygiene rule: the framework repository commits templates and tools,
 not generated project runtime state. Do not commit `docs/ACTIVE_CONTEXT.md`,
-`docs/DOC_ROUTING.md`, `docs/M*/`, `docs/runs/`, `docs/task-records/`,
+`docs/DOC_ROUTING.md`, `docs/M[0-9]*/`, `docs/runs/`, `docs/task-records/`,
 `local/`, `.sagekit/`, or `.runtime/`. Template files such as
 `docs/ACTIVE_CONTEXT_TEMPLATE.md`, `docs/DOC_ROUTING_TEMPLATE.md`, and their
 `sagekit/resources/` copies remain trackable.

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from sagekit.init import fallback_content
 
@@ -711,6 +712,67 @@ class SagekitCheckTests(unittest.TestCase):
         rules = {(item["level"], item["rule"]) for item in payload["findings"]}
         self.assertIn(("PASS", "source-gitignore-runtime"), rules)
         self.assertIn(("PASS", "source-tracked-runtime"), rules)
+
+    def test_source_gitignore_runtime_patterns_require_numeric_milestone_dirs(self):
+        from sagekit.check import GITIGNORE_RUNTIME_PATTERNS
+
+        self.assertIn("docs/M[0-9]*/", GITIGNORE_RUNTIME_PATTERNS)
+        self.assertNotIn("docs/M*/", GITIGNORE_RUNTIME_PATTERNS)
+
+    def test_runtime_state_path_matches_only_numeric_milestone_dirs(self):
+        from sagekit.check import is_runtime_state_path
+
+        double_digit_milestone = "docs/M" + "19/closeout.md"
+        for path in [
+            "docs/ACTIVE_CONTEXT.md",
+            "docs/DOC_ROUTING.md",
+            "docs/M1/phase.md",
+            double_digit_milestone,
+            "docs/runs/run-001.md",
+            "docs/task-records/task-001.yaml",
+            "local/config.json",
+            ".sagekit/state.json",
+            ".runtime/session.json",
+        ]:
+            with self.subTest(path=path):
+                self.assertTrue(is_runtime_state_path(path), path)
+
+        for path in [
+            "docs/MILESTONE_GUIDE.md",
+            "docs/MODEL_ASSURANCE.md",
+            "docs/agent/MODEL_ASSURANCE_POLICY.md",
+        ]:
+            with self.subTest(path=path):
+                self.assertFalse(is_runtime_state_path(path), path)
+
+    def test_source_repo_tracked_runtime_filters_numeric_milestone_paths(self):
+        from sagekit.check import check_source_tracked_runtime
+
+        double_digit_milestone = "docs/M" + "19/closeout.md"
+        tracked_paths = [
+            "docs/M1/phase.md",
+            double_digit_milestone,
+            "docs/MILESTONE_GUIDE.md",
+            "docs/MODEL_ASSURANCE.md",
+            "docs/agent/MODEL_ASSURANCE_POLICY.md",
+        ]
+        result = subprocess.CompletedProcess(
+            args=["git", "ls-files"],
+            returncode=0,
+            stdout=("\0".join(tracked_paths) + "\0").encode("utf-8"),
+            stderr=b"",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("sagekit.check.subprocess.run", return_value=result) as run:
+                findings = check_source_tracked_runtime(Path(tmp))
+
+        self.assertEqual(run.call_args.args[0], ["git", "ls-files", "-z"])
+        self.assertEqual(findings[0].level, "FAIL")
+        self.assertIn("docs/M1/phase.md", findings[0].message)
+        self.assertIn(double_digit_milestone, findings[0].message)
+        self.assertNotIn("docs/MILESTONE_GUIDE.md", findings[0].message)
+        self.assertNotIn("docs/MODEL_ASSURANCE.md", findings[0].message)
+        self.assertNotIn("docs/agent/MODEL_ASSURANCE_POLICY.md", findings[0].message)
 
     def test_init_fallback_doc_routing_is_checkable(self):
         text = fallback_content("docs/DOC_ROUTING.md")

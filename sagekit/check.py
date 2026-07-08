@@ -67,26 +67,9 @@ GITIGNORE_RUNTIME_PATTERNS = [
     ".runtime/",
     "docs/ACTIVE_CONTEXT.md",
     "docs/DOC_ROUTING.md",
-    "docs/M*/",
+    "docs/M[0-9]*/",
     "docs/runs/",
     "docs/task-records/",
-]
-
-RUNTIME_TRACKED_PATHS = [
-    "docs/ACTIVE_CONTEXT.md",
-    "docs/DOC_ROUTING.md",
-    "docs/M*",
-    "docs/M*/**",
-    "docs/runs/*",
-    "docs/runs/**",
-    "docs/task-records/*",
-    "docs/task-records/**",
-    "local",
-    "local/**",
-    ".sagekit",
-    ".sagekit/**",
-    ".runtime",
-    ".runtime/**",
 ]
 
 FORBIDDEN_RUNTIME_STACK_PATHS = [
@@ -338,10 +321,26 @@ def check_source_gitignore(root: Path) -> list[Finding]:
     ]
 
 
+def is_runtime_state_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").strip("/")
+    runtime_prefixes = (
+        "docs/runs",
+        "docs/task-records",
+        "local",
+        ".sagekit",
+        ".runtime",
+    )
+    if normalized in {"docs/ACTIVE_CONTEXT.md", "docs/DOC_ROUTING.md"}:
+        return True
+    if any(normalized == prefix or normalized.startswith(f"{prefix}/") for prefix in runtime_prefixes):
+        return True
+    return re.match(r"^docs/M[0-9]+(/|$)", normalized) is not None
+
+
 def check_source_tracked_runtime(root: Path) -> list[Finding]:
     try:
         result = subprocess.run(
-            ["git", "ls-files", "-z", "--", *RUNTIME_TRACKED_PATHS],
+            ["git", "ls-files", "-z"],
             cwd=root,
             check=False,
             stdout=subprocess.PIPE,
@@ -373,14 +372,15 @@ def check_source_tracked_runtime(root: Path) -> list[Finding]:
         for part in result.stdout.split(b"\0")
         if part
     ]
-    if tracked:
+    runtime_tracked = [path for path in tracked if is_runtime_state_path(path)]
+    if runtime_tracked:
         return [
             Finding(
                 "FAIL",
                 "source-tracked-runtime",
                 None,
                 None,
-                "runtime files are tracked: " + ", ".join(tracked),
+                "runtime files are tracked: " + ", ".join(runtime_tracked),
                 "Remove generated runtime state from version control.",
             )
         ]

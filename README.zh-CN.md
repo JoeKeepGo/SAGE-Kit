@@ -199,7 +199,7 @@ hygiene。它不会要求源仓库存在已实例化项目才需要的 `docs/ACT
 `docs/DOC_ROUTING.md`。
 
 Repo hygiene 规则：框架仓库提交 templates 和 tools，不提交生成态项目上下文。不要提交
-`docs/ACTIVE_CONTEXT.md`、`docs/DOC_ROUTING.md`、`docs/M*/`、`docs/runs/`、
+`docs/ACTIVE_CONTEXT.md`、`docs/DOC_ROUTING.md`、`docs/M[0-9]*/`、`docs/runs/`、
 `docs/task-records/`、`local/`、`.sagekit/` 或 `.runtime/`。模板文件，例如
 `docs/ACTIVE_CONTEXT_TEMPLATE.md`、`docs/DOC_ROUTING_TEMPLATE.md` 以及它们在
 `sagekit/resources/` 中的副本，仍然应该可被追踪。
