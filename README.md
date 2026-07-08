@@ -148,7 +148,10 @@ Use the cross-platform Python module entrypoint without installation:
 
 ```bash
 python -m sagekit doctor
+python -m sagekit init --mode light --dry-run
+python -m sagekit init --mode light
 python -m sagekit check
+python -m sagekit check --mode light
 python -m sagekit check --json
 ```
 
@@ -158,6 +161,7 @@ entrypoint from the repository:
 ```bash
 python -m pip install -e .
 sagekit doctor
+sagekit init --mode standard
 sagekit check
 ```
 
@@ -170,6 +174,28 @@ Task Dispatch validator is importable.
 recommended project docs, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`, phase docs,
 completion reports, adapter evidence, and Task Dispatch records. It exits `1`
 when any `FAIL` finding exists and `0` when findings are only `PASS` or `WARN`.
+
+`sagekit init` creates SAGE-Kit governance documents for a target project. It
+supports `--mode light`, `--mode standard`, and `--mode heavy`; `--dry-run`
+prints planned writes without changing files; `--force` overwrites only the
+selected mode's target files. It refuses to run inside the SAGE-Kit source
+repository.
+
+Mode-aware checks are explicit:
+
+```bash
+sagekit check --mode light
+sagekit check --mode standard
+sagekit check --mode heavy
+```
+
+Plain `sagekit check` keeps the legacy MVP behavior: Light-level required docs
+are blocking and Standard docs are advisory warnings. Explicit `--mode light`
+does not warn about Standard or Heavy documents. Explicit `--mode standard`
+makes Standard docs blocking. Explicit `--mode heavy` makes the minimal Heavy
+controller docs blocking, but Task Dispatch, Wave Execution, Worktree
+Isolation, profile activation, and adapter use remain opt-in and
+artifact-triggered.
 
 Validator success means the governance structure is ready for review. It does
 not prove product correctness, replace runtime tests, or mark milestones
@@ -420,6 +446,22 @@ ACTIVE_CONTEXT, DOC_ROUTING, and a draft MILESTONE_ROADMAP.
 Do not create executable milestones until the capability map or roadmap
 granularity check is complete.
 ```
+
+The CLI can create the initial document set before the agent fills it:
+
+```bash
+sagekit init --mode light --dry-run
+sagekit init --mode light
+sagekit doctor
+sagekit check --mode light
+```
+
+Use `--mode standard` when the project already needs technical design,
+engineering system, approval gates, and a milestone roadmap. Use `--mode heavy`
+only when milestone-level controller governance is justified. `init` copies the
+selected mode's governance docs and core support templates, but it does not
+copy optional profile packs or create executable milestone folders, task
+records, worktrees, commits, or pushes.
 
 If the project begins from a broad or non-technical idea, start even lighter:
 

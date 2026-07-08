@@ -4,21 +4,11 @@ import re
 from pathlib import Path
 
 from .findings import Finding
+from .modes import LEGACY_REQUIRED_DOCS, MODES, STANDARD_DOCS, recommended_docs_for_mode, required_docs_for_mode
 
 
-REQUIRED_DOCS = [
-    "docs/PROJECT_PROFILE.md",
-    "docs/QUALITY_GATES.md",
-    "docs/ACTIVE_CONTEXT.md",
-    "docs/DOC_ROUTING.md",
-]
-
-RECOMMENDED_DOCS = [
-    "docs/TECHNICAL_DESIGN.md",
-    "docs/ENGINEERING_SYSTEM.md",
-    "docs/APPROVAL_GATES.md",
-    "docs/MILESTONE_ROADMAP.md",
-]
+REQUIRED_DOCS = LEGACY_REQUIRED_DOCS
+RECOMMENDED_DOCS = STANDARD_DOCS
 
 PERMISSION_MODES = [
     "READ_ONLY_REVIEW",
@@ -29,13 +19,17 @@ PERMISSION_MODES = [
 ]
 
 
-def run_check(start: Path, gate_ready: bool = False) -> list[Finding]:
+def run_check(start: Path, gate_ready: bool = False, mode: str | None = None) -> list[Finding]:
+    if mode is not None and mode not in MODES:
+        raise ValueError(f"unknown SAGE-Kit mode: {mode}")
     root = detect_root(start)
     findings: list[Finding] = [
         Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
     ]
-    findings.extend(check_required_docs(root))
-    findings.extend(check_recommended_docs(root))
+    if mode is not None:
+        findings.append(Finding("PASS", "check-mode", None, None, f"mode: {mode}"))
+    findings.extend(check_required_docs(root, required_docs_for_mode(mode)))
+    findings.extend(check_recommended_docs(root, recommended_docs_for_mode(mode)))
     findings.extend(check_active_context(root))
     findings.extend(check_doc_routing(root))
     findings.extend(check_phase_docs(root))
@@ -67,9 +61,9 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def check_required_docs(root: Path) -> list[Finding]:
+def check_required_docs(root: Path, required_docs: list[str] | None = None) -> list[Finding]:
     findings: list[Finding] = []
-    for item in REQUIRED_DOCS:
+    for item in REQUIRED_DOCS if required_docs is None else required_docs:
         path = root / item
         if not path.exists():
             findings.append(
@@ -98,9 +92,9 @@ def check_required_docs(root: Path) -> list[Finding]:
     return findings
 
 
-def check_recommended_docs(root: Path) -> list[Finding]:
+def check_recommended_docs(root: Path, recommended_docs: list[str] | None = None) -> list[Finding]:
     findings: list[Finding] = []
-    for item in RECOMMENDED_DOCS:
+    for item in RECOMMENDED_DOCS if recommended_docs is None else recommended_docs:
         path = root / item
         if path.exists():
             findings.append(Finding("PASS", "recommended-docs", item, None, f"{item} exists"))
@@ -189,7 +183,7 @@ def check_doc_routing(root: Path) -> list[Finding]:
                 "Describe which docs agents should read for planning, implementation, review, and closeout.",
             )
         )
-    if any(token in lower for token in ["progress log", "done:", "today i", "changed files"]):
+    if any(token in lower for token in ["progress log", "done:", "today i", "session transcript"]):
         findings.append(
             Finding(
                 "WARN",

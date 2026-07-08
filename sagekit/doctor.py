@@ -3,8 +3,13 @@ from __future__ import annotations
 import platform
 from pathlib import Path
 
-from .check import RECOMMENDED_DOCS, REQUIRED_DOCS, detect_root, relpath
 from .findings import Finding
+from .check import detect_root, relpath
+from .modes import LEGACY_REQUIRED_DOCS, STANDARD_DOCS
+
+
+REQUIRED_DOCS = LEGACY_REQUIRED_DOCS
+RECOMMENDED_DOCS = STANDARD_DOCS
 
 
 def run_doctor(start: Path) -> list[Finding]:

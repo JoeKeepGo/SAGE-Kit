@@ -8,6 +8,8 @@ from pathlib import Path
 from .check import run_check
 from .doctor import run_doctor
 from .findings import has_fail
+from .init import run_init
+from .modes import MODES
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,6 +19,11 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="Validate SAGE-Kit governance artifacts.")
     check.add_argument("--json", action="store_true", help="Print machine-readable findings.")
     check.add_argument(
+        "--mode",
+        choices=MODES,
+        help="Apply Light, Standard, or Heavy adoption document requirements.",
+    )
+    check.add_argument(
         "--gate-ready",
         action="store_true",
         help="Require gate-ready Task Dispatch records when task/evidence pairs are present.",
@@ -24,6 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subparsers.add_parser("doctor", help="Diagnose SAGE-Kit project and runtime state.")
     doctor.add_argument("--json", action="store_true", help="Print machine-readable findings.")
+
+    init = subparsers.add_parser("init", help="Initialize SAGE-Kit governance documents.")
+    init.add_argument("--json", action="store_true", help="Print machine-readable findings.")
+    init.add_argument("--mode", choices=MODES, default="light", help="Adoption depth to initialize.")
+    init.add_argument("--dry-run", action="store_true", help="Show planned writes without changing files.")
+    init.add_argument("--force", action="store_true", help="Overwrite existing SAGE-Kit documents.")
     return parser
 
 
@@ -44,9 +57,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "check":
-            findings = run_check(Path.cwd(), gate_ready=args.gate_ready)
+            findings = run_check(Path.cwd(), gate_ready=args.gate_ready, mode=args.mode)
         elif args.command == "doctor":
             findings = run_doctor(Path.cwd())
+        elif args.command == "init":
+            findings = run_init(Path.cwd(), mode=args.mode, dry_run=args.dry_run, force=args.force)
         else:
             parser.print_help(sys.stderr)
             return 2

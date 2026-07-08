@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from sagekit.init import fallback_content
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -400,6 +402,186 @@ class SagekitCheckTests(unittest.TestCase):
                 any(item["level"] == "WARN" and item["rule"] == "kit-source" for item in payload["findings"]),
                 payload,
             )
+
+    def test_init_light_dry_run_does_not_write_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            result = run_sagekit("init", "--mode", "light", "--dry-run", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((root / "docs").exists())
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "PASS" and item["rule"] == "init-plan" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_init_light_creates_required_docs_and_light_check_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            init_result = run_sagekit("init", "--mode", "light", "--json", cwd=root)
+            check_result = run_sagekit("check", "--mode", "light", "--json", cwd=root)
+
+            self.assertEqual(init_result.returncode, 0, init_result.stderr)
+            self.assertEqual(check_result.returncode, 0, check_result.stdout)
+            for path in [
+                "docs/PROJECT_PROFILE.md",
+                "docs/QUALITY_GATES.md",
+                "docs/ACTIVE_CONTEXT.md",
+                "docs/DOC_ROUTING.md",
+            ]:
+                self.assertTrue((root / path).exists(), path)
+
+            payload = json.loads(check_result.stdout)
+            self.assertFalse(
+                any(item["rule"] == "recommended-docs" for item in payload["findings"]),
+                payload,
+            )
+            self.assertFalse(
+                any(item["level"] == "WARN" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_standard_check_requires_standard_docs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            run_sagekit("init", "--mode", "light", cwd=root)
+
+            result = run_sagekit("check", "--mode", "standard", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "FAIL"
+                    and item["rule"] == "required-docs"
+                    and item["path"] == "docs/TECHNICAL_DESIGN.md"
+                    for item in payload["findings"]
+                ),
+                payload,
+            )
+
+    def test_init_standard_creates_standard_docs_and_standard_check_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            init_result = run_sagekit("init", "--mode", "standard", "--json", cwd=root)
+            check_result = run_sagekit("check", "--mode", "standard", "--json", cwd=root)
+
+            self.assertEqual(init_result.returncode, 0, init_result.stderr)
+            self.assertEqual(check_result.returncode, 0, check_result.stdout)
+            for path in [
+                "docs/TECHNICAL_DESIGN.md",
+                "docs/ENGINEERING_SYSTEM.md",
+                "docs/APPROVAL_GATES.md",
+                "docs/MILESTONE_ROADMAP.md",
+            ]:
+                self.assertTrue((root / path).exists(), path)
+
+    def test_init_heavy_keeps_optional_profiles_inactive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            init_result = run_sagekit("init", "--mode", "heavy", "--json", cwd=root)
+            check_result = run_sagekit("check", "--mode", "heavy", "--json", cwd=root)
+
+            self.assertEqual(init_result.returncode, 0, init_result.stderr)
+            self.assertEqual(check_result.returncode, 0, check_result.stdout)
+            self.assertFalse((root / "docs/profiles/task-dispatch/DISPATCH_PROFILE.md").exists())
+            self.assertFalse(list(root.glob("docs/M*/dispatch/**/task.yaml")))
+
+    def test_init_does_not_overwrite_without_force(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            profile = write_file(root, "docs/PROJECT_PROFILE.md", "# Custom Profile\n\nKeep me.")
+
+            result = run_sagekit("init", "--mode", "light", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(profile.read_text(encoding="utf-8"), "# Custom Profile\n\nKeep me.\n")
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "WARN" and item["rule"] == "init-skip-existing" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_init_force_overwrites_existing_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            profile = write_file(root, "docs/PROJECT_PROFILE.md", "# Custom Profile\n\nReplace me.")
+
+            result = run_sagekit("init", "--mode", "light", "--force", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotEqual(profile.read_text(encoding="utf-8"), "# Custom Profile\n\nReplace me.\n")
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "PASS" and item["rule"] == "init-write" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_init_force_refuses_existing_directory_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs/PROJECT_PROFILE.md").mkdir(parents=True)
+
+            result = run_sagekit("init", "--mode", "light", "--force", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "FAIL" and item["rule"] == "init-unsafe-target" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_init_force_refuses_symlink_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            outside = Path(tmp) / "outside.md"
+            outside.write_text("# Outside\n", encoding="utf-8")
+            link = root / "docs/PROJECT_PROFILE.md"
+            link.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.symlink(outside, link)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+
+            result = run_sagekit("init", "--mode", "light", "--force", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "# Outside\n")
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "FAIL" and item["rule"] == "init-unsafe-target" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_init_refuses_source_repository(self):
+        result = run_sagekit("init", "--mode", "light", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertTrue(
+            any(item["level"] == "FAIL" and item["rule"] == "init-source-repo" for item in payload["findings"]),
+            payload,
+        )
+
+    def test_init_fallback_doc_routing_is_checkable(self):
+        text = fallback_content("docs/DOC_ROUTING.md")
+
+        self.assertIn("Routing policy", text)
+        self.assertIn("Implementation tasks", text)
+
+    def test_packaged_resources_include_canonical_heavy_docs(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+
+        self.assertTrue((root / "docs/SAGE_CORE.md").exists())
+        self.assertIn("External Capability Boundary", (root / "docs/SAGE_CORE.md").read_text(encoding="utf-8"))
+        self.assertTrue((root / "docs/agent/GOVERNANCE_LEVELS.md").exists())
 
 
 if __name__ == "__main__":

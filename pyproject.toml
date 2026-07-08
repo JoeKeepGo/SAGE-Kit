@@ -37,3 +37,6 @@ sagekit = "sagekit.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["sagekit*"]
+
+[tool.setuptools.package-data]
+sagekit = ["resources/**/*"]
