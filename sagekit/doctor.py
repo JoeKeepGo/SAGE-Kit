@@ -4,7 +4,7 @@ import platform
 from pathlib import Path
 
 from .findings import Finding
-from .check import detect_root, relpath
+from .check import detect_root, is_kit_source_repo, relpath
 from .modes import LEGACY_REQUIRED_DOCS, STANDARD_DOCS
 
 
@@ -24,14 +24,6 @@ def run_doctor(start: Path) -> list[Finding]:
     findings.extend(check_package_entrypoint(root, source_repo))
     findings.extend(check_task_dispatch_runtime())
     return findings
-
-
-def is_kit_source_repo(root: Path) -> bool:
-    return (
-        (root / "docs/SAGE_CORE.md").exists()
-        and (root / "skills/sage-kit/SKILL.md").exists()
-        and (root / "docs/PROJECT_PROFILE_TEMPLATE.md").exists()
-    )
 
 
 def check_project_mode(root: Path, source_repo: bool) -> list[Finding]:

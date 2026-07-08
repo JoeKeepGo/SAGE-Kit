@@ -140,13 +140,33 @@ specification documents.
 
 ## Local CLI Runtime
 
-SAGE-Kit also includes a small Python CLI prototype. The CLI is not an AI
-coding agent and does not replace the bundled skill. It gives humans, agents,
-and CI a stable way to inspect governance artifacts.
+SAGE-Kit includes a small Python CLI runtime. The CLI is a governance and
+evidence layer, not an AI coding agent. It does not replace Superpowers,
+skills, plugins, CI, reviewers, browser tools, or runtime tests; those
+capabilities produce work and evidence that SAGE-Kit can route, check, or
+record.
 
-Use the cross-platform Python module entrypoint without installation:
+Runtime policy:
+
+- Python `>=3.10`.
+- Runtime dependencies stay stdlib-only; `pyproject.toml` keeps
+  `dependencies = []`.
+- Do not introduce a TypeScript or Node runtime for the CLI.
+- The package version is sourced from `sagekit.__version__`; package metadata
+  and `sagekit --version` read from that single value.
+
+Install a reusable command with one of:
 
 ```bash
+pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git
+uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git
+python -m pip install -e .
+```
+
+Use the module entrypoint from a checkout without installation:
+
+```bash
+python -m sagekit --version
 python -m sagekit doctor
 python -m sagekit init --mode light --dry-run
 python -m sagekit init --mode light
@@ -155,31 +175,46 @@ python -m sagekit check --mode light
 python -m sagekit check --json
 ```
 
-For a reusable local command on Windows, macOS, and Linux, install the package
-entrypoint from the repository:
+The installed command exposes the same operations:
 
 ```bash
-python -m pip install -e .
+sagekit --version
+sagekit init --mode light
+sagekit check --mode light
+sagekit check --mode standard
+sagekit check --mode heavy
 sagekit doctor
-sagekit init --mode standard
-sagekit check
 ```
-
-`sagekit doctor` is a read-only diagnostic command. It is useful for checking
-whether the current directory looks like the SAGE-Kit source repository or an
-adopted project, whether package entrypoints exist, and whether the bundled
-Task Dispatch validator is importable.
-
-`sagekit check` is the gate-oriented validator. It checks required and
-recommended project docs, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`, phase docs,
-completion reports, adapter evidence, and Task Dispatch records. It exits `1`
-when any `FAIL` finding exists and `0` when findings are only `PASS` or `WARN`.
 
 `sagekit init` creates SAGE-Kit governance documents for a target project. It
 supports `--mode light`, `--mode standard`, and `--mode heavy`; `--dry-run`
 prints planned writes without changing files; `--force` overwrites only the
-selected mode's target files. It refuses to run inside the SAGE-Kit source
-repository.
+selected mode's target files. It refuses to initialize inside the SAGE-Kit
+source repository.
+
+`sagekit check` is the gate-oriented validator for adopted projects. It checks
+required and recommended project docs, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`,
+phase docs, completion reports, adapter evidence, and Task Dispatch records.
+It exits `1` when any `FAIL` finding exists and `0` when findings are only
+`PASS` or `WARN`.
+
+`sagekit doctor` is a read-only diagnostic command. It reports whether the
+target looks like the SAGE-Kit source repository or an adopted project, whether
+package entrypoints exist, and whether the bundled Task Dispatch validator is
+importable.
+
+All three project commands accept `--target <path>`. Without `--target`, they
+use the current working directory. With `--target`, the path is resolved as the
+project root candidate; file targets are refused so `init` cannot write into an
+unexpected parent directory.
+
+Examples:
+
+```bash
+sagekit init --target ../my-project --mode light
+sagekit check --target ../my-project --mode light
+sagekit doctor --target ../my-project
+```
 
 Mode-aware checks are explicit:
 
@@ -196,6 +231,24 @@ makes Standard docs blocking. Explicit `--mode heavy` makes the minimal Heavy
 controller docs blocking, but Task Dispatch, Wave Execution, Worktree
 Isolation, profile activation, and adapter use remain opt-in and
 artifact-triggered.
+
+The SAGE-Kit source repository has a separate dogfood check:
+
+```bash
+sagekit check --source-repo
+```
+
+Source repo check verifies framework docs, packaged resources, template mapping,
+CLI package files, tests, the console script, Python/runtime dependency policy,
+and repository hygiene. It does not require instantiated project context files
+such as `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md`.
+
+Repository hygiene rule: the framework repository commits templates and tools,
+not generated project runtime state. Do not commit `docs/ACTIVE_CONTEXT.md`,
+`docs/DOC_ROUTING.md`, `docs/M*/`, `docs/runs/`, `docs/task-records/`,
+`local/`, `.sagekit/`, or `.runtime/`. Template files such as
+`docs/ACTIVE_CONTEXT_TEMPLATE.md`, `docs/DOC_ROUTING_TEMPLATE.md`, and their
+`sagekit/resources/` copies remain trackable.
 
 Validator success means the governance structure is ready for review. It does
 not prove product correctness, replace runtime tests, or mark milestones

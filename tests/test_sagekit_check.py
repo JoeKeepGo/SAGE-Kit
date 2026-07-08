@@ -121,6 +121,14 @@ def write_valid_planning_phase(root):
 
 
 class SagekitCheckTests(unittest.TestCase):
+    def test_version_outputs_package_version(self):
+        from sagekit import __version__
+
+        result = run_sagekit("--version", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), f"sagekit {__version__}")
+
     def test_json_check_warns_for_missing_recommended_docs_without_failing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -301,6 +309,29 @@ class SagekitCheckTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
             self.assertEqual(before, after)
 
+    def test_check_target_uses_target_project_from_different_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            target = workspace / "project"
+            runner_cwd = workspace / "runner"
+            target.mkdir()
+            runner_cwd.mkdir()
+            write_required_docs(target)
+
+            result = run_sagekit("check", "--target", str(target), "--json", cwd=runner_cwd)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "PASS"
+                    and item["rule"] == "project-root"
+                    and str(target) in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload,
+            )
+
     def test_local_command_wrapper_runs_outside_repo_when_on_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -385,6 +416,24 @@ class SagekitCheckTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(before, after)
 
+    def test_doctor_target_reports_target_adopted_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            target = workspace / "project"
+            runner_cwd = workspace / "runner"
+            target.mkdir()
+            runner_cwd.mkdir()
+            write_required_docs(target)
+
+            result = run_sagekit("doctor", "--target", str(target), "--json", cwd=runner_cwd)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "PASS" and item["rule"] == "adopted-project" for item in payload["findings"]),
+                payload,
+            )
+
     def test_doctor_reports_adopted_project_without_source_repo_warning(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -443,6 +492,59 @@ class SagekitCheckTests(unittest.TestCase):
                 any(item["level"] == "WARN" for item in payload["findings"]),
                 payload,
             )
+
+    def test_init_target_writes_only_target_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            target = workspace / "project"
+            runner_cwd = workspace / "runner"
+            target.mkdir()
+            runner_cwd.mkdir()
+
+            init_result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=runner_cwd)
+            check_result = run_sagekit("check", "--target", str(target), "--mode", "light", "--json", cwd=runner_cwd)
+            doctor_result = run_sagekit("doctor", "--target", str(target), "--json", cwd=runner_cwd)
+
+            self.assertEqual(init_result.returncode, 0, init_result.stderr)
+            self.assertEqual(check_result.returncode, 0, check_result.stdout)
+            self.assertEqual(doctor_result.returncode, 0, doctor_result.stderr)
+            self.assertTrue((target / "docs/ACTIVE_CONTEXT.md").exists())
+            self.assertFalse((runner_cwd / "docs").exists())
+
+    def test_init_target_refuses_file_target_without_writing_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            target = workspace / "target.txt"
+            target.write_text("not a project directory\n", encoding="utf-8")
+
+            result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=workspace)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertFalse((workspace / "docs").exists())
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(item["level"] == "FAIL" and item["rule"] == "target" for item in payload["findings"]),
+                payload,
+            )
+
+    def test_init_target_child_project_does_not_write_adopted_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp)
+            target = parent / "child-project"
+            target.mkdir()
+            write_required_docs(parent)
+            before = sorted(path.relative_to(parent) for path in parent.rglob("*") if path.is_file())
+
+            result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=parent)
+
+            after_parent = sorted(
+                path.relative_to(parent)
+                for path in parent.rglob("*")
+                if path.is_file() and not path.is_relative_to(target)
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((target / "docs/ACTIVE_CONTEXT.md").exists())
+            self.assertEqual(before, after_parent)
 
     def test_standard_check_requires_standard_docs(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -567,6 +669,48 @@ class SagekitCheckTests(unittest.TestCase):
             any(item["level"] == "FAIL" and item["rule"] == "init-source-repo" for item in payload["findings"]),
             payload,
         )
+
+    def test_init_target_refuses_source_repository_and_does_not_instantiate_runtime_docs(self):
+        before = {
+            "docs/ACTIVE_CONTEXT.md": (REPO_ROOT / "docs/ACTIVE_CONTEXT.md").exists(),
+            "docs/DOC_ROUTING.md": (REPO_ROOT / "docs/DOC_ROUTING.md").exists(),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_sagekit("init", "--target", str(REPO_ROOT), "--mode", "light", "--json", cwd=Path(tmp))
+
+        self.assertEqual(result.returncode, 1, result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertTrue(
+            any(item["level"] == "FAIL" and item["rule"] == "init-source-repo" for item in payload["findings"]),
+            payload,
+        )
+        after = {
+            "docs/ACTIVE_CONTEXT.md": (REPO_ROOT / "docs/ACTIVE_CONTEXT.md").exists(),
+            "docs/DOC_ROUTING.md": (REPO_ROOT / "docs/DOC_ROUTING.md").exists(),
+        }
+        self.assertEqual(before, after)
+
+    def test_source_repo_check_does_not_require_instantiated_project_context(self):
+        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(
+            any(item["level"] == "PASS" and item["rule"] == "source-repo" for item in payload["findings"]),
+            payload,
+        )
+        self.assertFalse(any(item["rule"] == "required-docs" for item in payload["findings"]), payload)
+        self.assertFalse(any(item.get("path") == "docs/ACTIVE_CONTEXT.md" for item in payload["findings"]), payload)
+        self.assertFalse(any(item.get("path") == "docs/DOC_ROUTING.md" for item in payload["findings"]), payload)
+
+    def test_source_repo_check_reports_hygiene_and_runtime_tracking(self):
+        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        rules = {(item["level"], item["rule"]) for item in payload["findings"]}
+        self.assertIn(("PASS", "source-gitignore-runtime"), rules)
+        self.assertIn(("PASS", "source-tracked-runtime"), rules)
 
     def test_init_fallback_doc_routing_is_checkable(self):
         text = fallback_content("docs/DOC_ROUTING.md")

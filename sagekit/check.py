@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 from .findings import Finding
@@ -16,6 +17,89 @@ PERMISSION_MODES = [
     "CORRECTIVE_AUTHORIZED",
     "ENVIRONMENT_WRITE_AUTHORIZED",
     "SUBMIT_AUTHORIZED",
+]
+
+SOURCE_REPO_MARKERS = [
+    "docs/SAGE_CORE.md",
+    "skills/sage-kit/SKILL.md",
+    "docs/PROJECT_PROFILE_TEMPLATE.md",
+]
+
+SOURCE_REQUIRED_FILES = [
+    "pyproject.toml",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/SAGE_CORE.md",
+    "docs/PROJECT_PROFILE_TEMPLATE.md",
+    "docs/QUALITY_GATES_TEMPLATE.md",
+    "docs/ACTIVE_CONTEXT_TEMPLATE.md",
+    "docs/DOC_ROUTING_TEMPLATE.md",
+    "docs/TECHNICAL_DESIGN_TEMPLATE.md",
+    "docs/ENGINEERING_SYSTEM_TEMPLATE.md",
+    "docs/APPROVAL_GATES_TEMPLATE.md",
+    "docs/templates/PHASE_TEMPLATE.md",
+    "docs/templates/MILESTONE_LEDGER_TEMPLATE.md",
+    "docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md",
+    "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
+    "docs/agent/GOVERNANCE_LEVELS.md",
+    "docs/agent/SESSION_ORCHESTRATION.md",
+    "docs/agent/CAPABILITY_ADAPTERS.md",
+    "docs/profiles/task-dispatch/schemas/task.schema.json",
+    "docs/profiles/task-dispatch/schemas/evidence.schema.json",
+    "scripts/validate_task_dispatch.py",
+    "skills/sage-kit/SKILL.md",
+    "sagekit/__init__.py",
+    "sagekit/__main__.py",
+    "sagekit/cli.py",
+    "sagekit/check.py",
+    "sagekit/doctor.py",
+    "sagekit/init.py",
+    "sagekit/modes.py",
+    "sagekit/findings.py",
+    "sagekit/task_dispatch_validator.py",
+    "tests/test_sagekit_check.py",
+]
+
+GITIGNORE_RUNTIME_PATTERNS = [
+    ".worktrees/",
+    "local/",
+    ".sagekit/",
+    ".runtime/",
+    "docs/ACTIVE_CONTEXT.md",
+    "docs/DOC_ROUTING.md",
+    "docs/M*/",
+    "docs/runs/",
+    "docs/task-records/",
+]
+
+RUNTIME_TRACKED_PATHS = [
+    "docs/ACTIVE_CONTEXT.md",
+    "docs/DOC_ROUTING.md",
+    "docs/M*",
+    "docs/M*/**",
+    "docs/runs/*",
+    "docs/runs/**",
+    "docs/task-records/*",
+    "docs/task-records/**",
+    "local",
+    "local/**",
+    ".sagekit",
+    ".sagekit/**",
+    ".runtime",
+    ".runtime/**",
+]
+
+FORBIDDEN_RUNTIME_STACK_PATHS = [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "tsconfig.json",
+    "*.ts",
+    "*.tsx",
+    "*.js",
+    "*.jsx",
+    "node_modules/**",
 ]
 
 
@@ -36,6 +120,47 @@ def run_check(start: Path, gate_ready: bool = False, mode: str | None = None) ->
     findings.extend(check_completion_reports(root))
     findings.extend(check_task_dispatch(root, gate_ready=gate_ready))
     return findings
+
+
+def run_source_repo_check(start: Path) -> list[Finding]:
+    root = detect_root(start)
+    findings: list[Finding] = [
+        Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
+    ]
+    if is_kit_source_repo(root):
+        findings.append(
+            Finding(
+                "PASS",
+                "source-repo",
+                relpath(root, root / "docs/SAGE_CORE.md"),
+                None,
+                "SAGE-Kit source repository detected",
+            )
+        )
+    else:
+        findings.append(
+            Finding(
+                "FAIL",
+                "source-repo",
+                relpath(root, root),
+                None,
+                "target does not look like the SAGE-Kit source repository",
+                "Use plain sagekit check for adopted projects, or run --source-repo from the SAGE-Kit repository.",
+            )
+        )
+        return findings
+
+    findings.extend(check_source_required_files(root))
+    findings.extend(check_source_init_resources(root))
+    findings.extend(check_source_pyproject(root))
+    findings.extend(check_source_gitignore(root))
+    findings.extend(check_source_tracked_runtime(root))
+    findings.extend(check_source_forbidden_runtime_stack(root))
+    return findings
+
+
+def is_kit_source_repo(root: Path) -> bool:
+    return all((root / marker).exists() for marker in SOURCE_REPO_MARKERS)
 
 
 def detect_root(start: Path) -> Path:
@@ -59,6 +184,272 @@ def relpath(root: Path, path: Path) -> str:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def check_source_required_files(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    for item in SOURCE_REQUIRED_FILES:
+        path = root / item
+        if not path.exists():
+            findings.append(
+                Finding("FAIL", "source-required-file", item, None, f"{item} missing")
+            )
+        elif path.is_file() and read_text(path).strip():
+            findings.append(Finding("PASS", "source-required-file", item, None, f"{item} exists"))
+        else:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "source-required-file",
+                    item,
+                    None,
+                    f"{item} is empty or not a file",
+                )
+            )
+    return findings
+
+
+def check_source_init_resources(root: Path) -> list[Finding]:
+    try:
+        from .init import init_files_for_mode, package_resource_root
+    except Exception as exc:
+        return [
+            Finding(
+                "FAIL",
+                "source-resource-map",
+                "sagekit/init.py",
+                None,
+                f"could not load init resource mapping: {exc}",
+            )
+        ]
+
+    source_root = package_resource_root()
+    if not source_root.exists():
+        return [
+            Finding(
+                "FAIL",
+                "source-resource-map",
+                relpath(root, source_root),
+                None,
+                "packaged resource root missing",
+            )
+        ]
+
+    findings: list[Finding] = [
+        Finding("PASS", "source-resource-map", relpath(root, source_root), None, "resource root exists")
+    ]
+    seen: set[str] = set()
+    for item in init_files_for_mode("heavy", source_root):
+        if not item.source or item.source in seen:
+            continue
+        seen.add(item.source)
+        path = source_root / item.source
+        display = relpath(root, path)
+        if path.exists() and path.is_file() and read_text(path).strip():
+            findings.append(Finding("PASS", "source-resource", display, None, f"{item.source} resolves"))
+        else:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "source-resource",
+                    display,
+                    None,
+                    f"{item.source} missing, empty, or not a file",
+                )
+            )
+    return findings
+
+
+def check_source_pyproject(root: Path) -> list[Finding]:
+    path = root / "pyproject.toml"
+    if not path.exists():
+        return [Finding("FAIL", "source-pyproject", "pyproject.toml", None, "pyproject.toml missing")]
+    text = read_text(path)
+    checks = [
+        (
+            'requires-python = ">=3.10"',
+            "source-python-policy",
+            "Python >=3.10 policy is declared",
+            "requires-python must declare Python >=3.10.",
+        ),
+        (
+            "dependencies = []",
+            "source-runtime-dependencies",
+            "runtime dependency list is empty",
+            "Keep the CLI runtime stdlib-only.",
+        ),
+        (
+            'sagekit = "sagekit.cli:main"',
+            "source-console-script",
+            "console script maps sagekit to sagekit.cli:main",
+            'Add [project.scripts] sagekit = "sagekit.cli:main".',
+        ),
+        (
+            'version = {attr = "sagekit.__version__"}',
+            "source-version",
+            "package version is read from sagekit.__version__",
+            "Keep a single version source in sagekit.__version__.",
+        ),
+        (
+            'sagekit = ["resources/**/*"]',
+            "source-package-data",
+            "packaged resources are included",
+            "Package sagekit/resources so init can copy bundled templates after installation.",
+        ),
+    ]
+    findings: list[Finding] = []
+    for token, rule, message, suggestion in checks:
+        if token in text:
+            findings.append(Finding("PASS", rule, "pyproject.toml", None, message))
+        else:
+            findings.append(Finding("FAIL", rule, "pyproject.toml", None, suggestion, suggestion))
+    return findings
+
+
+def check_source_gitignore(root: Path) -> list[Finding]:
+    path = root / ".gitignore"
+    if not path.exists():
+        return [Finding("FAIL", "source-gitignore-runtime", ".gitignore", None, ".gitignore missing")]
+    lines = {
+        line.strip()
+        for line in read_text(path).splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    missing = [pattern for pattern in GITIGNORE_RUNTIME_PATTERNS if pattern not in lines]
+    if missing:
+        return [
+            Finding(
+                "FAIL",
+                "source-gitignore-runtime",
+                ".gitignore",
+                None,
+                "missing runtime ignore patterns: " + ", ".join(missing),
+                "Ignore local worktrees and generated project runtime state without ignoring templates.",
+            )
+        ]
+    return [
+        Finding(
+            "PASS",
+            "source-gitignore-runtime",
+            ".gitignore",
+            None,
+            "runtime files are ignored while templates remain trackable",
+        )
+    ]
+
+
+def check_source_tracked_runtime(root: Path) -> list[Finding]:
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", *RUNTIME_TRACKED_PATHS],
+            cwd=root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        return [
+            Finding(
+                "WARN",
+                "source-tracked-runtime",
+                None,
+                None,
+                f"could not run git ls-files: {exc}",
+                "Run git ls-files manually before committing.",
+            )
+        ]
+    if result.returncode != 0:
+        return [
+            Finding(
+                "FAIL",
+                "source-tracked-runtime",
+                None,
+                None,
+                result.stderr.decode("utf-8", errors="replace").strip() or "git ls-files failed",
+            )
+        ]
+    tracked = [
+        part.decode("utf-8", errors="replace")
+        for part in result.stdout.split(b"\0")
+        if part
+    ]
+    if tracked:
+        return [
+            Finding(
+                "FAIL",
+                "source-tracked-runtime",
+                None,
+                None,
+                "runtime files are tracked: " + ", ".join(tracked),
+                "Remove generated runtime state from version control.",
+            )
+        ]
+    return [
+        Finding(
+            "PASS",
+            "source-tracked-runtime",
+            None,
+            None,
+            "no generated runtime project state is tracked",
+        )
+    ]
+
+
+def check_source_forbidden_runtime_stack(root: Path) -> list[Finding]:
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "-z", "--", *FORBIDDEN_RUNTIME_STACK_PATHS],
+            cwd=root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        return [
+            Finding(
+                "WARN",
+                "source-runtime-stack",
+                None,
+                None,
+                f"could not run git ls-files: {exc}",
+                "Confirm no Node or TypeScript runtime files were introduced.",
+            )
+        ]
+    if result.returncode != 0:
+        return [
+            Finding(
+                "FAIL",
+                "source-runtime-stack",
+                None,
+                None,
+                result.stderr.decode("utf-8", errors="replace").strip() or "git ls-files failed",
+            )
+        ]
+    tracked = [
+        part.decode("utf-8", errors="replace")
+        for part in result.stdout.split(b"\0")
+        if part
+    ]
+    if tracked:
+        return [
+            Finding(
+                "FAIL",
+                "source-runtime-stack",
+                None,
+                None,
+                "Node or TypeScript runtime files are tracked: " + ", ".join(tracked),
+                "Keep SAGE-Kit CLI runtime Python stdlib-only.",
+            )
+        ]
+    return [
+        Finding(
+            "PASS",
+            "source-runtime-stack",
+            None,
+            None,
+            "no Node or TypeScript runtime files are tracked",
+        )
+    ]
 
 
 def check_required_docs(root: Path, required_docs: list[str] | None = None) -> list[Finding]:

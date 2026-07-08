@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sagekit"
-version = "0.1.0"
 description = "Governance and evidence runtime for SAGE-Kit projects."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,12 +30,16 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance"
 ]
 dependencies = []
+dynamic = ["version"]
 
 [project.scripts]
 sagekit = "sagekit.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["sagekit*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "sagekit.__version__"}
 
 [tool.setuptools.package-data]
 sagekit = ["resources/**/*"]
