@@ -14,6 +14,10 @@ from sagekit.init import fallback_content
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def normalized_path_key(path):
+    return os.path.normcase(os.path.normpath(str(Path(path).resolve(strict=False))))
+
+
 def run_sagekit(*args, cwd):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
@@ -323,17 +327,17 @@ class SagekitCheckTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(
-                    item["level"] == "PASS"
-                    and item["rule"] == "project-root"
-                    and str(target) in item["message"]
-                    for item in payload["findings"]
-                ),
-                payload,
+            project_root_finding = next(
+                item
+                for item in payload["findings"]
+                if item["level"] == "PASS" and item["rule"] == "project-root"
             )
+            reported_root = project_root_finding["message"].removeprefix("using ").strip()
+            self.assertEqual(normalized_path_key(reported_root), normalized_path_key(target))
 
     def test_local_command_wrapper_runs_outside_repo_when_on_path(self):
+        if os.name != "nt":
+            self.skipTest("sagekit.cmd wrapper is Windows-only")
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_required_docs(root)
@@ -355,6 +359,8 @@ class SagekitCheckTests(unittest.TestCase):
             self.assertTrue(payload["findings"])
 
     def test_local_command_wrapper_does_not_write_bytecode_to_package_dir(self):
+        if os.name != "nt":
+            self.skipTest("sagekit.cmd wrapper is Windows-only")
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             tool_root = workspace / "tool"
