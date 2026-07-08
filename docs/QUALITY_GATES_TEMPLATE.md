@@ -47,6 +47,7 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Coder separation gate | In Session Orchestration, Coder Controller self-execution is absent or explicitly allowed, narrow, recorded, and independently reviewed. |
 | Authority gate | Every active packet names both governance level and permission mode; write, corrective, environment-write, and submit authority are explicit. |
 | Corrective closure gate | When review returns required corrections, it provides a corrective packet, Project Manager decision request, blocker, or waiver path. |
+| Correction re-review gate | Corrective rounds that change files, behavior, contracts, runtime behavior, gate state, shared ownership, or required evidence have independent re-review evidence before Final Review closes the verdict. |
 | Security gate | Secrets and sensitive data are not exposed or staged. |
 | No fallback gate | No guessed fields, hidden success, speculative aliases, or silent downgrade paths. |
 | Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
@@ -76,6 +77,9 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 - a read-only review returns `NEEDS_CORRECTION`, `BLOCKED`, or
   `Corrective Packet Required: yes` without a corrective packet, Project
   Manager decision request, blocker, or waiver path;
+- corrective work changes files, behavior, contracts, runtime behavior, gate
+  state, shared ownership, or required evidence without independent re-review
+  evidence;
 - write, corrective, environment-write, submit, merge, publish, release, or
   cleanup work occurs without the matching permission mode;
 - a hidden fallback path masks failure as success;

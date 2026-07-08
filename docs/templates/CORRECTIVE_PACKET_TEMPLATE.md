@@ -56,9 +56,13 @@ Runtime Smoke:
 
 Re-Review:
 - Required: `<yes/no>`
+- Mode: `Final Review narrow diff`, `affected review workers`, `affected review subagents`, or `validation lanes`
 - Re-review owner:
+- Affected review workers/subagents/lanes to rerun:
+- Skip rerun rationale, if using narrow diff review:
 - Evidence to inspect:
 - Acceptance criteria:
+- Closure blocked if re-review evidence is missing: `<yes/no>`
 
 Expected Output:
 - files changed;

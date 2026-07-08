@@ -151,6 +151,10 @@ handoff.
   `PM_DECISION`, `BLOCKED`, or `DEFER`. If corrective execution is authorized,
   it may open a bounded corrective round; if review is read-only, it must return
   a packet-only corrective handoff or blocker.
+- After corrective work, Final Review must require independent re-review
+  evidence before closure. Rerun affected review workers, review subagents, or
+  validation lanes when the original review used them, the fix touches behavior,
+  contracts, runtime, shared files, gates, or the regression surface is unclear.
 - Do not claim Wave Execution or parallel phases unless Wave Readiness is
   proven with independent lanes, exclusive writable files, serial shared files,
   frozen contracts, runtime ownership, validation lanes, and integration owner.

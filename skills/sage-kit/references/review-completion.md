@@ -138,6 +138,11 @@ When Session Orchestration is used:
   Project Manager decision request, blocker, or waiver path instead of editing.
 - If corrective execution is authorized, Final Review may open a bounded
   corrective round and must require verification and re-review.
+- Corrective re-review must produce independent evidence before Final Review
+  closes the verdict.
+- Rerun affected review workers, review subagents, or validation lanes when the
+  original review used them, the fix touches behavior, contracts, runtime,
+  shared files, gates, or the regression surface is unclear.
 - Corrective packets must name findings, classification, files, commands,
   permission mode, and stop conditions.
 - After the corrective round limit, return `HANDOFF` or `BLOCKED`.

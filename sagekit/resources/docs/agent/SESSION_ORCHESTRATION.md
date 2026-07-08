@@ -406,6 +406,14 @@ Corrective work is bounded by the Final Review findings.
   authority/evidence gap named.
 - `Corrective Packet Required: yes` without a packet, handoff target, or blocker
   is incomplete.
+- Every corrective round that changes files, behavior, contracts, runtime
+  behavior, gate state, shared ownership, or required evidence must produce
+  independent re-review evidence before Final Review can close the verdict.
+- Final Review may perform a narrow diff re-review itself only for low-risk,
+  local corrections. It must rerun affected review workers, review subagents, or
+  validation lanes when the original review used them, the fix touches behavior,
+  contracts, runtime, shared files, or gates, or the regression surface is
+  unclear.
 - Corrective workers must not redesign the feature.
 - Corrective workers must not expand milestone scope.
 - Corrective workers must not open approval gates.

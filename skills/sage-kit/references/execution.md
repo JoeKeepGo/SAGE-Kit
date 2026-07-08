@@ -199,6 +199,10 @@ When Session Orchestration is active:
   corrective round or returns a packet-only handoff, Project Manager decision
   request, or blocker.
 - Corrective workers fix only findings named in corrective packets.
+- After corrective work, Final Review must collect independent re-review
+  evidence. Rerun affected review workers, review subagents, or validation lanes
+  when the original review used them, the fix touches behavior, contracts,
+  runtime, shared files, gates, or the regression surface is unclear.
 - If Task Dispatch Profile is active, Coder updates task/evidence records and
   Final Review treats them as an evidence index to verify, not as proof by
   themselves.

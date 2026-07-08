@@ -218,6 +218,9 @@ No work is complete until the completion report names:
 - runtime smoke or reason it is not applicable;
 - governance level and permission mode;
 - corrective closure status when review finds required corrections;
+- corrective re-review evidence when corrective work changes files, behavior,
+  contracts, runtime behavior, gate state, shared ownership, or required
+  evidence;
 - skipped checks;
 - security or data hygiene checks;
 - active context and document routing maintenance;

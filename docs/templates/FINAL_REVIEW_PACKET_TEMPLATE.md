@@ -137,6 +137,9 @@ Corrective Closure:
 - Corrective round: `<0/1/2>`
 - Maximum corrective rounds:
 - Re-review owner:
+- Re-review evidence:
+- Affected review workers/subagents/lanes rerun: `<yes/no/n/a>`
+- If not rerun, narrow diff review rationale:
 - "Corrective required: yes" without packet/handoff/blocker: `<yes/no>`
 
 Corrective Delegation:
