@@ -10,6 +10,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def normalized_path_key(path):
+    return os.path.normcase(os.path.normpath(str(Path(path).resolve(strict=False))))
+
+
 def run_sagekit(*args, cwd):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT)
@@ -257,7 +261,8 @@ class SagekitSimulationTests(unittest.TestCase):
             self.assertEqual(check_result.returncode, 0, check_result.stdout)
             findings = load_findings(check_result)
             project_root = findings_for(findings, "project-root", level="PASS")[0]["message"]
-            self.assertIn(str(target), project_root)
+            reported_root = project_root.removeprefix("using ").strip()
+            self.assertEqual(normalized_path_key(reported_root), normalized_path_key(target))
 
             for path in [
                 "docs/SAGE_CORE.md",
