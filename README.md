@@ -243,6 +243,10 @@ CLI package files, tests, the console script, Python/runtime dependency policy,
 and repository hygiene. It does not require instantiated project context files
 such as `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md`.
 
+The test suite also includes simulation tests that create temporary adopted
+projects and verify Light, Heavy, and failure-path governance behavior without
+committing generated project runtime state.
+
 Repository hygiene rule: the framework repository commits templates and tools,
 not generated project runtime state. Do not commit `docs/ACTIVE_CONTEXT.md`,
 `docs/DOC_ROUTING.md`, `docs/M[0-9]*/`, `docs/runs/`, `docs/task-records/`,
@@ -566,28 +570,16 @@ approval gate.
 
 ```mermaid
 flowchart TD
-  A["Task or idea"] --> B["Read ACTIVE_CONTEXT.md"]
-  B --> C["Read DOC_ROUTING.md"]
-  C --> D["Read only routed milestone, phase, gate, or packet docs"]
-  D --> E["Select Governance Level: Light / Standard / Heavy"]
-  E --> F["Select Permission Mode: read-only / write / corrective / environment / submit"]
-  F --> G["Name files, gates, tests, smoke, evidence, and stop conditions"]
-  G --> H{"Closed gate or scope expansion?"}
-  H -- "Yes" --> I["Stop for Project Manager or user decision"]
-  H -- "No" --> J{"Specialist capability useful?"}
-  J -- "Yes" --> K["Use Capability Adapter: detect, authorize, bound, invoke, capture, map, fallback"]
-  J -- "No" --> L["Use SAGE-Kit-native phase or review path"]
-  K --> L
-  L --> M{"Work type"}
-  M -- "Implementation" --> N["Execute approved phase, lane, or corrective task"]
-  M -- "Review" --> O["Verify independently and classify findings"]
-  N --> P["Run tests, runtime smoke, and collect evidence"]
-  P --> O
-  O --> Q{"Correction required?"}
-  Q -- "Yes" --> R["Corrective packet, PM decision request, blocker, or waiver path"]
-  R --> N
-  Q -- "No" --> S["Completion report, ledger, and memory maintenance"]
-  S --> T["Handoff, accept decision, or next prompt"]
+  A["Task or idea"] --> B["Read ACTIVE_CONTEXT + DOC_ROUTING"]
+  B --> C["Load routed docs only"]
+  C --> D["Select governance, permission, and boundaries"]
+  D --> E{"Gate, scope, or risk issue?"}
+  E -- "Yes" --> F["Stop for PM or user decision"]
+  E -- "No" --> G["Execute or review inside approved boundary"]
+  G --> H["Verify evidence"]
+  H --> I{"Correction needed?"}
+  I -- "Yes" --> D
+  I -- "No" --> J["Report, ledger, and memory update"]
 ```
 
 A normal phase run should follow this loop:
