@@ -380,6 +380,21 @@ Final Review returns one of:
 - `NEEDS_CORRECTION`
 - `BLOCKED`
 
+Severity affects acceptance, not review discipline:
+
+- Open `P0` and `P1` findings always block Project Manager acceptance. They
+  may close only after the issue is fixed or explicitly reclassified with
+  evidence by the required authority.
+- `P2` findings block acceptance only when they affect authority,
+  false-green risk, approval gates, security boundaries,
+  validator/gate-ready requirements, source authority, or required evidence
+  integrity.
+- Ordinary documentation consistency `P2` findings may close as
+  `ACCEPTABLE_WITH_CONCERNS` or be auto-corrected when they do not affect the
+  authority, gate, security, validator, or evidence boundary.
+- `P3` findings do not block acceptance. Record them as concerns, follow-up, or
+  cleanup candidates.
+
 Final Review must classify findings before returning a non-acceptable verdict:
 
 - `AUTO_CORRECTIVE`: fixable inside the active boundary and allowed files;
@@ -394,7 +409,8 @@ If Final Review is in `READ_ONLY_REVIEW`, it must not edit files or dispatch a
 fixing worker, but `NEEDS_CORRECTION` must include an inline or referenced
 corrective packet, Project Manager decision request, or blocker. If Final
 Review is in `CORRECTIVE_AUTHORIZED` and findings are `AUTO_CORRECTIVE`, it
-should open a corrective round up to the configured round limit.
+may open a corrective round inside the approved corrective boundary and
+convergence budget.
 
 Final Review cannot mark the milestone accepted. The Project Manager Controller
 makes the final decision through a separate PM decision authority record.
@@ -423,12 +439,59 @@ Corrective work is bounded by the Final Review findings.
   validation lanes when the original review used them, the fix touches behavior,
   contracts, runtime, shared files, or gates, or the regression surface is
   unclear.
+- When the corrective change only updates ledger, evidence, status, closeout,
+  or other review bookkeeping without changing product semantics, permissions,
+  source authority, information architecture, contracts, runtime behavior, or
+  validator requirements, Final Review should run only the targeted
+  status/evidence lanes named by the project review plan.
+- When the corrective change alters semantics, permission or authority
+  boundaries, source authority, information architecture, public contracts,
+  security posture, runtime behavior, validator meaning, or approval gates,
+  Final Review must rerun the full affected review lanes.
 - Corrective workers must not redesign the feature.
 - Corrective workers must not expand milestone scope.
 - Corrective workers must not open approval gates.
-- Maximum corrective rounds must be configured by the execution or Final Review
-  packet.
-- After the maximum rounds, return `HANDOFF` or `BLOCKED` to Project Manager.
+- Corrective packets may name a maximum round or convergence budget, but the
+  budget is a control signal rather than an unconditional blocker.
+- Continue automatic correction only inside an authorized corrective packet or
+  boundary while findings are decreasing in count or severity, no new scope is
+  opened, no blocking gate is bypassed, and no new authority, false-green,
+  approval-gate, security, validator/gate-ready, source-authority, or
+  evidence-integrity risk appears.
+- Return `BLOCKED` only when the same root cause shows no material progress for
+  two consecutive corrective rounds, required evidence or authority is missing,
+  the fix would exceed the approved boundary, or no authorized path can make
+  progress.
+- If the convergence budget is exhausted while the run is still converging,
+  return `NEEDS_CORRECTION` with convergence evidence. When higher Project
+  Manager judgment is needed, keep the Final Review verdict as
+  `NEEDS_CORRECTION` and set closure/status to `PM_DECISION_REQUIRED` instead
+  of inventing a new verdict or marking final `BLOCKED`.
+
+## Automatic Review Scope Selection
+
+Final Review must choose the narrowest review scope that protects authority and
+evidence. This selection is part of the review packet; it should not depend on a
+human remembering to request the right lane.
+
+Use targeted status/evidence re-review when all are true:
+
+- only ledgers, task/evidence records, status tables, closeout notes, or
+  review packets changed;
+- no product code, runtime behavior, schema, migration, test implementation,
+  source authority, information architecture, permission boundary, approval
+  gate, or validator meaning changed;
+- the remaining findings are ordinary consistency, stale status, or evidence
+  bookkeeping issues.
+
+Use full affected-lane re-review when any are true:
+
+- semantics, source authority, information architecture, permissions, security,
+  approval gates, public contracts, runtime behavior, validator rules, or
+  required evidence changed;
+- the correction touches implementation files or test/runtime behavior;
+- false-green risk, hidden fallback, or gate-ready status is in question;
+- the targeted review cannot prove the remaining acceptance boundary.
 
 ## Serial Gates
 

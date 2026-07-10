@@ -209,7 +209,7 @@ If yes, name:
 - result packet path;
 - structural gate owner;
 - final review packet path;
-- corrective round limit.
+- corrective convergence budget.
 
 ## Milestone Closeout
 

@@ -411,6 +411,12 @@ docs/
 - Milestone 太大、人工来回复制交接成本太高时使用 Session Orchestration。
 - 只有 Project Manager 明确授权时才使用 Worktree Isolation。
 - 只有结构化 task/evidence records 和 validator closeout 的收益大于成本时才使用 Task Dispatch Profile。
+- 当工作仅限规划包、ledger、evidence/status、review packet、closeout
+  或 submit handoff、人工交接是主要成本、submit 或 push 已明确授权或单独交给
+  Submit Controller，并且不改变产品代码或 gate authority 时，使用
+  Planning Package Closeout，让一个 root session 编排 Planning Author、
+  Planning Review、Targeted Fix、Targeted Re-Review、Closeout/Status 和
+  Submit Controller，但保持角色权限分离。
 
 ### 初始化新项目
 
@@ -577,6 +583,21 @@ Project Manager Controller
 
 Coder 和 Final Review controllers 可以在文件所有权、runtime ownership、evidence expectations 和 stop conditions 都明确时派发 subagents。Coder 只能在 Final Review 前、且 fix 仍处于 execution packet 边界内时派发 integration repair workers。Final Review 只能在 review 后针对 `AUTO_CORRECTIVE` findings 派发 corrective workers。只要 correction 需要新 scope、approval、public contract change、shared ownership change 或 submit/cleanup authority，就必须停下来交给 Project Manager。Bounded corrections 完成后，Final Review 必须先复审受影响 findings，然后 Project Manager 才能 acceptance。
 
+Corrective 使用 convergence rule，而不是固定“轮次到了就 blocked”。
+Open P0/P1 必须阻塞 acceptance。P2 只有涉及 authority、false-green、
+approval gates、security、validator readiness、source authority 或
+evidence integrity 时才阻塞；普通文档一致性 P2 可以作为 concerns
+关闭或自动修复；P3 不阻塞。只有在已授权 corrective packet 或 boundary 内，
+且 findings 或 severity 持续减少、scope 没有扩张、没有绕过 blocking approval
+gate、没有新增 authority、false-green、gate、security、validator、
+source-authority 或 evidence-integrity 风险时，才允许自动继续；连续两轮同一
+根因无实质进展、required evidence/authority 缺失，或必须超出已批准边界时才
+`BLOCKED`。如果需要 Project Manager judgment，返回 `NEEDS_CORRECTION` +
+`PM_DECISION_REQUIRED`，不要标成 `BLOCKED`。
+仅修改 ledger、evidence、status、closeout 或 packet bookkeeping 时，使用
+targeted status/evidence re-review；语义、权限、source authority、contract、
+runtime、security、gate 或 validator 变化时，必须重跑完整受影响 lanes。
+
 ### 外部能力和 Superpowers
 
 SAGE-Kit 不替代专业能力。运行环境暴露 skills、plugins、connectors、MCP tools、CI、browser tools、review tools 或 Superpowers skills 时，只要相关，就应该路由给它们。
@@ -623,6 +644,11 @@ Workers、parallel lanes，或任何没有 `ACTIVE_CONTEXT.md` / `DOC_ROUTING.md
 - 更新 completion report 和 milestone ledger；
 - 只用 durable current-state changes 更新 active context；
 - 只有 milestone 真正关闭时才写 milestone closeout。
+
+换行提示是非阻塞的平台 warning，前提是验证命令成功退出。例如
+`git diff --check` 只报告 LF-to-CRLF 且退出码为 `0` 时，应记录但不能阻塞
+acceptance。Trailing whitespace、conflict markers、malformed patches，或任何
+非零验证退出码仍然阻塞。
 
 Final Review 负责建议。Project Manager 决定 milestone acceptance。
 

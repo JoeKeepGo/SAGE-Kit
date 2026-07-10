@@ -54,6 +54,48 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Capability adapter gate | External capability use records adapter name, authorization level, boundary served, evidence produced, and fallback when relevant. |
 | Structured dispatch gate | When Task Dispatch Profile is active, task and evidence records exist, required L0-L4 levels are present, resource locks and leases are recorded, and the validator passes in gate-ready mode before acceptance. |
 
+## Finding Severity Acceptance Rule
+
+Final Review severity decides whether Project Manager acceptance is blocked.
+
+| Severity | Acceptance Rule |
+|---|---|
+| `P0` | Blocks acceptance while open. It may close only after the issue is fixed or explicitly reclassified with evidence by the required authority. |
+| `P1` | Blocks acceptance while open. It may close only after the issue is fixed or explicitly reclassified with evidence by the required authority. |
+| `P2` | Blocks acceptance only when it affects authority, false-green risk, approval gates, security boundaries, validator/gate-ready requirements, source authority, or evidence integrity. Ordinary documentation consistency P2 findings may be accepted with concerns or auto-corrected. |
+| `P3` | Does not block acceptance. Record as concern, follow-up, or cleanup. |
+
+## Corrective Convergence Rule
+
+Corrective work should continue automatically only inside an authorized
+corrective packet or boundary, and only while all are true:
+
+- open finding count or severity is decreasing;
+- the approved scope is not expanding;
+- no blocking approval gate is bypassed;
+- no new authority, false-green, approval-gate, security,
+  validator/gate-ready, source-authority, or evidence-integrity risk appears;
+- the same root cause has not stalled for two consecutive corrective rounds.
+
+Do not mark work `BLOCKED` merely because a fixed round count was reached. Use
+`BLOCKED` when no authorized path is making progress, required evidence or
+authority is missing, scope would need to expand, or the same root cause has
+made no material progress for two consecutive corrective rounds.
+
+Targeted re-review is enough when only ledger, evidence, status, closeout, or
+packet bookkeeping changed. A Final Review narrow diff is a targeted
+status/evidence submode and is allowed only under those targeted-review
+conditions. Rerun full affected lanes when semantics, permissions, source
+authority, information architecture, contracts, runtime behavior, security
+posture, approval gates, validator meaning, or required evidence changed.
+
+Mechanical verification noise is not a blocking finding when the verification
+command exits successfully. For example, `git diff --check` line-ending notices
+such as LF-to-CRLF conversion warnings are non-blocking warnings when exit code
+is `0`. Treat trailing whitespace, conflict markers, malformed patches, or any
+non-zero verification exit as blocking until resolved or explicitly waived by
+the required authority.
+
 ## Universal Blockers
 
 - behavior changed but no test or smoke path exists;

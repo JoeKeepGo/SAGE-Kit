@@ -164,7 +164,7 @@ If yes, name:
 - Project Manager Controller;
 - Coder Controller;
 - Final Review Controller;
-- corrective round limit;
+- corrective convergence budget;
 - packet storage location.
 
 ## Milestone Closure Gate

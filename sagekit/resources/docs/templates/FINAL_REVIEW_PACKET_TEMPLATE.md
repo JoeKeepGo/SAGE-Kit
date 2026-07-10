@@ -114,6 +114,16 @@ Finding Classification:
 |---|---|---|---|---|---|---|
 | `<id>` | `<P0/P1/P2/P3>` | `AUTO_CORRECTIVE`, `PM_DECISION`, `BLOCKED`, or `DEFER` | `<yes/no>` | `<packet/ref/decision/blocker>` | `<commands/evidence>` | `<yes/no>` |
 
+Severity Acceptance Gate:
+- P0/P1 open findings: `<none/list>`
+- P2 findings that block acceptance because they affect authority, false-green,
+  approval gates, security boundaries, validator/gate-ready requirements,
+  source authority, or evidence integrity: `<none/list>`
+- Ordinary documentation consistency P2 findings accepted with concerns or
+  auto-corrected: `<none/list>`
+- P3 follow-up findings: `<none/list>`
+- Acceptance blocked by severity gate: `<yes/no>`
+
 Contract Findings:
 
 Runtime Findings:
@@ -131,16 +141,34 @@ Corrective Packet:
 
 Corrective Closure:
 - Closure mode: `NONE`, `READ_ONLY_PACKET_ONLY`, `AUTO_OPEN_AUTHORIZED`,
-  `PM_DECISION_REQUIRED`, or `BLOCKED`
+  `AUTO_CONTINUE_CONVERGING`, `PM_DECISION_REQUIRED`, or `BLOCKED`
 - If required, packet/handoff/blocker provided: `<yes/no/n/a>`
 - Auto-open authorized by execution packet: `<yes/no/n/a>`
-- Corrective round: `<0/1/2>`
-- Maximum corrective rounds:
+- Corrective round / convergence budget:
+- Authorized corrective packet or boundary:
+- Findings trend: `<decreasing/same/increasing>`
+- Severity trend: `<decreasing/same/increasing>`
+- Same root cause stalled for two consecutive rounds: `<yes/no>`
+- Scope expanded: `<yes/no>`
+- New authority, false-green, approval-gate, security, validator/gate-ready,
+  source-authority, or evidence-integrity risk: `<yes/no>`
+- Continue automatically under convergence rule inside authorized boundary:
+  `<yes/no>`
 - Re-review owner:
 - Re-review evidence:
 - Affected review workers/subagents/lanes rerun: `<yes/no/n/a>`
 - If not rerun, narrow diff review rationale:
 - "Corrective required: yes" without packet/handoff/blocker: `<yes/no>`
+
+Review Scope Selection:
+- Selected re-review scope: `targeted status/evidence lanes`,
+  `Final Review narrow diff (targeted submode)`, `full affected lanes`, or
+  `full A-E/project review`
+- Reason targeted review is enough:
+- Reason full review is required:
+- Ledger/evidence/status-only change: `<yes/no>`
+- Semantic, permission, source authority, information architecture, contract,
+  runtime, security, approval gate, or validator meaning changed: `<yes/no>`
 
 Corrective Delegation:
 - Allowed executor: `Coder Controller`, `Corrective Worker`, or `Project Manager decision required`

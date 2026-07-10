@@ -155,7 +155,7 @@ Plan:
 - milestone result packet;
 - structural gate owner;
 - final review packet;
-- corrective round limit.
+- corrective convergence budget.
 
 Do not use Session Orchestration for small single-phase work.
 
@@ -169,6 +169,37 @@ Do not keep a separate untracked plan as the authoritative source. If an
 external plan changes scope, files, gates, sequencing, locks, tests, runtime
 requirements, or acceptance criteria, stop until the relevant SAGE-Kit artifact
 is updated and approved.
+
+## Planning Package Closeout Flow
+
+Automatically select this flow when the task is planning-only, manual handoff is
+the main cost, submit or push is explicitly authorized or separately assigned to
+a Submit Controller, role separation can be preserved, and the likely outputs
+are roadmap, capability map, milestone plan, entry gate, phase docs, ledger,
+evidence/status records, review packet, closeout, or submit handoff.
+
+Do not select it when product code, runtime behavior, schema, migrations, test
+implementation, release artifacts, credentials, production data, approval-gate
+state, source authority, information architecture, public contracts, or
+validator meaning will change.
+
+One root session may orchestrate the whole planning package lifecycle, but role
+authority remains separate:
+
+1. Planning Author prepares or repairs the planning package.
+2. Planning Review checks granularity, authority, evidence, gates, and status.
+3. Targeted Fix resolves only Planning Review findings inside the planning
+   artifact boundary.
+4. Targeted Re-Review checks only changed planning, ledger, evidence, status,
+   closeout, or packet items unless broader semantics changed.
+5. Closeout/Status records compact history, ledger state, and next action.
+6. Submit Controller commits, pushes, or hands off only after explicit submit
+   authority, changed-file review, verification, and hygiene checks.
+
+If any planning change alters semantics, permissions, source authority,
+information architecture, public contracts, approval gates, validator meaning,
+or implementation scope, stop this flow and run full affected review lanes
+before submit.
 
 ## Capability Adapter Planning
 

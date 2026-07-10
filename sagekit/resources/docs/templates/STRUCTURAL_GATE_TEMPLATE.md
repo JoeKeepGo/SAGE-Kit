@@ -64,7 +64,8 @@ Use this short check after Final Review when the verdict is not cleanly
 acceptable.
 
 ```markdown
-Review Closure Status: CLOSED, CORRECTIVE_OPENED, PM_DECISION_REQUIRED, or BLOCKED
+Review Closure Status: CLOSED, CORRECTIVE_OPENED, CORRECTIVE_CONTINUING,
+PM_DECISION_REQUIRED, or BLOCKED
 
 Final Review Packet Ref:
 
@@ -77,21 +78,32 @@ Verdict Closure Branch:
 - `ACCEPTABLE_WITH_CONCERNS`: Project Manager may accept with recorded concerns,
   waiver, deferred owner, or return for decision.
 - `NEEDS_CORRECTION`: open corrective round, request PM waiver/decision, or mark
-  blocker. Do not close as accepted without the PM record.
+  blocker. Continue automatic correction only inside an authorized corrective
+  packet or boundary while convergence is proven and scope does not expand. Do
+  not close as accepted without the PM record.
 - `BLOCKED`: mark blocked or return for blocker resolution. Do not accept.
 
 | Check | Status | Notes |
 |---|---|---|
 | Permission mode recorded | `<yes/no>` | `<notes>` |
 | Findings classified | `<yes/no>` | `<notes>` |
+| Severity gate applied | `<yes/no>` | `<open P0/P1 block; authority/false-green/approval-gate/security/validator/gate-ready/source-authority/evidence-integrity P2 block; ordinary P2/P3 handling>` |
 | Corrective packet attached when required | `<yes/no/n/a>` | `<notes>` |
 | PM decision request attached when required | `<yes/no/n/a>` | `<notes>` |
 | Blocker named when correction cannot proceed | `<yes/no/n/a>` | `<notes>` |
 | Re-review required and owner named | `<yes/no/n/a>` | `<notes>` |
+| Convergence trend recorded | `<yes/no/n/a>` | `<finding count/severity trend and root-cause progress>` |
+| Targeted or full re-review scope justified | `<yes/no/n/a>` | `<targeted status/evidence lanes or full affected lanes>` |
 
 Decision:
 - Open corrective round for `AUTO_CORRECTIVE` findings
+- Continue corrective work only inside an authorized corrective packet or
+  boundary when finding count or severity is decreasing, scope does not expand,
+  no blocking approval gate is bypassed, and no new authority, false-green,
+  approval-gate, security, validator/gate-ready, source-authority, or
+  evidence-integrity risk appears
 - Return to Project Manager for decision, waiver, defer, or scope authority
-- Mark blocked for `BLOCKED` verdicts or unresolved blockers
+- Mark blocked for `BLOCKED` verdicts, unresolved blockers, or two consecutive
+  rounds with the same root cause and no material progress
 - Close only after the verdict branch above is satisfied
 ```

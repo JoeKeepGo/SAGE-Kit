@@ -28,6 +28,9 @@ against the spec without losing context, widening scope, or hiding risk.
 - Use Task Dispatch Profile only when the active milestone or execution packet
   adopts structured task/evidence records, resource locks, leases, and validator
   closeout.
+- Use Planning Package Closeout only when the work is planning-only and role
+  separation, targeted review, and submit authority can be preserved inside one
+  root session.
 - Route work to relevant external capabilities when the agent runtime exposes a
   capability list.
 - Use `docs/agent/CAPABILITY_ADAPTERS.md` when an external capability is
@@ -188,7 +191,11 @@ Before batch execution starts, the controller must record:
   Orchestration is used.
 
 A batch run must stop when any phase has a blocking `FAIL`, `BLOCKED`, or
-unapproved `WAIVED` gate.
+unapproved `WAIVED` gate. Corrective work may continue automatically only
+inside an authorized corrective packet or boundary while the open finding count
+or severity is improving, scope is not expanding, no blocking approval gate is
+bypassed, and no new authority, false-green, approval-gate, security,
+validator/gate-ready, source-authority, or evidence-integrity risk appears.
 
 ## File Ownership
 
@@ -257,7 +264,10 @@ The agent may claim `DONE` only after verification evidence is fresh and no
 blocking gate is skipped, failed, unresolved, or missing required memory
 maintenance.
 
-Use `BLOCKED` when a required gate cannot produce evidence.
+Use `BLOCKED` when a required gate cannot produce evidence, authority is
+missing, approved scope would need to expand, or the same corrective root cause
+has made no material progress for two consecutive rounds inside the authorized
+corrective boundary.
 
 Use `HANDOFF` when work is intentionally paused for review, approval, or
 controller integration.

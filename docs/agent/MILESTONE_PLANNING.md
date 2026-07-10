@@ -125,7 +125,7 @@ Conditional optional controls:
   `Not enabled: <reason>`.
 - Session Orchestration: if repeated manual handoff across phases justifies it,
   name Project Manager, Coder, Final Review, packet paths, structural gate, and
-  corrective round limit. Otherwise: `Not enabled: <reason>`.
+  corrective convergence budget. Otherwise: `Not enabled: <reason>`.
 - Worktree Isolation: if isolation is authorized, name modes by scope, maximum
   count, branch/worktree naming, submit authority, and cleanup policy.
   Otherwise: `Not enabled: <reason>`.
@@ -140,6 +140,47 @@ Conditional optional controls:
 - External planning workflows: when used, name where outputs are written into or
   mapped to milestone, phase, or packet docs. Otherwise:
   `Not enabled: <reason>`.
+
+## Planning Package Closeout Flow
+
+Use this optional flow when the work is planning-only and the main cost is
+manual handoff between planning, planning review, closeout or status updates,
+and submit.
+
+The model should select this flow automatically when all are true:
+
+- the requested work creates or updates planning artifacts such as roadmap,
+  capability map, milestone plan, entry gate, phase docs, ledger, review packet,
+  evidence or status records, or closeout;
+- no product code, runtime behavior, schema, migration, test implementation,
+  release artifact, credentials, production data, or approval-gate state is in
+  scope;
+- submit or push is explicitly authorized, or will be handled by a separately
+  authorized Submit Controller;
+- role separation can be preserved inside one root session.
+
+Recommended root-session orchestration:
+
+1. Planning Author prepares or repairs the planning package.
+2. Planning Review checks granularity, authority, evidence, gates, and status.
+3. Targeted Fix applies only Planning Review findings inside the planning
+   artifact boundary.
+4. Targeted Re-Review verifies changed planning, ledger, evidence, status, or
+   closeout items.
+5. Closeout/Status updates compact history, ledger state, and next action.
+6. Submit Controller stages, commits, pushes, or hands off only after submit
+   authority, changed-file review, verification, and hygiene checks pass.
+
+Role separation still applies even when one session orchestrates every step:
+
+- Planning Author must not be the Planning Reviewer.
+- Planning Reviewer must not submit or accept the milestone.
+- Targeted Fix must not expand the planning package scope.
+- Submit Controller must not reinterpret planning acceptance.
+- If planning changes semantics, permission boundaries, source authority,
+  information architecture, public contracts, approval gates, validator meaning,
+  or implementation scope, stop the planning package flow and run full affected
+  review lanes before submit.
 
 ## Planning Blockers
 

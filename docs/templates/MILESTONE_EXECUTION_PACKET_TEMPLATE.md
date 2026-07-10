@@ -37,7 +37,7 @@ Permission Mode:
 - Project Manager final decision authority: `<separate PM decision record; not Final Review acceptance>`
 - Corrective auto-open allowed: `<yes/no>`
 - Corrective packet-only when read-only: `<yes/no>`
-- Maximum corrective rounds:
+- Corrective convergence budget:
 - Environment-write authority:
 - Submit/cleanup authority:
 - Permission upgrade requires:

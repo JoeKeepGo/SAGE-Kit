@@ -38,6 +38,45 @@ Review for:
 
 Lead with blocking findings before summaries.
 
+## Severity And Acceptance
+
+Use severity to decide whether Project Manager acceptance is blocked:
+
+- Open `P0` and `P1` findings block acceptance. They may close only after the
+  issue is fixed or explicitly reclassified with evidence by the required
+  authority.
+- `P2` findings block acceptance only when they involve authority conflict,
+  false-green risk, approval gates, security boundaries,
+  validator/gate-ready requirements, source authority, or evidence integrity.
+- Ordinary documentation consistency `P2` findings may be accepted with
+  concerns or auto-corrected when they do not affect authority, gate, security,
+  validator, or evidence boundaries.
+- `P3` findings do not block acceptance. Record them as concerns, follow-up, or
+  cleanup.
+
+## Corrective Convergence
+
+Do not mark work `BLOCKED` merely because a fixed corrective round count was
+reached.
+
+Continue automatic correction only inside an authorized corrective packet or
+boundary while findings are decreasing in count or severity, scope is not
+expanding, no blocking approval gate is bypassed, and no new authority,
+false-green, approval-gate, security, validator/gate-ready, source-authority, or
+evidence-integrity risk appears.
+
+Return `BLOCKED` when the same root cause has no material progress for two
+consecutive corrective rounds, required evidence or authority is missing, the
+fix exceeds the approved boundary, or no authorized path can make progress. Use
+`NEEDS_CORRECTION` with `PM_DECISION_REQUIRED` closure/status when Project
+Manager judgment is needed.
+
+Use targeted re-review when only ledger, evidence, status, closeout, or packet
+bookkeeping changed. Rerun full affected lanes when semantics, permissions,
+source authority, information architecture, public contracts, runtime behavior,
+security posture, approval gates, validator meaning, or required evidence
+changed.
+
 ## Completion Report Must Name
 
 - scope implemented;
@@ -152,9 +191,22 @@ When Session Orchestration is used:
 - Rerun affected review workers, review subagents, or validation lanes when the
   original review used them, the fix touches behavior, contracts, runtime,
   shared files, gates, or the regression surface is unclear.
+- Use targeted status/evidence re-review for ledger, evidence, status, closeout,
+  or packet-only correction when no semantic, permission, source authority,
+  information architecture, contract, runtime, security, gate, validator, or
+  required-evidence meaning changed.
 - Corrective packets must name findings, classification, files, commands,
   permission mode, and stop conditions.
-- After the corrective round limit, return `HANDOFF` or `BLOCKED`.
+- Continue correction under the convergence rule only inside an authorized
+  corrective packet or boundary when findings or severity are still decreasing,
+  scope is stable, no blocking approval gate is bypassed, and no new authority,
+  false-green, approval-gate, security, validator/gate-ready, source-authority,
+  or evidence-integrity risk appears. In Final Review, use `NEEDS_CORRECTION`
+  with `PM_DECISION_REQUIRED` closure/status when Project Manager judgment is
+  needed; return `BLOCKED` only when no authorized path can make progress,
+  required evidence or authority is missing, or the approved boundary would be
+  exceeded. Use `HANDOFF` only as a milestone/session handoff target, not as a
+  Final Review verdict.
 
 ## Submit Gate
 
@@ -164,8 +216,16 @@ Before commit, push, PR, or final handoff:
 2. Review changed and staged files.
 3. Scan for secrets or local data when applicable.
 4. Run required verification.
+   Treat successful line-ending notices, such as `git diff --check` reporting
+   LF-to-CRLF conversion with exit code `0`, as non-blocking platform warnings.
+   Treat trailing whitespace, conflict markers, malformed patches, or any
+   non-zero verification exit as blocking.
 5. Confirm completion report, ledger, and memory maintenance are current.
 6. Confirm worktree submit and cleanup authority when worktrees were used.
 7. Confirm Task Dispatch validator success when the profile is active and the
    gate requires it.
-8. Commit or hand off only intended scope.
+8. For planning package closeout, confirm the diff contains only planning
+   artifacts, ledgers, evidence/status records, closeouts, or packet updates,
+   and that Planning Author, Planning Review, Targeted Fix, Targeted Re-Review,
+   Closeout/Status, and Submit Controller authority stayed separate.
+9. Commit or hand off only intended scope.

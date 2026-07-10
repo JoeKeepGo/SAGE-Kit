@@ -154,10 +154,28 @@ handoff.
   `PM_DECISION`, `BLOCKED`, or `DEFER`. If corrective execution is authorized,
   it may open a bounded corrective round; if review is read-only, it must return
   a packet-only corrective handoff or blocker.
+- Severity gates acceptance: open P0/P1 always block; P2 blocks only for
+  authority, false-green, approval gate, security, validator/gate-ready, source
+  authority, or evidence-integrity issues; ordinary documentation-consistency
+  P2 may close as concerns or be auto-corrected; P3 does not block.
 - After corrective work, Final Review must require independent re-review
   evidence before closure. Rerun affected review workers, review subagents, or
   validation lanes when the original review used them, the fix touches behavior,
   contracts, runtime, shared files, gates, or the regression surface is unclear.
+- Do not mark `BLOCKED` merely because a fixed corrective round count was
+  reached. Continue only inside an authorized corrective packet or boundary
+  while findings or severity decrease, scope does not expand, no blocking
+  approval gate is bypassed, and no new authority, false-green, approval-gate,
+  security, validator/gate-ready, source-authority, or evidence-integrity risk
+  appears. Mark `BLOCKED` when the same root cause makes no material progress
+  for two consecutive corrective rounds, required evidence or authority is
+  missing, or the fix would exceed the approved boundary. When Project Manager
+  judgment is needed, return `NEEDS_CORRECTION` with `PM_DECISION_REQUIRED`
+  closure/status rather than `BLOCKED`.
+- Use targeted status/evidence re-review for ledger, evidence, status, closeout,
+  or packet-only corrections. Rerun full affected lanes when semantics,
+  permissions, source authority, information architecture, contracts, runtime,
+  security, approval gates, validator meaning, or required evidence changed.
 - Do not claim Wave Execution or parallel phases unless Wave Readiness is
   proven with independent lanes, exclusive writable files, serial shared files,
   frozen contracts, runtime ownership, validation lanes, and integration owner.
@@ -170,6 +188,17 @@ handoff.
 - Use Project Owner Entry for broad or non-technical ideas, but do not promote
   its draft outputs into an executable roadmap until a capability map and
   Milestone Granularity Gate pass.
+- Automatically select Planning Package Closeout Flow when the work is
+  planning-only, manual handoff is the main cost, submit or push is explicitly
+  authorized or separately assigned to a Submit Controller, role separation can
+  be preserved, and the work is limited to roadmap, capability map, milestone,
+  phase, ledger,
+  evidence/status, review packet, closeout, or submit handoff artifacts.
+  Preserve separate Planning Author, Planning Review, Targeted Fix, Targeted
+  Re-Review, Closeout/Status, and Submit Controller authority. Stop and run full
+  affected review lanes if semantics, permissions, source authority,
+  information architecture, contracts, approval gates, validator meaning,
+  implementation scope, or runtime behavior changes.
 
 ## End Of Run
 

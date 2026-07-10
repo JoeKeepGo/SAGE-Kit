@@ -170,6 +170,7 @@ SAGE-Kit supports these execution controls:
 | Worktree Isolation | Optional isolation policy for authorized milestone, phase, lane, or review workspaces. | `docs/agent/WORKTREE_ISOLATION.md` |
 | Task Dispatch Profile | Optional structured task/evidence records, resource locks, leases, and validator-backed gate closeout. | `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` |
 | Capability Adapters | Optional external capability routing with authorization, evidence mapping, and fallback policy. | `docs/agent/CAPABILITY_ADAPTERS.md` |
+| Planning Package Closeout | Optional one-session orchestration for planning-only package, review, targeted fix, closeout/status, and submit handoff with separate role authority. | `docs/agent/MILESTONE_PLANNING.md` |
 
 Explore:
 
@@ -212,6 +213,9 @@ Submit:
 
 - Review changed files.
 - Check local data hygiene.
+- Use planning package closeout only when changes are limited to planning
+  artifacts, ledgers, evidence or status records, and closeouts, and role
+  separation plus submit authority are explicit.
 - Maintain `docs/ACTIVE_CONTEXT.md` as a current-state snapshot only when the
   role or packet has both write permission and ownership; otherwise return a
   memory update proposal or no-change note.

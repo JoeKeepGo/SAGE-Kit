@@ -74,6 +74,15 @@ External planning outputs must be written into or mapped to the retained
 milestone, phase, or packet documents. Do not maintain a second planning source
 of truth.
 
+When work is planning-only, the same root session may orchestrate a planning
+package closeout flow with separate Planning Author, Planning Review, Targeted
+Fix, Targeted Re-Review, Closeout/Status, and Submit Controller roles. Use this
+only for planning artifacts, ledgers, evidence or status records, and closeouts.
+Do not include product code, runtime behavior, schema, migrations, test
+implementation, release artifacts, credentials, production data, or approval
+gate state. Submit or push still requires explicit `SUBMIT_AUTHORIZED` scope
+and a changed-file, verification, and hygiene check.
+
 For large milestones with many phases or high handoff overhead, use
 `docs/agent/SESSION_ORCHESTRATION.md` and create a milestone execution packet
 instead of manually forwarding each phase between sessions.

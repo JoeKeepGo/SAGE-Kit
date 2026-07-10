@@ -212,8 +212,17 @@ When Session Orchestration is active:
   Final Review treats them as an evidence index to verify, not as proof by
   themselves.
 
-Maximum corrective rounds must be configured by the execution or Final Review
-packet.
+Corrective convergence budgets may be configured by the execution or Final
+Review packet, but they are control signals, not unconditional blockers.
+Continue automatic correction only inside an authorized corrective packet or
+boundary while findings or severity decrease, scope does not expand, no
+blocking approval gate is bypassed, and no new authority, false-green,
+approval-gate, security, validator/gate-ready, source-authority, or
+evidence-integrity risk appears. Stop as `BLOCKED` when the same root cause has
+no material progress for two consecutive rounds, required evidence or authority
+is missing, or the fix would exceed the approved boundary. When Project Manager
+judgment is needed, return `NEEDS_CORRECTION` with `PM_DECISION_REQUIRED`
+closure/status rather than `BLOCKED`.
 
 Coder and Final Review controllers must reassess whether the milestone should
 run serially, with waves inside phases, or with parallel phases. Heavy mode

@@ -477,6 +477,12 @@ current risk:
 - Use Worktree Isolation only when the Project Manager explicitly authorizes it.
 - Use Task Dispatch Profile only when structured task/evidence records and
   validator closeout are worth the extra overhead.
+- Use Planning Package Closeout when the work is planning-only, manual handoff
+  is the main cost, submit or push is explicitly authorized or separately
+  assigned to a Submit Controller, role separation can be preserved, and one
+  root session can safely orchestrate planning author, planning review,
+  targeted fix, targeted re-review, closeout/status, and submit handoff without
+  changing product code or gate authority.
 
 ### Bootstrap A New Project
 
@@ -668,6 +674,23 @@ change, shared ownership change, or submit/cleanup authority. After bounded
 corrections, Final Review must re-review the affected findings before Project
 Manager acceptance.
 
+Corrective work uses a convergence rule, not a fixed "round count means
+blocked" rule. Open P0/P1 findings block acceptance. P2 findings block only
+when they affect authority, false-green risk, approval gates, security,
+validator readiness, source authority, or evidence integrity. Ordinary
+documentation consistency P2 findings can close as concerns or auto-correct; P3
+findings do not block. Continue automatic correction only inside an authorized
+corrective packet or boundary while findings or severity are decreasing, scope
+is stable, no blocking approval gate is bypassed, and no new authority,
+false-green, gate, security, validator, source-authority, or evidence-integrity
+risk appears. Block only when the same root cause stalls for two rounds,
+required evidence or authority is missing, or the approved boundary would be
+exceeded. If Project Manager judgment is needed, return `NEEDS_CORRECTION` with
+`PM_DECISION_REQUIRED`, not `BLOCKED`. Ledger, evidence, status, closeout, or
+packet-only fixes can use targeted status/evidence re-review; semantic,
+permission, source-authority, contract, runtime, security, gate, or validator
+changes require full affected lanes.
+
 ### External Capabilities And Superpowers
 
 SAGE-Kit does not replace specialist capabilities. When the runtime exposes
@@ -730,6 +753,12 @@ Before calling work complete:
 - update completion report and milestone ledger;
 - update active context only with durable current-state changes;
 - write milestone closeout only when the milestone is actually closing.
+
+Line-ending notices are non-blocking platform warnings when the verification
+command succeeds. For example, `git diff --check` LF-to-CRLF warnings with exit
+code `0` should be reported but must not block acceptance. Trailing whitespace,
+conflict markers, malformed patches, or any non-zero verification exit remain
+blocking.
 
 Final Review recommends. Project Manager decides milestone acceptance.
 
