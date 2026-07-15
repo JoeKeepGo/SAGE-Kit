@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,60 @@ def run_sagekit(*args, cwd):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+
+
+MARKDOWN_FIELD_RE = re.compile(r"^(?P<prefix>\s*(?:-\s+)?)?(?P<label>[A-Za-z][^:\n]{0,100}):\s*(?P<value>.*)$")
+
+
+def parse_markdown_fields(text):
+    fields = []
+    current = None
+    for line in text.splitlines():
+        match = MARKDOWN_FIELD_RE.match(line)
+        if match and not line.lstrip().startswith(("|", "#")):
+            current = {
+                "label": match.group("label").strip(),
+                "value": match.group("value").strip(),
+            }
+            fields.append(current)
+            continue
+        stripped = line.strip()
+        if current and stripped and not stripped.startswith(("|", "#", "```")):
+            current["value"] = f"{current['value']} {stripped}".strip()
+        else:
+            current = None
+    return fields
+
+
+def parse_markdown_table_rows(text):
+    rows = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not (stripped.startswith("|") and stripped.endswith("|")):
+            continue
+        cells = [cell.strip().strip("`") for cell in stripped.strip("|").split("|")]
+        if cells and all(re.fullmatch(r"[: -]+", cell) for cell in cells):
+            continue
+        rows.append(cells)
+    return rows
+
+
+def instantiate_markdown_packet(template, values):
+    seen = set()
+    lines = []
+    for line in template.splitlines():
+        match = MARKDOWN_FIELD_RE.match(line)
+        label = match.group("label").strip() if match else None
+        if label in values:
+            prefix = match.group("prefix") or ""
+            lines.append(f"{prefix}{label}: {values[label]}")
+            seen.add(label)
+        else:
+            lines.append(line)
+    missing = set(values) - seen
+    if missing:
+        raise AssertionError(f"template fields missing: {sorted(missing)}")
+    return "\n".join(lines)
 
 
 def write_file(root, path, text):
@@ -1186,6 +1241,317 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertTrue((root / "docs/SAGE_CORE.md").exists())
         self.assertIn("External Capability Boundary", (root / "docs/SAGE_CORE.md").read_text(encoding="utf-8"))
         self.assertTrue((root / "docs/agent/GOVERNANCE_LEVELS.md").exists())
+
+    def test_deterministic_closure_contract_is_complete_and_preserves_authority(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        orchestration = (root / "docs/agent/SESSION_ORCHESTRATION.md").read_text(encoding="utf-8")
+        governance = (root / "docs/agent/GOVERNANCE_LEVELS.md").read_text(encoding="utf-8")
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        orchestration_contract = " ".join(orchestration.split())
+
+        self.assertIn("without starting another review lane, subagent, or", orchestration)
+        self.assertIn("Closure Receipt Owner", orchestration_contract)
+        self.assertIn("original Final Review Controller or named review packet author", orchestration_contract)
+        self.assertIn("must be different from the Corrective Worker", orchestration_contract)
+        self.assertIn(
+            "run the reviewer-authored deterministic closure commands directly or cite a trusted machine/CI result",
+            orchestration_contract,
+        )
+        self.assertIn("does not grant implementation or corrective-surface write authority", orchestration_contract)
+        self.assertIn("fixer self-report", orchestration_contract)
+        self.assertIn("corresponding surface owner with matching write/corrective authority", orchestration_contract)
+        self.assertIn("VERDICT_FINALIZED_FROM_RECEIPT", orchestration_contract)
+        self.assertIn("Final Review still owns the verdict", orchestration_contract)
+        self.assertIn("Project Manager still owns acceptance", orchestration_contract)
+
+        self.assertIn("fix according to a pre-authored Deterministic Closure predicate", governance)
+        self.assertIn("must not record the closure receipt", governance)
+        self.assertNotIn("satisfy a pre-authored Deterministic Closure predicate", governance)
+        self.assertIn("VERDICT_FINALIZED_FROM_RECEIPT", skill)
+        self.assertIn("not milestone acceptance", skill)
+
+    def test_deterministic_closure_templates_express_receipt_and_verdict_transition(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        template_paths = [
+            "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md",
+            "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md",
+            "docs/templates/LANE_PACKET_TEMPLATE.md",
+            "docs/agent/HANDOFF_TEMPLATE.md",
+            "docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
+            "docs/templates/MILESTONE_LEDGER_TEMPLATE.md",
+            "docs/templates/PHASE_TEMPLATE.md",
+            "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
+        ]
+
+        for path in template_paths:
+            with self.subTest(path=path):
+                text = (root / path).read_text(encoding="utf-8")
+                self.assertIn("NOT_REQUIRED_DETERMINISTIC", text)
+                self.assertIn("AUTO_CLOSED_BY_PREDICATE", text)
+                self.assertIn("Closure Receipt Owner", text)
+                self.assertIn("Closure Receipt Ref", text)
+                self.assertIn("Closure Receipt Destination", text)
+                self.assertIn("VERDICT_FINALIZED_FROM_RECEIPT", text)
+                fields = parse_markdown_fields(text)
+                field_surfaces = [
+                    field for field in fields if field["label"].lower() == "re-review status"
+                ]
+                table_surfaces = [
+                    row
+                    for row in parse_markdown_table_rows(text)
+                    if row[0].lower() in {"corrective re-review", "re-review status"}
+                ]
+                self.assertEqual(len(field_surfaces) + len(table_surfaces), 1)
+
+        unified_status_paths = [
+            "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md",
+            "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md",
+            "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
+        ]
+        for path in unified_status_paths:
+            with self.subTest(path=path):
+                text = (root / path).read_text(encoding="utf-8")
+                status_fields = [
+                    field
+                    for field in parse_markdown_fields(text)
+                    if field["label"] == "Re-review status"
+                    or field["label"].lower().endswith("deterministic closure status")
+                ]
+                self.assertEqual(len(status_fields), 1, status_fields)
+                for status in [
+                    "NOT_STARTED",
+                    "IN_REVIEW",
+                    "PASSED",
+                    "FAILED",
+                    "NOT_REQUIRED_DETERMINISTIC",
+                ]:
+                    self.assertIn(status, status_fields[0]["value"])
+                self.assertIn("never record deterministic closure as `PASSED` re-review", text)
+
+        final_review = (root / template_paths[0]).read_text(encoding="utf-8")
+        self.assertRegex(
+            final_review,
+            r"NEEDS_CORRECTION[\s\S]+AUTO_CLOSED_BY_PREDICATE[\s\S]+VERDICT_FINALIZED_FROM_RECEIPT",
+        )
+        self.assertIn("Precommitted Final Verdict", final_review)
+        self.assertIn("does not re-review files", final_review)
+        self.assertIn("Project Manager acceptance remains pending", final_review)
+
+        completion_report = (root / template_paths[-1]).read_text(encoding="utf-8")
+        self.assertIn("Finding closure status", completion_report)
+        self.assertIn("Finalized verdict", completion_report)
+        self.assertIn("PM acceptance pending", completion_report)
+
+    def test_planning_correction_selects_deterministic_closure_or_targeted_rereview(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        planning_docs = [
+            (root / "docs/agent/MILESTONE_PLANNING.md").read_text(encoding="utf-8"),
+            (REPO_ROOT / "skills/sage-kit/references/planning.md").read_text(encoding="utf-8"),
+        ]
+        for text in planning_docs:
+            normalized = " ".join(text.split())
+            self.assertNotRegex(normalized, r"NEEDS_CORRECTION.{0,80}Targeted Fix, then Targeted Re-Review")
+            branch_start = normalized.index("NEEDS_CORRECTION")
+            branch = normalized[branch_start : branch_start + 700]
+            self.assertLess(branch.index("Targeted Fix"), branch.index("strict Deterministic Closure"))
+            self.assertLess(branch.index("strict Deterministic Closure"), branch.index("Targeted Re-Review"))
+            self.assertIn("Closure Receipt Owner", normalized)
+            self.assertIn("Verdict Finalization", normalized)
+
+        review_completion = (REPO_ROOT / "skills/sage-kit/references/review-completion.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn(
+            "Planning Author, Planning Review, Targeted Fix, Targeted Re-Review,",
+            review_completion,
+        )
+        self.assertRegex(
+            " ".join(review_completion.split()),
+            r"Planning Author.{0,200}Closure Receipt Owner.{0,200}Verdict Finalization.{0,200}Targeted Re-Review",
+        )
+
+        skill_entry = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        engineering_source = (REPO_ROOT / "docs/ENGINEERING_SYSTEM_TEMPLATE.md").read_text(
+            encoding="utf-8"
+        )
+        engineering_mirror = (
+            root / "docs/ENGINEERING_SYSTEM_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(engineering_source, engineering_mirror)
+        for text in [skill_entry, engineering_source, engineering_mirror]:
+            normalized = " ".join(text.split())
+            self.assertNotIn(
+                "Planning Author, Planning Review, Targeted Fix, Targeted Re-Review, Closeout/Status",
+                normalized,
+            )
+            self.assertRegex(
+                normalized,
+                r"Planning Author, Planning Review, Targeted Fix, Closure Verification.{0,100}strict Deterministic Closure.{0,100}Targeted Re-Review.{0,100}Closeout/Status.{0,100}Submit Controller",
+            )
+
+    def test_ledger_uses_only_canonical_corrective_rereview_row(self):
+        from sagekit.init import package_resource_root
+
+        ledger = (
+            package_resource_root() / "docs/templates/MILESTONE_LEDGER_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        rows = [row for row in parse_markdown_table_rows(ledger) if row[0] == "Corrective re-review"]
+        self.assertEqual(len(rows), 1, rows)
+        for status in [
+            "NOT_STARTED",
+            "IN_REVIEW",
+            "PASSED",
+            "FAILED",
+            "NOT_REQUIRED_DETERMINISTIC",
+        ]:
+            self.assertIn(status, rows[0][3])
+
+        fields = parse_markdown_fields(ledger)
+        self.assertFalse([field for field in fields if field["label"] == "Re-review status"])
+        canonical_refs = [
+            field for field in fields if field["label"] == "Canonical re-review status source"
+        ]
+        self.assertEqual(len(canonical_refs), 1, canonical_refs)
+        self.assertIn("Corrective re-review", canonical_refs[0]["value"])
+
+    def test_corrective_packet_instantiates_honest_prefix_state_and_owner_followup(self):
+        from sagekit.init import package_resource_root
+
+        template = (
+            package_resource_root() / "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        follow_up = "Receipt Owner Follow-Up (outside Corrective Worker authority)"
+        evidence_return = "Corrective Worker Evidence Return"
+        self.assertLess(template.index(evidence_return), template.index(follow_up))
+
+        receipt_labels = [
+            "Closure receipt status",
+            "Closure Receipt Owner",
+            "Closure Receipt Ref",
+            "Closure Receipt Destination",
+            "Verdict finalization status",
+            "Finalized verdict",
+            "PM acceptance pending",
+        ]
+        follow_up_start = template.index(follow_up)
+        for label in receipt_labels:
+            self.assertGreater(template.index(f"- {label}:", follow_up_start), follow_up_start)
+
+        template_fields = parse_markdown_fields(template)
+        receipt_status_fields = [
+            field for field in template_fields if field["label"] == "Closure receipt status"
+        ]
+        self.assertEqual(len(receipt_status_fields), 1, receipt_status_fields)
+        receipt_status_default = receipt_status_fields[0]["value"]
+        self.assertTrue(receipt_status_default.startswith("`PENDING_RECEIPT`"))
+        self.assertIn("default before owner follow-up", receipt_status_default)
+
+        instance = instantiate_markdown_packet(
+            template,
+            {
+                "Re-review status": "`NOT_REQUIRED_DETERMINISTIC`",
+                "Closure receipt status": "`PENDING_RECEIPT`",
+                "Closure Receipt Owner": "`Final Review Controller`",
+                "Closure Receipt Ref": "`pending`",
+                "Closure Receipt Destination": "`review-packet.md`",
+                "Verdict finalization status": "`PENDING_CORRECTION`",
+                "Finalized verdict": "`N/A`",
+                "PM acceptance pending": "`yes`",
+            },
+        )
+        values = {field["label"]: field["value"] for field in parse_markdown_fields(instance)}
+        self.assertEqual(values["Closure receipt status"], "`PENDING_RECEIPT`")
+        self.assertEqual(values["Verdict finalization status"], "`PENDING_CORRECTION`")
+        self.assertEqual(values["PM acceptance pending"], "`yes`")
+        self.assertRegex(
+            " ".join(template.split()),
+            r"Corrective Worker Evidence Return.{0,500}must not fill or record receipt or verdict-finalization fields",
+        )
+
+    def test_authoritative_reject_table_forces_review_fallback(self):
+        from sagekit.init import package_resource_root
+
+        orchestration = (
+            package_resource_root() / "docs/agent/SESSION_ORCHESTRATION.md"
+        ).read_text(encoding="utf-8")
+        rows = [
+            row
+            for row in parse_markdown_table_rows(orchestration)
+            if len(row) == 2 and "INVALID_REVIEW_REQUIRED" in row[1]
+        ]
+        conditions = [row[0].lower() for row in rows]
+        for marker in [
+            "same actor",
+            "non-owned surface",
+            "extra or ambiguous diff",
+            "trusted machine/CI",
+            "State Truth Reconciliation",
+        ]:
+            self.assertTrue(any(marker.lower() in condition for condition in conditions), (marker, rows))
+        for _, result in rows:
+            self.assertIn("targeted/full re-review", result)
+
+        self.assertIn("Project Manager acceptance remains pending", orchestration)
+
+    def test_deterministic_closure_state_truth_path_is_reachable(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        orchestration = (root / "docs/agent/SESSION_ORCHESTRATION.md").read_text(encoding="utf-8")
+        review_completion = (REPO_ROOT / "skills/sage-kit/references/review-completion.md").read_text(
+            encoding="utf-8"
+        )
+        quality_gates = (root / "docs/QUALITY_GATES_TEMPLATE.md").read_text(encoding="utf-8")
+        combined = "\n".join([orchestration, review_completion, quality_gates])
+        combined_contract = " ".join(combined.split())
+
+        self.assertIn("State Truth conflicts block closure until the responsible surface owners reconcile them", combined_contract)
+        self.assertIn("substantive evidence and authoritative value were already reviewed", combined_contract)
+        self.assertIn("out-of-scope hashes", combined_contract)
+        reject_rows = [
+            row
+            for row in parse_markdown_table_rows(orchestration)
+            if len(row) == 2 and "INVALID_REVIEW_REQUIRED" in row[1]
+        ]
+        risk_rows = [
+            row
+            for row in reject_rows
+            if all(marker in row[0].lower() for marker in ["authoritative value", "false-green", "gate-ready"])
+        ]
+        self.assertEqual(len(risk_rows), 1, reject_rows)
+        self.assertIn("targeted/full re-review", risk_rows[0][1])
+        self.assertIn("Outside strict Deterministic Closure", orchestration)
+        self.assertIn("Outside strict Deterministic Closure", review_completion)
+        self.assertNotIn("underlying evidence/verdict already accepted", combined)
+        self.assertNotIn("underlying evidence and verdict already passed review", combined)
+        self.assertNotIn("named status/ledger controller", combined)
+
+    def test_core_and_readmes_do_not_unconditionally_require_corrective_rereview(self):
+        core = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8")
+        quality = (REPO_ROOT / "docs/QUALITY_GATES_TEMPLATE.md").read_text(encoding="utf-8")
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        readme_zh = (REPO_ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+
+        for text in [core, quality, readme, readme_zh]:
+            self.assertIn("Deterministic Closure", text)
+            self.assertIn("VERDICT_FINALIZED_FROM_RECEIPT", text)
+
+        self.assertNotIn("- corrective re-review evidence when corrective work changes files", core)
+        self.assertNotIn("\n  -> independent corrective re-review\n", readme)
+        self.assertNotIn("After bounded\ncorrections, Final Review must re-review", readme)
+        self.assertNotIn("Bounded corrections 完成后，Final Review 必须先复审", readme_zh)
+        self.assertNotIn(
+            "corrective work changes files, behavior, contracts, runtime behavior, gate\n"
+            "  state, shared ownership, or required evidence without independent re-review\n"
+            "  evidence;",
+            quality,
+        )
 
 
 if __name__ == "__main__":

@@ -3,7 +3,12 @@
 Use this packet from Final Review Controller to Project Manager Controller.
 
 ```markdown
-Verdict: ACCEPTABLE, ACCEPTABLE_WITH_CONCERNS, NEEDS_CORRECTION, or BLOCKED
+Initial Verdict: `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, `NEEDS_CORRECTION`, or `BLOCKED`
+
+Current Final Verdict: `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, `NEEDS_CORRECTION`, or `BLOCKED`
+
+Verdict Finalization Status: `NOT_APPLICABLE`, `PENDING_CORRECTION`,
+`VERDICT_FINALIZED_FROM_RECEIPT`, or `FINALIZED_BY_REVIEW`
 
 Milestone:
 
@@ -152,9 +157,19 @@ Corrective Packet Required: `<yes/no>`
 Corrective Packet:
 - `<path or inline summary>`
 
+Reviewer-Authored Deterministic Closure Predicates (optional; record before
+corrective editing):
+
+| Finding ID | Finding Classification | Closure Eligibility Class | Exact Files And Fields | Authoritative Value And Source Ref | Allowed Diff | Closure Commands | Out-Of-Scope Protected Hashes | Precommitted Final Verdict | Closure Receipt Owner | Closure Receipt Destination |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `<id>` | `AUTO_CORRECTIVE` | `MECHANICAL_STATUS` | `<files/fields>` | `<value/ref>` | `<exact diff>` | `<commands>` | `<out-of-scope hashes>` | `ACCEPTABLE` or `ACCEPTABLE_WITH_CONCERNS` | `<original Final Review Controller/named packet author; not fixer>` | `<this review packet/output>` |
+
+Do not add or broaden a predicate after corrective editing begins.
+
 Corrective Closure:
 - Closure mode: `NONE`, `READ_ONLY_PACKET_ONLY`, `AUTO_OPEN_AUTHORIZED`,
-  `AUTO_CONTINUE_CONVERGING`, `PM_DECISION_REQUIRED`, or `BLOCKED`
+  `AUTO_CONTINUE_CONVERGING`, `DETERMINISTIC_PREDICATE`,
+  `PM_DECISION_REQUIRED`, or `BLOCKED`
 - If required, packet/handoff/blocker provided: `<yes/no/n/a>`
 - Auto-open authorized by execution packet: `<yes/no/n/a>`
 - Corrective round / convergence budget:
@@ -168,13 +183,18 @@ Corrective Closure:
 - Continue automatically under convergence rule inside authorized boundary:
   `<yes/no>`
 - Re-review owner:
+- Re-review status: `NOT_STARTED`, `IN_REVIEW`, `PASSED`, `FAILED`, or `NOT_REQUIRED_DETERMINISTIC`
+- Deterministic rule: use `NOT_REQUIRED_DETERMINISTIC`; never record deterministic closure as `PASSED` re-review
 - Re-review evidence:
 - Affected review workers/subagents/lanes rerun: `<yes/no/n/a>`
 - If not rerun, narrow diff review rationale:
+- If no review invocation, use the Deterministic Verdict Finalization fields
+  below; do not create a second closure or re-review status.
 - "Corrective required: yes" without packet/handoff/blocker: `<yes/no>`
 
 Review Scope Selection:
-- Selected re-review scope: `targeted status/evidence lanes`,
+- Selected re-review scope: `deterministic closure (no review invocation)`,
+  `targeted status/evidence lanes`,
   `Final Review narrow diff (targeted submode)`, `full affected lanes`, or
   `full A-E/project review`
 - Reason targeted review is enough:
@@ -182,6 +202,23 @@ Review Scope Selection:
 - Ledger/evidence/status-only change: `<yes/no>`
 - Semantic, permission, source authority, information architecture, contract,
   runtime, security, approval gate, or validator meaning changed: `<yes/no>`
+- Reviewer-authored mechanical predicate existed before fix: `<yes/no>`
+- Predicate matched exactly and closure receipt recorded: `<yes/no/n/a>`
+
+Deterministic Verdict Finalization (only after an initial `NEEDS_CORRECTION`):
+- Finding closure status: `AUTO_CLOSED_BY_PREDICATE`
+- All blocking findings closed: `<yes/no>`
+- Precommitted Final Verdict: `ACCEPTABLE` or `ACCEPTABLE_WITH_CONCERNS`
+- Closure Receipt Owner:
+- Closure Receipt Ref:
+- Closure Receipt Destination:
+- Finalized by original Final Review Controller or named review packet author:
+  `<yes/no>`
+- Verdict finalization status: `VERDICT_FINALIZED_FROM_RECEIPT`
+- Finalized verdict:
+- Mechanical finalization does not re-review files, start a reviewer, or create
+  a new Final Review pass: `<confirmed/not confirmed>`
+- Project Manager acceptance remains pending: `<yes/no>`
 
 Corrective Delegation:
 - Allowed executor: `Coder Controller`, `Corrective Worker`, or `Project Manager decision required`
@@ -194,7 +231,7 @@ Residual Risks:
 
 Recommended Project Manager Decision:
 
-Re-Review Required:
+Re-Review Required: `<yes/no; no only with NOT_REQUIRED_DETERMINISTIC>`
 ```
 
 Final Review recommends. Project Manager decides.

@@ -170,7 +170,7 @@ SAGE-Kit supports these execution controls:
 | Worktree Isolation | Optional isolation policy for authorized milestone, phase, lane, or review workspaces. | `docs/agent/WORKTREE_ISOLATION.md` |
 | Task Dispatch Profile | Optional structured task/evidence records, resource locks, leases, and validator-backed gate closeout. | `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` |
 | Capability Adapters | Optional external capability routing with authorization, evidence mapping, and fallback policy. | `docs/agent/CAPABILITY_ADAPTERS.md` |
-| Planning Package Closeout | Optional one-session orchestration for planning-only package, review, targeted fix, closeout/status, and submit handoff with separate role authority. | `docs/agent/MILESTONE_PLANNING.md` |
+| Planning Package Closeout | Optional one-session orchestration for planning-only package, review, targeted fix, closure verification, closeout/status, and submit handoff with separate role authority. | `docs/agent/MILESTONE_PLANNING.md` |
 
 Explore:
 
@@ -240,9 +240,10 @@ No work is complete until the completion report names:
 - runtime smoke or reason it is not applicable;
 - governance level and permission mode;
 - corrective closure status when review finds required corrections;
-- corrective re-review evidence when corrective work changes files, behavior,
-  contracts, runtime behavior, gate state, shared ownership, or required
-  evidence;
+- independent corrective re-review evidence, or a strict Deterministic Closure
+  receipt and verdict-finalization status, when corrective work changes files,
+  behavior, contracts, runtime behavior, gate state, shared ownership, or
+  required evidence;
 - skipped checks;
 - security or data hygiene checks;
 - active context and document routing maintenance;
@@ -251,6 +252,13 @@ No work is complete until the completion report names:
 
 Blocking gates cannot be bypassed by listing them as skipped checks. A skipped
 blocking gate means the work is `BLOCKED` or `HANDOFF`, not complete.
+
+Strict Deterministic Closure is the only exception to a new corrective review
+invocation. It follows the eligibility, owner separation, evidence, State Truth,
+receipt, rejection, and fallback contract in
+`docs/agent/SESSION_ORCHESTRATION.md`. Final Review alone may record the
+precommitted `VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager acceptance
+remains separate and pending.
 
 Runtime, UI, service, worker, database, device, or external integration evidence
 is required only when that surface is in scope.

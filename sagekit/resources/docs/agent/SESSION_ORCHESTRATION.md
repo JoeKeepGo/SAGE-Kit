@@ -30,7 +30,7 @@ scope and risk.
 | Phase Worker | One phase | Execute one phase under the phase boundary. | Expand scope or modify unrelated files. |
 | Lane Worker | One lane | Execute one read-only, writable, or validation lane. | Edit shared files or controller-owned startup docs. |
 | Review Worker | One review slice | Verify phase, lane, contract, evidence, or risk area. | Change implementation unless assigned a corrective lane. |
-| Corrective Worker | One bounded fix | Fix only findings named in a corrective packet. | Redesign, expand scope, or fix unassigned issues. |
+| Corrective Worker | One bounded fix | Fix only findings named in a corrective packet and return evidence. | Redesign, expand scope, fix unassigned issues, author/broaden a closure predicate, or record a closure receipt. |
 
 ## Standard Flow
 
@@ -54,10 +54,11 @@ Final Review Controller
   -> Final Review Packet
 
 Corrective Worker
-  -> bounded corrections when requested
+  -> bounded corrections and evidence when requested
 
-Final Review Controller
-  -> re-review
+Original Final Review Controller or named review packet author
+  -> independent re-review, or deterministic receipt verification with no new review invocation
+  -> mechanical verdict finalization when precommitted receipt conditions pass
 
 Project Manager Controller
   -> owner-authorized accept, concern waiver, defer, abandon, or blocked-closure decision
@@ -464,22 +465,27 @@ Corrective work is bounded by the Final Review findings.
   authority/evidence gap named.
 - `Corrective Packet Required: yes` without a packet, handoff target, or blocker
   is incomplete.
-- Every corrective round that changes files, behavior, contracts, runtime
-  behavior, gate state, shared ownership, or required evidence must produce
-  independent re-review evidence before Final Review can close the verdict.
+- Every corrective round that changes behavior, contracts, runtime behavior,
+  authority, gate decisions, shared ownership, or required evidence must
+  produce independent re-review evidence before Final Review can close the
+  verdict. File changes also require re-review unless they qualify for the
+  strict Deterministic Closure exception below and complete both receipt and
+  verdict-finalization records.
 - Corrective worker `DONE` means fix execution is complete. It does not close a
-  finding, review verdict, gate, or milestone before independent re-review.
-- Final Review may directly perform a narrow read-only diff inspection or
-  delegate one narrow re-review for low-risk, local corrections. It must rerun
-  affected review workers, review subagents, or
+  finding, review verdict, gate, or milestone. A separately recorded re-review
+  result or valid Deterministic Closure receipt closes the finding.
+- Outside strict Deterministic Closure, Final Review may directly perform a
+  narrow read-only diff inspection or delegate one narrow re-review for
+  low-risk, local corrections. It must rerun affected review workers, review subagents, or
   validation lanes when the original review used them, the fix touches behavior,
   contracts, runtime, shared files, or gates, or the regression surface is
   unclear.
 - When the corrective change only updates ledger, evidence, status, closeout,
   or other review bookkeeping without changing product semantics, permissions,
   source authority, information architecture, contracts, runtime behavior, or
-  validator requirements, Final Review should run only the targeted
-  status/evidence lanes named by the project review plan.
+  validator requirements, use strict Deterministic Closure when all of its
+  conditions are pre-authored and satisfied; otherwise Final Review should run
+  only the targeted status/evidence lanes named by the project review plan.
 - When the corrective change alters semantics, permission or authority
   boundaries, source authority, information architecture, public contracts,
   security posture, runtime behavior, validator meaning, or approval gates,
@@ -513,6 +519,63 @@ Corrective work is bounded by the Final Review findings.
 Final Review must choose the narrowest review scope that protects authority and
 evidence. This selection is part of the review packet; it should not depend on a
 human remembering to request the right lane.
+
+Use Deterministic Closure without starting another review lane, subagent, or
+Final Review pass only when all are true:
+
+- the original reviewer tagged the finding with closure eligibility class
+  `MECHANICAL_STATUS` and authored the closure predicate before corrective
+  editing; the normal finding classification remains `AUTO_CORRECTIVE`;
+- the predicate names the finding ID, exact files and fields, authoritative
+  value and source reference, allowed diff, closure commands, precommitted final
+  verdict, Closure Receipt Owner, Closure Receipt Destination, and protected
+  out-of-scope hashes;
+- the substantive evidence and authoritative value were already reviewed; the
+  correction only mirrors that value and does not originate a gate, approval,
+  verdict, or acceptance decision;
+- the corrective diff matches the predicate exactly, closure commands pass,
+  out-of-scope hashes are unchanged, and State Truth Reconciliation passes
+  after the correction;
+- no semantics, permission, source authority, information architecture,
+  contract, runtime, security, approval-gate criteria, validator meaning, or
+  required-evidence meaning changed.
+
+State Truth conflicts block closure until the responsible surface owners
+reconcile them. Ledger, task, evidence, status, implementation, and corrective
+surfaces may be changed only by their corresponding surface owner with matching
+write/corrective authority. The fixer works according to the predicate and
+returns evidence; it cannot author or broaden the predicate and cannot record
+the closure receipt.
+
+The Closure Receipt Owner is the original Final Review Controller or named
+review packet author and must be different from the Corrective Worker. It must
+run the reviewer-authored deterministic closure commands directly or cite a
+trusted machine/CI result with command, revision, and result identity; fixer
+self-report is not closure evidence. It records `AUTO_CLOSED_BY_PREDICATE`, the
+Closure Receipt Ref, and Closure Receipt Destination in its own review
+packet/output. That narrow review-output write does not grant implementation or
+corrective-surface write authority and does not permit it to mutate ledger,
+task, evidence, or status surfaces owned by someone else.
+
+The receipt closes only the predicate-named finding. If the initial verdict was
+`NEEDS_CORRECTION`, all blocking findings are now closed, and the predicate
+precommitted the resulting `ACCEPTABLE` or `ACCEPTABLE_WITH_CONCERNS` verdict,
+the same original Final Review Controller or named review packet author applies
+that mechanical transition and records `VERDICT_FINALIZED_FROM_RECEIPT`. This
+does not re-review files, start a reviewer, or create a new Final Review pass.
+Final Review still owns the verdict; Project Manager still owns acceptance, and
+Project Manager acceptance remains pending.
+
+Deterministic Closure Reject/Fallback:
+
+| Reject Condition | Required Result |
+|---|---|
+| Closure Receipt Owner is the Corrective Worker or same actor | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
+| Receipt owner mutates a non-owned surface | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
+| Extra or ambiguous diff exists, or an out-of-scope hash changed | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
+| Closure command fails, or trusted machine/CI evidence is failed, missing, or unidentified | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
+| State Truth Reconciliation is not `PASS` | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
+| Authoritative value, false-green risk, or gate-ready state remains unclear | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
 
 Use targeted status/evidence re-review when all are true:
 

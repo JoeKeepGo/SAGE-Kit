@@ -64,7 +64,8 @@ Use this short check after Final Review when the verdict is not cleanly
 acceptable.
 
 ```markdown
-Review Closure Status: VERDICT_READY_FOR_PM, CORRECTIVE_OPENED, CORRECTIVE_CONTINUING,
+Review Closure Status: VERDICT_READY_FOR_PM, CORRECTIVE_OPENED,
+CORRECTIVE_CONTINUING, VERDICT_FINALIZED_FROM_RECEIPT,
 PM_DECISION_REQUIRED, or BLOCKED
 
 Final Review Packet Ref:
@@ -93,7 +94,13 @@ Verdict Closure Branch:
 | Corrective packet attached when required | `<yes/no/n/a>` | `<notes>` |
 | PM decision request attached when required | `<yes/no/n/a>` | `<notes>` |
 | Blocker named when correction cannot proceed | `<yes/no/n/a>` | `<notes>` |
-| Re-review required and owner named | `<yes/no/n/a>` | `<notes>` |
+| Re-review or Deterministic Closure required and owner named | `<re-review/deterministic/n/a>` | `<owner and predicate ref when deterministic>` |
+| Re-review status | `NOT_STARTED`, `IN_REVIEW`, `PASSED`, `FAILED`, or `NOT_REQUIRED_DETERMINISTIC` | `<never use PASSED for deterministic closure>` |
+| Deterministic finding closure status | `AUTO_CLOSED_BY_PREDICATE`, `INVALID_REVIEW_REQUIRED`, or `N/A` | `<predicate/command/State Truth result>` |
+| Closure Receipt Owner | `<owner/n/a>` | `<original Final Review Controller or named packet author; separate from fixer>` |
+| Closure Receipt Ref | `<ref/n/a>` | `<immutable or packet-local receipt reference>` |
+| Closure Receipt Destination | `<review packet/output/n/a>` | `<receipt owner's own output>` |
+| Verdict finalization status | `VERDICT_FINALIZED_FROM_RECEIPT` or `N/A` | `<precommitted verdict; PM acceptance pending>` |
 | Convergence trend recorded | `<yes/no/n/a>` | `<finding count/severity trend and root-cause progress>` |
 | Targeted or full re-review scope justified | `<yes/no/n/a>` | `<targeted status/evidence lanes or full affected lanes>` |
 
@@ -113,4 +120,8 @@ Decision:
   abandon, or defer
 - Mark `VERDICT_READY_FOR_PM` only after the verdict branch above is satisfied;
   this closes the review loop, not the milestone
+- For strict Deterministic Closure, require `AUTO_CLOSED_BY_PREDICATE` and
+  `NOT_REQUIRED_DETERMINISTIC`, then allow only the original Final Review
+  Controller or named packet author to apply the precommitted verdict and mark
+  `VERDICT_FINALIZED_FROM_RECEIPT`; do not start a new review pass
 ```

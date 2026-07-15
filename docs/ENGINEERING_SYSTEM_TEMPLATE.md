@@ -76,8 +76,9 @@ of truth.
 
 When work is planning-only, the same root session may orchestrate a planning
 package closeout flow with separate Planning Author, Planning Review, Targeted
-Fix, Targeted Re-Review, Closeout/Status, and Submit Controller roles. Use this
-only for planning artifacts, ledgers, evidence or status records, and closeouts.
+Fix, Closure Verification (`strict Deterministic Closure` or `Targeted
+Re-Review`), Closeout/Status, and Submit Controller roles. Use this only for
+planning artifacts, ledgers, evidence or status records, and closeouts.
 Do not include product code, runtime behavior, schema, migrations, test
 implementation, release artifacts, credentials, production data, or approval
 gate state. Submit or push still requires explicit `SUBMIT_AUTHORIZED` scope

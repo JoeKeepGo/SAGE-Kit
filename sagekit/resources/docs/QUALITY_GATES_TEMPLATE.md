@@ -47,7 +47,8 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Coder separation gate | In Session Orchestration, Coder Controller self-execution is absent or explicitly allowed, narrow, recorded, and independently reviewed. |
 | Authority gate | Every active packet names both governance level and permission mode; write, corrective, environment-write, and submit authority are explicit. |
 | Corrective closure gate | When review returns required corrections, it provides a corrective packet, Project Manager decision request, blocker, or waiver path. |
-| Correction re-review gate | Corrective rounds that change files, behavior, contracts, runtime behavior, gate state, shared ownership, or required evidence have independent re-review evidence before Final Review closes the verdict. |
+| Correction re-review gate | Corrective rounds have independent re-review evidence before Final Review closes the verdict, except exact `MECHANICAL_STATUS` corrections closed by a reviewer-authored Deterministic Closure predicate and receipt. |
+| Deterministic closure gate | A no-re-review closure names the prior reviewer predicate, precommitted final verdict, authoritative value/source, exact allowed diff, closure commands, out-of-scope hashes, State Truth result, a Closure Receipt Owner separate from the fixer, receipt ref/destination, `AUTO_CLOSED_BY_PREDICATE`, and `VERDICT_FINALIZED_FROM_RECEIPT`; any mismatch falls back to re-review. |
 | Security gate | Secrets and sensitive data are not exposed or staged. |
 | No fallback gate | No guessed fields, hidden success, speculative aliases, or silent downgrade paths. |
 | Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
@@ -64,6 +65,13 @@ Record:
 - owners and mutation authority checked;
 - mismatches or corrective/handoff reference;
 - result: `PASS`, `BLOCKED`, or `N/A`.
+
+State Truth conflicts block closure until the responsible surface owners
+reconcile them under matching write/corrective authority. Ledger, task,
+evidence, status, and implementation surfaces remain writable only by their
+named owners. A Closure Receipt Owner verifies the reconciled state and records
+the receipt only in its own review packet/output; that review-output write does
+not grant authority over any corrected surface.
 
 ## Finding Severity Acceptance Rule
 
@@ -93,12 +101,12 @@ Do not mark work `BLOCKED` merely because a fixed round count was reached. Use
 authority is missing, scope would need to expand, or the same root cause has
 made no material progress for two consecutive corrective rounds.
 
-Targeted re-review is enough when only ledger, evidence, status, closeout, or
-packet bookkeeping changed. A Final Review narrow diff is a targeted
-status/evidence submode and is allowed only under those targeted-review
-conditions. Rerun full affected lanes when semantics, permissions, source
-authority, information architecture, contracts, runtime behavior, security
-posture, approval gates, validator meaning, or required evidence changed.
+The no-re-review `MECHANICAL_STATUS` exception must satisfy the complete
+Deterministic Closure contract and reject/fallback table in
+`docs/agent/SESSION_ORCHESTRATION.md`. Only Final Review may record
+`VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager acceptance remains pending.
+All ineligible or failed cases use the targeted or full re-review selected by
+that contract.
 
 Mechanical verification noise is not a blocking finding when the verification
 command exits successfully. For example, `git diff --check` line-ending notices
@@ -131,8 +139,12 @@ the required authority.
   `Corrective Packet Required: yes` without a corrective packet, Project
   Manager decision request, blocker, or waiver path;
 - corrective work changes files, behavior, contracts, runtime behavior, gate
-  state, shared ownership, or required evidence without independent re-review
-  evidence;
+  state, shared ownership, or required evidence without either independent
+  re-review evidence or the complete strict Deterministic Closure receipt and
+  verdict-finalization transition;
+- a corrective worker authors/broadens a deterministic predicate, records its
+  own closure receipt, or mutates a ledger, task, evidence, status, or
+  implementation surface it does not own;
 - write, corrective, environment-write, submit, merge, publish, release, or
   cleanup work occurs without the matching permission mode;
 - a hidden fallback path masks failure as success;

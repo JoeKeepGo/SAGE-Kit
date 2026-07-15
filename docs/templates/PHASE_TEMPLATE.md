@@ -204,8 +204,18 @@ Stopped Worker / Controller Decision:
 
 Corrective Closure:
 
+- Finding closure status: `AUTO_CLOSED_BY_PREDICATE`,
+  `INVALID_REVIEW_REQUIRED`, or `N/A`
+- Closure Receipt Owner:
+- Closure Receipt Ref:
+- Closure Receipt Destination:
+- Verdict finalization status: `VERDICT_FINALIZED_FROM_RECEIPT`,
+  `FINALIZED_BY_REVIEW`, `PENDING_CORRECTION`, or `N/A`
+
 Corrective Re-Review Evidence:
 - Re-review owner:
+- Re-review status: `NOT_STARTED`, `IN_REVIEW`, `PASSED`, `FAILED`, or
+  `NOT_REQUIRED_DETERMINISTIC`
 - Affected checks/workers rerun:
 - Evidence:
 
@@ -257,3 +267,12 @@ Remaining Gaps:
 
 Handoff:
 ```
+
+For Deterministic Closure, record re-review as
+`NOT_REQUIRED_DETERMINISTIC`, never `PASSED`. The Closure Receipt Destination
+must be the receipt owner's own review packet/output. Recording
+`AUTO_CLOSED_BY_PREDICATE` does not grant that owner write authority over phase,
+task, evidence, ledger, implementation, or corrective surfaces. Only the
+original Final Review Controller or named review packet author may apply the
+precommitted verdict and record `VERDICT_FINALIZED_FROM_RECEIPT`; Project
+Manager acceptance remains pending.

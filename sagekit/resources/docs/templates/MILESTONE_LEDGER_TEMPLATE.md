@@ -113,12 +113,27 @@ Use this table only when Session Orchestration is used.
 | `Coder result` | `Coder Controller` | `<milestone result packet>` | `<status>` | `<evidence>` | `<next action>` |
 | `Structural gate` | `Project Manager` | `<structural gate record>` | `PASS`, `REPAIR_REQUIRED`, or `BLOCKED` | `<evidence>` | `<next action>` |
 | `Final verdict` | `Final Review Controller` | `<review verdict packet>` | `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, `NEEDS_CORRECTION`, or `BLOCKED` | `<evidence>` | `<next action>` |
+| `Corrective re-review` | `<re-review owner>` | `<review/receipt ref>` | `NOT_STARTED`, `IN_REVIEW`, `PASSED`, `FAILED`, or `NOT_REQUIRED_DETERMINISTIC` | `<independent review evidence or deterministic n/a>` | `<next action>` |
+| `Deterministic finding closure` | `<Closure Receipt Owner>` | `<Closure Receipt Ref>` | `AUTO_CLOSED_BY_PREDICATE`, `INVALID_REVIEW_REQUIRED`, or `N/A` | `<predicate/commands/out-of-scope hashes/State Truth>` | `<verdict finalization or re-review>` |
+| `Final verdict finalization` | `Final Review Controller/named packet author` | `<review verdict packet>` | `VERDICT_FINALIZED_FROM_RECEIPT`, `FINALIZED_BY_REVIEW`, or `PENDING_CORRECTION` | `<final verdict and authority>` | `<PM decision; acceptance pending>` |
 | `PM/owner acceptance` | `<Project Manager/project owner>` | `<decision record>` | `<accepted/accepted_with_concerns/close_blocked/deferred/abandoned/superseded/pending>` | `<authority/evidence>` | `<next action>` |
 | `Closeout` | `<closeout owner>` | `<closeout file>` | `<not_started/drafted/finalized>` | `<evidence>` | `<next action>` |
 
 When Final Review returns `NEEDS_CORRECTION` or `BLOCKED`, the next action must
 name a corrective packet, Project Manager decision request, blocker, or waiver
 path.
+
+Deterministic Closure Record:
+- Closure Receipt Owner: `<original Final Review Controller or named review packet author; separate from Corrective Worker>`
+- Closure Receipt Ref:
+- Closure Receipt Destination: `<receipt owner's review packet/output>`
+- Canonical re-review status source: `Session Orchestration Status -> Corrective re-review row`
+- Finding closure status: `AUTO_CLOSED_BY_PREDICATE`
+- Verdict finalization status: `VERDICT_FINALIZED_FROM_RECEIPT`
+
+The ledger mirrors these review-owned records. Only the ledger owner with
+matching write authority may change ledger fields; the Closure Receipt Owner
+does not gain ledger write authority by recording a receipt.
 
 `HANDOFF` is not a terminal milestone or closeout state. A blocked milestone
 remains open until an authorized owner records resume, close-blocked, abandon,

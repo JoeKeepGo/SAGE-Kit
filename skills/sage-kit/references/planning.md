@@ -183,18 +183,30 @@ implementation, release artifacts, credentials, production data, approval-gate
 state, source authority, information architecture, public contracts, or
 validator meaning will change.
 
-One root session may orchestrate the whole planning package lifecycle, but role
-authority remains separate:
+If Planning Review returns `NEEDS_CORRECTION`, run Targeted Fix, then choose
+strict Deterministic Closure when every pre-authored `MECHANICAL_STATUS`
+condition in `docs/agent/SESSION_ORCHESTRATION.md` passes; otherwise run
+Targeted Re-Review.
+
+One root session may orchestrate the lifecycle, but role authority stays
+separate:
 
 1. Planning Author prepares or repairs the planning package.
 2. Planning Review checks granularity, authority, evidence, gates, and status.
 3. Targeted Fix resolves only Planning Review findings inside the planning
    artifact boundary.
-4. Targeted Re-Review checks only changed planning, ledger, evidence, status,
-   closeout, or packet items unless broader semantics changed.
-5. Closeout/Status records compact history, ledger state, and next action.
-6. Submit Controller commits, pushes, or hands off only after explicit submit
+4. Closure Verification selects strict Deterministic Closure or Targeted
+   Re-Review.
+5. Closure Receipt Owner and Verdict Finalization close the strict path, or
+   Targeted Re-Review checks the changed planning items.
+6. Closeout/Status records compact history, ledger state, and next action.
+7. Submit Controller commits, pushes, or hands off only after explicit submit
    authority, changed-file review, verification, and hygiene checks.
+
+Planning Author and Planning Review remain separate. Targeted Fix must be
+separate from the Closure Receipt Owner and any Targeted Re-Review. The receipt
+owner is the original reviewer or named packet author; Verdict Finalization is
+review-owned, while Project Manager acceptance remains pending.
 
 If any planning change alters semantics, permissions, source authority,
 information architecture, public contracts, approval gates, validator meaning,

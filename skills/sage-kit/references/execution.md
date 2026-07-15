@@ -250,10 +250,10 @@ When Session Orchestration is active:
   authority. Final Review delegates fixes to separately authorized corrective
   workers and remains independent for re-review.
 - Corrective workers fix only findings named in corrective packets.
-- After corrective work, Final Review must collect independent re-review
-  evidence. Rerun affected review workers, review subagents, or validation lanes
-  when the original review used them, the fix touches behavior, contracts,
-  runtime, shared files, gates, or the regression surface is unclear.
+- After corrective work, Final Review follows the Deterministic Closure or
+  re-review selection contract in `docs/agent/SESSION_ORCHESTRATION.md`. Only
+  the separated review authority may record a receipt and precommitted
+  `VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager acceptance remains pending.
 - If Task Dispatch Profile is active, Coder updates task/evidence records and
   Final Review treats them as an evidence index to verify, not as proof by
   themselves.

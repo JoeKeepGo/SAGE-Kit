@@ -73,11 +73,11 @@ fix exceeds the approved boundary, or no authorized path can make progress. Use
 `NEEDS_CORRECTION` with `PM_DECISION_REQUIRED` closure/status when Project
 Manager judgment is needed.
 
-Use targeted re-review when only ledger, evidence, status, closeout, or packet
-bookkeeping changed. Rerun full affected lanes when semantics, permissions,
-source authority, information architecture, public contracts, runtime behavior,
-security posture, approval gates, validator meaning, or required evidence
-changed.
+Use the Deterministic Closure eligibility, owner separation, evidence, State
+Truth, receipt, verdict-finalization, and reject/fallback contract in
+`docs/agent/SESSION_ORCHESTRATION.md`. It is the authoritative choice between
+strict no-review closure, targeted re-review, and full affected review lanes;
+Project Manager acceptance remains pending after Final Review finalization.
 
 ## Completion Report Must Name
 
@@ -122,6 +122,13 @@ Skipped blocking gates make the work `BLOCKED` or `HANDOFF`, not `DONE`.
 
 When Task Dispatch Profile is active, review the structured records as current
 state, not as decorative evidence.
+
+State Truth conflicts block closure until the responsible surface owners
+reconcile them under matching write/corrective authority. A deterministic
+receipt is reachable only after task, evidence, board, ledger, run, lease,
+authority, blocker, review-result, and next-action values agree. The Closure
+Receipt Owner verifies that agreement and may write only its own review
+packet/output; it does not gain mutation authority over those surfaces.
 
 Flag as blocking when:
 
@@ -213,17 +220,22 @@ When Session Orchestration is used:
   Project Manager decision request, blocker, or waiver path instead of editing.
 - If corrective execution is authorized, Final Review may open a bounded
   corrective round through separately authorized corrective workers and must
-  require verification and re-review. It must not edit implementation or
-  corrective files itself.
-- Corrective re-review must produce independent evidence before Final Review
-  closes the verdict.
-- Rerun affected review workers, review subagents, or validation lanes when the
-  original review used them, the fix touches behavior, contracts, runtime,
-  shared files, gates, or the regression surface is unclear.
+  require verification plus re-review or a valid reviewer-authored
+  Deterministic Closure receipt. It must not edit implementation or corrective
+  files itself.
+- Corrective closure must produce independent re-review evidence or a valid
+  `AUTO_CLOSED_BY_PREDICATE` receipt followed by
+  `VERDICT_FINALIZED_FROM_RECEIPT` before a precommitted Final Review verdict is
+  ready for Project Manager decision.
+- Outside strict Deterministic Closure, rerun affected review workers, review
+  subagents, or validation lanes when the original review used them, the fix
+  touches behavior, contracts, runtime, shared files, gates, or the regression
+  surface is unclear.
 - Use targeted status/evidence re-review for ledger, evidence, status, closeout,
-  or packet-only correction when no semantic, permission, source authority,
+  or packet-only correction that is not eligible for strict Deterministic
+  Closure and does not change semantic, permission, source authority,
   information architecture, contract, runtime, security, gate, validator, or
-  required-evidence meaning changed.
+  required-evidence meaning.
 - Corrective packets must name findings, classification, files, commands,
   permission mode, and stop conditions.
 - Continue correction under the convergence rule only inside an authorized
@@ -258,8 +270,9 @@ Before commit, push, PR, or final handoff:
    changed. Confirm each correction was made by the named owner with suitable
    authority, or was returned as an update proposal, corrective packet, or
    handoff.
-9. For planning package closeout, confirm the diff contains only planning
-   artifacts, ledgers, evidence/status records, closeouts, or packet updates,
-   and that Planning Author, Planning Review, Targeted Fix, Targeted Re-Review,
-   Closeout/Status, and Submit Controller authority stayed separate.
+9. For planning package closeout, confirm the diff is planning-only and that
+   Planning Author, Planning Review, Targeted Fix, Closure Receipt Owner,
+   Verdict Finalization, Targeted Re-Review when selected, Closeout/Status, and
+   Submit Controller authority stayed separate. Strict closure still follows
+   `docs/agent/SESSION_ORCHESTRATION.md`.
 10. Commit or hand off only intended scope.

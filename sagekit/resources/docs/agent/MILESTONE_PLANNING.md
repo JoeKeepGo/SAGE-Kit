@@ -169,7 +169,9 @@ Planning Review returns one of:
 - `ACCEPTABLE`: eligible for Project Manager/project-owner acceptance;
 - `ACCEPTABLE_WITH_CONCERNS`: eligible only with recorded concerns and owner
   acceptance;
-- `NEEDS_CORRECTION`: Targeted Fix, then Targeted Re-Review;
+- `NEEDS_CORRECTION`: Targeted Fix, then Closure Verification chooses strict
+  Deterministic Closure when every pre-authored `MECHANICAL_STATUS` condition
+  in `docs/agent/SESSION_ORCHESTRATION.md` passes; otherwise Targeted Re-Review;
 - `BLOCKED`: stop until an owner records resolve, defer, abandon, or
   close-blocked.
 
@@ -183,12 +185,15 @@ Recommended root-session orchestration:
 2. Planning Review checks granularity, authority, evidence, gates, and status.
 3. Targeted Fix applies only Planning Review findings inside the planning
    artifact boundary.
-4. Targeted Re-Review verifies changed planning, ledger, evidence, status, or
-   closeout items.
-5. Project Manager or project owner records package acceptance only after an
+4. Closure Verification selects strict Deterministic Closure or Targeted
+   Re-Review under the rule above.
+5. The Closure Receipt Owner records the receipt and the original review
+   authority performs Verdict Finalization, or Targeted Re-Review verifies the
+   changed items.
+6. Project Manager or project owner records package acceptance only after an
    accepted review verdict.
-6. Closeout/Status updates compact history, ledger state, and next action.
-7. Submit Controller stages, commits, pushes, or hands off only after submit
+7. Closeout/Status updates compact history, ledger state, and next action.
+8. Submit Controller stages, commits, pushes, or hands off only after submit
    authority, changed-file review, verification, and hygiene checks pass.
 
 Role separation still applies even when one session orchestrates every step:
@@ -196,6 +201,11 @@ Role separation still applies even when one session orchestrates every step:
 - Planning Author must not be the Planning Reviewer.
 - Planning Reviewer must not submit or accept the milestone.
 - Targeted Fix must not expand the planning package scope.
+- Closure Receipt Owner must be the original Planning Review controller or
+  named review packet author and must be separate from Targeted Fix.
+- Verdict Finalization belongs to that review authority; it does not re-review
+  files or perform Project Manager acceptance.
+- Targeted Re-Review, when selected, must remain independent from Targeted Fix.
 - Submit Controller must not reinterpret planning acceptance.
 - Submitting planning documents records delivery only. It is not planning
   package acceptance or milestone acceptance.

@@ -481,8 +481,9 @@ current risk:
   is the main cost, submit or push is explicitly authorized or separately
   assigned to a Submit Controller, role separation can be preserved, and one
   root session can safely orchestrate planning author, planning review,
-  targeted fix, targeted re-review, closeout/status, and submit handoff without
-  changing product code or gate authority.
+  targeted fix, closure verification (strict Deterministic Closure or targeted
+  re-review), closeout/status, and submit handoff without changing product code
+  or gate authority.
 
 ### Bootstrap A New Project
 
@@ -656,9 +657,11 @@ Final Review Controller
 Coder Controller or Corrective Worker
   -> bounded corrections when requested
 
-Final Review Controller
-  -> independent corrective re-review
-  -> updated Final Review Packet
+Original Final Review Controller or named review packet author
+  -> closure verification: strict Deterministic Closure receipt or corrective re-review
+     with no new review lane, subagent, or Final Review pass
+  -> updated Final Review Packet and, when precommitted,
+     VERDICT_FINALIZED_FROM_RECEIPT
 
 Project Manager Controller
   -> accept, handoff, blocked, or next prompt
@@ -671,8 +674,9 @@ stays inside the execution packet. Final Review may dispatch corrective workers
 only for `AUTO_CORRECTIVE` findings after review. They must stop for Project
 Manager decision when correction needs new scope, approval, public contract
 change, shared ownership change, or submit/cleanup authority. After bounded
-corrections, Final Review must re-review the affected findings before Project
-Manager acceptance.
+corrections, use independent re-review for the affected findings unless every
+strict Deterministic Closure condition below is satisfied. Project Manager
+acceptance always remains a separate decision.
 
 Corrective work uses a convergence rule, not a fixed "round count means
 blocked" rule. Open P0/P1 findings block acceptance. P2 findings block only
@@ -686,10 +690,14 @@ false-green, gate, security, validator, source-authority, or evidence-integrity
 risk appears. Block only when the same root cause stalls for two rounds,
 required evidence or authority is missing, or the approved boundary would be
 exceeded. If Project Manager judgment is needed, return `NEEDS_CORRECTION` with
-`PM_DECISION_REQUIRED`, not `BLOCKED`. Ledger, evidence, status, closeout, or
-packet-only fixes can use targeted status/evidence re-review; semantic,
-permission, source-authority, contract, runtime, security, gate, or validator
-changes require full affected lanes.
+`PM_DECISION_REQUIRED`, not `BLOCKED`.
+
+Strict Deterministic Closure is the narrow `MECHANICAL_STATUS` exception defined
+by `docs/agent/SESSION_ORCHESTRATION.md`; its owner separation, trusted evidence,
+State Truth, receipt, and reject/fallback rules are mandatory. Final Review may
+record the precommitted `VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager
+acceptance remains pending. Every ineligible or failed case follows the
+contract's targeted or full re-review path.
 
 ### External Capabilities And Superpowers
 

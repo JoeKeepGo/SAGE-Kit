@@ -25,7 +25,7 @@ current role and control scope.
 |---|---|---|
 | `READ_ONLY_REVIEW` | Inspect, analyze, verify, classify findings, and recommend next action. | Editing files, running corrective work, opening approval gates, submitting, or treating review as closure when findings require action. |
 | `WRITE_AUTHORIZED` | Edit only the allowed files or runtime surfaces named by the packet, then provide evidence. | Scope expansion, approval-gate changes, submit/merge/publish, or corrective work outside the approved boundary. |
-| `CORRECTIVE_AUTHORIZED` | A corrective worker may fix findings named in a corrective packet, run required checks, and return for re-review. | Granting the read-only Final Review Controller file-write authority, redesign, unassigned fixes, new product decisions, approval-gate changes, or accepting the milestone. |
+| `CORRECTIVE_AUTHORIZED` | A corrective worker may fix findings named in a corrective packet, run required checks, and return evidence for re-review or fix according to a pre-authored Deterministic Closure predicate and return evidence. | Granting the read-only Final Review Controller file-write authority, authoring or broadening a closure predicate, recording a closure receipt, redesign, unassigned fixes, new product decisions, approval-gate changes, or accepting the milestone. |
 | `ENVIRONMENT_WRITE_AUTHORIZED` | Install, initialize, index, configure, or mutate environment-local tools only within the named adapter boundary. | Silent installs, global configuration, hooks, credentials, destructive changes, or treating tool setup as project completion. |
 | `SUBMIT_AUTHORIZED` | Commit, push, merge, publish, release, or clean up worktrees under a distinct post-verdict grant issued after the required review and Project Manager decision. | Initial Coder execution, submitting unreviewed scope, bypassing approval gates, or accepting technical risk without a recorded owner decision. |
 
@@ -63,7 +63,7 @@ Common combinations:
 | `Light + WRITE_AUTHORIZED` | Tiny docs, formatting, or low-risk local correction. | Focused evidence and memory no-change/update note. |
 | `Standard + READ_ONLY_REVIEW` | Formal bounded review within one phase or ownership area. | Verdict plus corrective packet, handoff, blocker, or no-correction rationale. |
 | `Standard + WRITE_AUTHORIZED` | Bounded implementation in one module, phase, or ownership area. | Tests or smoke evidence and completion report. |
-| `Standard + CORRECTIVE_AUTHORIZED` | Fix named findings inside an existing boundary. | Required checks, evidence, and re-review request. |
+| `Standard + CORRECTIVE_AUTHORIZED` | Fix named findings inside an existing boundary. | Required checks and evidence, then a re-review request or evidence return for an eligible mechanical-status finding; the corrective worker must not record the closure receipt. |
 | `Heavy + READ_ONLY_REVIEW` | Milestone, multi-phase, multi-agent, release, approval, or high-risk review. | Final Review packet plus corrective packet, PM decision request, blocker, or recommended waiver path for Project Manager decision. |
 | `Heavy + CORRECTIVE_AUTHORIZED` | High-risk corrective worker scope for milestone-blocking findings. | Corrective packet, bounded executor, verification, re-review, and PM final decision. |
 | `Heavy + SUBMIT_AUTHORIZED` | Post-review submit, release, merge, publish, or cleanup. | Recorded Final Review verdict and explicit Project Manager submit authority. |

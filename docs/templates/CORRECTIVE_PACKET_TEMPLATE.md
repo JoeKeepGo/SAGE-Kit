@@ -85,12 +85,13 @@ Runtime Smoke:
 
 Re-Review:
 - Required: `<yes/no>`
-- Mode: `targeted status/evidence lanes`,
+- Mode: `deterministic closure`, `targeted status/evidence lanes`,
   `Final Review direct read-only narrow inspection`,
   `delegated narrow diff review`, `affected review workers`,
   `affected review subagents`, `validation lanes`, or `full affected lanes`
 - Re-review owner:
-- Re-review status: `NOT_STARTED`, `IN_REVIEW`, `PASSED`, or `FAILED`
+- Re-review status: `NOT_STARTED`, `IN_REVIEW`, `PASSED`, `FAILED`, or `NOT_REQUIRED_DETERMINISTIC`
+- Deterministic rule: use `NOT_REQUIRED_DETERMINISTIC`; never record deterministic closure as `PASSED` re-review
 - Affected review workers/subagents/lanes to rerun:
 - Skip rerun rationale, if using narrow diff review:
 - Targeted review allowed because only ledger, evidence, status, closeout, or
@@ -102,7 +103,25 @@ Re-Review:
 - Acceptance criteria:
 - Closure blocked if re-review evidence is missing: `<yes/no>`
 
-Expected Output:
+Deterministic Closure (only when Re-Review Required is `no`):
+- Finding classification: `AUTO_CORRECTIVE`
+- Closure eligibility class: `MECHANICAL_STATUS`
+- Reviewer-authored predicate ref:
+- Finding ID:
+- Exact allowed files and fields:
+- Authoritative value and source ref:
+- Allowed diff:
+- Closure commands:
+- Out-of-scope protected hashes:
+- Substantive evidence and authoritative value already reviewed: `<yes/no>`
+- Mirrors an existing decision; creates no gate/approval decision: `<yes/no>`
+- Exact predicate match: `<yes/no>`
+- Closure commands passed: `<yes/no>`
+- Out-of-scope protected hashes unchanged: `<yes/no>`
+- State Truth Reconciliation passed: `<yes/no>`
+- Extra or ambiguous diff found: `<yes/no>`
+
+Corrective Worker Evidence Return:
 - finding IDs and corrective round;
 - files changed;
 - commands run;
@@ -110,9 +129,20 @@ Expected Output:
 - remaining gaps;
 - re-review notes.
 
-Corrective worker `DONE` means the listed fixes and checks are complete. It does
-not close findings, the review verdict, or the milestone; closure requires the
-named re-review owner to record `PASSED`.
+The Corrective Worker stops after evidence return and must not fill or record receipt or verdict-finalization fields.
+
+Receipt Owner Follow-Up (outside Corrective Worker authority):
+- Closure receipt status: `PENDING_RECEIPT` (default before owner follow-up), `AUTO_CLOSED_BY_PREDICATE`, or `INVALID_REVIEW_REQUIRED`
+- Closure Receipt Owner: `<original Final Review Controller or named review packet author; must differ from Corrective Worker>`
+- Closure Receipt Ref: `<pending until owner follow-up>`
+- Closure Receipt Destination: `<receipt owner's review packet/output>`
+- Verdict finalization status: `PENDING_CORRECTION`, `VERDICT_FINALIZED_FROM_RECEIPT`, or `INVALID_REVIEW_REQUIRED`
+- Finalized verdict: `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, or `N/A`
+- PM acceptance pending: `yes`
+
+Corrective worker `DONE` closes nothing. The named re-review owner records
+`PASSED`, or the separate Closure Receipt Owner performs the strict follow-up
+under `docs/agent/SESSION_ORCHESTRATION.md`.
 
 Stop If:
 - required fix exceeds listed files;

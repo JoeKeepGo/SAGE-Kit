@@ -160,10 +160,10 @@ handoff.
   authority, false-green, approval gate, security, validator/gate-ready, source
   authority, or evidence-integrity issues; ordinary documentation-consistency
   P2 may close as concerns or be auto-corrected; P3 does not block.
-- After corrective work, Final Review must require independent re-review
-  evidence before closure. Rerun affected review workers, review subagents, or
-  validation lanes when the original review used them, the fix touches behavior,
-  contracts, runtime, shared files, gates, or the regression surface is unclear.
+- After corrective work, follow the Deterministic Closure eligibility,
+  separation, receipt, and reject/fallback contract in
+  `docs/agent/SESSION_ORCHESTRATION.md`; only Final Review may record a
+  precommitted `VERDICT_FINALIZED_FROM_RECEIPT`, not milestone acceptance.
 - Do not mark `BLOCKED` merely because a fixed corrective round count was
   reached. Continue only inside an authorized corrective packet or boundary
   while findings or severity decrease, scope does not expand, no blocking
@@ -174,10 +174,6 @@ handoff.
   missing, or the fix would exceed the approved boundary. When Project Manager
   judgment is needed, return `NEEDS_CORRECTION` with `PM_DECISION_REQUIRED`
   closure/status rather than `BLOCKED`.
-- Use targeted status/evidence re-review for ledger, evidence, status, closeout,
-  or packet-only corrections. Rerun full affected lanes when semantics,
-  permissions, source authority, information architecture, contracts, runtime,
-  security, approval gates, validator meaning, or required evidence changed.
 - Do not claim Wave Execution or parallel phases unless Wave Readiness is
   proven with independent lanes, exclusive writable files, serial shared files,
   frozen contracts, runtime ownership, validation lanes, and integration owner.
@@ -204,8 +200,9 @@ handoff.
   be preserved, and the work is limited to roadmap, capability map, milestone,
   phase, ledger,
   evidence/status, review packet, closeout, or submit handoff artifacts.
-  Preserve separate Planning Author, Planning Review, Targeted Fix, Targeted
-  Re-Review, Closeout/Status, and Submit Controller authority. Stop and run full
+  Preserve separate Planning Author, Planning Review, Targeted Fix, Closure
+  Verification (`strict Deterministic Closure` or `Targeted Re-Review`),
+  Closeout/Status, and Submit Controller authority. Stop and run full
   affected review lanes if semantics, permissions, source authority,
   information architecture, contracts, approval gates, validator meaning,
   implementation scope, or runtime behavior changes.
