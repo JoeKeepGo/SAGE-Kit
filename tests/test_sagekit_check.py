@@ -614,7 +614,7 @@ class SagekitCheckTests(unittest.TestCase):
             with patch("sagekit.check.__file__", str(package / "check.py")):
                 result = default_schema_dir(root)
 
-        self.assertEqual(result, packaged_schemas)
+        self.assertEqual(result.resolve(), packaged_schemas.resolve())
 
     def test_check_does_not_write_project_files(self):
         with tempfile.TemporaryDirectory() as tmp:
