@@ -29,17 +29,17 @@ Governance:
 - Controls Not Enabled:
 
 Permission Mode:
-- Current mode: `READ_ONLY_REVIEW`, `WRITE_AUTHORIZED`,
-  `CORRECTIVE_AUTHORIZED`, `ENVIRONMENT_WRITE_AUTHORIZED`, or
-  `SUBMIT_AUTHORIZED`
+- Coder Controller mode: `READ_ONLY_REVIEW` or `WRITE_AUTHORIZED`
 - Why this mode:
-- Writable authority:
+- Controller-owned writable files only:
+- Worker-owned implementation files: `<Coder Controller must not edit>`
 - Project Manager final decision authority: `<separate PM decision record; not Final Review acceptance>`
-- Corrective auto-open allowed: `<yes/no>`
-- Corrective packet-only when read-only: `<yes/no>`
+- Final Review mode: `READ_ONLY_REVIEW`
+- Final Review corrective orchestration authorized: `<yes/no; does not grant controller writes>`
 - Corrective convergence budget:
 - Environment-write authority:
-- Submit/cleanup authority:
+- Initial submit/commit/push/cleanup authority: `none`
+- Post-verdict submit/cleanup grant: `<separate grant required; not issued here>`
 - Permission upgrade requires:
 
 Execution Shape:
@@ -51,6 +51,7 @@ Wave Readiness:
 - Useful parallel lanes:
 - Exclusive writable files:
 - Shared files kept serial:
+- Shared-file controller/integration owner:
 - Contracts frozen before writable work:
 - Runtime ownership:
 - Validation lanes:
@@ -58,12 +59,12 @@ Wave Readiness:
 - Conflict stop conditions:
 - Decision: `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
 
-Coder Self-Execution Policy:
-- Self-execution allowed: `<yes/no>`
-- Allowed only for: `<single phase/glue step/integration repair before Final Review/n/a>`
+Coder Controller Integration Edit Policy:
+- Direct controller edits allowed: `<yes/no>`
+- Allowed only for: `<named controller-owned integration or packet files/n/a>`
 - Maximum files or surfaces:
 - Worker dispatch required for:
-- Self-execution forbidden when:
+- Direct edits forbidden when: `<any file is worker-owned>`
 - Result packet must explain skipped worker dispatch: `<yes/no>`
 
 Worktree Isolation Policy:
@@ -76,8 +77,9 @@ Worktree Isolation Policy:
 - Shared files that remain serial:
 - Runtime ownership:
 - Integration owner:
-- Submit authority:
-- Cleanup policy:
+- Review worktree creator: `<Coder or named Workspace/Environment Controller; created before review handoff>`
+- Post-verdict submit owner:
+- Post-verdict cleanup policy:
 - Forbidden scenarios:
 
 Task Dispatch Policy:
@@ -131,21 +133,23 @@ Shared Files:
 
 | File | Owner | Rule |
 |---|---|---|
-| `<file>` | `<controller or worker>` | `<serial-only or exclusive lane>` |
+| `<file>` | `<named controller or integration owner>` | `<serial-only; workers propose patches>` |
 
 Worker Delegation Rules:
 - Controller role:
 - Controller permission mode:
 - Worker types allowed:
 - Worker permission modes:
-- Coder self-execution allowed:
-- Self-execution criteria:
+- Coder direct integration edits allowed:
+- Controller-owned edit criteria:
 - Parallel lanes allowed:
 - Parallel phases allowed:
 - Worktree isolation allowed:
 - Worker output format:
 - Worker stop conditions:
 - Integration owner:
+- Startup Context Controller:
+- Startup-context worker rule: `proposal only`
 - Required capability routing:
 - Continuous execution allowed only within approved phase/task/lane boundaries:
 

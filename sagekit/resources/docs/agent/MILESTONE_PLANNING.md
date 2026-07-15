@@ -11,7 +11,9 @@ implementation starts.
 
 A milestone is ready for implementation only when it can be decomposed into
 reviewable phases with clear contracts, file boundaries, tests, runtime checks,
-and stop conditions.
+and stop conditions, its planning review is `ACCEPTABLE` or
+`ACCEPTABLE_WITH_CONCERNS`, and Project Manager or project owner records
+acceptance of the executable package.
 
 If the milestone cannot be decomposed, it is still planning work.
 
@@ -108,14 +110,16 @@ Required core gate:
 - What are the phases?
 - What contract does each phase own?
 - What files or modules are likely to change?
-- Which files are shared and need exclusive ownership?
+- Which files are shared, and which named controller or integration owner owns
+  them? Workers may propose patches but cannot own shared files.
 - What governance level applies to the milestone controller, and what level
   should each worker or lane use?
 - What permission mode applies to the milestone controller, and what mode
   should each worker, lane, review, integration repair, or corrective round use?
 - Which gates remain closed?
 - Which runtime checks prove the milestone?
-- What review or handoff phase closes the milestone?
+- What Final Review, corrective convergence, owner decision, and closeout path
+  closes the milestone?
 - What closeout summary will future work need after the milestone closes?
 
 Conditional optional controls:
@@ -127,7 +131,8 @@ Conditional optional controls:
   name Project Manager, Coder, Final Review, packet paths, structural gate, and
   corrective convergence budget. Otherwise: `Not enabled: <reason>`.
 - Worktree Isolation: if isolation is authorized, name modes by scope, maximum
-  count, branch/worktree naming, submit authority, and cleanup policy.
+  count, branch/worktree naming, review-worktree creator, and post-verdict
+  submit/cleanup owner.
   Otherwise: `Not enabled: <reason>`.
 - Task Dispatch Profile: if structured task/evidence records, locks,
   Run/Attempt/Lease tracking, or validator-backed closeout are active, define
@@ -141,7 +146,7 @@ Conditional optional controls:
   mapped to milestone, phase, or packet docs. Otherwise:
   `Not enabled: <reason>`.
 
-## Planning Package Closeout Flow
+## Planning Package Flow
 
 Use this optional flow when the work is planning-only and the main cost is
 manual handoff between planning, planning review, closeout or status updates,
@@ -159,6 +164,19 @@ The model should select this flow automatically when all are true:
   authorized Submit Controller;
 - role separation can be preserved inside one root session.
 
+Planning Review returns one of:
+
+- `ACCEPTABLE`: eligible for Project Manager/project-owner acceptance;
+- `ACCEPTABLE_WITH_CONCERNS`: eligible only with recorded concerns and owner
+  acceptance;
+- `NEEDS_CORRECTION`: Targeted Fix, then Targeted Re-Review;
+- `BLOCKED`: stop until an owner records resolve, defer, abandon, or
+  close-blocked.
+
+An executable planning package requires an accepted Planning Review verdict and
+a Project Manager/project-owner acceptance record. Submitting its documents is
+not acceptance.
+
 Recommended root-session orchestration:
 
 1. Planning Author prepares or repairs the planning package.
@@ -167,8 +185,10 @@ Recommended root-session orchestration:
    artifact boundary.
 4. Targeted Re-Review verifies changed planning, ledger, evidence, status, or
    closeout items.
-5. Closeout/Status updates compact history, ledger state, and next action.
-6. Submit Controller stages, commits, pushes, or hands off only after submit
+5. Project Manager or project owner records package acceptance only after an
+   accepted review verdict.
+6. Closeout/Status updates compact history, ledger state, and next action.
+7. Submit Controller stages, commits, pushes, or hands off only after submit
    authority, changed-file review, verification, and hygiene checks pass.
 
 Role separation still applies even when one session orchestrates every step:
@@ -177,6 +197,8 @@ Role separation still applies even when one session orchestrates every step:
 - Planning Reviewer must not submit or accept the milestone.
 - Targeted Fix must not expand the planning package scope.
 - Submit Controller must not reinterpret planning acceptance.
+- Submitting planning documents records delivery only. It is not planning
+  package acceptance or milestone acceptance.
 - If planning changes semantics, permission boundaries, source authority,
   information architecture, public contracts, approval gates, validator meaning,
   or implementation scope, stop the planning package flow and run full affected
@@ -200,7 +222,8 @@ Treat these as blockers:
 - a phase requires approval but does not name the gate;
 - a phase depends on an unspecified contract;
 - a phase says integration is complete without naming the runtime path;
-- shared files are edited by multiple phases without an integration owner;
+- shared files are assigned to workers or edited by multiple phases without a
+  named controller/integration owner;
 - validation is saved only for the end when early contract tests are possible.
 
 ## Recommended Milestone Shape
@@ -231,5 +254,5 @@ A well-planned milestone produces:
 - capability routing plan for specialist skills, plugins, connectors, MCP
   tools, CI, or reviewers;
 - approval gates and stop conditions;
-- final review or handoff criteria;
+- final review, corrective convergence, owner-decision, and closeout criteria;
 - `MILESTONE_CLOSEOUT.md` after the milestone closes.

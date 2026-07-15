@@ -52,6 +52,7 @@ The entry gate must include:
 - phase sequence;
 - file boundary;
 - module ownership;
+- named controller/integration ownership for every shared file;
 - public contract;
 - worktree isolation policy when isolated execution is allowed;
 - task-dispatch policy when structured task/evidence records are required;
@@ -59,7 +60,7 @@ The entry gate must include:
 - capability routing expectations;
 - capability adapter authorization, evidence, and fallback policy when optional
   providers are expected;
-- Coder self-execution policy when Session Orchestration is used;
+- Coder Controller integration edit policy when Session Orchestration is used;
 - wave readiness decision when Wave Execution or parallel phases are proposed;
 - approval gates;
 - completion gate.
@@ -91,11 +92,11 @@ from `docs/CAPABILITY_MAP.md` and has not been split.
 
 Use `docs/agent/MILESTONE_PLANNING.md` for the decomposition checklist.
 
-When Session Orchestration is used, Coder Controller self-execution is not the
-default. The entry gate must explicitly allow any narrow self-execution scope,
-or Coder Controller must dispatch phase, lane, validation, review, or
-integration repair workers before Final Review. Corrective workers are reserved
-for Final Review corrective rounds on `AUTO_CORRECTIVE` findings.
+When Session Orchestration is used, Coder Controller orchestrates workers and
+performs controller-level synthesis and preliminary integration review. It does
+not edit worker-owned implementation files. Any direct edit is limited to a
+named controller-owned integration or packet file. Corrective workers are
+reserved for Final Review corrective rounds on `AUTO_CORRECTIVE` findings.
 
 ## Phase Decomposition Matrix
 
@@ -121,6 +122,9 @@ Record:
 - conflict stop conditions.
 
 If readiness is not proven, keep execution serial.
+
+Every shared file must have a named controller or integration owner. Workers
+submit patch proposals for shared files to that owner.
 
 ## Auto-Advance Policy
 
@@ -158,7 +162,8 @@ State:
 - milestone controller governance level;
 - worker, phase, lane, review, and corrective governance levels;
 - milestone, worker, phase, lane, review, and corrective permission modes;
-- whether corrective auto-open is allowed or packet-only;
+- whether Final Review corrective orchestration is separately authorized or
+  requires Project Manager decision;
 - controls enabled and explicitly not enabled;
 - triggers that require stopping for Project Manager or controller decision.
 
@@ -176,8 +181,8 @@ If yes, name:
 - shared files that remain serial;
 - runtime ownership;
 - integration owner;
-- submit authority;
-- cleanup policy.
+- review-worktree creator, when applicable;
+- post-verdict submit and cleanup owner/policy.
 
 ## Task Dispatch
 
@@ -218,14 +223,20 @@ ledger is current.
 
 Closure order:
 
-1. Accept or explicitly supersede required phases.
-2. Update `MILESTONE_LEDGER.md`.
-3. Write or update `MILESTONE_CLOSEOUT.md`.
-4. Mark the milestone closed or accepted.
+1. Record the Final Review verdict.
+2. Complete corrective convergence or record its explicit stop.
+3. Record the Project Manager/project-owner accept, close-blocked, defer,
+   abandon, or supersede decision.
+4. Update `MILESTONE_LEDGER.md`, including required phase disposition.
+5. Write or update `MILESTONE_CLOSEOUT.md`.
 
 The closeout is a compact historical outcome index. It records what shipped,
 what changed, key decisions, verification summary, known gaps, follow-up
 milestones, and links to detailed evidence.
+
+`HANDOFF` is not a closeout result. `BLOCKED` remains open until the authorized
+owner explicitly chooses resume, close-blocked, defer, or abandon; resume does
+not permit closeout.
 
 Do not add the closeout to default startup context. Read it only when
 `docs/DOC_ROUTING.md` says historical milestone context is needed.

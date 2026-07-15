@@ -12,7 +12,8 @@ reason when no capability map is used.
 ## Closeout Status
 
 - Closeout file: `docs/M<ID>/MILESTONE_CLOSEOUT.md`
-- Closeout status: `not_started`, `drafted`, `finalized`, `blocked`, or `superseded`
+- Closeout status: `not_started`, `drafted`, `finalized`, `closed_blocked`,
+  `deferred`, `abandoned`, or `superseded`
 - Closeout change ref: `<commit, PR, changelist, or n/a>`
 - Closeout notes: `<short note or n/a>`
 
@@ -38,7 +39,7 @@ Allowed statuses:
 Acceptance invariant:
 
 - `accepted` requires every blocking gate for that phase to be `PASS` or
-  explicitly `WAIVED` by the project owner.
+  explicitly `WAIVED` by the named owner.
 - `DONE_WITH_CONCERNS`, failed commands, unresolved blocking gaps, or skipped
   blocking gates cannot be marked `accepted`.
 
@@ -52,9 +53,14 @@ Acceptance invariant:
 
 ## Gate Status
 
-| Phase | Gate | Status | Evidence | Blocking | Owner | Notes |
-|---|---|---|---|---|---|---|
-| `<phase>` | `<gate>` | `PASS`, `FAIL`, `BLOCKED`, `WAIVED`, or `N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
+| Phase | Gate | Status | Evidence | Blocking | Finding Owner | Waiver Authority | Decision Or Delegation Ref | Notes |
+|---|---|---|---|---|---|---|---|---|
+| `<phase>` | `<gate>` | `PASS`, `FAIL`, `BLOCKED`, `WAIVED`, or `N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<authority or n/a>` | `<explicit decision/delegation ref or n/a>` | `<notes>` |
+
+An ordinary quality-finding waiver needs an explicit decision from the named
+Waiver Authority or a documented delegation reference. Finding ownership alone
+does not grant waiver authority. A human-only approval gate may be waived only
+by its named human authority.
 
 ## Wave Status
 
@@ -101,15 +107,22 @@ Use this table when Task Dispatch Profile is used.
 
 Use this table only when Session Orchestration is used.
 
-| Controller | Packet | Status | Evidence | Next Action |
-|---|---|---|---|---|
-| `Project Manager` | `<execution/structural/final decision packet>` | `<status>` | `<evidence>` | `<next action>` |
-| `Coder` | `<milestone result packet>` | `<status>` | `<evidence>` | `<next action>` |
-| `Final Review` | `<review verdict packet>` | `<status>` | `<evidence>` | `<next action>` |
+| Stage | Owner | Record | Status | Evidence | Next Action |
+|---|---|---|---|---|---|
+| `PM execution issuance` | `Project Manager` | `<execution packet>` | `<issued/held>` | `<evidence>` | `<next action>` |
+| `Coder result` | `Coder Controller` | `<milestone result packet>` | `<status>` | `<evidence>` | `<next action>` |
+| `Structural gate` | `Project Manager` | `<structural gate record>` | `PASS`, `REPAIR_REQUIRED`, or `BLOCKED` | `<evidence>` | `<next action>` |
+| `Final verdict` | `Final Review Controller` | `<review verdict packet>` | `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, `NEEDS_CORRECTION`, or `BLOCKED` | `<evidence>` | `<next action>` |
+| `PM/owner acceptance` | `<Project Manager/project owner>` | `<decision record>` | `<accepted/accepted_with_concerns/close_blocked/deferred/abandoned/superseded/pending>` | `<authority/evidence>` | `<next action>` |
+| `Closeout` | `<closeout owner>` | `<closeout file>` | `<not_started/drafted/finalized>` | `<evidence>` | `<next action>` |
 
 When Final Review returns `NEEDS_CORRECTION` or `BLOCKED`, the next action must
 name a corrective packet, Project Manager decision request, blocker, or waiver
 path.
+
+`HANDOFF` is not a terminal milestone or closeout state. A blocked milestone
+remains open until an authorized owner records resume, close-blocked, abandon,
+or defer; resume does not permit closeout.
 
 ## Agent Lanes
 

@@ -7,6 +7,8 @@ Verdict: ACCEPTABLE, ACCEPTABLE_WITH_CONCERNS, NEEDS_CORRECTION, or BLOCKED
 
 Milestone:
 
+Review Packet Owner: `Final Review Controller` or `<named author>`
+
 Primary Capability:
 
 Coder Packet Ref:
@@ -21,7 +23,9 @@ Governance Review:
 - Under-governance found:
 
 Permission Review:
-- Final Review mode: `READ_ONLY_REVIEW` or `CORRECTIVE_AUTHORIZED`
+- Final Review mode: `READ_ONLY_REVIEW`
+- Final Review corrective orchestration authorized: `<yes/no; delegates only to
+  separately CORRECTIVE_AUTHORIZED workers and does not grant controller writes>`
 - Mode allowed by execution packet:
 - Write/corrective authority preserved:
 - Submit/cleanup authority preserved:
@@ -100,7 +104,16 @@ Task Dispatch Review:
 - L0-L4 evidence gaps:
 - Resource lock or lease gaps:
 - Mock or fallback concerns:
+- Orphan task/evidence records:
+- Cross-task exclusive-lock conflicts:
 - Records needing Project Manager decision:
+
+State Truth Reconciliation Gate:
+- Applicable / `N/A` reason:
+- Profile reference: `docs/profiles/task-dispatch/DISPATCH_PROFILE.md`
+- Owners and mutation authority checked:
+- Mismatches or corrective/handoff reference:
+- Result: `PASS`, `BLOCKED`, or `N/A`
 
 Phase Findings:
 

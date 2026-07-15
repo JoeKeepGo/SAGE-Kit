@@ -12,10 +12,17 @@ command output.
 
 ## Outcome
 
-- Status: `DONE`, `DONE_WITH_CONCERNS`, `HANDOFF`, `BLOCKED`, or `SUPERSEDED`
+- Status: `DONE`, `DONE_WITH_CONCERNS`, `CLOSED_BLOCKED`, `DEFERRED`,
+  `ABANDONED`, or `SUPERSEDED`
 - Closed on: `<date or change ref>`
 - Owner: `<owner>`
+- Final Review verdict/ref:
+- Corrective convergence status/ref:
+- Project Manager/project-owner decision/ref:
 - Change refs: `<commit, PR, changelist, release, or n/a>`
+
+`HANDOFF` is not a closeout result. Use `CLOSED_BLOCKED`, `DEFERRED`, or
+`ABANDONED` only after the authorized owner records that explicit decision.
 
 ## Source Documents
 
@@ -49,9 +56,14 @@ command output.
 
 ## Approval Gates
 
-| Gate | Final Status | Evidence | Notes |
-|---|---|---|---|
-| `<gate>` | `PASS`, `WAIVED`, `BLOCKED`, or `N/A` | `<source>` | `<notes>` |
+| Gate | Final Status | Evidence | Finding Owner | Waiver Authority | Decision Or Delegation Ref | Notes |
+|---|---|---|---|---|---|---|
+| `<gate>` | `PASS`, `WAIVED`, `BLOCKED`, or `N/A` | `<source>` | `<owner or n/a>` | `<authority or n/a>` | `<explicit decision/delegation ref or n/a>` | `<notes>` |
+
+Ordinary quality-finding waivers cite the named Waiver Authority and explicit
+decision or delegation reference. Finding ownership alone does not grant waiver
+authority. Human-only approval gates cite the named human authority; Project
+Manager alone cannot waive them.
 
 ## Known Gaps
 

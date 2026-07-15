@@ -125,6 +125,71 @@ def write_valid_planning_phase(root):
     )
 
 
+def write_dispatch_pair(root, task_id, lock=None, directory_id=None):
+    task = {
+        "id": task_id,
+        "type": "spec",
+        "title": f"Dispatch {task_id}",
+        "priority": "P2",
+        "status": "NEW",
+        "scope": {
+            "objective": "Exercise repository dispatch checks.",
+            "allowed_files": ["src/app.py"],
+            "read_only_files": [],
+            "forbidden_files": [],
+            "non_goals": [],
+            "stop_conditions": [],
+        },
+        "verification": {
+            "required_levels": ["L0"],
+            "evidence_file": "evidence.yaml",
+            "mock_allowed": False,
+            "required_commands": [],
+        },
+        "dependencies": {"requires": [], "blocks": []},
+        "resources": {"locks": [lock] if lock else []},
+        "runs": [],
+        "closure": {},
+    }
+    evidence = {
+        "task_id": task_id,
+        "changed_surface": [],
+        "runtime_shape": "static validation",
+        "levels": {
+            level: {
+                "status": "PENDING" if level == "L0" else "N/A",
+                "evidence": [],
+                "commands": [],
+                "reason": "awaiting evidence" if level == "L0" else "not required",
+            }
+            for level in ["L0", "L1", "L2", "L3", "L4"]
+        },
+        "artifacts": {
+            "commands": [],
+            "files_changed": [],
+            "api": [],
+            "sql": [],
+            "browser": [],
+            "logs": [],
+            "screenshots": [],
+            "release": [],
+            "ids": [],
+        },
+        "runs": [],
+        "blockers": [],
+        "conclusion": {
+            "status": "PENDING",
+            "highest_level": "none",
+            "mock_used": False,
+            "accepted_fallback": False,
+            "next_action": "collect evidence",
+        },
+    }
+    directory = f"docs/M1/dispatch/{directory_id or task_id}"
+    write_file(root, f"{directory}/task.yaml", json.dumps(task))
+    write_file(root, f"{directory}/evidence.yaml", json.dumps(evidence))
+
+
 class SagekitCheckTests(unittest.TestCase):
     def test_version_outputs_package_version(self):
         from sagekit import __version__
@@ -301,6 +366,255 @@ class SagekitCheckTests(unittest.TestCase):
                     for item in payload["findings"]
                 )
             )
+
+    def test_task_dispatch_reports_orphan_evidence_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_file(
+                root,
+                "docs/M1/dispatch/TASK-001/evidence.yaml",
+                json.dumps({"task_id": "TASK-001"}),
+            )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "task-dispatch"
+                    and "evidence.yaml is present but task.yaml is missing" in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload["findings"],
+            )
+
+    def test_task_dispatch_reports_conflicting_exclusive_locks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            for task_id, owner in [("TASK-001", "worker-1"), ("TASK-002", "worker-2")]:
+                write_dispatch_pair(
+                    root,
+                    task_id,
+                    {
+                        "resource": "shared-test-db",
+                        "owner": owner,
+                        "mode": "exclusive",
+                        "status": "ACTIVE",
+                        "release_rule": "after verification",
+                    },
+                )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "task-dispatch-lock-conflict"
+                    and "shared-test-db" in item["message"]
+                    and "TASK-001" in item["message"]
+                    and "TASK-002" in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload["findings"],
+            )
+
+    def test_task_dispatch_detects_containment_overlap_for_exclusive_locks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            for task_id, resource in [("TASK-001", "src/"), ("TASK-002", "src/app.py")]:
+                write_dispatch_pair(
+                    root,
+                    task_id,
+                    {
+                        "resource": resource,
+                        "owner": task_id,
+                        "mode": "exclusive",
+                        "status": "ACTIVE",
+                        "release_rule": "after verification",
+                    },
+                )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "task-dispatch-lock-conflict"
+                    and "src/" in item["message"]
+                    and "src/app.py" in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload["findings"],
+            )
+
+    def test_task_dispatch_reports_duplicate_declared_task_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_dispatch_pair(root, "TASK-001", directory_id="record-a")
+            write_dispatch_pair(root, "TASK-001", directory_id="record-b")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "task-dispatch-duplicate-id"
+                    and "TASK-001" in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload["findings"],
+            )
+
+    def test_dispatch_board_reconciles_active_task_ids_with_record_pairs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_dispatch_pair(root, "TASK-001")
+            write_file(
+                root,
+                "docs/M1/dispatch/DISPATCH_BOARD.md",
+                """
+                # Dispatch Board
+
+                ## Active Tasks
+
+                | Task | Status |
+                |---|---|
+                | `TASK-BOARD-ONLY` | `NEW` |
+
+                ## Resource Locks
+                """,
+            )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            messages = [
+                item["message"]
+                for item in payload["findings"]
+                if item["rule"] == "task-dispatch-board"
+            ]
+            self.assertTrue(any("TASK-BOARD-ONLY" in message and "no record pair" in message for message in messages), messages)
+            self.assertTrue(any("TASK-001" in message and "absent from" in message for message in messages), messages)
+
+    def test_task_dispatch_records_require_dispatch_board(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_dispatch_pair(root, "TASK-001")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "task-dispatch-board"
+                    and "DISPATCH_BOARD.md is missing" in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload["findings"],
+            )
+
+    def test_inactive_archive_decision_does_not_exempt_record_from_board(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_dispatch_pair(root, "TASK-001")
+            write_file(root, "docs/M1/dispatch/DISPATCH_BOARD.md", "## Active Tasks\n\n| Task |\n|---|\n")
+            write_file(
+                root,
+                "docs/M1/dispatch/decisions.md",
+                "| 2026-07-15/D1 | `INACTIVE` | archive completed record | `TASK-001` | owner | ref | none | none | evidence | none |",
+            )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "task-dispatch-board"
+                    and "TASK-001" in item["message"]
+                    and "absent from" in item["message"]
+                    for item in payload["findings"]
+                ),
+                payload["findings"],
+            )
+
+    def test_closed_record_absent_from_board_requires_active_archive_decision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_dispatch_pair(root, "TASK-CLOSED")
+            closed_path = root / "docs/M1/dispatch/TASK-CLOSED/task.yaml"
+            closed = json.loads(closed_path.read_text(encoding="utf-8"))
+            closed["status"] = "CLOSED"
+            closed_path.write_text(json.dumps(closed), encoding="utf-8")
+            write_file(root, "docs/M1/dispatch/DISPATCH_BOARD.md", "## Active Tasks\n\n| Task |\n|---|\n")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            board_messages = [
+                item["message"]
+                for item in payload["findings"]
+                if item["rule"] == "task-dispatch-board"
+            ]
+            self.assertTrue(
+                any("TASK-CLOSED" in message and "absent from" in message for message in board_messages),
+                board_messages,
+            )
+
+    def test_dispatch_board_allows_explicitly_archived_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_dispatch_pair(root, "TASK-CLOSED")
+            closed_path = root / "docs/M1/dispatch/TASK-CLOSED/task.yaml"
+            closed = json.loads(closed_path.read_text(encoding="utf-8"))
+            closed["status"] = "CLOSED"
+            closed_path.write_text(json.dumps(closed), encoding="utf-8")
+            write_dispatch_pair(root, "TASK-ARCHIVED")
+            write_file(root, "docs/M1/dispatch/DISPATCH_BOARD.md", "## Active Tasks\n\n| Task |\n|---|\n")
+            write_file(
+                root,
+                "docs/M1/dispatch/decisions.md",
+                "\n".join(
+                    [
+                        "| 2026-07-15/D1 | `ACTIVE` | archive completed record | `TASK-CLOSED` | owner | ref | none | none | evidence | none |",
+                        "| 2026-07-15/D2 | `ACTIVE` | archive completed record | `TASK-ARCHIVED` | owner | ref | none | none | evidence | none |",
+                    ]
+                ),
+            )
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            payload = json.loads(result.stdout)
+            board_messages = [
+                item["message"]
+                for item in payload["findings"]
+                if item["rule"] == "task-dispatch-board"
+            ]
+            self.assertFalse(any("TASK-CLOSED" in message for message in board_messages), board_messages)
+            self.assertFalse(any("TASK-ARCHIVED" in message for message in board_messages), board_messages)
+
+    def test_default_schema_dir_finds_packaged_schema_location(self):
+        from sagekit.check import default_schema_dir
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "project"
+            package = Path(tmp) / "installed" / "sagekit"
+            packaged_schemas = package / "resources/docs/profiles/task-dispatch/schemas"
+            packaged_schemas.mkdir(parents=True)
+            with patch("sagekit.check.__file__", str(package / "check.py")):
+                result = default_schema_dir(root)
+
+        self.assertEqual(result, packaged_schemas)
 
     def test_check_does_not_write_project_files(self):
         with tempfile.TemporaryDirectory() as tmp:

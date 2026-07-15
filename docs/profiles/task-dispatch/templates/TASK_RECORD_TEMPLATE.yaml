@@ -3,13 +3,20 @@ type: spec
 title: Example task title
 priority: P2
 status: NEW
+runtime_shape: documentation-only
 mode: single-surface
 area: []
-owner: unassigned
+owner: task-owner
 
 lifecycle:
   phase: triage
+  review_result: PENDING
   next_action: define scope
+
+authority:
+  source: milestone entry gate or execution packet
+  grant: WRITE_AUTHORIZED
+  scope: TASK-000 and its allowed files and evidence
 
 scope:
   objective: Describe the observable result.
@@ -23,20 +30,28 @@ verification:
   required_levels: [L0]
   evidence_file: evidence.yaml
   mock_allowed: false
+  # IDs are unique; each maps to artifacts.commands.command_id or
+  # skipped_checks.id in evidence.yaml.
   required_commands: []
-  runtime_smoke: n/a
+  runtime_smoke: not applicable because this example is documentation-only
 
 dependencies:
   requires: []
   blocks: []
 
 resources:
+  # Locks use: resource, owner, mode, status, carried, and release metadata.
   locks: []
 
+# Run status is PENDING, RUNNING, PASSED, FAILED, BLOCKED, or ABORTED.
+# Entries also name id, attempt, owner, authority_ref, phase, next_action,
+# uses_shared_resource, and lease only when that flag is true.
 runs: []
 
 closure:
   accepted_by: null
   accepted_at: null
   closed_at: null
+  review_result: PENDING
+  evidence_ref: null
   notes: null

@@ -25,9 +25,9 @@ current role and control scope.
 |---|---|---|
 | `READ_ONLY_REVIEW` | Inspect, analyze, verify, classify findings, and recommend next action. | Editing files, running corrective work, opening approval gates, submitting, or treating review as closure when findings require action. |
 | `WRITE_AUTHORIZED` | Edit only the allowed files or runtime surfaces named by the packet, then provide evidence. | Scope expansion, approval-gate changes, submit/merge/publish, or corrective work outside the approved boundary. |
-| `CORRECTIVE_AUTHORIZED` | Fix findings named in a corrective packet, run the required checks, and return for re-review. | Redesign, unassigned fixes, new product decisions, approval-gate changes, or accepting the milestone. |
+| `CORRECTIVE_AUTHORIZED` | A corrective worker may fix findings named in a corrective packet, run required checks, and return for re-review. | Granting the read-only Final Review Controller file-write authority, redesign, unassigned fixes, new product decisions, approval-gate changes, or accepting the milestone. |
 | `ENVIRONMENT_WRITE_AUTHORIZED` | Install, initialize, index, configure, or mutate environment-local tools only within the named adapter boundary. | Silent installs, global configuration, hooks, credentials, destructive changes, or treating tool setup as project completion. |
-| `SUBMIT_AUTHORIZED` | Commit, push, merge, publish, release, or clean up worktrees only after the required review and Project Manager decision. | Submitting unreviewed scope, bypassing approval gates, or accepting technical risk without recorded owner decision. |
+| `SUBMIT_AUTHORIZED` | Commit, push, merge, publish, release, or clean up worktrees under a distinct post-verdict grant issued after the required review and Project Manager decision. | Initial Coder execution, submitting unreviewed scope, bypassing approval gates, or accepting technical risk without a recorded owner decision. |
 
 `PM_DECISION_AUTHORIZED` is a Project Manager decision record, not a worker
 permission mode. It allows the Project Manager to record accept, accept with
@@ -41,6 +41,20 @@ must produce a corrective packet, a Project Manager decision request, or an
 explicit blocker. "Corrective required: yes" without one of those outputs is an
 incomplete review.
 
+Orchestration authority and worker write authority are separate. A Final Review
+Controller remains `READ_ONLY_REVIEW`; Project Manager may separately authorize
+it to dispatch review workers and bounded corrective workers. Each corrective
+worker needs its own `CORRECTIVE_AUTHORIZED` packet. The controller never edits
+implementation or corrective files.
+
+Waivers also require separate authority. Each ordinary quality finding names a
+Finding Owner and Waiver Authority. The Finding Owner may waive only when also
+named as Waiver Authority. Project Manager may record a waiver only with an
+explicit decision reference from the Waiver Authority or a documented
+delegation reference granting that authority. A closed human-only approval gate
+can be opened, waived, or reclassified only by its named human authority;
+Project Manager cannot waive it alone.
+
 Common combinations:
 
 | Combination | Normal Use | Required Closure |
@@ -51,7 +65,7 @@ Common combinations:
 | `Standard + WRITE_AUTHORIZED` | Bounded implementation in one module, phase, or ownership area. | Tests or smoke evidence and completion report. |
 | `Standard + CORRECTIVE_AUTHORIZED` | Fix named findings inside an existing boundary. | Required checks, evidence, and re-review request. |
 | `Heavy + READ_ONLY_REVIEW` | Milestone, multi-phase, multi-agent, release, approval, or high-risk review. | Final Review packet plus corrective packet, PM decision request, blocker, or recommended waiver path for Project Manager decision. |
-| `Heavy + CORRECTIVE_AUTHORIZED` | Controller-managed corrective round for milestone-blocking findings. | Corrective packet, bounded executor, verification, re-review, and PM final decision. |
+| `Heavy + CORRECTIVE_AUTHORIZED` | High-risk corrective worker scope for milestone-blocking findings. | Corrective packet, bounded executor, verification, re-review, and PM final decision. |
 | `Heavy + SUBMIT_AUTHORIZED` | Post-review submit, release, merge, publish, or cleanup. | Recorded Final Review verdict and explicit Project Manager submit authority. |
 
 ## Levels
@@ -134,7 +148,8 @@ Heavy does not automatically enable every control.
 - Use Session Orchestration for milestone-level multi-controller handoff.
 - Use Wave Execution for safe parallel lanes inside a phase.
 - Use Worktree Isolation only when Project Manager authorization names mode,
-  count, naming, integration owner, submit authority, and cleanup policy.
+  count, naming, integration owner, and the post-verdict submit and cleanup
+  owner. The initial execution packet does not grant submit authority.
 - Use Task Dispatch Profile only when structured task/evidence records,
   resource locks, leases, or validator-backed closeout are worth the extra
   ceremony.
@@ -154,8 +169,10 @@ name:
 - controller governance level;
 - worker or lane governance levels;
 - permission mode for the current role and worker/lane modes when delegated;
-- whether corrective auto-open is allowed, packet-only, or requires Project
-  Manager decision;
+- orchestration authority separately from each delegated worker's write
+  authority;
+- whether Final Review corrective orchestration is authorized or requires a
+  Project Manager decision;
 - controls enabled and controls explicitly not enabled;
 - upgrade triggers found during execution;
 - selected capability adapters, authorization levels, and fallbacks when

@@ -175,6 +175,9 @@ When active:
 - read the active `task.yaml` and `evidence.yaml` named by routing;
 - keep task status, runs, attempts, resource locks, leases, blockers, and next
   action current;
+- run State Truth Reconciliation whenever a task moves between planning,
+  waiting, authorized, in-progress, pending-review, verified, blocked, or
+  released states;
 - record L0-L4 evidence in `evidence.yaml` instead of copying long logs into
   startup docs;
 - run `scripts/validate_task_dispatch.py --gate-ready` before returning a task,
@@ -185,6 +188,46 @@ When active:
 
 Do not create task-dispatch records for ordinary small tasks unless Project
 Manager adopted the profile.
+
+### State Truth Reconciliation
+
+Run this gate before starting a task, after creating or renewing a run/lease,
+before leaving a task, and before moving to the next task or phase.
+
+All active state surfaces must agree:
+
+- `task.yaml`: status, runs, attempts, locks, leases, blockers, closure note,
+  and next action;
+- `evidence.yaml`: status, L0-L4 reasons, next action, artifacts,
+  files-changed, commands, skipped checks, and review result;
+- milestone ledger and dispatch board: current status, historical decisions,
+  accepted authority, blockers, and next action;
+- completion or result packet when it exists.
+
+Reconciliation is inspect-only by default. Use the owner recorded by project
+routing or the active packet. In the absence of a narrower project rule:
+
+- Project Manager owns the dispatch board, milestone ledger, and current
+  decision state;
+- the assigned execution controller owns `task.yaml` lifecycle and run/lease
+  coordination;
+- the evidence producer owns evidence facts, while the assigned reviewer owns
+  review result and acceptance fields;
+- the packet author owns its result, review, or corrective packet.
+
+Mutate a surface only when both ownership and the required write or corrective
+authority are present. Otherwise return a precise update proposal, corrective
+packet, or `HANDOFF`; do not make multiple files agree by overwriting a more
+authoritative source.
+
+If authority, branch, baseline, run, lease, or gate state changed, remove stale
+planning/future/waiting wording from active fields. Historical STOP or waiting
+decisions may remain only when marked historical, superseded, or unlocked by a
+named accepted authority.
+
+Do not advance to the next task or phase when structured task/evidence fields
+contradict the ledger, board, active run, or lease. Treat that as false-green
+or stale-authority risk, not ordinary documentation cleanup.
 
 ## Session Orchestration
 
@@ -203,6 +246,9 @@ When Session Orchestration is active:
 - Final Review classifies required corrections and either opens an authorized
   corrective round or returns a packet-only handoff, Project Manager decision
   request, or blocker.
+- Corrective orchestration authority does not grant Final Review write
+  authority. Final Review delegates fixes to separately authorized corrective
+  workers and remains independent for re-review.
 - Corrective workers fix only findings named in corrective packets.
 - After corrective work, Final Review must collect independent re-review
   evidence. Rerun affected review workers, review subagents, or validation lanes

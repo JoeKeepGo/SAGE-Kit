@@ -26,12 +26,12 @@ Required Sections Present:
 | Capability discovery used | `<yes/no>` | `<notes>` |
 | Capability adapter authorization/fallback recorded when used | `<yes/no/n/a>` | `<notes>` |
 | superpowers boundary recorded when used | `<yes/no/n/a>` | `<notes>` |
-| Coder execution mode and self-execution policy recorded | `<yes/no/n/a>` | `<notes>` |
+| Coder execution mode and controller integration edit policy recorded | `<yes/no/n/a>` | `<notes>` |
 | Wave readiness decision recorded when parallelism was used | `<yes/no/n/a>` | `<notes>` |
 | Parallelism assessment | `<yes/no>` | `<notes>` |
 | Worktree authorization or n/a | `<yes/no>` | `<notes>` |
 | Worktree map or n/a | `<yes/no>` | `<notes>` |
-| Submit and cleanup authority or n/a | `<yes/no>` | `<notes>` |
+| Initial submit/cleanup authority is none; post-verdict owner is named | `<yes/no>` | `<notes>` |
 | Phase results | `<yes/no>` | `<notes>` |
 | Files changed | `<yes/no>` | `<notes>` |
 | Contract evidence | `<yes/no>` | `<notes>` |
@@ -64,7 +64,7 @@ Use this short check after Final Review when the verdict is not cleanly
 acceptable.
 
 ```markdown
-Review Closure Status: CLOSED, CORRECTIVE_OPENED, CORRECTIVE_CONTINUING,
+Review Closure Status: VERDICT_READY_FOR_PM, CORRECTIVE_OPENED, CORRECTIVE_CONTINUING,
 PM_DECISION_REQUIRED, or BLOCKED
 
 Final Review Packet Ref:
@@ -76,9 +76,9 @@ Corrective Required:
 Verdict Closure Branch:
 - `ACCEPTABLE`: Project Manager may record final decision.
 - `ACCEPTABLE_WITH_CONCERNS`: Project Manager may accept with recorded concerns,
-  waiver, deferred owner, or return for decision.
-- `NEEDS_CORRECTION`: open corrective round, request PM waiver/decision, or mark
-  blocker. Continue automatic correction only inside an authorized corrective
+  owner-authorized waiver, deferred owner, or return for decision.
+- `NEEDS_CORRECTION`: open corrective round, request owner-authorized quality
+  waiver/decision, or mark blocker. Continue automatic correction only inside an authorized corrective
   packet or boundary while convergence is proven and scope does not expand. Do
   not close as accepted without the PM record.
 - `BLOCKED`: mark blocked or return for blocker resolution. Do not accept.
@@ -87,7 +87,9 @@ Verdict Closure Branch:
 |---|---|---|
 | Permission mode recorded | `<yes/no>` | `<notes>` |
 | Findings classified | `<yes/no>` | `<notes>` |
-| Severity gate applied | `<yes/no>` | `<open P0/P1 block; authority/false-green/approval-gate/security/validator/gate-ready/source-authority/evidence-integrity P2 block; ordinary P2/P3 handling>` |
+| Severity gate applied | `<yes/no>` | `<P0/P1 block; authority/false-green/approval-boundary/security-boundary/validator-failure/source-authority/evidence-integrity P2 block; ordinary P2 may auto-fix or carry concerns; P3 does not block>` |
+| Finding owner and waiver authority recorded | `<yes/no/n/a>` | `<finding owner; waiver authority>` |
+| Waiver decision or delegation reference recorded | `<yes/no/n/a>` | `<explicit decision/delegation ref>` |
 | Corrective packet attached when required | `<yes/no/n/a>` | `<notes>` |
 | PM decision request attached when required | `<yes/no/n/a>` | `<notes>` |
 | Blocker named when correction cannot proceed | `<yes/no/n/a>` | `<notes>` |
@@ -100,10 +102,15 @@ Decision:
 - Continue corrective work only inside an authorized corrective packet or
   boundary when finding count or severity is decreasing, scope does not expand,
   no blocking approval gate is bypassed, and no new authority, false-green,
-  approval-gate, security, validator/gate-ready, source-authority, or
+  approval-boundary, security-boundary, validator-failure, source-authority, or
   evidence-integrity risk appears
+- On the first same-root stagnant round, stop automatic continuation and return
+  `NEEDS_CORRECTION`, `PM_DECISION_REQUIRED`, and `HANDOFF`
 - Return to Project Manager for decision, waiver, defer, or scope authority
-- Mark blocked for `BLOCKED` verdicts, unresolved blockers, or two consecutive
-  rounds with the same root cause and no material progress
-- Close only after the verdict branch above is satisfied
+- Mark blocked for unresolved blockers or two consecutive rounds with the same
+  root cause and no material progress
+- Do not close `BLOCKED` until an authorized owner records close-blocked,
+  abandon, or defer
+- Mark `VERDICT_READY_FOR_PM` only after the verdict branch above is satisfied;
+  this closes the review loop, not the milestone
 ```

@@ -5,28 +5,35 @@
   "type": "object",
   "required": [
     "task_id",
+    "objective",
+    "owner",
+    "authority",
+    "phase",
     "changed_surface",
     "runtime_shape",
     "levels",
     "artifacts",
+    "skipped_checks",
     "runs",
     "blockers",
     "conclusion"
   ],
   "properties": {
     "task_id": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^TASK-[A-Za-z0-9._-]+$"
     },
+    "objective": { "$ref": "#/$defs/nonEmptyString" },
+    "owner": { "$ref": "#/$defs/nonEmptyString" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "phase": { "$ref": "#/$defs/nonEmptyString" },
     "changed_surface": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "$ref": "#/$defs/nonEmptyString" },
+      "uniqueItems": true
     },
-    "original_user_path": {
-      "type": "string"
-    },
-    "runtime_shape": {
-      "type": "string"
-    },
+    "original_user_path": { "type": "string" },
+    "runtime_shape": { "$ref": "#/$defs/nonEmptyString" },
     "levels": {
       "type": "object",
       "required": ["L0", "L1", "L2", "L3", "L4"],
@@ -50,21 +57,52 @@
         "screenshots",
         "release",
         "ids"
-      ]
+      ],
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/commandEvidence" },
+          "uniqueItems": true
+        },
+        "files_changed": { "$ref": "#/$defs/stringArray" },
+        "api": { "$ref": "#/$defs/stringArray" },
+        "sql": { "$ref": "#/$defs/stringArray" },
+        "browser": { "$ref": "#/$defs/stringArray" },
+        "logs": { "$ref": "#/$defs/stringArray" },
+        "screenshots": { "$ref": "#/$defs/stringArray" },
+        "release": { "$ref": "#/$defs/stringArray" },
+        "ids": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "skipped_checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skippedCheck" },
+      "uniqueItems": true
     },
     "runs": {
-      "type": "array"
+      "type": "array",
+      "items": { "$ref": "#/$defs/runRecord" }
     },
     "blockers": {
-      "type": "array"
+      "type": "array",
+      "items": { "$ref": "#/$defs/nonEmptyString" }
     },
     "conclusion": {
       "type": "object",
       "required": [
         "status",
         "highest_level",
+        "review_result",
         "mock_used",
+        "mock_rationale",
+        "mock_scope",
+        "mock_follow_up",
+        "mock_accepted_by",
         "accepted_fallback",
+        "accepted_fallback_by",
+        "accepted_fallback_scope",
+        "accepted_fallback_reason",
+        "mock_acceptance_ref",
         "next_action"
       ],
       "properties": {
@@ -80,42 +118,241 @@
             "PM_BLOCKED"
           ]
         },
-        "mock_used": {
-          "type": "boolean"
+        "highest_level": {
+          "enum": ["none", "L0", "L1", "L2", "L3", "L4"]
         },
-        "accepted_fallback": {
-          "type": "boolean"
+        "review_result": { "$ref": "#/$defs/reviewResult" },
+        "mock_used": { "type": "boolean" },
+        "mock_rationale": { "type": ["string", "null"] },
+        "mock_scope": { "type": ["string", "null"] },
+        "mock_follow_up": { "type": ["string", "null"] },
+        "mock_accepted_by": { "type": ["string", "null"] },
+        "accepted_fallback": { "type": "boolean" },
+        "accepted_fallback_by": { "type": ["string", "null"] },
+        "accepted_fallback_scope": { "type": ["string", "null"] },
+        "accepted_fallback_reason": { "type": ["string", "null"] },
+        "mock_acceptance_ref": { "type": ["string", "null"] },
+        "next_action": { "$ref": "#/$defs/nonEmptyString" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "mock_used": { "const": true } },
+            "required": ["mock_used"]
+          },
+          "then": {
+            "properties": {
+              "mock_rationale": { "$ref": "#/$defs/nonEmptyString" },
+              "mock_scope": { "$ref": "#/$defs/nonEmptyString" },
+              "mock_follow_up": { "$ref": "#/$defs/nonEmptyString" },
+              "mock_accepted_by": { "$ref": "#/$defs/nonEmptyString" },
+              "mock_acceptance_ref": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "accepted_fallback": { "const": true } },
+            "required": ["accepted_fallback"]
+          },
+          "then": {
+            "properties": {
+              "mock_used": { "const": true },
+              "mock_accepted_by": { "$ref": "#/$defs/nonEmptyString" },
+              "accepted_fallback_by": { "$ref": "#/$defs/nonEmptyString" },
+              "accepted_fallback_scope": { "$ref": "#/$defs/nonEmptyString" },
+              "accepted_fallback_reason": { "$ref": "#/$defs/nonEmptyString" },
+              "mock_acceptance_ref": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          },
+          "else": {
+            "properties": {
+              "accepted_fallback_by": { "type": "null" },
+              "accepted_fallback_scope": { "type": "null" },
+              "accepted_fallback_reason": { "type": "null" }
+            }
+          }
         }
-      }
+      ]
     }
   },
   "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "stringArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/nonEmptyString" },
+      "uniqueItems": true
+    },
+    "reviewResult": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "ACCEPTABLE",
+        "ACCEPTABLE_WITH_CONCERNS",
+        "NEEDS_CORRECTION",
+        "BLOCKED",
+        "N/A"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "required": ["source", "grant", "scope"],
+      "properties": {
+        "source": { "$ref": "#/$defs/nonEmptyString" },
+        "grant": {
+          "type": "string",
+          "enum": [
+            "READ_ONLY_REVIEW",
+            "WRITE_AUTHORIZED",
+            "CORRECTIVE_AUTHORIZED",
+            "ENVIRONMENT_WRITE_AUTHORIZED",
+            "SUBMIT_AUTHORIZED"
+          ]
+        },
+        "scope": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
     "levelRecord": {
       "type": "object",
-      "required": ["status"],
+      "required": ["status", "evidence", "commands", "reason"],
       "properties": {
         "status": {
           "type": "string",
           "enum": ["PENDING", "PASS", "FAIL", "BLOCKED", "WAIVED", "N/A"]
         },
-        "evidence": {
-          "type": "array",
-          "items": { "type": "string" }
+        "evidence": { "$ref": "#/$defs/stringArray" },
+        "commands": { "$ref": "#/$defs/stringArray" },
+        "reason": { "type": ["string", "null"] },
+        "waived_by": { "type": ["string", "null"] },
+        "waiver_scope": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "enum": ["WAIVED", "N/A"] } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "reason": { "$ref": "#/$defs/nonEmptyString" } }
+          }
         },
-        "commands": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "reason": {
-          "type": ["string", "null"]
-        },
-        "waived_by": {
-          "type": ["string", "null"]
-        },
-        "waiver_scope": {
-          "type": ["string", "null"]
+        {
+          "if": {
+            "properties": { "status": { "const": "WAIVED" } },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["waived_by", "waiver_scope"],
+            "properties": {
+              "waived_by": { "$ref": "#/$defs/nonEmptyString" },
+              "waiver_scope": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
         }
+      ]
+    },
+    "commandEvidence": {
+      "type": "object",
+      "required": [
+        "command_id",
+        "command",
+        "status",
+        "source",
+        "runner",
+        "cwd",
+        "observed_at",
+        "output_ref"
+      ],
+      "properties": {
+        "command_id": {
+          "type": "string",
+          "pattern": "^CMD-[A-Za-z0-9._-]+$"
+        },
+        "command": { "$ref": "#/$defs/nonEmptyString" },
+        "status": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+        "source": { "$ref": "#/$defs/nonEmptyString" },
+        "runner": { "$ref": "#/$defs/nonEmptyString" },
+        "cwd": { "$ref": "#/$defs/nonEmptyString" },
+        "observed_at": { "$ref": "#/$defs/nonEmptyString" },
+        "output_ref": { "$ref": "#/$defs/nonEmptyString" }
       }
+    },
+    "skippedCheck": {
+      "type": "object",
+      "required": ["id", "check", "reason", "owner", "follow_up"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(CMD|CHECK)-[A-Za-z0-9._-]+$"
+        },
+        "check": { "$ref": "#/$defs/nonEmptyString" },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "owner": { "$ref": "#/$defs/nonEmptyString" },
+        "follow_up": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "lease": {
+      "type": "object",
+      "required": ["resource", "owner", "mode", "status"],
+      "properties": {
+        "resource": { "$ref": "#/$defs/nonEmptyString" },
+        "owner": { "$ref": "#/$defs/nonEmptyString" },
+        "mode": { "enum": ["exclusive", "shared"] },
+        "status": { "enum": ["ACTIVE", "HELD", "RELEASED", "EXPIRED"] },
+        "expires_at": { "type": ["string", "null"] },
+        "release_rule": { "type": ["string", "null"] },
+        "released_at": { "type": ["string", "null"] }
+      },
+      "anyOf": [
+        {
+          "properties": { "expires_at": { "$ref": "#/$defs/nonEmptyString" } },
+          "required": ["expires_at"]
+        },
+        {
+          "properties": { "release_rule": { "$ref": "#/$defs/nonEmptyString" } },
+          "required": ["release_rule"]
+        }
+      ]
+    },
+    "runRecord": {
+      "type": "object",
+      "required": [
+        "id",
+        "attempt",
+        "status",
+        "owner",
+        "authority_ref",
+        "phase",
+        "next_action",
+        "uses_shared_resource"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "status": {
+          "enum": ["PENDING", "RUNNING", "PASSED", "FAILED", "BLOCKED", "ABORTED"]
+        },
+        "owner": { "$ref": "#/$defs/nonEmptyString" },
+        "authority_ref": { "$ref": "#/$defs/nonEmptyString" },
+        "phase": { "$ref": "#/$defs/nonEmptyString" },
+        "next_action": { "$ref": "#/$defs/nonEmptyString" },
+        "uses_shared_resource": { "type": "boolean" },
+        "lease": { "$ref": "#/$defs/lease" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "uses_shared_resource": { "const": true } },
+            "required": ["uses_shared_resource"]
+          },
+          "then": { "required": ["lease"] },
+          "else": { "not": { "required": ["lease"] } }
+        }
+      ]
     }
   }
 }

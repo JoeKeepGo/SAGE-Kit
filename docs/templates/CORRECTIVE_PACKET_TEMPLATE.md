@@ -12,16 +12,20 @@ Convergence Control:
 - Findings after previous round:
 - Expected finding reduction:
 - Expected severity reduction:
+- Material progress this round: `<finding count decreased/severity decreased/neither>`
 - Authorized corrective packet or boundary: `<ref>`
+- First same-root stagnant round:
+  `<yes/no; if yes, stop auto-continue and HANDOFF>`
 - Same root cause stalled for two consecutive rounds: `<yes/no>`
 - Scope expansion allowed: `no`
-- Stop if new authority, false-green, approval gate, security,
-  validator/gate-ready, source-authority, or evidence-integrity risk appears:
+- Stop if new authority, false-green, approval-boundary, security-boundary,
+  validator-failure, source-authority, or evidence-integrity risk appears:
   `yes`
-- Continue automatically inside authorized boundary while findings or severity
-  decrease, scope does not expand, no blocking approval gate is bypassed, and no
-  new authority, false-green, approval-gate, security, validator/gate-ready,
-  source-authority, or evidence-integrity risk appears: `<yes/no>`
+- Continue automatically inside the authorized boundary while finding count or
+  severity decreases, scope does not expand, no blocking approval gate is
+  bypassed, and no new authority, false-green, approval-boundary,
+  security-boundary, validator-failure, source-authority, or evidence-integrity
+  risk appears: `<yes/no>`
 
 Governance Level:
 - `Light`, `Standard`, or `Heavy`
@@ -32,13 +36,14 @@ Governance Level:
 - Controller decision needed:
 
 Permission Mode:
-- `CORRECTIVE_AUTHORIZED` or `READ_ONLY_REVIEW`
+- Corrective worker: `CORRECTIVE_AUTHORIZED`
+- Final Review Controller: `READ_ONLY_REVIEW`
 - Why this mode:
-- Auto-opened by Final Review: `<yes/no>`
-- Packet-only because review was read-only: `<yes/no>`
-- Write authority:
+- Corrective orchestration authorized for Final Review: `<yes/no>`
+- Corrective worker write authority:
+- Final Review write authority: `none`
 - Environment-write authority:
-- Submit/cleanup authority:
+- Submit/cleanup authority: `none`
 - Permission upgrade requires:
 
 Capability Routing:
@@ -55,22 +60,22 @@ Capability Routing:
 Worktree Isolation:
 - Assigned worktree:
 - Branch:
-- Allowed cleanup action:
-- Submit authority:
+- Allowed cleanup action: `none; post-verdict grant required`
+- Submit authority: `none`
 
 Findings To Fix:
 
-| Finding ID | Classification | Required Fix | Allowed Files | Forbidden Files | Tests | Stop Conditions |
-|---|---|---|---|---|---|---|
-| `<id>` | `AUTO_CORRECTIVE` | `<fix>` | `<files>` | `<files>` | `<commands>` | `<stops>` |
+| Finding ID | Classification | Finding Owner | Waiver Authority | Waiver Decision Or Delegation Ref | Required Fix | Allowed Files | Forbidden Files | Tests | Stop Conditions |
+|---|---|---|---|---|---|---|---|---|---|
+| `<id>` | `AUTO_CORRECTIVE` | `<owner>` | `<authority>` | `<ref or n/a>` | `<fix>` | `<files>` | `<files>` | `<commands>` | `<stops>` |
 
 Only `AUTO_CORRECTIVE` findings may appear in `Findings To Fix`.
 
 Not Fixable / PM Decision / Blocked / Deferred:
 
-| Finding ID | Classification | Required Owner | Reason Not In Fix Queue | Required Record Or Next Action |
-|---|---|---|---|---|
-| `<id>` | `PM_DECISION`, `BLOCKED`, or `DEFER` | `<Project Manager/blocker owner/follow-up owner>` | `<scope/authority/evidence/dependency/defer reason>` | `<decision request/blocker/follow-up>` |
+| Finding ID | Classification | Finding Owner | Waiver Authority | Decision Or Delegation Ref | Reason Not In Fix Queue | Required Record Or Next Action |
+|---|---|---|---|---|---|---|
+| `<id>` | `PM_DECISION`, `BLOCKED`, or `DEFER` | `<owner>` | `<authority or n/a>` | `<explicit decision/delegation ref or n/a>` | `<scope/authority/evidence/dependency/defer reason>` | `<decision request/blocker/follow-up>` |
 
 Non-Goals:
 
@@ -81,9 +86,11 @@ Runtime Smoke:
 Re-Review:
 - Required: `<yes/no>`
 - Mode: `targeted status/evidence lanes`,
-  `Final Review narrow diff (targeted submode)`, `affected review workers`,
+  `Final Review direct read-only narrow inspection`,
+  `delegated narrow diff review`, `affected review workers`,
   `affected review subagents`, `validation lanes`, or `full affected lanes`
 - Re-review owner:
+- Re-review status: `NOT_STARTED`, `IN_REVIEW`, `PASSED`, or `FAILED`
 - Affected review workers/subagents/lanes to rerun:
 - Skip rerun rationale, if using narrow diff review:
 - Targeted review allowed because only ledger, evidence, status, closeout, or
@@ -96,19 +103,28 @@ Re-Review:
 - Closure blocked if re-review evidence is missing: `<yes/no>`
 
 Expected Output:
+- finding IDs and corrective round;
 - files changed;
 - commands run;
 - evidence;
 - remaining gaps;
 - re-review notes.
 
+Corrective worker `DONE` means the listed fixes and checks are complete. It does
+not close findings, the review verdict, or the milestone; closure requires the
+named re-review owner to record `PASSED`.
+
 Stop If:
 - required fix exceeds listed files;
 - fix requires redesign;
 - approval gate is needed;
 - runtime evidence cannot be produced;
-- findings do not decrease and the same root cause has stalled for two
-  consecutive corrective rounds;
-- scope expands or a new authority, false-green, approval gate, security,
-  validator/gate-ready, source-authority, or evidence-integrity risk appears.
+- findings do not decrease for the first same-root round: return
+  `NEEDS_CORRECTION`, `PM_DECISION_REQUIRED`, and `HANDOFF`; do not continue
+  automatically;
+- the same root cause has no material progress for two consecutive corrective
+  rounds: return `BLOCKED`;
+- scope expands or a new authority, false-green, approval-boundary,
+  security-boundary, validator-failure, source-authority, or evidence-integrity
+  risk appears.
 ```

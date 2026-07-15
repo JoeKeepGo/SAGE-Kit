@@ -25,6 +25,8 @@ Review for:
 - unauthorized or unsafe worktree isolation;
 - incomplete task-dispatch records or failed validator results when Task
   Dispatch Profile is active;
+- stale task-dispatch truth when task, evidence, board, ledger, run, lease,
+  authority, closure note, or next action disagree;
 - session orchestration packet completeness when used.
 - Coder Controller self-executed broad milestone work instead of staying within
   the execution packet's self-execution policy;
@@ -106,6 +108,8 @@ changed.
 - approval gates;
 - task-dispatch validator result when the profile is active for the current
   task, phase, or gate;
+- task-dispatch state truth when task/evidence records, board, ledger, run,
+  lease, authority, blocker, closure note, or next action changed;
 - security or data hygiene checks;
 - memory maintenance;
 - skipped checks;
@@ -113,6 +117,29 @@ changed.
 - handoff or next action.
 
 Skipped blocking gates make the work `BLOCKED` or `HANDOFF`, not `DONE`.
+
+## Task Dispatch State Truth Review
+
+When Task Dispatch Profile is active, review the structured records as current
+state, not as decorative evidence.
+
+Flag as blocking when:
+
+- `task.yaml` claims active run, lease, or implementation authority while
+  closure notes still say planning-only, future, waiting, or no implementation;
+- `evidence.yaml` keeps placeholder reasons, next action, or artifacts after
+  active evidence collection began;
+- dispatch board, task record, evidence record, milestone ledger, or result
+  packet disagree about status, blockers, authority, lease, review result, or
+  next action;
+- old STOP, waiting, or future decisions remain active after accepted authority
+  unlocked them;
+- gate-ready or next-phase movement is requested before review result is
+  recorded and active leases are released, renewed, or intentionally carried.
+
+Ordinary wording cleanup can be P2/P3 only after the current truth is
+unambiguous. State truth conflicts are false-green, authority, or evidence
+integrity risks.
 
 ## Memory Maintenance
 
@@ -185,7 +212,9 @@ When Session Orchestration is used:
 - If Final Review is read-only, it must return a packet-only corrective handoff,
   Project Manager decision request, blocker, or waiver path instead of editing.
 - If corrective execution is authorized, Final Review may open a bounded
-  corrective round and must require verification and re-review.
+  corrective round through separately authorized corrective workers and must
+  require verification and re-review. It must not edit implementation or
+  corrective files itself.
 - Corrective re-review must produce independent evidence before Final Review
   closes the verdict.
 - Rerun affected review workers, review subagents, or validation lanes when the
@@ -224,8 +253,13 @@ Before commit, push, PR, or final handoff:
 6. Confirm worktree submit and cleanup authority when worktrees were used.
 7. Confirm Task Dispatch validator success when the profile is active and the
    gate requires it.
-8. For planning package closeout, confirm the diff contains only planning
+8. Confirm State Truth Reconciliation when task/evidence records, board,
+   ledger, run, lease, authority, blocker, review result, or next action
+   changed. Confirm each correction was made by the named owner with suitable
+   authority, or was returned as an update proposal, corrective packet, or
+   handoff.
+9. For planning package closeout, confirm the diff contains only planning
    artifacts, ledgers, evidence/status records, closeouts, or packet updates,
    and that Planning Author, Planning Review, Targeted Fix, Targeted Re-Review,
    Closeout/Status, and Submit Controller authority stayed separate.
-9. Commit or hand off only intended scope.
+10. Commit or hand off only intended scope.

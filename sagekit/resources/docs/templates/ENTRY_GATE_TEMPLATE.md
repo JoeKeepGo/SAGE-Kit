@@ -117,6 +117,9 @@ If yes, define:
 
 State whether this milestone adopts Task Dispatch Profile.
 
+For `Light` work, default to `no` unless a profile activation trigger is
+recorded here.
+
 If yes, define:
 
 - dispatch board path;
@@ -129,8 +132,18 @@ If yes, define:
 - gate where validator success is required;
 - gate-ready validator requirement for task, phase, or milestone acceptance;
 - explicit non-acceptance task or gate when validator is not required;
-- owner of task record updates;
-- owner of evidence record updates.
+- cross-task exclusive-lock conflict check;
+- named owners for board, task, evidence, ledger, decision log, result packet,
+  and review packet;
+- mutation authority source, grant, and scope for each owner.
+
+## State Truth Reconciliation Gate
+
+- Applicable / `N/A` reason:
+- Profile reference: `docs/profiles/task-dispatch/DISPATCH_PROFILE.md`
+- Owners and mutation authority checked:
+- Mismatches or corrective/handoff reference:
+- Result: `PASS`, `BLOCKED`, or `N/A`
 
 ## Capability Routing Policy
 
@@ -184,6 +197,7 @@ The milestone can be closed only after:
   task, phase, or milestone acceptance gate is being advanced;
 - Task Dispatch validator is not marked `n/a` for an acceptance gate unless the
   specific task is recorded as not an acceptance gate;
+- State Truth Reconciliation is `PASS` when Task Dispatch is active;
 - runtime evidence is fresh where applicable;
 - closed approval gates remain closed unless explicitly opened;
 - `MILESTONE_CLOSEOUT.md` summarizes the milestone outcome and links to

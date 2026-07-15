@@ -31,9 +31,9 @@ Permission Used:
 - Controller permission mode:
 - Worker permission modes:
 - Write authority used:
-- Corrective authority used:
+- Integration repair worker authority used:
 - Environment-write authority used:
-- Submit/cleanup authority used:
+- Submit/commit/push/cleanup authority used: `none; requires post-verdict grant`
 - Permission upgrade triggers found:
 - Permission gaps needing Project Manager:
 
@@ -61,12 +61,13 @@ Parallelism Assessment:
 - Recommended shape for next run:
 
 Coder Execution Mode:
-- Mode used: `WORKER_ORCHESTRATION`, `BOUNDED_SELF_EXECUTION`, or `MIXED`
-- Self-execution allowed by packet: `<yes/no>`
-- Why self-execution was used:
+- Mode used: `WORKER_ORCHESTRATION` or `WORKER_ORCHESTRATION_WITH_CONTROLLER_INTEGRATION`
+- Direct controller integration allowed by packet: `<yes/no>`
+- Why direct controller integration was used:
 - Worker dispatch skipped:
 - Why dispatch was skipped:
-- Files changed directly by Coder Controller:
+- Controller-owned files changed directly by Coder Controller:
+- Worker-owned implementation files changed by Coder Controller: `none`
 - Independent review risk:
 
 Worktree Map:
@@ -80,8 +81,8 @@ Worktree Decisions:
 - Worktrees created:
 - Work kept serial and why:
 - Integration status:
-- Submit authority:
-- Cleanup authority:
+- Review worktree creator/status:
+- Post-verdict submit/cleanup grant: `not issued during Coder execution`
 - Cleanup recommendation:
 
 Task Dispatch Results:
@@ -123,7 +124,7 @@ Coder Self Review:
 - File boundary review:
 - Contract review:
 - Test and smoke review:
-- Self-execution policy review:
+- Controller integration-edit policy review:
 - Worker separation review:
 - Permission mode review:
 - Runtime gap review:
@@ -136,6 +137,8 @@ Tests Run:
 Runtime Smoke:
 
 Memory Maintenance:
+- Startup Context Controller:
+- Worker/integration proposals applied or rejected:
 
 Milestone Ledger Notes:
 
@@ -155,8 +158,6 @@ Stop Conditions Triggered:
 - Unapproved runtime/destructive/submit operation:
 
 Suggested Final Review Focus:
-
-Project Manager Structural Gate Notes:
 ```
 
 Coder Controller must not mark the milestone accepted. That decision belongs to

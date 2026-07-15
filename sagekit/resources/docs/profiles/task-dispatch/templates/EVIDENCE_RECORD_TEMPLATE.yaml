@@ -1,7 +1,14 @@
 task_id: TASK-000
-changed_surface: []
+objective: Describe the observable result.
+owner: validation-owner
+authority:
+  source: milestone entry gate or execution packet
+  grant: WRITE_AUTHORIZED
+  scope: TASK-000 and its allowed files and evidence
+phase: triage
+changed_surface: [documentation]
 original_user_path: n/a
-runtime_shape: n/a
+runtime_shape: documentation-only
 
 levels:
   L0:
@@ -31,6 +38,8 @@ levels:
     reason: not required
 
 artifacts:
+  # Command entries include command_id, command, status, source, runner, cwd,
+  # observed_at, and output_ref.
   commands: []
   files_changed: []
   api: []
@@ -41,6 +50,11 @@ artifacts:
   release: []
   ids: []
 
+# IDs are unique CMD-* or CHECK-* values. A skipped required command reuses its
+# required CMD-* ID; entries also name check, reason, owner, and follow_up.
+skipped_checks: []
+
+# Run entries use the task.runs shape and canonical status values.
 runs: []
 
 blockers: []
@@ -48,9 +62,15 @@ blockers: []
 conclusion:
   status: PENDING
   highest_level: none
+  review_result: PENDING
   mock_used: false
+  mock_rationale: null
+  mock_scope: null
+  mock_follow_up: null
+  mock_accepted_by: null
   accepted_fallback: false
   accepted_fallback_by: null
   accepted_fallback_scope: null
   accepted_fallback_reason: null
-  next_action: collect required evidence
+  mock_acceptance_ref: null
+  next_action: define scope

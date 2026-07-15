@@ -15,9 +15,9 @@ Context hygiene keeps long-running AI work reliable.
 - Maintain active context by replacement, not append-only accumulation.
 - Keep document routing stable unless the documentation topology or routing
   policy changes.
-- Treat `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` as single-writer
-  files during parallel or subagent work. Workers return memory update
-  proposals; the controller applies or rejects them serially.
+- Name one Startup Context Controller for each run. That controller is the only
+  writer for `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`. Workers and
+  integration lanes return proposals; they never edit or race those files.
 
 ## Minimum Read Declaration
 
@@ -47,8 +47,9 @@ outcomes are relevant.
 
 Every non-trivial agent run must close with memory maintenance before handoff,
 commit, or completion. Direct edits to startup context files require both
-permission mode and ownership. If either is missing, the agent must return a
-memory update proposal or explicit no-change note for the serial controller.
+permission mode and named Startup Context Controller ownership. If either is
+missing, the agent must return a memory update proposal or explicit no-change
+note for the serial controller.
 
 For `docs/ACTIVE_CONTEXT.md`:
 
@@ -66,7 +67,8 @@ For `docs/DOC_ROUTING.md`:
 - do not add session notes, progress summaries, command output, or review
   observations.
 
-If neither file needs an edit, the completion report or handoff must say:
+If neither file needs an edit, the Startup Context Controller records, and
+workers propose, this completion note:
 
 ```text
 Memory Maintenance: ACTIVE_CONTEXT no change; DOC_ROUTING no change.

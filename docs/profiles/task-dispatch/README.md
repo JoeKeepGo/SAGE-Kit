@@ -22,6 +22,7 @@ completion reports, and quality gates already provide enough control.
 - A validator that catches missing records, mismatched task IDs, incomplete
   required evidence, unsafe mock fallback, active lease gaps, and common
   surface-specific evidence gaps.
+- A State Truth Reconciliation gate defined in `DISPATCH_PROFILE.md`.
 
 ## Files
 
@@ -70,3 +71,7 @@ python scripts/validate_task_dispatch.py \
 The profile is a structured evidence layer. It does not replace phase docs,
 quality gates, completion reports, milestone ledgers, or Project Manager final
 decision authority.
+
+For `Light` work it remains inactive unless an activation trigger is present.
+When active, apply the profile reconciliation gate to the whole dispatch set;
+orphan records and overlapping active exclusive locks are invalid.

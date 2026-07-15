@@ -41,7 +41,7 @@ throwaway prototype, or informal exploration without retained governance.
    - `docs/M<ID>/00-entry-gate.md`
    - `docs/M<ID>/MILESTONE_LEDGER.md`
    - one phase doc per reviewable slice
-11. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
+12. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
 
 ## Minimum Viable Specification
 

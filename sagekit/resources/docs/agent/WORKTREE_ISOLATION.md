@@ -11,10 +11,11 @@ touches the same shared files.
 
 | Role | Owns | Must Not Do |
 |---|---|---|
-| Project Manager Controller | Whether worktree isolation is allowed, max count, naming, branch base, cleanup policy, submit authority. | Delegate unlimited worktree creation without bounds. |
-| Coder Controller | Decide which approved phases or lanes get worktrees, create the worktree map, integrate results. | Create worktrees outside the execution packet or bypass shared-file gates. |
+| Project Manager Controller | Whether worktree isolation is allowed, max count, naming, branch base, and post-verdict submit/cleanup owner. | Grant submit or cleanup in the initial Coder execution packet or delegate unlimited worktree creation. |
+| Coder Controller | Decide which approved phases or lanes get worktrees, create assigned review worktrees before handoff, maintain the map, and integrate results. | Create worktrees outside the execution packet, edit worker-owned files, or bypass shared-file gates. |
+| Workspace/Environment Controller | Create an assigned review worktree before handoff and return its path/base evidence. | Review, correct, submit, clean up, or create worktrees without Project Manager authorization. |
 | Phase or Lane Worker | Work inside the assigned worktree and file boundary. | Push, merge, delete worktrees, or change isolation policy. |
-| Final Review Controller | Verify worktree use, integration evidence, stale worktree risks, and submit readiness. | Commit, push, merge, or delete worktrees while acting as Final Review. |
+| Final Review Controller | Read-only verification of worktree use, integration evidence, stale worktree risks, and submit readiness. | Create or mutate its review worktree, commit, push, merge, or delete worktrees. |
 | Submit Controller or Project Manager | Final commit, push, merge, and cleanup decision. | Submit unverified or unowned worktree output. |
 
 ## Isolation Modes
@@ -42,14 +43,18 @@ The packet must define:
 - shared files that remain serial;
 - runtime ownership;
 - integration owner;
-- submit authority;
-- cleanup policy;
+- named creator for each review worktree;
+- post-verdict submit and cleanup owner/policy;
 - forbidden scenarios.
 
 ## Coder Decision Rule
 
 Coder Controller may decide where to create worktrees only inside the Project
 Manager authorization.
+
+For `REVIEW_WORKTREE`, Project Manager names Coder or a Workspace/Environment
+Controller as creator. The creator must provision it and report its path and
+base reference before handoff. Final Review never creates its own worktree.
 
 Coder may create a phase or lane worktree when:
 

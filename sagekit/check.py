@@ -977,21 +977,208 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
     docs = root / "docs"
     if not docs.exists():
         return findings
-    for task_path in sorted(docs.glob("M*/dispatch/**/task.yaml")):
-        evidence_path = task_path.with_name("evidence.yaml")
-        display = relpath(root, task_path)
-        if not evidence_path.exists():
+    task_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/task.yaml")}
+    evidence_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/evidence.yaml")}
+    for directory in sorted(set(task_paths) | set(evidence_paths)):
+        task_path = task_paths.get(directory)
+        evidence_path = evidence_paths.get(directory)
+        if task_path is None:
             findings.append(
                 Finding(
                     "FAIL",
                     "task-dispatch",
-                    display,
+                    relpath(root, evidence_path),
+                    None,
+                    "evidence.yaml is present but task.yaml is missing",
+                )
+            )
+            continue
+        if evidence_path is None:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch",
+                    relpath(root, task_path),
                     None,
                     "task.yaml is present but evidence.yaml is missing",
                 )
             )
             continue
         findings.extend(validate_task_dispatch_pair(root, task_path, evidence_path, gate_ready))
+    findings.extend(check_duplicate_task_ids(root, list(task_paths.values())))
+    findings.extend(check_conflicting_exclusive_locks(root, list(task_paths.values())))
+    findings.extend(check_dispatch_boards(root, task_paths, evidence_paths))
+    return findings
+
+
+def load_task_identity(task_path: Path) -> tuple[str, dict] | None:
+    try:
+        from .task_dispatch_validator import load_record
+
+        task = load_record(task_path)
+    except Exception:
+        return None
+    if not isinstance(task, dict):
+        return None
+    return str(task.get("id") or task_path.parent.name).strip(), task
+
+
+def check_duplicate_task_ids(root: Path, task_paths: list[Path]) -> list[Finding]:
+    declarations: dict[str, list[tuple[str, Path]]] = {}
+    for task_path in sorted(task_paths):
+        loaded = load_task_identity(task_path)
+        if loaded is not None and loaded[0]:
+            declarations.setdefault(loaded[0].casefold(), []).append((loaded[0], task_path))
+    findings: list[Finding] = []
+    for records in declarations.values():
+        if len(records) > 1:
+            paths = ", ".join(relpath(root, path) for _, path in records)
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-duplicate-id",
+                    relpath(root, records[0][1]),
+                    None,
+                    f"duplicate task id {records[0][0]} is declared by: {paths}",
+                )
+            )
+    return findings
+
+
+def normalized_lock_resource(resource: str) -> str:
+    return " ".join(resource.replace("\\", "/").split()).strip("/").casefold()
+
+
+def lock_resources_overlap(left: str, right: str) -> bool:
+    return left == right or left.startswith(right + "/") or right.startswith(left + "/")
+
+
+def check_conflicting_exclusive_locks(root: Path, task_paths: list[Path]) -> list[Finding]:
+    try:
+        from .task_dispatch_validator import ACTIVE_LOCK_STATUSES, load_record, upper
+    except Exception:
+        return []
+
+    holders: list[tuple[str, str, str, Path]] = []
+    for task_path in sorted(task_paths):
+        loaded = load_task_identity(task_path)
+        if loaded is None:
+            continue
+        task_id, task = loaded
+        resources = task.get("resources")
+        locks = resources.get("locks") if isinstance(resources, dict) else None
+        if not isinstance(locks, list):
+            continue
+        for lock in locks:
+            if not isinstance(lock, dict):
+                continue
+            resource = str(lock.get("resource") or "").strip()
+            if (
+                not resource
+                or upper(lock.get("status")) not in ACTIVE_LOCK_STATUSES
+                or upper(lock.get("mode")) != "EXCLUSIVE"
+            ):
+                continue
+            holders.append((normalized_lock_resource(resource), resource, task_id, task_path))
+
+    findings: list[Finding] = []
+    for index, left in enumerate(holders):
+        for right in holders[index + 1 :]:
+            if left[3] == right[3] or not lock_resources_overlap(left[0], right[0]):
+                continue
+            resources = left[1] if left[0] == right[0] else f"{left[1]} and {right[1]}"
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-lock-conflict",
+                    relpath(root, left[3]),
+                    None,
+                    f"exclusive lock conflict for {resources} across tasks: {left[2]}, {right[2]}",
+                    "Release or change one lock before dispatching concurrent work.",
+                )
+            )
+    return findings
+
+
+def task_is_explicitly_archived(dispatch_dir: Path, task_id: str) -> bool:
+    for filename in ["decisions.md", "DECISIONS.md"]:
+        path = dispatch_dir / filename
+        if not path.exists():
+            continue
+        for line in read_text(path).splitlines():
+            cells = [cell.strip().strip("`").upper() for cell in line.strip().strip("|").split("|")]
+            words = set(re.findall(r"[A-Z]+", " ".join(cells)))
+            if (
+                task_id.upper() in cells
+                and "ACTIVE" in cells
+                and words.intersection({"ARCHIVE", "ARCHIVED"})
+            ):
+                return True
+    return False
+
+
+def active_board_task_ids(board_path: Path) -> set[str]:
+    text = read_text(board_path)
+    match = re.search(r"(?im)^[ \t]*##\s+Active Tasks\s*$", text)
+    if match is None:
+        return set()
+    remainder = text[match.end() :]
+    next_section = re.search(r"(?m)^[ \t]*##\s+", remainder)
+    section = remainder[: next_section.start()] if next_section else remainder
+    return set(re.findall(r"\bTASK-[A-Za-z0-9._-]+\b", section))
+
+
+def check_dispatch_boards(
+    root: Path,
+    task_paths: dict[Path, Path],
+    evidence_paths: dict[Path, Path],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    dispatch_dirs: set[Path] = set()
+    for directory in set(task_paths) | set(evidence_paths):
+        for candidate in [directory, *directory.parents]:
+            if candidate.name == "dispatch":
+                dispatch_dirs.add(candidate)
+                break
+    for dispatch_dir in sorted(dispatch_dirs):
+        board_path = dispatch_dir / "DISPATCH_BOARD.md"
+        if not board_path.exists():
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-board",
+                    relpath(root, board_path),
+                    None,
+                    "Task Dispatch records are present but DISPATCH_BOARD.md is missing",
+                )
+            )
+            continue
+        board_ids = active_board_task_ids(board_path)
+        records: dict[str, list[tuple[Path, dict]]] = {}
+        for directory, task_path in task_paths.items():
+            if dispatch_dir not in directory.parents or directory not in evidence_paths:
+                continue
+            loaded = load_task_identity(task_path)
+            if loaded is not None:
+                records.setdefault(loaded[0], []).append((task_path, loaded[1]))
+        for task_id in sorted(board_ids - set(records)):
+            findings.append(
+                Finding("FAIL", "task-dispatch-board", relpath(root, board_path), None, f"board task {task_id} has no record pair")
+            )
+        for task_id, task_records in sorted(records.items()):
+            if task_id in board_ids:
+                continue
+            if task_is_explicitly_archived(dispatch_dir, task_id):
+                continue
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-board",
+                    relpath(root, task_records[0][0]),
+                    None,
+                    f"record pair {task_id} is absent from DISPATCH_BOARD.md",
+                )
+            )
     return findings
 
 
@@ -1050,6 +1237,7 @@ def default_schema_dir(root: Path) -> Path | None:
     candidates = [
         root / "docs/profiles/task-dispatch/schemas",
         Path(__file__).resolve().parents[1] / "docs/profiles/task-dispatch/schemas",
+        Path(__file__).resolve().parent / "resources/docs/profiles/task-dispatch/schemas",
     ]
     for candidate in candidates:
         if candidate.exists():

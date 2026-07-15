@@ -152,8 +152,10 @@ handoff.
   record why worker dispatch was skipped.
 - Final Review must classify required corrections as `AUTO_CORRECTIVE`,
   `PM_DECISION`, `BLOCKED`, or `DEFER`. If corrective execution is authorized,
-  it may open a bounded corrective round; if review is read-only, it must return
-  a packet-only corrective handoff or blocker.
+  it may orchestrate a bounded corrective round through separately authorized
+  workers; it must not edit implementation or corrective files itself. If
+  review is read-only, it must return a packet-only corrective handoff or
+  blocker.
 - Severity gates acceptance: open P0/P1 always block; P2 blocks only for
   authority, false-green, approval gate, security, validator/gate-ready, source
   authority, or evidence-integrity issues; ordinary documentation-consistency
@@ -185,6 +187,14 @@ handoff.
 - Use Task Dispatch Profile only when project routing, the milestone entry
   gate, or the execution packet adopts structured task/evidence records and
   validator closeout.
+- When Task Dispatch state changes, run State Truth Reconciliation before
+  moving on: task status, runs, leases, blockers, closure notes, evidence
+  reasons, artifacts, commands, ledger decisions, board status, and next action
+  must describe the same current truth. Do not leave planning/future/waiting or
+  superseded STOP text active after authority, branch, run, or lease state has
+  changed. Reconciliation is inspect-only by default; mutate each surface only
+  with its named ownership and write/corrective authority, otherwise return an
+  update proposal, corrective packet, or `HANDOFF`.
 - Use Project Owner Entry for broad or non-technical ideas, but do not promote
   its draft outputs into an executable roadmap until a capability map and
   Milestone Granularity Gate pass.
@@ -216,4 +226,6 @@ Before final handoff, commit, or completion:
 5. Write or update `MILESTONE_CLOSEOUT.md` only when closing a milestone.
 6. Update task/evidence records and run the dispatch validator only when Task
    Dispatch Profile is active for the current task or gate.
-7. Report skipped checks, blockers, remaining gaps, and next action.
+7. Run State Truth Reconciliation when task, evidence, lease, authority, board,
+   ledger, or next-action state changed.
+8. Report skipped checks, blockers, remaining gaps, and next action.

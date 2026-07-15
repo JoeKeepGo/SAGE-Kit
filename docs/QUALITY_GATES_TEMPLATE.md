@@ -53,6 +53,17 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
 | Capability adapter gate | External capability use records adapter name, authorization level, boundary served, evidence produced, and fallback when relevant. |
 | Structured dispatch gate | When Task Dispatch Profile is active, task and evidence records exist, required L0-L4 levels are present, resource locks and leases are recorded, and the validator passes in gate-ready mode before acceptance. |
+| State Truth Reconciliation gate | When Task Dispatch is active, record reconciliation under `docs/profiles/task-dispatch/DISPATCH_PROFILE.md`; mismatches block acceptance. |
+
+## State Truth Reconciliation Gate
+
+Record:
+
+- applicability and inactive-profile reason when `N/A`;
+- profile reference;
+- owners and mutation authority checked;
+- mismatches or corrective/handoff reference;
+- result: `PASS`, `BLOCKED`, or `N/A`.
 
 ## Finding Severity Acceptance Rule
 
@@ -135,6 +146,9 @@ the required authority.
   project owner.
 - Task Dispatch Profile is active and a task, phase, or milestone is accepted
   without a passing gate-ready dispatch validator result.
+- Task Dispatch Profile is active and a task or evidence record is orphaned;
+- two tasks claim overlapping `ACTIVE` or `HELD` exclusive locks;
+- State Truth Reconciliation is `BLOCKED` under the active profile.
 
 ## Required Gate Status Table
 

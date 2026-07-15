@@ -35,6 +35,10 @@ Task:
 
 Goal:
 
+Governance Level:
+
+Permission Mode:
+
 Read these files only:
 
 Allowed to modify:
@@ -85,6 +89,10 @@ Stop and report `BLOCKED` when:
 
 ```markdown
 Status: DONE or BLOCKED
+
+Governance Level:
+
+Permission Mode:
 
 Files Read:
 

@@ -23,9 +23,10 @@ scope and risk.
 
 | Role | Lifetime | Responsibility | Must Not Do |
 |---|---|---|---|
-| Project Manager Controller | Long-running project session | Project direction, milestone boundary, execution packet, structural gate, final decision. | Perform full technical review or rewrite Coder results. |
-| Coder Controller | One milestone | Orchestrate phase workers and lane workers, collect evidence, produce milestone result packet. | Redefine milestone scope, open approval gates, accept the milestone, or self-execute the whole milestone. |
-| Final Review Controller | One milestone | Orchestrate review workers, validation lanes, re-review, and final verdict. | Trust Coder self-report without verification or accept the milestone directly. |
+| Project Manager Controller | Long-running project session | Project direction, milestone boundary, execution issuance, structural gate, and owner-authorized final decision. | Perform full technical review, rewrite Coder results, waive a human-only gate, or invent owner waiver authority. |
+| Coder Controller | One milestone | Orchestrate workers, synthesize results, perform preliminary integration review, and produce the milestone result packet. | Edit worker-owned implementation files, redefine scope, open approval gates, accept, submit, or clean up the milestone. |
+| Workspace/Environment Controller | Bounded setup | Create an authorized review worktree before review handoff and report its map. | Review, correct, submit, or create unapproved worktrees. |
+| Final Review Controller | One milestone | Remain read-only while inspecting directly and orchestrating useful review, validation, authorized corrective, and re-review lanes into a final verdict. | Edit implementation or corrective files, create its review worktree, trust self-report, or accept the milestone. |
 | Phase Worker | One phase | Execute one phase under the phase boundary. | Expand scope or modify unrelated files. |
 | Lane Worker | One lane | Execute one read-only, writable, or validation lane. | Edit shared files or controller-owned startup docs. |
 | Review Worker | One review slice | Verify phase, lane, contract, evidence, or risk area. | Change implementation unless assigned a corrective lane. |
@@ -38,25 +39,30 @@ Project Manager Controller
   -> Milestone Execution Packet
 
 Coder Controller
-  -> phase workers and lane workers, or bounded self-execution only when allowed
+  -> phase workers and lane workers
+  -> controller-level synthesis and preliminary integration review
   -> Milestone Result Packet to Project Manager Controller
 
 Project Manager Controller
   -> Structural Gate only
+  -> has Coder or named Workspace/Environment Controller create any authorized review worktree
   -> forwards to Final Review only on Structural Gate PASS
 
 Final Review Controller
-  -> review workers, validation lanes, corrective packets
+  -> review workers and validation lanes
+  -> corrective packets and workers only when orchestration is authorized
   -> Final Review Packet
 
-Coder Controller or Corrective Worker
+Corrective Worker
   -> bounded corrections when requested
 
 Final Review Controller
   -> re-review
 
 Project Manager Controller
-  -> accept, handoff, blocked, or next prompt
+  -> owner-authorized accept, concern waiver, defer, abandon, or blocked-closure decision
+  -> closeout
+  -> optional separate post-verdict submit grant
 ```
 
 ## Controller Rules
@@ -66,11 +72,16 @@ Project Manager Controller
 - The Coder Controller owns execution orchestration, not product judgment.
 - The Final Review Controller owns independent verification, not final project
   acceptance.
+- Orchestration authority does not grant worker write authority. Final Review
+  remains `READ_ONLY_REVIEW`; when Project Manager authorizes corrective
+  orchestration, each corrective worker receives its own
+  `CORRECTIVE_AUTHORIZED` packet.
 - Coder and Final Review controllers should delegate work to phase, lane,
   review, validation, or corrective workers when doing so reduces serial
   handoff and file ownership remains clear.
-- Coder Controller self-execution is exceptional. It is allowed only under
-  `Coder Self-Execution Policy` below and must be recorded in the result packet.
+- Coder Controller may edit only explicitly controller-owned integration or
+  packet files under the narrow policy below. It never edits files assigned to
+  a phase, lane, integration, or corrective worker.
 - Controllers must assign each worker a governance level. Heavy milestone
   control does not automatically make every worker Heavy.
 - Controllers may run workers in parallel only when the execution packet names
@@ -79,9 +90,10 @@ Project Manager Controller
 - Controllers integrate worker outputs, resolve conflicts, and produce the
   packet for the next controller. Workers do not hand off directly to the next
   controller unless the packet says so.
-- `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` are controller-owned
-  serial files. Phase, lane, review, and corrective workers return memory
-  update proposals instead of editing those files directly.
+- Each run names one Startup Context Controller that exclusively owns
+  `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`. Workers and integration
+  lanes return proposals; they never race or directly apply startup-context
+  changes.
 - Coder Controller must perform a self review before returning the result
   packet. This is execution-side integration review, not final acceptance.
 - When Task Dispatch Profile is active, Coder must keep task/evidence records
@@ -101,6 +113,8 @@ Project Manager Controller
 - If the same session is later used for submit or cleanup, Project Manager must
   first record the Final Review verdict, then issue a separate Submit
   Controller authorization.
+- The initial Coder execution packet never grants submit, commit, push, merge,
+  release, publish, or cleanup authority.
 - One milestone should normally use one Coder Controller and one Final Review
   Controller.
 - Additional controllers are exceptional and must be justified by scope,
@@ -117,6 +131,11 @@ Project Manager must select both:
 - permission mode: `READ_ONLY_REVIEW`, `WRITE_AUTHORIZED`,
   `CORRECTIVE_AUTHORIZED`, `ENVIRONMENT_WRITE_AUTHORIZED`, or
   `SUBMIT_AUTHORIZED`.
+
+`SUBMIT_AUTHORIZED` is valid only in a distinct post-verdict grant. It is not a
+valid initial Coder execution mode. Final Review always uses
+`READ_ONLY_REVIEW`; corrective orchestration authorization is recorded
+separately and grants writes only to named corrective workers.
 
 Governance level does not grant write authority by itself. Permission mode does
 not reduce the governance level. A Heavy controller may start in
@@ -174,15 +193,15 @@ Superpowers is a reference integration for execution discipline when available.
 It does not change Project Manager, Coder, Final Review, or Submit Controller
 authority.
 
-## Coder Self-Execution Policy
+## Coder Controller Integration Edit Policy
 
 Coder Controller should normally orchestrate workers instead of acting as the
 main implementation worker.
 
-Coder Controller may self-execute only when every condition is true:
+Coder Controller may directly edit only when every condition is true:
 
-- the work is one narrow phase, one integration glue step, or one bounded
-  integration repair before Final Review;
+- the work is one narrow controller-owned integration glue step or packet
+  repair before Final Review;
 - allowed files, read-only files, forbidden files, tests, smoke, and stop
   conditions are already explicit in the execution packet or phase doc;
 - no safe parallelism is available or worker dispatch would add more handoff
@@ -190,10 +209,12 @@ Coder Controller may self-execute only when every condition is true:
 - no shared contract, migration, lockfile, generated artifact, runtime
   ownership, approval gate, or cross-component integration decision is being
   invented during execution;
-- the Coder can still return a complete Milestone Result Packet and submit to
-  independent Final Review.
+- the Coder can still return a complete Milestone Result Packet for independent
+  Final Review.
+- no implementation file is owned by a phase, lane, integration, or corrective
+  worker.
 
-Coder Controller must not self-execute when:
+Coder Controller must not directly edit when:
 
 - the milestone contains multiple implementation phases;
 - writable work spans unrelated modules or user workflows;
@@ -202,18 +223,17 @@ Coder Controller must not self-execute when:
   database, security, or runtime specialist lanes;
 - the controller would be both primary implementer and only verifier;
 - the execution packet expects phase, lane, or task-dispatch workers.
+- any writable file is worker-owned.
 
-If Coder self-executes, the result packet must record:
+If Coder directly edits controller-owned files, the result packet must record:
 
-- why self-execution was allowed;
+- why direct controller integration was allowed;
 - which worker dispatch was skipped and why;
 - exact files changed;
 - checks and smoke run;
 - remaining independent review required.
 
-Self-execution does not reduce Final Review responsibility. Final Review should
-treat self-executed work as higher review risk because separation between
-orchestration and implementation was reduced.
+Direct controller edits do not reduce Final Review responsibility.
 
 ## Wave Readiness Gate
 
@@ -303,11 +323,16 @@ Project Manager decides whether Worktree Isolation is allowed and sets:
 - shared files that remain serial;
 - runtime ownership;
 - integration owner;
-- submit authority;
-- cleanup policy.
+- post-verdict submit owner;
+- post-verdict cleanup policy.
 
 Coder Controller decides which authorized phases or lanes actually receive
 worktrees and records the worktree map in the result packet.
+
+When `REVIEW_WORKTREE` is authorized, Project Manager must name Coder or a
+Workspace/Environment Controller to create it before handoff to Final Review.
+Final Review receives the path and base reference; it does not create or mutate
+the worktree setup.
 
 Final Review checks whether the worktree use was authorized, isolated, and
 integrated correctly. Final Review returns submit and cleanup recommendations.
@@ -369,9 +394,11 @@ only. Do not send an incomplete packet to Final Review.
 
 ## Final Review Rules
 
-Final Review must verify independently. It may use the Coder packet as an index,
-but it must read the routed phase docs, changed files, evidence, tests, or
-contracts needed to support the verdict.
+Final Review must produce independent verification. It may inspect and verify
+directly in read-only mode when delegation is unavailable or unnecessary, and
+should delegate independent review slices or validation lanes where useful,
+then synthesize all evidence. Corrective file changes are always delegated to a
+separately authorized worker.
 
 Final Review returns one of:
 
@@ -385,13 +412,12 @@ Severity affects acceptance, not review discipline:
 - Open `P0` and `P1` findings always block Project Manager acceptance. They
   may close only after the issue is fixed or explicitly reclassified with
   evidence by the required authority.
-- `P2` findings block acceptance only when they affect authority,
-  false-green risk, approval gates, security boundaries,
-  validator/gate-ready requirements, source authority, or required evidence
-  integrity.
-- Ordinary documentation consistency `P2` findings may close as
+- `P2` findings block acceptance only for authority, false-green risk, an
+  approval or security boundary, validator failure, source-authority risk, or
+  evidence-integrity risk.
+- Ordinary `P2` findings may close as
   `ACCEPTABLE_WITH_CONCERNS` or be auto-corrected when they do not affect the
-  authority, gate, security, validator, or evidence boundary.
+  blocking boundary above.
 - `P3` findings do not block acceptance. Record them as concerns, follow-up, or
   cleanup candidates.
 
@@ -405,24 +431,31 @@ Final Review must classify findings before returning a non-acceptable verdict:
 - `DEFER`: can be postponed only with an explicit owner, waiver, or follow-up
   milestone.
 
-If Final Review is in `READ_ONLY_REVIEW`, it must not edit files or dispatch a
-fixing worker, but `NEEDS_CORRECTION` must include an inline or referenced
-corrective packet, Project Manager decision request, or blocker. If Final
-Review is in `CORRECTIVE_AUTHORIZED` and findings are `AUTO_CORRECTIVE`, it
-may open a corrective round inside the approved corrective boundary and
-convergence budget.
+Final Review is always `READ_ONLY_REVIEW` and never edits implementation or
+corrective files. A `NEEDS_CORRECTION` verdict must include an inline or
+referenced corrective packet, Project Manager decision request, or blocker. If
+Project Manager separately authorized corrective orchestration, Final Review
+may dispatch a `CORRECTIVE_AUTHORIZED` worker inside the approved boundary and
+convergence budget; otherwise it returns `PM_DECISION_REQUIRED` and `HANDOFF`.
 
 Final Review cannot mark the milestone accepted. The Project Manager Controller
 makes the final decision through a separate PM decision authority record.
+
+Each ordinary finding must name its Finding Owner and Waiver Authority. Project
+Manager may record its waiver only with an explicit decision reference from the
+Waiver Authority or a documented delegation reference. Finding ownership alone
+does not grant waiver authority. A closed human-only approval gate requires its
+named human authority; Project Manager alone cannot waive or open it.
 
 ## Corrective Rules
 
 Corrective work is bounded by the Final Review findings.
 
 - A corrective packet must name exact findings, allowed files, forbidden files,
-  commands, and stop conditions.
-- A corrective packet must name the permission mode and whether the round was
-  packet-only, auto-opened, or waiting for Project Manager decision.
+  round, commands, stop conditions, changed-file return fields, and re-review
+  owner/status.
+- A corrective packet must name worker permission mode and whether Final Review
+  corrective orchestration is authorized or waiting for Project Manager.
 - Coder may dispatch integration repair workers for self-review findings only
   when the fix is inside the original execution packet. Do not call this a
   corrective round before Final Review.
@@ -434,8 +467,11 @@ Corrective work is bounded by the Final Review findings.
 - Every corrective round that changes files, behavior, contracts, runtime
   behavior, gate state, shared ownership, or required evidence must produce
   independent re-review evidence before Final Review can close the verdict.
-- Final Review may perform a narrow diff re-review itself only for low-risk,
-  local corrections. It must rerun affected review workers, review subagents, or
+- Corrective worker `DONE` means fix execution is complete. It does not close a
+  finding, review verdict, gate, or milestone before independent re-review.
+- Final Review may directly perform a narrow read-only diff inspection or
+  delegate one narrow re-review for low-risk, local corrections. It must rerun
+  affected review workers, review subagents, or
   validation lanes when the original review used them, the fix touches behavior,
   contracts, runtime, shared files, or gates, or the regression surface is
   unclear.
@@ -453,13 +489,17 @@ Corrective work is bounded by the Final Review findings.
 - Corrective workers must not open approval gates.
 - Corrective packets may name a maximum round or convergence budget, but the
   budget is a control signal rather than an unconditional blocker.
-- Continue automatic correction only inside an authorized corrective packet or
-  boundary while findings are decreasing in count or severity, no new scope is
-  opened, no blocking gate is bypassed, and no new authority, false-green,
-  approval-gate, security, validator/gate-ready, source-authority, or
-  evidence-integrity risk appears.
-- Return `BLOCKED` only when the same root cause shows no material progress for
-  two consecutive corrective rounds, required evidence or authority is missing,
+- Material convergence progress means the open finding count or finding
+  severity is decreasing, scope does not expand, no blocking gate is bypassed,
+  and no new authority, false-green, approval-boundary, security-boundary,
+  validator-failure, source-authority, or evidence-integrity risk appears.
+  Continue automatically only while that definition is satisfied inside an
+  authorized corrective packet or boundary.
+- At the first same-root round with no material progress, stop automatic
+  continuation, keep the verdict `NEEDS_CORRECTION`, and return
+  `PM_DECISION_REQUIRED` plus `HANDOFF`.
+- Return `BLOCKED` when the same root cause shows no material progress for two
+  consecutive corrective rounds, required evidence or authority is missing,
   the fix would exceed the approved boundary, or no authorized path can make
   progress.
 - If the convergence budget is exhausted while the run is still converging,
@@ -540,3 +580,9 @@ A milestone run using Session Orchestration is not complete until:
   active;
 - active context and routing maintenance are handled;
 - closeout is written when the milestone closes.
+
+The required closure order is Final Review verdict, corrective convergence or
+explicit stop, Project Manager/project-owner decision, ledger update, then
+closeout. `HANDOFF` is never a terminal closeout result. A `BLOCKED` run remains
+open until the authorized owner records a close-blocked, abandon, defer, or
+resume decision; only the first three permit closeout.
