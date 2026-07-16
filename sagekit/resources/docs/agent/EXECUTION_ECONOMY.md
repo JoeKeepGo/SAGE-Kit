@@ -128,6 +128,11 @@ candidate:
   corrective_batch_closed:
   generation:
   predecessor_digest:
+  corrective_batch_id:
+  authority_anchor:
+  root_cause_id:
+  open_findings_count:
+  no_progress_rounds:
   fingerprint:
 ```
 
@@ -137,11 +142,18 @@ and dependencies, and the worktree has no unexpected changes. A mismatch fails
 closed with exact differences and does not consume a run.
 
 One approved corrective batch may invalidate an unverified candidate and
-automatically create its successor without human budget approval. Candidate
-generation is bounded: any change after final verification first returns
-`HANDOFF_READY`. One explicit human-approved handoff corrective may then create
-generation 2; it is not an automatic budget relaxation. Generation 2 cannot
-produce a third candidate. The system never starts an automatic full-suite loop.
+automatically create one successor without human budget approval. The batch id
+is bound to the successor, so the same batch cannot create another automatic
+candidate. Any change after final verification first returns `HANDOFF_READY`
+and persists state and evidence.
+
+A later human-approved handoff corrective may create the next generation only
+when it binds a non-empty authority anchor, root-cause id, and current finding
+count. This is a new authority event, not automatic budget relaxation.
+Generation numbers are audit data, not a permanent ceiling. Two approved
+rounds with the same root cause and no finding reduction return `BLOCKED`;
+finding reduction resets that no-progress count. The system never starts an
+automatic candidate or full-suite loop.
 
 ## Evidence Fingerprint
 

@@ -27,7 +27,12 @@ match the packaged policy. Tampering fails. After v2 is selected, a v2 failure
 must not fall back to v1.
 
 Frozen policies and schemas are packaged under `sagekit/resources/contracts/`.
-The selector emits the selected version and policy identity for audit.
+The v1 policy records the exact historical commit and source paths from which
+its immutable schemas were frozen, and binds their canonical JSON SHA-256
+digests. Hermetic tests compare packaged resources and policy against
+independent fixed digest constants; they never execute `git show` or require a
+full repository history at test runtime. The selector emits the selected
+version and policy identity for audit.
 
 Closed history is validated pair-by-pair and then excluded from active duplicate,
 lease, lock, and dispatch-board reconciliation. Active records remain strict.

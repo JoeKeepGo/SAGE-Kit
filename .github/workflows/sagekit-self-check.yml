@@ -1,8 +1,14 @@
 name: SAGE-Kit self-check
 
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: sagekit-self-check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   self-check:

@@ -29,6 +29,10 @@ invalidated_evidence:
 execution_counters:
   verification_attempts:
 candidate:
+  authority_anchor:
+  root_cause_id:
+  open_findings_count:
+  no_progress_rounds:
 next_action:
 allowed_paths:
 stop_conditions:
@@ -80,6 +84,12 @@ state. Resuming a `STARTED`, `PASSED`, `FAILED`, or `ABORTED` attempt never
 increments its counter again.
 The checkpoint persists started verification attempts before handoff so resume
 cannot repeat their consumption.
+
+When a human-approved corrective resumes `HANDOFF_READY`, the successor
+candidate persists its authority anchor, root-cause id, current finding count,
+and consecutive no-progress rounds. Resume therefore cannot turn an
+unapproved handoff into automatic execution or lose the two-round
+same-root-cause blocking rule.
 
 A v2 checkpoint has per-candidate counters but no attempt records; it resumes
 with an empty attempt map while preserving those counters, so exhausted

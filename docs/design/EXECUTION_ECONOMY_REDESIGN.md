@@ -190,14 +190,19 @@ focused verification
 
 Review and the single corrective batch close before candidate freeze. The
 candidate binds `head_sha`, binary `diff_hash`, `contract_digest`,
-`dependency_digest`, `review_closed`, and `corrective_batch_closed`, plus a
-bounded generation and predecessor digest. Final verification requires an exact
-match and a worktree with no unexpected changes.
+`dependency_digest`, `review_closed`, and `corrective_batch_closed`, plus its
+generation, predecessor, corrective-batch id, and any human-resume authority,
+root-cause, finding-count, and no-progress data. Final verification requires an
+exact match and a worktree with no unexpected changes.
 
-One approved corrective may replace an unverified generation-1 candidate with
-generation 2 automatically. A further regeneration, or any change after final
-verification, produces `HANDOFF_READY`. Preliminary PASS evidence never becomes
-final or merge-gate evidence by relabeling.
+One approved corrective batch may replace an unverified candidate with one
+automatic successor. Reusing that batch id cannot create another automatic
+successor. Any change after final verification produces `HANDOFF_READY`.
+A later explicit human approval can create the next generation when it binds
+an authority anchor and root-cause id. Generation is not an absolute ceiling:
+two approved rounds for the same root cause without finding reduction produce
+`BLOCKED`, while material progress resets the no-progress count. Preliminary
+PASS evidence never becomes final or merge-gate evidence by relabeling.
 
 ### 7.2 Evidence fingerprint
 
@@ -277,12 +282,14 @@ returns `executed` or `skipped_due_to_dependency`; command scheduling remains
 outside the runtime.
 
 An approved corrective batch may replace one not-yet-final candidate with one
-successor candidate without human budget approval. A second regeneration, or a
-change after final verification, returns `HANDOFF_READY`. This bounds candidate
-creation without turning review corrections into a manual budget gate.
-After that handoff, one explicit human-approved corrective may create generation
-2 even when the predecessor had final evidence. This is a new authority event,
-not automatic budget relaxation; generation 2 can never create generation 3.
+automatic successor without human budget approval. A repeated successor from
+the same batch, or a change after final verification, returns `HANDOFF_READY`.
+This bounds automatic candidate creation without turning review corrections
+into a manual budget gate. After handoff, an explicit human-approved corrective
+may create the next generation when it binds its authority anchor,
+root-cause id, and finding count. This is a new authority event, not automatic
+budget relaxation. Candidate generation has no mechanical numeric ceiling;
+the same root cause with no progress for two approved rounds returns `BLOCKED`.
 
 `reviewer_reports_per_scope` counts first-round reports. Corrective re-review is
 counted separately by `corrective_re_review_rounds`, so one complete first report

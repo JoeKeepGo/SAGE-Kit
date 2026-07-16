@@ -1,7 +1,6 @@
 import json
 import hashlib
 import ast
-import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -25,6 +24,23 @@ from sagekit.validation_contracts.v2 import contract_metadata as v2_metadata
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_ROOT = REPO_ROOT / "docs/profiles/task-dispatch/templates"
+FROZEN_V1_BASE_SHA = "626706a5c4a9bc4cce9ce7dc69effb6eaf960141"
+FROZEN_V1_PATHS = {
+    "task.schema.json": "docs/profiles/task-dispatch/schemas/task.schema.json",
+    "evidence.schema.json": "docs/profiles/task-dispatch/schemas/evidence.schema.json",
+}
+FROZEN_V1_SCHEMA_SHA256 = {
+    "task.schema.json": "d8fbfd72bfae672e740fa3aa0537e19639ff53c0165142e7a596a332e23494a3",
+    "evidence.schema.json": "59ba187deaa95cb1b95d9dccd4f135fb2f473d02af20af8469da5261645509b7",
+}
+FROZEN_V1_POLICY_SHA256 = (
+    "2f1796fa24262200dea64e74b969ad86cb33b1781dd4754b35bd7328c7cc20a2"
+)
+
+
+def canonical_digest(payload):
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def active_records():
@@ -211,29 +227,36 @@ class ContractResourceTests(unittest.TestCase):
             policy = json.loads(contract_resource(version, "policy.json").read_text(encoding="utf-8"))
             for name in ("task.schema.json", "evidence.schema.json"):
                 packaged = json.loads(contract_resource(version, name).read_text(encoding="utf-8"))
-                canonical = json.dumps(
-                    packaged,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ).encode("utf-8")
-                self.assertEqual(hashlib.sha256(canonical).hexdigest(), policy["schema_sha256"][name])
+                self.assertEqual(canonical_digest(packaged), policy["schema_sha256"][name])
                 if version == 2:
                     current = json.loads((source_root / name).read_text(encoding="utf-8"))
                     self.assertEqual(current, packaged)
                 else:
-                    frozen = subprocess.run(
-                        [
-                            "git",
-                            "show",
-                            "626706a5c4a9bc4cce9ce7dc69effb6eaf960141:"
-                            f"docs/profiles/task-dispatch/schemas/{name}",
-                        ],
-                        cwd=REPO_ROOT,
-                        text=True,
-                        stdout=subprocess.PIPE,
-                        check=True,
-                    )
-                    self.assertEqual(json.loads(frozen.stdout), packaged)
+                    self.assertEqual(FROZEN_V1_SCHEMA_SHA256[name], canonical_digest(packaged))
+
+    def test_frozen_v1_policy_has_fixed_digest_and_true_provenance(self):
+        policy = json.loads(contract_resource(1, "policy.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(FROZEN_V1_POLICY_SHA256, canonical_digest(policy))
+        self.assertEqual(FROZEN_V1_BASE_SHA, policy["frozen_from_base_sha"])
+        self.assertEqual(FROZEN_V1_PATHS, policy["frozen_from_paths"])
+        self.assertEqual(FROZEN_V1_SCHEMA_SHA256, policy["schema_sha256"])
+
+    def test_frozen_v1_constants_detect_snapshot_or_policy_tamper(self):
+        policy = json.loads(contract_resource(1, "policy.json").read_text(encoding="utf-8"))
+        schema = json.loads(
+            contract_resource(1, "task.schema.json").read_text(encoding="utf-8")
+        )
+        tampered_policy = dict(policy)
+        tampered_policy["scope"] = "active"
+        tampered_schema = dict(schema)
+        tampered_schema["title"] = "tampered"
+
+        self.assertNotEqual(FROZEN_V1_POLICY_SHA256, canonical_digest(tampered_policy))
+        self.assertNotEqual(
+            FROZEN_V1_SCHEMA_SHA256["task.schema.json"],
+            canonical_digest(tampered_schema),
+        )
 
     def test_packaged_contracts_reject_records_missing_core_fields(self):
         from sagekit.validation_contracts.v1 import validate_records as validate_v1

@@ -132,11 +132,13 @@ handoff.
 - Failure of one verification node skips only dependent successors;
   independent verification nodes continue and report their own results.
 - Freeze the candidate only after review and the bounded corrective batch
-  close. One approved corrective may create one successor candidate without
-  human budget relaxation; a second regeneration or any post-final code change
-  first returns `HANDOFF_READY`. Only an explicit human-approved handoff
-  corrective may create generation 2 after final evidence; generation 3 is
-  forbidden.
+  close. One approved corrective batch may create one automatic successor
+  without human budget relaxation; another successor from that batch or any
+  post-final code change first returns `HANDOFF_READY`. A human-approved
+  handoff corrective may create the next generation only with a persisted
+  authority anchor, root-cause id, and finding count. Do not impose a numeric
+  generation ceiling: block only after two approved rounds for the same root
+  cause make no progress, and reset that count when findings decrease.
 - Keep one task tied to one approved phase unless a batch plan defines order,
   gates, and stop conditions.
 - Do not invent missing contracts, fallback behavior, or success evidence.

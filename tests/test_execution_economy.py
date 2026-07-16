@@ -403,6 +403,7 @@ class CandidateVerificationTests(unittest.TestCase):
                 root,
                 previous=first.candidate,
                 approved_corrective=True,
+                corrective_batch_id="corrective-batch-1",
                 previous_final_verified=False,
             )
 
@@ -518,7 +519,32 @@ class CandidateVerificationTests(unittest.TestCase):
         self.assertEqual(RunState.HANDOFF_READY, regenerated.state)
         self.assertIsNone(regenerated.candidate)
 
-    def test_explicit_handoff_corrective_allows_one_post_final_successor(self):
+    def test_unapproved_second_automatic_successor_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            commit_change(root, "approved automatic corrective\n")
+            second = self.freeze(
+                root,
+                previous=first.candidate,
+                approved_corrective=True,
+                corrective_batch_id="corrective-batch-1",
+            )
+            commit_change(root, "unapproved automatic corrective\n")
+
+            third = self.freeze(
+                root,
+                previous=second.candidate,
+                approved_corrective=False,
+                corrective_batch_id="corrective-batch-2",
+            )
+
+        self.assertTrue(second.ok)
+        self.assertFalse(third.ok)
+        self.assertEqual(RunState.HANDOFF_READY, third.state)
+
+    def test_handoff_without_authority_anchor_cannot_resume(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             init_repository(root)
@@ -531,22 +557,133 @@ class CandidateVerificationTests(unittest.TestCase):
                 approved_corrective=True,
                 previous_final_verified=True,
                 handoff_successor_approved=True,
+                root_cause_id="ci-history-dependency",
+                open_findings_count=1,
             )
-            commit_change(root, "attempted third candidate\n")
-            third = self.freeze(
+
+        self.assertFalse(second.ok)
+        self.assertEqual(RunState.HUMAN_DECISION_REQUIRED, second.state)
+        self.assertIn("authority anchor", second.message)
+
+    def test_human_approved_handoff_can_create_next_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            commit_change(root, "human-approved handoff corrective\n")
+
+            second = self.freeze(
                 root,
-                previous=second.candidate,
+                previous=first.candidate,
                 approved_corrective=True,
                 previous_final_verified=True,
                 handoff_successor_approved=True,
+                authority_anchor="user-approved-ci-corrective",
+                root_cause_id="ci-history-dependency",
+                open_findings_count=0,
             )
 
         self.assertTrue(second.ok)
         self.assertEqual(2, second.candidate.generation)
+        self.assertEqual("user-approved-ci-corrective", second.candidate.authority_anchor)
+        self.assertEqual("ci-history-dependency", second.candidate.root_cause_id)
         self.assertFalse(second.manual_budget_relaxation_required)
-        self.assertFalse(third.ok)
-        self.assertEqual(RunState.HANDOFF_READY, third.state)
-        self.assertIn("regeneration limit", third.message)
+
+    def test_same_root_cause_without_progress_for_two_approved_rounds_blocks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            previous = first.candidate
+            results = []
+            for index in range(3):
+                commit_change(root, f"approved handoff corrective {index}\n")
+                result = self.freeze(
+                    root,
+                    previous=previous,
+                    approved_corrective=True,
+                    previous_final_verified=True,
+                    handoff_successor_approved=True,
+                    authority_anchor=f"user-approval-{index}",
+                    root_cause_id="same-root-cause",
+                    open_findings_count=2,
+                )
+                results.append(result)
+                if result.candidate is not None:
+                    previous = result.candidate
+
+        self.assertTrue(results[0].ok)
+        self.assertTrue(results[1].ok)
+        self.assertFalse(results[2].ok)
+        self.assertEqual(RunState.BLOCKED, results[2].state)
+
+    def test_finding_reduction_is_not_mechanically_blocked_by_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            previous = first.candidate
+            generations = []
+            for index, findings in enumerate((3, 3, 2, 1)):
+                commit_change(root, f"progressive corrective {index}\n")
+                result = self.freeze(
+                    root,
+                    previous=previous,
+                    approved_corrective=True,
+                    previous_final_verified=True,
+                    handoff_successor_approved=True,
+                    authority_anchor=f"user-approval-{index}",
+                    root_cause_id="cross-platform-ci",
+                    open_findings_count=findings,
+                )
+                self.assertTrue(result.ok, result.message)
+                previous = result.candidate
+                generations.append(previous.generation)
+
+        self.assertEqual((2, 3, 4, 5), tuple(generations))
+        self.assertEqual(0, previous.no_progress_rounds)
+
+    def test_handoff_approval_and_root_cause_survive_checkpoint_resume(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            commit_change(root, "checkpointed handoff corrective\n")
+            second = self.freeze(
+                root,
+                previous=first.candidate,
+                approved_corrective=True,
+                previous_final_verified=True,
+                handoff_successor_approved=True,
+                authority_anchor="user-approved-checkpoint",
+                root_cause_id="ci-history-dependency",
+                open_findings_count=0,
+            )
+            create_checkpoint(
+                root,
+                run_id="handoff-successor",
+                goal="Persist approved successor authority",
+                authority_id="request",
+                authority_version="1",
+                authority_summary="Direct request",
+                change_class=ChangeClass.C1_BOUNDED_CORRECTIVE,
+                completed_work=("corrective closed",),
+                open_findings=(),
+                evidence_references=(),
+                invalidated_evidence=(),
+                execution_counters=ExecutionCounters(),
+                next_action="verify successor",
+                allowed_paths=("tracked.txt",),
+                stop_conditions=(),
+                candidate=second.candidate,
+            )
+
+            resumed = resume_checkpoint(root)
+
+        self.assertTrue(resumed.ok, resumed.mismatches)
+        restored = resumed.checkpoint["candidate"]
+        self.assertEqual("user-approved-checkpoint", restored["authority_anchor"])
+        self.assertEqual("ci-history-dependency", restored["root_cause_id"])
 
     def test_fingerprint_mismatch_fails_closed_with_exact_differences(self):
         assess_candidate, _ = candidate_api()
