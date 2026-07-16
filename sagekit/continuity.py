@@ -9,13 +9,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
+from .candidate import CandidateFingerprint, assess_candidate
 from .change_control import ChangeClass
 from .evidence import EvidenceFingerprint
-from .execution_limits import ExecutionCounters
+from .execution_limits import COUNTER_NAMES, ExecutionCounters
 from .pathing import is_within, relative_repo_path
 
 
-CHECKPOINT_SCHEMA_VERSION = 1
+CHECKPOINT_SCHEMA_VERSION = 2
 MAX_CHECKPOINT_BYTES = 32_000
 REQUIRED_FIELDS = {
     "run_id",
@@ -78,6 +79,7 @@ def create_checkpoint(
     stop_conditions: Iterable[str],
     authority_references: Iterable[str] = (),
     base_sha: str | None = None,
+    candidate: CandidateFingerprint | None = None,
 ) -> CheckpointResult:
     root = repository_root.resolve(strict=False)
     git_root, branch, head = _git_state(root)
@@ -114,6 +116,7 @@ def create_checkpoint(
             for value in allowed_paths
         ],
         "stop_conditions": _bounded_list(stop_conditions, "stop conditions"),
+        "candidate": candidate.to_dict() if candidate is not None else None,
         "created_at": now,
         "updated_at": now,
     }
@@ -190,6 +193,23 @@ def resume_checkpoint(
     mismatches.extend(
         _reference_mismatches(root, payload.get("evidence_references"), "evidence")
     )
+    candidate_payload = payload.get("candidate")
+    if isinstance(candidate_payload, dict):
+        try:
+            candidate = CandidateFingerprint.from_dict(candidate_payload)
+            candidate_assessment = assess_candidate(
+                root,
+                candidate,
+                contract_digest=candidate.contract_digest,
+                dependency_digest=candidate.dependency_digest,
+            )
+            mismatches.extend(
+                f"candidate {item}" for item in candidate_assessment.mismatches
+            )
+        except ValueError as exc:
+            mismatches.append(f"candidate fingerprint is invalid: {exc}")
+    elif payload.get("schema_version") == CHECKPOINT_SCHEMA_VERSION and candidate_payload is not None:
+        mismatches.append("candidate fingerprint is invalid")
     if mismatches:
         return CheckpointResult(
             False,
@@ -238,8 +258,10 @@ def _load_checkpoint(root: Path) -> CheckpointResult:
         missing = sorted(REQUIRED_FIELDS - set(payload))
         if missing:
             raise ValueError("checkpoint missing fields: " + ", ".join(missing))
-        if payload.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        if payload.get("schema_version") not in {1, CHECKPOINT_SCHEMA_VERSION}:
             raise ValueError(f"unsupported checkpoint schema: {payload.get('schema_version')}")
+        if payload.get("schema_version") == CHECKPOINT_SCHEMA_VERSION and "candidate" not in payload:
+            raise ValueError("checkpoint missing fields: candidate")
         structure_errors = _checkpoint_structure_errors(root, payload)
         if structure_errors:
             raise ValueError("; ".join(structure_errors))
@@ -299,7 +321,9 @@ def _serialize_evidence_reference(root: Path, value: object) -> object:
         }
     if isinstance(value, Mapping):
         fingerprint = dict(value)
-        if set(fingerprint) != set(EvidenceFingerprint.__dataclass_fields__):
+        allowed = set(EvidenceFingerprint.__dataclass_fields__)
+        required = allowed - {"candidate_fingerprint"}
+        if not required.issubset(fingerprint) or not set(fingerprint).issubset(allowed):
             raise ValueError("evidence fingerprint has missing or unknown fields")
         return {
             "type": "fingerprint",
@@ -322,8 +346,12 @@ def _reference_mismatches(root: Path, references: object, label: str) -> list[st
         reference_type = "file" if label == "authority" else reference.get("type")
         if reference_type == "fingerprint":
             fingerprint = reference.get("fingerprint")
-            if not isinstance(fingerprint, dict) or set(fingerprint) != set(
-                EvidenceFingerprint.__dataclass_fields__
+            allowed = set(EvidenceFingerprint.__dataclass_fields__)
+            required = allowed - {"candidate_fingerprint"}
+            if (
+                not isinstance(fingerprint, dict)
+                or not required.issubset(fingerprint)
+                or not set(fingerprint).issubset(allowed)
             ):
                 mismatches.append(f"{label} fingerprint is invalid")
             elif reference.get("sha256") != _json_digest(fingerprint):
@@ -443,15 +471,29 @@ def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list
                 errors.append(f"allowed path escapes repository: {path}")
     counters = payload.get("execution_counters")
     expected = set(ExecutionCounters().to_dict())
-    if not isinstance(counters, dict) or set(counters) != expected:
+    legacy = {
+        "implementation_workers",
+        "read_only_review_agents",
+        "parallel_agent_waves",
+        "corrective_re_review_rounds",
+        "full_suite_runs_after_baseline",
+        "wheel_install_verification_runs",
+        "reviewer_reports_per_scope",
+        "root_cause_no_progress",
+        "exception_events",
+    }
+    counter_fields = frozenset(counters) if isinstance(counters, dict) else frozenset()
+    if not isinstance(counters, dict) or counter_fields not in {
+        frozenset(expected),
+        frozenset(legacy),
+    }:
         errors.append("execution_counters fields are invalid")
     else:
         try:
             parsed = ExecutionCounters.from_dict(counters)
-            numeric = [getattr(parsed, name) for name in expected if name not in {
-                "root_cause_no_progress",
-                "exception_events",
-            }]
+            numeric = [getattr(parsed, name) for name in COUNTER_NAMES]
+            numeric.extend(parsed.final_full_suite_runs.values())
+            numeric.extend(parsed.final_wheel_install_runs.values())
             numeric.extend(parsed.root_cause_no_progress.values())
             if any(item < 0 for item in numeric):
                 errors.append("execution_counters values must be non-negative")
@@ -459,4 +501,13 @@ def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list
             errors.append("execution_counters values are invalid")
     if not isinstance(payload.get("authority"), dict):
         errors.append("authority must be an object")
+    candidate = payload.get("candidate")
+    if candidate is not None:
+        if not isinstance(candidate, dict):
+            errors.append("candidate must be an object or null")
+        else:
+            try:
+                CandidateFingerprint.from_dict(candidate)
+            except ValueError as exc:
+                errors.append(f"candidate is invalid: {exc}")
     return errors

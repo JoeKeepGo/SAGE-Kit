@@ -253,6 +253,7 @@ class ContractResourceTests(unittest.TestCase):
         for relative in (
             "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
             "sagekit/compatibility.py",
+            "sagekit/candidate.py",
             "sagekit/reporting.py",
             "sagekit/validation_contracts/__init__.py",
             "sagekit/validation_contracts/v1.py",

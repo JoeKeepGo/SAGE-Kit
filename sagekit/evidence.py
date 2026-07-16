@@ -21,6 +21,7 @@ class EvidenceFingerprint:
     platform: str
     authority_version: str
     result: str
+    candidate_fingerprint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,7 @@ class ChangeEvent:
     toolchain_fingerprint: str | None = None
     platform: str | None = None
     authority_version: str | None = None
+    current_candidate_fingerprint: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,5 +96,12 @@ def assess_evidence(
         and fingerprint.kind in {"record-consistency", "semantic", "affected-lane", "integration"}
     ):
         reasons.append("authority version changed")
+    if (
+        fingerprint.candidate_fingerprint is not None
+        and event.current_candidate_fingerprint is not None
+        and fingerprint.candidate_fingerprint != event.current_candidate_fingerprint
+        and fingerprint.kind in {"integration", "package", "build", "platform"}
+    ):
+        reasons.append("candidate fingerprint changed")
 
     return EvidenceAssessment(fingerprint.evidence_id, not reasons, tuple(dict.fromkeys(reasons)))

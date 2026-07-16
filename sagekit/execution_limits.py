@@ -1,19 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from enum import Enum
 from typing import Callable
 
+from .candidate import CandidateAssessment, CandidateFingerprint
 from .change_control import RunState
 
 
-COUNTER_NAMES = (
+LIMIT_COUNTER_NAMES = (
     "implementation_workers",
     "read_only_review_agents",
     "parallel_agent_waves",
     "corrective_re_review_rounds",
-    "full_suite_runs_after_baseline",
-    "wheel_install_verification_runs",
     "reviewer_reports_per_scope",
+)
+COUNTER_NAMES = (
+    *LIMIT_COUNTER_NAMES,
+    "preliminary_full_suite_runs",
+    "preliminary_wheel_install_runs",
 )
 
 
@@ -23,10 +28,10 @@ class ExecutionLimits:
     read_only_review_agents: int = 2
     parallel_agent_waves: int = 1
     corrective_re_review_rounds: int = 1
-    full_suite_runs_after_baseline: int = 1
-    wheel_install_verification_runs: int = 1
     reviewer_reports_per_scope: int = 1
     repeated_root_cause_without_progress: int = 2
+    max_full_suite_runs_per_candidate: int = 1
+    max_wheel_install_runs_per_candidate: int = 1
 
 
 @dataclass(frozen=True)
@@ -35,9 +40,11 @@ class ExecutionCounters:
     read_only_review_agents: int = 0
     parallel_agent_waves: int = 0
     corrective_re_review_rounds: int = 0
-    full_suite_runs_after_baseline: int = 0
-    wheel_install_verification_runs: int = 0
     reviewer_reports_per_scope: int = 0
+    preliminary_full_suite_runs: int = 0
+    preliminary_wheel_install_runs: int = 0
+    final_full_suite_runs: dict[str, int] = field(default_factory=dict)
+    final_wheel_install_runs: dict[str, int] = field(default_factory=dict)
     root_cause_no_progress: dict[str, int] = field(default_factory=dict)
     exception_events: tuple[str, ...] = ()
 
@@ -46,6 +53,8 @@ class ExecutionCounters:
             name: getattr(self, name)
             for name in COUNTER_NAMES
         } | {
+            "final_full_suite_runs": dict(sorted(self.final_full_suite_runs.items())),
+            "final_wheel_install_runs": dict(sorted(self.final_wheel_install_runs.items())),
             "root_cause_no_progress": dict(sorted(self.root_cause_no_progress.items())),
             "exception_events": list(self.exception_events),
         }
@@ -53,6 +62,21 @@ class ExecutionCounters:
     @classmethod
     def from_dict(cls, value: dict[str, object]) -> "ExecutionCounters":
         kwargs = {name: int(value.get(name, 0)) for name in COUNTER_NAMES}
+        if "preliminary_full_suite_runs" not in value:
+            kwargs["preliminary_full_suite_runs"] = int(
+                value.get("full_suite_runs_after_baseline", 0)
+            )
+        if "preliminary_wheel_install_runs" not in value:
+            kwargs["preliminary_wheel_install_runs"] = int(
+                value.get("wheel_install_verification_runs", 0)
+            )
+        for field_name in ("final_full_suite_runs", "final_wheel_install_runs"):
+            raw = value.get(field_name, {})
+            kwargs[field_name] = (
+                {str(key): int(count) for key, count in raw.items()}
+                if isinstance(raw, dict)
+                else {}
+            )
         roots = value.get("root_cause_no_progress", {})
         kwargs["root_cause_no_progress"] = (
             {str(key): int(count) for key, count in roots.items()}
@@ -74,6 +98,27 @@ class LimitDecision:
 CheckpointWriter = Callable[[ExecutionCounters, str], bool]
 
 
+class VerificationKind(str, Enum):
+    FULL_SUITE = "full-suite"
+    WHEEL_INSTALL = "wheel-install"
+
+
+class VerificationStage(str, Enum):
+    PRELIMINARY = "preliminary"
+    FINAL_CANDIDATE = "final-candidate"
+
+
+@dataclass(frozen=True)
+class VerificationRunDecision:
+    state: RunState
+    stage: VerificationStage
+    counters: ExecutionCounters
+    allowed_to_run: bool
+    consumes_final_candidate_budget: bool
+    merge_gate_eligible: bool
+    reason: str
+
+
 def consume_event(
     counters: ExecutionCounters,
     limits: ExecutionLimits,
@@ -81,23 +126,11 @@ def consume_event(
     *,
     invalidation_reason: str | None = None,
 ) -> LimitDecision:
-    if event not in COUNTER_NAMES:
+    if event not in LIMIT_COUNTER_NAMES:
         raise ValueError(f"unknown execution event: {event}")
     current = getattr(counters, event)
     limit = getattr(limits, event)
     if current >= limit:
-        if event == "full_suite_runs_after_baseline" and invalidation_reason:
-            updated = replace(
-                counters,
-                **{
-                    event: current + 1,
-                    "exception_events": (
-                        *counters.exception_events,
-                        f"{event}: {invalidation_reason}",
-                    ),
-                },
-            )
-            return LimitDecision(RunState.CONTINUE, updated, "invalidated evidence required rerun")
         return LimitDecision(
             RunState.HANDOFF_READY,
             counters,
@@ -106,6 +139,79 @@ def consume_event(
     return LimitDecision(
         RunState.CONTINUE,
         replace(counters, **{event: current + 1}),
+    )
+
+
+def consume_verification_run(
+    counters: ExecutionCounters,
+    limits: ExecutionLimits,
+    kind: VerificationKind,
+    *,
+    candidate: CandidateFingerprint | None,
+    assessment: CandidateAssessment | None,
+) -> VerificationRunDecision:
+    if candidate is None or not (
+        candidate.review_closed and candidate.corrective_batch_closed
+    ):
+        field_name = (
+            "preliminary_full_suite_runs"
+            if kind == VerificationKind.FULL_SUITE
+            else "preliminary_wheel_install_runs"
+        )
+        updated = replace(counters, **{field_name: getattr(counters, field_name) + 1})
+        return VerificationRunDecision(
+            RunState.CONTINUE,
+            VerificationStage.PRELIMINARY,
+            updated,
+            True,
+            False,
+            False,
+            "review or corrective closure is incomplete; run is preliminary only",
+        )
+    if assessment is None or not assessment.ok:
+        reason = (
+            assessment.message
+            if assessment is not None
+            else "candidate assessment is required for final verification"
+        )
+        return VerificationRunDecision(
+            RunState.HANDOFF_READY,
+            VerificationStage.FINAL_CANDIDATE,
+            counters,
+            False,
+            False,
+            False,
+            reason,
+        )
+
+    if kind == VerificationKind.FULL_SUITE:
+        field_name = "final_full_suite_runs"
+        limit = limits.max_full_suite_runs_per_candidate
+    else:
+        field_name = "final_wheel_install_runs"
+        limit = limits.max_wheel_install_runs_per_candidate
+    runs = dict(getattr(counters, field_name))
+    current = runs.get(candidate.digest, 0)
+    if current >= limit:
+        return VerificationRunDecision(
+            RunState.HANDOFF_READY,
+            VerificationStage.FINAL_CANDIDATE,
+            counters,
+            False,
+            True,
+            False,
+            f"{kind.value} final run limit reached for candidate {candidate.digest}",
+        )
+    runs[candidate.digest] = current + 1
+    updated = replace(counters, **{field_name: runs})
+    return VerificationRunDecision(
+        RunState.CONTINUE,
+        VerificationStage.FINAL_CANDIDATE,
+        updated,
+        True,
+        True,
+        True,
+        f"{kind.value} authorized for stable candidate {candidate.digest}",
     )
 
 

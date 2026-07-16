@@ -179,13 +179,27 @@ focused verification
 - a local change runs focused verification;
 - a lane gate runs only its lane suite;
 - full suite, wheel build/install, package discovery, and outside-source smoke
-  run only for a stable candidate;
+  run before closure only as preliminary feedback and after closure once for a
+  matching frozen stable candidate;
 - a new session does not invalidate evidence;
 - C0 record maintenance never reruns implementation tests;
 - protected hashes are not recomputed unless their covered paths or authority
   changed.
 
-### 7.1 Evidence fingerprint
+### 7.1 Stable candidate fingerprint
+
+Review and the single corrective batch close before candidate freeze. The
+candidate binds `head_sha`, binary `diff_hash`, `contract_digest`,
+`dependency_digest`, `review_closed`, and `corrective_batch_closed`, plus a
+bounded generation and predecessor digest. Final verification requires an exact
+match and a worktree with no unexpected changes.
+
+One approved corrective may replace an unverified generation-1 candidate with
+generation 2 automatically. A further regeneration, or any change after final
+verification, produces `HANDOFF_READY`. Preliminary PASS evidence never becomes
+final or merge-gate evidence by relabeling.
+
+### 7.2 Evidence fingerprint
 
 Every reusable evidence record has this stable structure:
 
@@ -203,6 +217,7 @@ toolchain_fingerprint:
 platform:
 authority_version:
 result:
+candidate_fingerprint:
 ```
 
 `kind` distinguishes record consistency, focused, semantic lane, build,
@@ -210,7 +225,7 @@ platform, package, and integration evidence. Fingerprints are immutable
 observations. Reuse is a policy result; old evidence is never rewritten to
 pretend it ran at a newer HEAD.
 
-### 7.2 Invalidation
+### 7.3 Invalidation
 
 | Change | Invalidated evidence |
 | --- | --- |
@@ -218,6 +233,7 @@ pretend it ran at a newer HEAD.
 | C1 local implementation | Focused evidence covering an overlapping path and its directly affected lane. |
 | C2 contract/authority/state machine | Evidence covering the changed contract or authority version and corresponding semantic lanes. |
 | Build/dependency/package | Build, platform, package, and integration evidence that covers the changed surface. |
+| Candidate fingerprint change | Final integration, build, platform, and package evidence for the old candidate. |
 | Unrelated unchanged surface | None. Existing evidence remains reusable. |
 
 Path overlap uses canonical containment, not substring matching. Contract overlap
@@ -234,18 +250,22 @@ implementation_workers: 1
 read_only_review_agents: 2
 parallel_agent_waves: 1
 corrective_re_review_rounds: 1
-full_suite_runs_after_baseline: 1
-wheel_install_verification_runs: 1
 reviewer_reports_per_scope: 1
 repeated_root_cause_without_progress: 2
+max_full_suite_runs_per_candidate: 1
+max_wheel_install_runs_per_candidate: 1
 ```
 
 Counters record observable events, not model tokens or subscription usage.
-Before an event would exceed a limit, the runtime returns `HANDOFF_READY` and
-requires a checkpoint. A second full suite is allowed only when the caller names
-the evidence invalidation reason; it is recorded as an exception event rather
-than silently resetting the counter. Immediate safety risk still returns
-`STOP`.
+Preliminary full-suite or wheel runs are development feedback and are counted
+separately; they never consume final-candidate capacity or satisfy a merge gate.
+Final runs are keyed by candidate fingerprint and may occur once per matching
+candidate after review and corrective closure.
+
+An approved corrective batch may replace one not-yet-final candidate with one
+successor candidate without human budget approval. A second regeneration, or a
+change after final verification, returns `HANDOFF_READY`. This bounds candidate
+creation without turning review corrections into a manual budget gate.
 
 `reviewer_reports_per_scope` counts first-round reports. Corrective re-review is
 counted separately by `corrective_re_review_rounds`, so one complete first report
@@ -305,6 +325,7 @@ open_findings:
 evidence_references:
 invalidated_evidence:
 execution_counters:
+candidate:
 next_action:
 allowed_paths:
 stop_conditions:
@@ -325,7 +346,8 @@ Resume:
 3. verify canonical repository root, branch, and exact HEAD;
 4. verify authority reference hashes and version;
 5. verify referenced evidence fingerprints;
-6. return only the compact completed work, open findings, evidence status, and
+6. verify any candidate fingerprint, closure state, and per-candidate counters;
+7. return only the compact completed work, open findings, evidence status, and
    `next_action`.
 
 All mismatches are returned in one aggregate. Resume fails closed and performs no
@@ -544,10 +566,12 @@ Focused unit tests cover:
 - wheel-installed policy/schema resources are discoverable;
 - all syntax remains Python 3.10 compatible.
 
-Stable-candidate verification runs exactly one full unit suite after baseline,
-one source-repository check, one wheel build/install/outside-source smoke, one
-CLI smoke, one synthetic legacy/active/mixed scenario, `git diff --check`, a
-tracked-runtime scan, and a project-specific-name leakage scan.
+The verification order is implementation and focused feedback, the single
+independent review wave, one corrective batch and targeted verification,
+review/corrective closure, candidate freeze, then exactly one final unit suite
+and one wheel build/install/outside-source smoke for that candidate. Source
+check, CLI smoke, synthetic compatibility, `git diff --check`, tracked-runtime,
+and project-name leakage checks follow without changing the candidate.
 
 ## 18. Rollout
 
@@ -556,12 +580,12 @@ and focused tests. Phase B introduces frozen/current validation contracts,
 compatibility selection, bounded reporting, resources, CLI integration, and
 focused tests. Both phases stay on one branch.
 
-After a stable candidate, two read-only reviewers run once in parallel:
+Before candidate freeze, two read-only reviewers run once in parallel:
 
 - authority/state/false-green/compatibility/checkpoint/governance;
 - tests/CLI/package/cross-platform/performance/bounded-output/docs consistency.
 
 P0/P1 and authority/false-green/validator P2 findings are corrected. Ordinary
 documentation P2 findings may be corrected in one batch; P3 is recorded. Only
-targeted invalidated verification is rerun, and no second full review wave is
-started.
+targeted invalidated verification runs before closure, and no second full review
+wave starts. The final candidate is frozen only after that corrective closure.

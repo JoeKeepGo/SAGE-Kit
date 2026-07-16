@@ -75,6 +75,32 @@ def init_repository(root):
     git(root, "commit", "-m", "test baseline")
 
 
+def commit_change(root, content):
+    (root / "tracked.txt").write_text(content, encoding="utf-8")
+    git(root, "add", "tracked.txt")
+    git(root, "commit", "-m", "approved corrective")
+
+
+def candidate_api():
+    try:
+        from sagekit.candidate import assess_candidate, freeze_candidate
+    except ImportError as exc:
+        raise AssertionError("candidate fingerprint API is missing") from exc
+    return assess_candidate, freeze_candidate
+
+
+def verification_api():
+    try:
+        from sagekit.execution_limits import (
+            VerificationKind,
+            VerificationStage,
+            consume_verification_run,
+        )
+    except ImportError as exc:
+        raise AssertionError("candidate verification counter API is missing") from exc
+    return VerificationKind, VerificationStage, consume_verification_run
+
+
 def corrective_envelope(*allowed_paths):
     return CorrectiveEnvelope(
         acceptance_criterion="Existing acceptance criterion",
@@ -286,14 +312,291 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(authority_drift.reusable)
 
 
+class CandidateVerificationTests(unittest.TestCase):
+    def freeze(self, root, **overrides):
+        _, freeze_candidate = candidate_api()
+        values = {
+            "contract_digest": "contracts-v2",
+            "dependency_digest": "dependencies-v1",
+            "review_closed": True,
+            "corrective_batch_closed": True,
+        }
+        values.update(overrides)
+        return freeze_candidate(root, **values)
+
+    def test_review_open_run_is_preliminary_and_does_not_consume_final_budget(self):
+        _, freeze_candidate = candidate_api()
+        VerificationKind, VerificationStage, consume_verification_run = verification_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            frozen = freeze_candidate(
+                root,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+                review_closed=False,
+                corrective_batch_closed=True,
+            )
+            decision = consume_verification_run(
+                ExecutionCounters(),
+                ExecutionLimits(),
+                VerificationKind.FULL_SUITE,
+                candidate=frozen.candidate,
+                assessment=None,
+            )
+
+        self.assertFalse(frozen.ok)
+        self.assertEqual(VerificationStage.PRELIMINARY, decision.stage)
+        self.assertTrue(decision.allowed_to_run)
+        self.assertFalse(decision.consumes_final_candidate_budget)
+        self.assertFalse(decision.merge_gate_eligible)
+        self.assertEqual(1, decision.counters.preliminary_full_suite_runs)
+        self.assertEqual({}, decision.counters.final_full_suite_runs)
+
+    def test_closed_review_and_corrective_batch_freeze_bound_candidate(self):
+        assess_candidate, _ = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+
+            frozen = self.freeze(root)
+            assessment = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            head = git(root, "rev-parse", "HEAD")
+
+        self.assertTrue(frozen.ok)
+        self.assertTrue(assessment.ok)
+        self.assertEqual(head, frozen.candidate.head_sha)
+        self.assertRegex(frozen.candidate.diff_hash, r"^[0-9a-f]{64}$")
+        self.assertEqual("contracts-v2", frozen.candidate.contract_digest)
+        self.assertEqual("dependencies-v1", frozen.candidate.dependency_digest)
+        self.assertTrue(frozen.candidate.review_closed)
+        self.assertTrue(frozen.candidate.corrective_batch_closed)
+
+    def test_approved_corrective_invalidates_old_candidate_and_creates_new_without_budget_relaxation(self):
+        assess_candidate, _ = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            commit_change(root, "corrected\n")
+
+            stale = assess_candidate(
+                root,
+                first.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            second = self.freeze(
+                root,
+                previous=first.candidate,
+                approved_corrective=True,
+                previous_final_verified=False,
+            )
+
+        self.assertFalse(stale.ok)
+        self.assertTrue(any("HEAD" in item for item in stale.mismatches))
+        self.assertTrue(second.ok)
+        self.assertEqual(RunState.CONTINUE, second.state)
+        self.assertEqual(2, second.candidate.generation)
+        self.assertEqual(first.candidate.digest, second.candidate.predecessor_digest)
+        self.assertNotEqual(first.candidate.digest, second.candidate.digest)
+        self.assertFalse(second.manual_budget_relaxation_required)
+
+    def test_candidate_change_invalidates_final_evidence(self):
+        event = ChangeEvent(
+            ChangeClass.C1_BOUNDED_CORRECTIVE,
+            current_candidate_fingerprint="candidate-new",
+        )
+        result = assess_evidence(
+            evidence(
+                kind="integration",
+                candidate_fingerprint="candidate-old",
+            ),
+            event,
+        )
+
+        self.assertFalse(result.reusable)
+        self.assertIn("candidate fingerprint changed", result.reasons)
+
+    def test_same_candidate_cannot_repeat_final_full_suite(self):
+        assess_candidate, _ = candidate_api()
+        VerificationKind, VerificationStage, consume_verification_run = verification_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            frozen = self.freeze(root)
+            assessment = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            first = consume_verification_run(
+                ExecutionCounters(),
+                ExecutionLimits(),
+                VerificationKind.FULL_SUITE,
+                candidate=frozen.candidate,
+                assessment=assessment,
+            )
+            second = consume_verification_run(
+                first.counters,
+                ExecutionLimits(),
+                VerificationKind.FULL_SUITE,
+                candidate=frozen.candidate,
+                assessment=assessment,
+            )
+
+        self.assertEqual(VerificationStage.FINAL_CANDIDATE, first.stage)
+        self.assertTrue(first.allowed_to_run)
+        self.assertTrue(first.merge_gate_eligible)
+        self.assertEqual(RunState.HANDOFF_READY, second.state)
+        self.assertFalse(second.allowed_to_run)
+
+    def test_change_after_final_verification_handoffs_instead_of_regenerating(self):
+        assess_candidate, _ = candidate_api()
+        VerificationKind, _, consume_verification_run = verification_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            assessment = assess_candidate(
+                root,
+                first.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            verified = consume_verification_run(
+                ExecutionCounters(),
+                ExecutionLimits(),
+                VerificationKind.FULL_SUITE,
+                candidate=first.candidate,
+                assessment=assessment,
+            )
+            commit_change(root, "changed after final\n")
+            regenerated = self.freeze(
+                root,
+                previous=first.candidate,
+                approved_corrective=True,
+                previous_final_verified=(
+                    verified.counters.final_full_suite_runs.get(first.candidate.digest) == 1
+                ),
+            )
+
+        self.assertFalse(regenerated.ok)
+        self.assertEqual(RunState.HANDOFF_READY, regenerated.state)
+        self.assertIsNone(regenerated.candidate)
+
+    def test_fingerprint_mismatch_fails_closed_with_exact_differences(self):
+        assess_candidate, _ = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            frozen = self.freeze(root)
+            mismatch = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v3",
+                dependency_digest="dependencies-v2",
+            )
+
+        self.assertFalse(mismatch.ok)
+        self.assertEqual(RunState.HANDOFF_READY, mismatch.state)
+        self.assertIn(
+            "contract digest differs: candidate=contracts-v2 current=contracts-v3",
+            mismatch.mismatches,
+        )
+        self.assertIn(
+            "dependency digest differs: candidate=dependencies-v1 current=dependencies-v2",
+            mismatch.mismatches,
+        )
+
+    def test_checkpoint_resume_preserves_candidate_and_per_candidate_counters(self):
+        assess_candidate, _ = candidate_api()
+        VerificationKind, _, consume_verification_run = verification_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            frozen = self.freeze(root)
+            assessment = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            counted = consume_verification_run(
+                ExecutionCounters(),
+                ExecutionLimits(),
+                VerificationKind.FULL_SUITE,
+                candidate=frozen.candidate,
+                assessment=assessment,
+            )
+            create_checkpoint(
+                root,
+                run_id="candidate-run",
+                goal="Preserve candidate state",
+                authority_id="request",
+                authority_version="1",
+                authority_summary="Direct request",
+                change_class=ChangeClass.C1_BOUNDED_CORRECTIVE,
+                completed_work=("review closed",),
+                open_findings=(),
+                evidence_references=(),
+                invalidated_evidence=(),
+                execution_counters=counted.counters,
+                next_action="run wheel verification",
+                allowed_paths=("tracked.txt",),
+                stop_conditions=(),
+                candidate=frozen.candidate,
+            )
+
+            resumed = resume_checkpoint(root)
+
+        self.assertTrue(resumed.ok, resumed.mismatches)
+        self.assertEqual(frozen.candidate.to_dict(), resumed.checkpoint["candidate"])
+        restored = ExecutionCounters.from_dict(resumed.checkpoint["execution_counters"])
+        self.assertEqual(
+            1,
+            restored.final_full_suite_runs[frozen.candidate.digest],
+        )
+
+    def test_candidate_cli_text_and_json_report_same_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            common = (
+                "candidate",
+                "freeze",
+                "--target",
+                str(root),
+                "--contract-digest",
+                "contracts-v2",
+                "--dependency-digest",
+                "dependencies-v1",
+                "--review-closed",
+                "--corrective-batch-closed",
+            )
+            text = run_sagekit(*common, cwd=root)
+            machine = run_sagekit(*common, "--json", cwd=root)
+
+        self.assertEqual(0, text.returncode, text.stderr)
+        self.assertEqual(0, machine.returncode, machine.stderr)
+        self.assertIn("STATE CONTINUE", text.stdout)
+        self.assertEqual("CONTINUE", json.loads(machine.stdout)["state"])
+
+
 class ExecutionLimitAndReviewTests(unittest.TestCase):
     def test_limit_exhaustion_returns_handoff_ready(self):
-        counters = ExecutionCounters(full_suite_runs_after_baseline=1)
+        counters = ExecutionCounters(implementation_workers=1)
 
-        decision = consume_event(counters, ExecutionLimits(), "full_suite_runs_after_baseline")
+        decision = consume_event(counters, ExecutionLimits(), "implementation_workers")
 
         self.assertEqual(RunState.HANDOFF_READY, decision.state)
-        self.assertEqual(1, decision.counters.full_suite_runs_after_baseline)
+        self.assertEqual(1, decision.counters.implementation_workers)
 
     def test_two_no_progress_rounds_block_same_root_cause(self):
         counters = ExecutionCounters()
@@ -312,9 +615,9 @@ class ExecutionLimitAndReviewTests(unittest.TestCase):
     def test_limit_handoff_persists_checkpoint_before_returning(self):
         persisted = []
         decision = consume_event_with_checkpoint(
-            ExecutionCounters(full_suite_runs_after_baseline=1),
+            ExecutionCounters(implementation_workers=1),
             ExecutionLimits(),
-            "full_suite_runs_after_baseline",
+            "implementation_workers",
             lambda counters, reason: persisted.append((counters, reason)) or True,
         )
 
@@ -703,7 +1006,7 @@ class ContinuityCliTests(unittest.TestCase):
                 "--stop-condition",
                 "authority expands",
                 "--counter",
-                "full_suite_runs_after_baseline=1",
+                "preliminary_full_suite_runs=1",
                 cwd=root,
             )
             status = run_sagekit(
@@ -749,7 +1052,7 @@ class ContinuityCliTests(unittest.TestCase):
             self.assertEqual(
                 1,
                 resume_payload["resume"]["execution_counters"][
-                    "full_suite_runs_after_baseline"
+                    "preliminary_full_suite_runs"
                 ],
             )
             self.assertNotIn("authority_summary", resume_payload)

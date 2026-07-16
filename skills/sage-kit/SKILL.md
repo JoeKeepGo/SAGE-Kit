@@ -123,6 +123,13 @@ handoff.
   a current-contract failure must never fall back to a legacy contract.
 - When a deterministic local limit is reached, create a checkpoint and return
   `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
+- Treat full-suite and wheel/install runs before review and corrective closure
+  as preliminary feedback only. They do not consume the single final run
+  available to a matching frozen candidate and cannot satisfy a merge gate.
+- Freeze the candidate only after review and the bounded corrective batch
+  close. One approved corrective may create one successor candidate without
+  human budget relaxation; a second regeneration or any post-final code change
+  returns `HANDOFF_READY`.
 - Keep one task tied to one approved phase unless a batch plan defines order,
   gates, and stop conditions.
 - Do not invent missing contracts, fallback behavior, or success evidence.

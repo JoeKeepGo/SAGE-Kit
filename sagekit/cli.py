@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .candidate import CandidateFreezeResult, freeze_candidate
 from .change_control import ChangeClass
 from .check import run_check, run_source_repo_check
 from .continuity import CheckpointResult, clear_checkpoint, create_checkpoint, resume_checkpoint
@@ -19,6 +20,16 @@ from .reporting import DEFAULT_MAX_FINDINGS, build_finding_report, finding_repor
 
 class TargetError(ValueError):
     pass
+
+
+def max_findings_value(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("max findings must be an integer") from exc
+    if not 1 <= parsed <= 500:
+        raise argparse.ArgumentTypeError("max findings must be between 1 and 500")
+    return parsed
 
 
 def resolve_target(target: Path | None) -> Path:
@@ -50,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--json", action="store_true", help="Print machine-readable findings.")
     check.add_argument(
         "--max-findings",
-        type=int,
+        type=max_findings_value,
         default=DEFAULT_MAX_FINDINGS,
         help=f"Display at most this many findings (default: {DEFAULT_MAX_FINDINGS}).",
     )
@@ -75,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--json", action="store_true", help="Print machine-readable findings.")
     doctor.add_argument(
         "--max-findings",
-        type=int,
+        type=max_findings_value,
         default=DEFAULT_MAX_FINDINGS,
         help=f"Display at most this many findings (default: {DEFAULT_MAX_FINDINGS}).",
     )
@@ -135,6 +146,22 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_argument(checkpoint_clear)
     checkpoint_clear.add_argument("--json", action="store_true", help="Print machine-readable output.")
 
+    candidate = subparsers.add_parser(
+        "candidate",
+        help="Freeze and inspect stable verification candidates.",
+    )
+    candidate_commands = candidate.add_subparsers(dest="candidate_command", required=True)
+    candidate_freeze = candidate_commands.add_parser(
+        "freeze",
+        help="Validate closure and emit a stable candidate fingerprint.",
+    )
+    add_target_argument(candidate_freeze)
+    candidate_freeze.add_argument("--json", action="store_true")
+    candidate_freeze.add_argument("--contract-digest", required=True)
+    candidate_freeze.add_argument("--dependency-digest", required=True)
+    candidate_freeze.add_argument("--review-closed", action="store_true")
+    candidate_freeze.add_argument("--corrective-batch-closed", action="store_true")
+
     resume = subparsers.add_parser("resume", help="Validate and emit the current run's next action.")
     add_target_argument(resume)
     resume.add_argument("--json", action="store_true", help="Print machine-readable output.")
@@ -188,6 +215,7 @@ def safe_resume_payload(result: CheckpointResult) -> dict[str, object] | None:
         "evidence_references": checkpoint.get("evidence_references", []),
         "invalidated_evidence": checkpoint.get("invalidated_evidence", []),
         "execution_counters": checkpoint.get("execution_counters", {}),
+        "candidate": checkpoint.get("candidate"),
         "next_action": checkpoint.get("next_action"),
         "allowed_paths": checkpoint.get("allowed_paths", []),
         "stop_conditions": checkpoint.get("stop_conditions", []),
@@ -238,6 +266,30 @@ def emit_checkpoint_result(
             print(f"NEXT_ACTION: {resume_payload['next_action']}")
 
 
+def emit_candidate_result(result: CandidateFreezeResult, *, as_json: bool) -> None:
+    payload = {
+        "ok": result.ok,
+        "state": result.state.value,
+        "message": result.message,
+        "manual_budget_relaxation_required": result.manual_budget_relaxation_required,
+        "mismatches": list(result.mismatches),
+        "candidate": result.candidate.to_dict() if result.candidate is not None else None,
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    print(f"STATE {payload['state']}")
+    print(f"MESSAGE {payload['message']}")
+    print(
+        "MANUAL_BUDGET_RELAXATION_REQUIRED "
+        f"{str(payload['manual_budget_relaxation_required']).lower()}"
+    )
+    if result.candidate is not None:
+        print(f"CANDIDATE {result.candidate.digest}")
+    for mismatch in result.mismatches:
+        print(f"MISMATCH {mismatch}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     try:
@@ -252,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         except TargetError as exc:
             findings = [Finding("FAIL", "target", None, None, str(exc))]
             emit_findings(findings, getattr(args, "json", False))
-            return 1
+            return 2
         if args.command == "check":
             if args.source_repo:
                 findings = run_source_repo_check(target)
@@ -268,6 +320,16 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
                 exact_root=target_argument is not None,
             )
+        elif args.command == "candidate":
+            result = freeze_candidate(
+                target,
+                contract_digest=args.contract_digest,
+                dependency_digest=args.dependency_digest,
+                review_closed=args.review_closed,
+                corrective_batch_closed=args.corrective_batch_closed,
+            )
+            emit_candidate_result(result, as_json=args.json)
+            return 0 if result.ok else 1
         elif args.command == "checkpoint":
             if args.checkpoint_command == "create":
                 result = create_checkpoint(

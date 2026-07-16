@@ -60,6 +60,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/modes.py",
     "sagekit/findings.py",
     "sagekit/pathing.py",
+    "sagekit/candidate.py",
     "sagekit/change_control.py",
     "sagekit/evidence.py",
     "sagekit/execution_limits.py",

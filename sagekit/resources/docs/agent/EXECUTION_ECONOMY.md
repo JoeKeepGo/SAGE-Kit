@@ -69,9 +69,44 @@ focused verification
 ```
 
 A local edit runs focused verification. A lane gate runs only that lane's suite.
-Full suite, wheel/install, package discovery, and outside-source smoke run once
-for a stable candidate. A new session does not invalidate evidence. A record-only
-change does not invalidate implementation evidence.
+The required order is implementation, focused verification, independent review,
+one corrective batch, targeted verification, review/corrective closure, stable
+candidate freeze, and then final integration verification.
+
+A full suite or wheel/install run before review and corrective closure is
+`preliminary`. It may provide development feedback, but it does not consume a
+final-candidate budget and is never merge-gate evidence. Full suite,
+wheel/install, package discovery, and outside-source smoke run once for each
+matching frozen stable candidate. A new session does not invalidate evidence.
+A record-only change does not invalidate implementation evidence.
+
+## Stable Candidate
+
+A frozen candidate binds:
+
+```yaml
+candidate:
+  head_sha:
+  diff_hash:
+  contract_digest:
+  dependency_digest:
+  review_closed:
+  corrective_batch_closed:
+  generation:
+  predecessor_digest:
+  fingerprint:
+```
+
+Final verification is authorized only when review and the corrective batch are
+closed, the candidate fingerprint matches the current HEAD, diff, contracts,
+and dependencies, and the worktree has no unexpected changes. A mismatch fails
+closed with exact differences and does not consume a run.
+
+One approved corrective batch may invalidate an unverified candidate and
+automatically create its successor without human budget approval. Candidate
+generation is bounded: a second regeneration, or any change after final
+verification, returns `HANDOFF_READY`. It never starts an automatic full-suite
+loop.
 
 ## Evidence Fingerprint
 
@@ -91,6 +126,7 @@ toolchain_fingerprint:
 platform:
 authority_version:
 result:
+candidate_fingerprint:
 ```
 
 Invalidation rules:
@@ -100,6 +136,8 @@ Invalidation rules:
 - C2 invalidates evidence for the changed contract, authority, or semantic lane.
 - Build, dependency, or package changes invalidate relevant build, platform,
   package, and integration evidence.
+- A different candidate fingerprint invalidates final integration, build,
+  platform, and package evidence.
 - Unrelated unchanged surfaces remain valid.
 
 Evidence remains an immutable observation at its original HEAD. Reuse is a
@@ -115,16 +153,31 @@ implementation_workers: 1
 read_only_review_agents: 2
 parallel_agent_waves: 1
 corrective_re_review_rounds: 1
-full_suite_runs_after_baseline: 1
-wheel_install_verification_runs: 1
 reviewer_reports_per_scope: 1
 repeated_root_cause_without_progress: 2
+max_full_suite_runs_per_candidate: 1
+max_wheel_install_runs_per_candidate: 1
 ```
 
 Before an event exceeds its limit, create or refresh the continuity checkpoint
 and return `HANDOFF_READY`. Do not return `STOP` merely because a local count was
-reached. A second full suite requires a recorded reason explaining which prior
-evidence became invalid.
+reached.
+
+```yaml
+verification_runs:
+  preliminary:
+    purpose: development feedback
+    consumes_final_candidate_budget: false
+  final_candidate:
+    requires_review_closed: true
+    requires_corrective_batch_closed: true
+    requires_candidate_fingerprint: true
+    max_runs_per_candidate: 1
+```
+
+Preliminary runs never decrement or exhaust final-candidate capacity. A
+successor candidate created by the one approved corrective batch has its own
+single final budget and does not require manual relaxation.
 
 ## Review Convergence Contract
 

@@ -268,6 +268,12 @@ When Session Orchestration is active:
 
 Corrective convergence budgets may be configured by the execution or Final
 Review packet, but they are control signals, not unconditional blockers.
+Full-suite and wheel/install runs before review and corrective closure are
+preliminary feedback and do not consume final-candidate capacity. After the
+single corrective batch closes, freeze a HEAD/diff/contract/dependency
+fingerprint and allow one final run per matching candidate. One approved
+corrective may create one successor without budget approval; a second
+regeneration or any change after final verification returns `HANDOFF_READY`.
 Continue automatic correction only inside an authorized corrective packet or
 boundary while findings or severity decrease, scope does not expand, no
 blocking approval gate is bypassed, and no new authority, false-green,

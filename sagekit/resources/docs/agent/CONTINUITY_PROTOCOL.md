@@ -27,6 +27,7 @@ open_findings:
 evidence_references:
 invalidated_evidence:
 execution_counters:
+candidate:
 next_action:
 allowed_paths:
 stop_conditions:
@@ -47,7 +48,8 @@ sagekit checkpoint clear
 ```
 
 `checkpoint create` captures the canonical repository, named branch, HEAD,
-authority, counters, allowed paths, and next action. `checkpoint status` verifies
+authority, preliminary and per-candidate final counters, optional frozen
+candidate, allowed paths, and next action. `checkpoint status` verifies
 the current state without printing the full checkpoint. `sagekit resume`
 returns the bounded resume packet. It never executes arbitrary commands.
 `checkpoint clear` removes only `CURRENT_RUN.json`.
@@ -66,8 +68,14 @@ Resume:
 4. verifies the whole continuation payload digest, the authority payload,
    optional caller authority anchors, and reference digests;
 5. verifies typed file or evidence-fingerprint references;
-6. emits completed work, open findings, invalidated evidence, counters, allowed
-   paths, stop conditions, and `next_action`.
+6. verifies any candidate HEAD/diff fingerprint and closure state;
+7. emits completed work, open findings, invalidated evidence, counters,
+   candidate, allowed paths, stop conditions, and `next_action`.
+
+Checkpoint schema v2 preserves preliminary counts separately from final
+full-suite and wheel/install counts keyed by candidate fingerprint. A v1
+checkpoint's old aggregate full-suite and wheel counts migrate conservatively
+to preliminary counts; they never consume a final-candidate budget.
 
 Any mismatch must fail closed. Report all repository, branch, HEAD, authority,
 and evidence differences in one result; do not continue from a partly matching
