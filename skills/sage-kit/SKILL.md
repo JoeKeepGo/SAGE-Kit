@@ -80,6 +80,13 @@ before editing.
   `references/execution.md`.
 - Review, handoff, completion, or closeout: read
   `references/review-completion.md`.
+- Execution economy, change classes, corrective authority, evidence reuse,
+  review topology, or deterministic limits: read
+  `docs/agent/EXECUTION_ECONOMY.md`.
+- Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
+  `sagekit resume` before loading broader context.
+- Task Dispatch validation contract selection or historical compatibility:
+  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`.
 
 Read only the reference files needed for the current task.
 
@@ -100,6 +107,38 @@ handoff.
 
 ## Guardrails
 
+- Treat C0 record-only maintenance as record ownership work. Run
+  targeted record consistency verification only; do not rerun implementation tests or full
+  review lanes when protected implementation evidence remains valid.
+- Use Bounded Corrective Authority for C1 and aggregate uncovered paths into one
+  `AUTHORITY_DELTA`. C2 requires affected semantic review. C3 requires a human
+  decision.
+- Choose one primary review topology for an execution unit. Do not stack
+  per-task, per-worker, corrective, lane, and final reviewers without a
+  recorded P0/P1, security, authority, cross-contract, or destructive reason.
+- Reuse evidence according to its fingerprint and invalidate only affected
+  paths, contracts, dependencies, platforms, packages, or authority versions.
+- Validate closed legacy Task Dispatch history with its frozen contract. Require
+  current metadata for active work; mixed or ambiguous records fail closed, and
+  a current-contract failure must never fall back to a legacy contract.
+- When a deterministic local limit is reached, create a checkpoint and return
+  `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
+- Treat full-suite and wheel/install runs before review and corrective closure
+  as preliminary feedback only. They do not consume the single final run
+  available to a matching frozen candidate and cannot satisfy a merge gate.
+- Capability or preflight failures do not consume a candidate verification run.
+  A run is consumed atomically when candidate execution starts. Persist started
+  attempt ids so checkpoint/resume cannot count them twice.
+- Failure of one verification node skips only dependent successors;
+  independent verification nodes continue and report their own results.
+- Freeze the candidate only after review and the bounded corrective batch
+  close. One approved corrective batch may create one automatic successor
+  without human budget relaxation; another successor from that batch or any
+  post-final code change first returns `HANDOFF_READY`. A human-approved
+  handoff corrective may create the next generation only with a persisted
+  authority anchor, root-cause id, and finding count. Do not impose a numeric
+  generation ceiling: block only after two approved rounds for the same root
+  cause make no progress, and reset that count when findings decrease.
 - Keep one task tied to one approved phase unless a batch plan defines order,
   gates, and stop conditions.
 - Do not invent missing contracts, fallback behavior, or success evidence.

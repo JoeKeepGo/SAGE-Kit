@@ -44,6 +44,9 @@ SOURCE_REQUIRED_FILES = [
     "docs/agent/GOVERNANCE_LEVELS.md",
     "docs/agent/SESSION_ORCHESTRATION.md",
     "docs/agent/CAPABILITY_ADAPTERS.md",
+    "docs/agent/EXECUTION_ECONOMY.md",
+    "docs/agent/CONTINUITY_PROTOCOL.md",
+    "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
     "docs/profiles/task-dispatch/schemas/task.schema.json",
     "docs/profiles/task-dispatch/schemas/evidence.schema.json",
     "scripts/validate_task_dispatch.py",
@@ -56,8 +59,28 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/init.py",
     "sagekit/modes.py",
     "sagekit/findings.py",
+    "sagekit/pathing.py",
+    "sagekit/candidate.py",
+    "sagekit/change_control.py",
+    "sagekit/evidence.py",
+    "sagekit/execution_limits.py",
+    "sagekit/review.py",
+    "sagekit/continuity.py",
+    "sagekit/compatibility.py",
+    "sagekit/reporting.py",
+    "sagekit/validation_contracts/__init__.py",
+    "sagekit/validation_contracts/v1.py",
+    "sagekit/validation_contracts/v2.py",
+    "sagekit/resources/contracts/v1/policy.json",
+    "sagekit/resources/contracts/v1/task.schema.json",
+    "sagekit/resources/contracts/v1/evidence.schema.json",
+    "sagekit/resources/contracts/v2/policy.json",
+    "sagekit/resources/contracts/v2/task.schema.json",
+    "sagekit/resources/contracts/v2/evidence.schema.json",
     "sagekit/task_dispatch_validator.py",
     "tests/test_sagekit_check.py",
+    "tests/test_execution_economy.py",
+    "tests/test_validation_compatibility.py",
 ]
 
 GITIGNORE_RUNTIME_PATTERNS = [
@@ -530,7 +553,8 @@ def check_source_tracked_runtime(root: Path) -> list[Finding]:
                 "source-tracked-runtime",
                 None,
                 None,
-                "runtime files are tracked: " + ", ".join(runtime_tracked),
+                ".sagekit/runtime content is tracked by Git or other runtime state is tracked: "
+                + ", ".join(runtime_tracked),
                 "Remove generated runtime state from version control.",
             )
         ]
@@ -979,6 +1003,8 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
         return findings
     task_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/task.yaml")}
     evidence_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/evidence.yaml")}
+    active_task_paths: dict[Path, Path] = {}
+    active_evidence_paths: dict[Path, Path] = {}
     for directory in sorted(set(task_paths) | set(evidence_paths)):
         task_path = task_paths.get(directory)
         evidence_path = evidence_paths.get(directory)
@@ -1004,10 +1030,20 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
                 )
             )
             continue
-        findings.extend(validate_task_dispatch_pair(root, task_path, evidence_path, gate_ready))
-    findings.extend(check_duplicate_task_ids(root, list(task_paths.values())))
-    findings.extend(check_conflicting_exclusive_locks(root, list(task_paths.values())))
-    findings.extend(check_dispatch_boards(root, task_paths, evidence_paths))
+        pair_findings, active_reconciliation = validate_task_dispatch_pair_with_scope(
+            root,
+            task_path,
+            evidence_path,
+            gate_ready,
+        )
+        findings.extend(pair_findings)
+        if active_reconciliation:
+            active_task_paths[directory] = task_path
+            active_evidence_paths[directory] = evidence_path
+    findings.extend(check_duplicate_task_ids(root, list(active_task_paths.values())))
+    findings.extend(check_conflicting_exclusive_locks(root, list(active_task_paths.values())))
+    findings.extend(check_conflicting_exclusive_leases(root, list(active_task_paths.values())))
+    findings.extend(check_dispatch_boards(root, active_task_paths, active_evidence_paths))
     return findings
 
 
@@ -1185,18 +1221,90 @@ def check_dispatch_boards(
 def validate_task_dispatch_pair(
     root: Path, task_path: Path, evidence_path: Path, gate_ready: bool
 ) -> list[Finding]:
+    findings, _ = validate_task_dispatch_pair_with_scope(
+        root,
+        task_path,
+        evidence_path,
+        gate_ready,
+    )
+    return findings
+
+
+def check_conflicting_exclusive_leases(root: Path, task_paths: list[Path]) -> list[Finding]:
     try:
-        from .task_dispatch_validator import ValidationError, load_record, validate_records
-    except Exception as exc:
-        return [
-            Finding(
-                "FAIL",
-                "task-dispatch",
-                relpath(root, task_path),
-                None,
-                f"could not load Task Dispatch validator: {exc}",
+        from .task_dispatch_validator import ACTIVE_LOCK_STATUSES, ACTIVE_RUN_STATUSES, upper
+    except Exception:
+        return []
+    holders: list[tuple[str, str, str, str, Path]] = []
+    for task_path in sorted(task_paths):
+        loaded = load_task_identity(task_path)
+        if loaded is None:
+            continue
+        task_id, task = loaded
+        runs = task.get("runs")
+        if not isinstance(runs, list):
+            continue
+        for run in runs:
+            lease = run.get("lease") if isinstance(run, dict) else None
+            if (
+                not isinstance(lease, dict)
+                or upper(run.get("status")) not in ACTIVE_RUN_STATUSES
+                or upper(lease.get("status")) not in ACTIVE_LOCK_STATUSES
+                or upper(lease.get("mode")) != "EXCLUSIVE"
+            ):
+                continue
+            resource = str(lease.get("resource") or "").strip()
+            if resource:
+                holders.append(
+                    (
+                        normalized_lock_resource(resource),
+                        resource,
+                        task_id,
+                        str(run.get("id") or "unknown-run"),
+                        task_path,
+                    )
+                )
+    findings: list[Finding] = []
+    for index, left in enumerate(holders):
+        for right in holders[index + 1 :]:
+            if left[4] == right[4] or not lock_resources_overlap(left[0], right[0]):
+                continue
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-lease-conflict",
+                    relpath(root, left[4]),
+                    None,
+                    f"exclusive active lease conflict for {left[1]} across "
+                    f"{left[2]}/{left[3]} and {right[2]}/{right[3]}",
+                    "Release or change one lease before running concurrent work.",
+                )
             )
-        ]
+    return findings
+
+
+def validate_task_dispatch_pair_with_scope(
+    root: Path,
+    task_path: Path,
+    evidence_path: Path,
+    gate_ready: bool,
+) -> tuple[list[Finding], bool]:
+    try:
+        from .compatibility import validate_compatible_records
+        from .task_dispatch_validator import ValidationError, load_record
+    except Exception as exc:
+        return (
+            [
+                Finding(
+                    "FAIL",
+                    "task-dispatch",
+                    relpath(root, task_path),
+                    None,
+                    f"could not load Task Dispatch validator: {exc}",
+                )
+            ],
+            True,
+        )
 
     try:
         task = load_record(task_path)
@@ -1205,24 +1313,44 @@ def validate_task_dispatch_pair(
             raise ValidationError(f"task record must be a mapping: {task_path}")
         if not isinstance(evidence, dict):
             raise ValidationError(f"evidence record must be a mapping: {evidence_path}")
-        schema_dir = default_schema_dir(root)
-        errors = validate_records(task, evidence, schema_dir, gate_ready=gate_ready)
+        result = validate_compatible_records(task, evidence, gate_ready=gate_ready)
+        errors = list(result.errors)
+        active_reconciliation = result.active_reconciliation
     except ValidationError as exc:
         errors = [str(exc)]
+        result = None
+        active_reconciliation = True
 
-    if errors:
-        return [
+    findings: list[Finding] = []
+    if result is not None and result.selection is not None:
+        selection = result.selection
+        findings.append(
             Finding(
-                "FAIL",
-                "task-dispatch",
+                "PASS",
+                "validation-contract",
                 relpath(root, task_path),
                 None,
-                error,
-                "Fix task.yaml/evidence.yaml or run the standalone validator for detailed context.",
+                f"selected v{selection.version} {selection.policy_id} "
+                f"({selection.scope.value})"
+                + (" by frozen legacy rule" if selection.implicit_legacy else ""),
             )
-            for error in errors
-        ]
-    return [
+        )
+    if errors:
+        findings.extend(
+            [
+                Finding(
+                    "FAIL",
+                    "task-dispatch",
+                    relpath(root, task_path),
+                    None,
+                    error,
+                    "Fix task.yaml/evidence.yaml or run the standalone validator for detailed context.",
+                )
+                for error in errors
+            ]
+        )
+        return findings, active_reconciliation
+    findings.append(
         Finding(
             "PASS",
             "task-dispatch",
@@ -1230,7 +1358,8 @@ def validate_task_dispatch_pair(
             None,
             "Task Dispatch validator passed",
         )
-    ]
+    )
+    return findings, active_reconciliation
 
 
 def default_schema_dir(root: Path) -> Path | None:

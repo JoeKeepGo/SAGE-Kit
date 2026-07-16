@@ -895,13 +895,30 @@ class SagekitCheckTests(unittest.TestCase):
 
             result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=workspace)
 
-            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertEqual(result.returncode, 2, result.stdout)
             self.assertFalse((workspace / "docs").exists())
             payload = json.loads(result.stdout)
             self.assertTrue(
                 any(item["level"] == "FAIL" and item["rule"] == "target" for item in payload["findings"]),
                 payload,
             )
+
+    def test_cli_invalid_max_findings_is_usage_error(self):
+        result = run_sagekit("check", "--max-findings", "0", "--json", cwd=REPO_ROOT)
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("between 1 and 500", result.stderr)
+
+    def test_cli_file_target_is_usage_error_for_automation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "target.txt"
+            target.write_text("not a directory\n", encoding="utf-8")
+
+            result = run_sagekit("check", "--target", str(target), "--json", cwd=Path(tmp))
+
+        self.assertEqual(2, result.returncode)
+        payload = json.loads(result.stdout)
+        self.assertEqual("target", payload["findings"][0]["rule"])
 
     def test_init_target_child_project_does_not_write_adopted_parent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1096,7 +1113,9 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertFalse(any(item.get("path") == "docs/DOC_ROUTING.md" for item in payload["findings"]), payload)
 
     def test_source_repo_check_reports_hygiene_and_runtime_tracking(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
@@ -1105,7 +1124,9 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertIn(("PASS", "source-tracked-runtime"), rules)
 
     def test_source_repo_check_reports_packaged_resource_reference_closure(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
@@ -1129,7 +1150,9 @@ class SagekitCheckTests(unittest.TestCase):
         )
 
     def test_source_repo_check_reports_packaged_resource_mirror_parity(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)

@@ -1,0 +1,19 @@
+{
+  "contract_version": 1,
+  "policy_id": "sagekit-task-dispatch-v1",
+  "scope": "closed-legacy",
+  "frozen_from_base_sha": "626706a5c4a9bc4cce9ce7dc69effb6eaf960141",
+  "frozen_from_paths": {
+    "task.schema.json": "docs/profiles/task-dispatch/schemas/task.schema.json",
+    "evidence.schema.json": "docs/profiles/task-dispatch/schemas/evidence.schema.json"
+  },
+  "procedural_validator": "sagekit.task_dispatch_validator.validate_records",
+  "schema_files": [
+    "task.schema.json",
+    "evidence.schema.json"
+  ],
+  "schema_sha256": {
+    "task.schema.json": "d8fbfd72bfae672e740fa3aa0537e19639ff53c0165142e7a596a332e23494a3",
+    "evidence.schema.json": "59ba187deaa95cb1b95d9dccd4f135fb2f473d02af20af8469da5261645509b7"
+  }
+}

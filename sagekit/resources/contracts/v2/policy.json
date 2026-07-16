@@ -1,0 +1,16 @@
+{
+  "contract_version": 2,
+  "policy_id": "sagekit-task-dispatch-v2",
+  "scope": "active",
+  "selection": "explicit-only",
+  "fallback": "forbidden",
+  "procedural_validator": "sagekit.task_dispatch_validator.validate_records",
+  "schema_files": [
+    "task.schema.json",
+    "evidence.schema.json"
+  ],
+  "schema_sha256": {
+    "task.schema.json": "78332b481c429c6a0b951543da56348ee7ad304ed721830ff203cc832c641466",
+    "evidence.schema.json": "97052b6a12f9326b07dabb7c9a1028be249f12946f0f578146b97010838a5408"
+  }
+}

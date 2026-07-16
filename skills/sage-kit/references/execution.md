@@ -1,5 +1,13 @@
 # SAGE-Kit Execution
 
+Execution economy, change classes, Bounded Corrective Authority, evidence
+invalidation, one primary review topology, shared-file serialization, and local
+limits are canonical in `docs/agent/EXECUTION_ECONOMY.md`. Use
+`docs/agent/CONTINUITY_PROTOCOL.md` when a local limit requires
+`HANDOFF_READY`. These rules prevent older generic execution guidance from
+causing broader repeated work; explicit project approval and safety gates still
+control.
+
 Use this reference for implementation, debugging, refactoring, subagent work,
 Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 
@@ -260,6 +268,17 @@ When Session Orchestration is active:
 
 Corrective convergence budgets may be configured by the execution or Final
 Review packet, but they are control signals, not unconditional blockers.
+Full-suite and wheel/install runs before review and corrective closure are
+preliminary feedback and do not consume final-candidate capacity. After the
+single corrective batch closes, freeze a HEAD/diff/contract/dependency
+fingerprint and allow one final run per matching candidate. One approved
+corrective batch may create one automatic successor without budget approval;
+another successor from that batch or any change after final verification
+returns `HANDOFF_READY`. A human-approved handoff corrective may create the
+next generation only when it persists an authority anchor, root-cause id, and
+finding count. Generation is not mechanically capped; the same root cause with
+no progress for two approved rounds returns `BLOCKED`, while reduced findings
+reset the no-progress count.
 Continue automatic correction only inside an authorized corrective packet or
 boundary while findings or severity decrease, scope does not expand, no
 blocking approval gate is bypassed, and no new authority, false-green,

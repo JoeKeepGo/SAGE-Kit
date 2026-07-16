@@ -1,5 +1,10 @@
 # Task Dispatch Profile
 
+Validation contract selection is governed by
+`docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Active/new records use
+explicit v2 metadata. Closed unversioned history uses frozen v1. Ambiguous or
+mixed records fail closed, and v2 failure never falls back to v1.
+
 This profile adds machine-checkable task and evidence records to SAGE-Kit. It
 is optional and should be activated by the Project Manager in the milestone
 entry gate or execution packet.
