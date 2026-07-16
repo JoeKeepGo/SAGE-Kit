@@ -4,6 +4,25 @@ SAGE Core defines the reusable rules that every project using SAGE-Kit should
 follow. Project-specific details belong in project profiles, technical designs,
 milestones, and phase documents.
 
+## Bootstrap Maintainer Policy
+
+SAGE-Kit does not force maintainers of the SAGE-Kit source repository to manage
+its own development through an instantiated SAGE milestone, phase, ledger, or
+closeout workflow. Source-repository dogfood is a validation mode, not a
+mandatory control mode. Maintainers may use a lightweight ordinary engineering
+workflow to avoid recursive governance and bootstrap cost.
+
+This exception is limited to maintenance of the SAGE-Kit source repository. It
+does not apply to adopted target projects and does not weaken their authority,
+scope, gate, lock, evidence, approval, or completion contracts.
+
+Execution economy, corrective authority, review convergence, evidence reuse,
+and deterministic handoff follow `docs/agent/EXECUTION_ECONOMY.md`. Local
+checkpoint and resume follow `docs/agent/CONTINUITY_PROTOCOL.md`. These focused
+policies supersede older generic instructions that would otherwise require
+broader repeated verification or review, but they never bypass an explicit
+project approval, security, or destructive-operation gate.
+
 ## Principles
 
 - State the product goal before implementation starts.

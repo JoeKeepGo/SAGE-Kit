@@ -44,6 +44,8 @@ SOURCE_REQUIRED_FILES = [
     "docs/agent/GOVERNANCE_LEVELS.md",
     "docs/agent/SESSION_ORCHESTRATION.md",
     "docs/agent/CAPABILITY_ADAPTERS.md",
+    "docs/agent/EXECUTION_ECONOMY.md",
+    "docs/agent/CONTINUITY_PROTOCOL.md",
     "docs/profiles/task-dispatch/schemas/task.schema.json",
     "docs/profiles/task-dispatch/schemas/evidence.schema.json",
     "scripts/validate_task_dispatch.py",
@@ -56,8 +58,15 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/init.py",
     "sagekit/modes.py",
     "sagekit/findings.py",
+    "sagekit/pathing.py",
+    "sagekit/change_control.py",
+    "sagekit/evidence.py",
+    "sagekit/execution_limits.py",
+    "sagekit/review.py",
+    "sagekit/continuity.py",
     "sagekit/task_dispatch_validator.py",
     "tests/test_sagekit_check.py",
+    "tests/test_execution_economy.py",
 ]
 
 GITIGNORE_RUNTIME_PATTERNS = [

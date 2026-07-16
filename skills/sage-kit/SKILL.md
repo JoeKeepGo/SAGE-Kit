@@ -80,6 +80,11 @@ before editing.
   `references/execution.md`.
 - Review, handoff, completion, or closeout: read
   `references/review-completion.md`.
+- Execution economy, change classes, corrective authority, evidence reuse,
+  review topology, or deterministic limits: read
+  `docs/agent/EXECUTION_ECONOMY.md`.
+- Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
+  `sagekit resume` before loading broader context.
 
 Read only the reference files needed for the current task.
 
@@ -100,6 +105,19 @@ handoff.
 
 ## Guardrails
 
+- Treat C0 record-only maintenance as record ownership work. Run
+  targeted record consistency verification only; do not rerun implementation tests or full
+  review lanes when protected implementation evidence remains valid.
+- Use Bounded Corrective Authority for C1 and aggregate uncovered paths into one
+  `AUTHORITY_DELTA`. C2 requires affected semantic review. C3 requires a human
+  decision.
+- Choose one primary review topology for an execution unit. Do not stack
+  per-task, per-worker, corrective, lane, and final reviewers without a
+  recorded P0/P1, security, authority, cross-contract, or destructive reason.
+- Reuse evidence according to its fingerprint and invalidate only affected
+  paths, contracts, dependencies, platforms, packages, or authority versions.
+- When a deterministic local limit is reached, create a checkpoint and return
+  `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
 - Keep one task tied to one approved phase unless a batch plan defines order,
   gates, and stop conditions.
 - Do not invent missing contracts, fallback behavior, or success evidence.
