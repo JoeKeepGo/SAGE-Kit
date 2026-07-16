@@ -46,6 +46,12 @@ and agent workflows can stay aligned over many sessions.
 - A default model assurance policy that projects may make stricter.
 - A zero-dependency local CLI prototype for read-only diagnostics and
   governance structure checks.
+- Execution economy with C0-C3 change classes, bounded corrective authority,
+  one review topology, evidence invalidation, and deterministic local limits.
+- A gitignored continuity checkpoint that supports safe session resume without
+  copied chat history.
+- Versioned validation compatibility for frozen closed history and strict
+  current active records.
 
 ## Core Idea
 
@@ -173,6 +179,8 @@ python -m sagekit init --mode light
 python -m sagekit check
 python -m sagekit check --mode light
 python -m sagekit check --json
+python -m sagekit checkpoint status
+python -m sagekit resume
 ```
 
 The installed command exposes the same operations:
@@ -202,6 +210,15 @@ It exits `1` when any `FAIL` finding exists and `0` when findings are only
 target looks like the SAGE-Kit source repository or an adopted project, whether
 package entrypoints exist, and whether the bundled Task Dispatch validator is
 importable.
+
+`sagekit checkpoint create`, `status`, and `clear` manage only
+`.sagekit/runtime/CURRENT_RUN.json`. `sagekit resume` verifies repository,
+branch, HEAD, authority, and evidence fingerprints before returning the bounded
+next-action packet. Mismatch fails closed.
+
+`sagekit check --max-findings N` bounds displayed findings while JSON summary
+fields retain exact total, displayed, truncated, and per-level counts. Exit
+status uses all findings.
 
 All three project commands accept `--target <path>`. Without `--target`, they
 use the current working directory. With `--target`, the path is resolved as the

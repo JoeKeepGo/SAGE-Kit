@@ -14,6 +14,7 @@ from .execution_limits import ExecutionCounters
 from .findings import Finding, has_fail
 from .init import run_init
 from .modes import MODES
+from .reporting import DEFAULT_MAX_FINDINGS, build_finding_report, finding_report_payload
 
 
 class TargetError(ValueError):
@@ -48,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_argument(check)
     check.add_argument("--json", action="store_true", help="Print machine-readable findings.")
     check.add_argument(
+        "--max-findings",
+        type=int,
+        default=DEFAULT_MAX_FINDINGS,
+        help=f"Display at most this many findings (default: {DEFAULT_MAX_FINDINGS}).",
+    )
+    check.add_argument(
         "--mode",
         choices=MODES,
         help="Apply Light, Standard, or Heavy adoption document requirements.",
@@ -66,6 +73,12 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = subparsers.add_parser("doctor", help="Diagnose SAGE-Kit project and runtime state.")
     add_target_argument(doctor)
     doctor.add_argument("--json", action="store_true", help="Print machine-readable findings.")
+    doctor.add_argument(
+        "--max-findings",
+        type=int,
+        default=DEFAULT_MAX_FINDINGS,
+        help=f"Display at most this many findings (default: {DEFAULT_MAX_FINDINGS}).",
+    )
 
     init = subparsers.add_parser("init", help="Initialize SAGE-Kit governance documents.")
     add_target_argument(init)
@@ -119,12 +132,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def emit_findings(findings, as_json: bool) -> None:
+def emit_findings(
+    findings,
+    as_json: bool,
+    *,
+    max_findings: int = DEFAULT_MAX_FINDINGS,
+) -> None:
+    report = build_finding_report(findings, max_findings=max_findings)
     if as_json:
-        print(json.dumps({"findings": [finding.to_json() for finding in findings]}, indent=2))
+        print(json.dumps(finding_report_payload(report), indent=2, sort_keys=True))
         return
-    for finding in findings:
+    for finding in report.findings:
         print(finding.to_text())
+    if report.truncated:
+        print(
+            f"SUMMARY findings: displayed={report.displayed} "
+            f"total={report.total} truncated={report.truncated}"
+        )
 
 
 def checkpoint_finding(result: CheckpointResult) -> Finding:
@@ -245,7 +269,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             parser.print_help(sys.stderr)
             return 2
-        emit_findings(findings, args.json)
+        emit_findings(
+            findings,
+            args.json,
+            max_findings=getattr(args, "max_findings", DEFAULT_MAX_FINDINGS),
+        )
         return 1 if has_fail(findings) else 0
     except KeyboardInterrupt:
         raise

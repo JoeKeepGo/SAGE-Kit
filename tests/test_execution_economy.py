@@ -19,6 +19,7 @@ from sagekit.continuity import (
     create_checkpoint,
     resume_checkpoint,
 )
+from sagekit.check import check_source_tracked_runtime
 from sagekit.evidence import ChangeEvent, EvidenceFingerprint, assess_evidence
 from sagekit.execution_limits import (
     ExecutionCounters,
@@ -481,6 +482,51 @@ class ContinuityTests(unittest.TestCase):
             ):
                 self.assertIn(field, payload)
             self.assertLess(checkpoint_path(root).stat().st_size, 32_000)
+
+    def test_authority_payload_tamper_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            create_checkpoint(
+                root,
+                run_id="run-5",
+                goal="Protect authority",
+                authority_id="request",
+                authority_version="1",
+                authority_summary="Direct maintainer request",
+                change_class=ChangeClass.C1_BOUNDED_CORRECTIVE,
+                completed_work=(),
+                open_findings=(),
+                evidence_references=(),
+                invalidated_evidence=(),
+                execution_counters=ExecutionCounters(),
+                next_action="continue",
+                allowed_paths=("tracked.txt",),
+                stop_conditions=(),
+            )
+            payload = json.loads(checkpoint_path(root).read_text(encoding="utf-8"))
+            payload["authority"]["version"] = "2"
+            checkpoint_path(root).write_text(json.dumps(payload), encoding="utf-8")
+
+            result = resume_checkpoint(root)
+
+            self.assertFalse(result.ok)
+            self.assertTrue(any("authority payload digest" in item for item in result.mismatches))
+
+    def test_tracked_runtime_finding_names_git_hygiene_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            runtime = root / ".sagekit/runtime/CURRENT_RUN.json"
+            runtime.parent.mkdir(parents=True)
+            runtime.write_text("{}\n", encoding="utf-8")
+            git(root, "add", "-f", ".sagekit/runtime/CURRENT_RUN.json")
+            git(root, "commit", "-m", "track forbidden runtime")
+
+            findings = check_source_tracked_runtime(root)
+
+            self.assertEqual("FAIL", findings[0].level)
+            self.assertIn(".sagekit/runtime content is tracked by Git", findings[0].message)
 
 
 class ContinuityCliTests(unittest.TestCase):

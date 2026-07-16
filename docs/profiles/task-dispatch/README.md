@@ -1,5 +1,17 @@
 # Task Dispatch Profile
 
+## Validation Contract
+
+New and active task/evidence pairs declare the v2 `validation_contract` block
+shown in the templates. The policy digest must match the packaged v2 policy.
+Closed legacy pairs without version metadata are validated under frozen v1.
+Mixed records, unversioned active records, unsupported versions, and policy
+tamper fail closed. A v2 failure never falls back to v1.
+
+See `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Closed history is
+excluded from active duplicate, lease, lock, and dispatch-board reconciliation
+after its own pair validation.
+
 Task Dispatch is an optional SAGE-Kit profile for milestones that need stronger
 task dispatch, evidence capture, resource coordination, and gate closeout than
 plain phase documents provide.

@@ -1096,7 +1096,9 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertFalse(any(item.get("path") == "docs/DOC_ROUTING.md" for item in payload["findings"]), payload)
 
     def test_source_repo_check_reports_hygiene_and_runtime_tracking(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
@@ -1105,7 +1107,9 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertIn(("PASS", "source-tracked-runtime"), rules)
 
     def test_source_repo_check_reports_packaged_resource_reference_closure(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
@@ -1129,7 +1133,9 @@ class SagekitCheckTests(unittest.TestCase):
         )
 
     def test_source_repo_check_reports_packaged_resource_mirror_parity(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)

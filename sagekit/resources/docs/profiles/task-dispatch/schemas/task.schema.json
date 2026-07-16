@@ -4,6 +4,7 @@
   "title": "SAGE-Kit Task Dispatch Task Record",
   "type": "object",
   "required": [
+    "validation_contract",
     "id",
     "type",
     "title",
@@ -21,6 +22,7 @@
     "closure"
   ],
   "properties": {
+    "validation_contract": { "$ref": "#/$defs/validationContract" },
     "id": {
       "type": "string",
       "pattern": "^TASK-[A-Za-z0-9._-]+$"
@@ -169,6 +171,19 @@
     }
   ],
   "$defs": {
+    "validationContract": {
+      "type": "object",
+      "required": ["version", "policy_id", "policy_sha256", "scope"],
+      "properties": {
+        "version": { "const": 2 },
+        "policy_id": { "const": "sagekit-task-dispatch-v2" },
+        "policy_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scope": { "const": "active" }
+      }
+    },
     "nonEmptyString": {
       "type": "string",
       "minLength": 1,

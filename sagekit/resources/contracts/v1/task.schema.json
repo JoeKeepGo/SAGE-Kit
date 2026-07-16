@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/sage-kit/contracts/v1/task.schema.json",
+  "title": "Frozen SAGE-Kit Task Dispatch v1 Task Record",
+  "type": "object",
+  "required": ["id", "status", "lifecycle", "scope", "verification", "resources", "runs", "closure"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^TASK-[A-Za-z0-9._-]+$"},
+    "status": {"type": "string"},
+    "lifecycle": {"type": "object"},
+    "scope": {"type": "object"},
+    "verification": {"type": "object"},
+    "resources": {"type": "object"},
+    "runs": {"type": "array"},
+    "closure": {"type": "object"}
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "contract_version": 2,
+  "policy_id": "sagekit-task-dispatch-v2",
+  "scope": "active",
+  "selection": "explicit-only",
+  "fallback": "forbidden",
+  "procedural_validator": "sagekit.task_dispatch_validator.validate_records",
+  "schema_files": [
+    "task.schema.json",
+    "evidence.schema.json"
+  ]
+}

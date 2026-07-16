@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/sage-kit/contracts/v2/evidence.schema.json",
+  "title": "SAGE-Kit Task Dispatch v2 Evidence Record",
+  "type": "object",
+  "required": ["validation_contract", "task_id", "levels", "artifacts", "runs", "blockers", "conclusion"],
+  "properties": {
+    "validation_contract": {"$ref": "#/$defs/validationContract"},
+    "task_id": {"type": "string", "pattern": "^TASK-[A-Za-z0-9._-]+$"},
+    "levels": {"type": "object"},
+    "artifacts": {"type": "object"},
+    "runs": {"type": "array"},
+    "blockers": {"type": "array"},
+    "conclusion": {"type": "object"}
+  },
+  "$defs": {
+    "validationContract": {
+      "type": "object",
+      "required": ["version", "policy_id", "policy_sha256", "scope"],
+      "properties": {
+        "version": {"const": 2},
+        "policy_id": {"const": "sagekit-task-dispatch-v2"},
+        "policy_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "scope": {"const": "active"}
+      }
+    }
+  }
+}

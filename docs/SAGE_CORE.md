@@ -23,6 +23,11 @@ policies supersede older generic instructions that would otherwise require
 broader repeated verification or review, but they never bypass an explicit
 project approval, security, or destructive-operation gate.
 
+Versioned Task Dispatch validation follows
+`docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`: closed legacy history uses
+its frozen contract, active work uses the current contract, and ambiguous or
+mixed records fail closed.
+
 ## Principles
 
 - State the product goal before implementation starts.
@@ -108,8 +113,8 @@ requires explicit approval when it writes environment or user configuration.
 ## Local Runtime Boundary
 
 The `sagekit` CLI is a read-only governance runtime for diagnostics and
-structure checks, plus a bounded initializer for SAGE-Kit document skeletons.
-It exists below project authority:
+structure checks, plus a bounded initializer for SAGE-Kit document skeletons
+and an ignored local continuity checkpoint. It exists below project authority:
 
 - `sagekit init` creates selected governance documents and support templates for
   Light, Standard, or Heavy adoption. It must not create executable milestones,
@@ -118,6 +123,9 @@ It exists below project authority:
 - `sagekit doctor` diagnoses repository and runtime state.
 - `sagekit check` checks SAGE-Kit documents and task/evidence records for
   review readiness.
+- `sagekit checkpoint` and `sagekit resume` write or read only
+  `.sagekit/runtime/CURRENT_RUN.json`; the file is local, bounded, gitignored,
+  and never a project acceptance record.
 
 CLI output is evidence. It does not replace tests, runtime smoke, human review,
 Project Manager acceptance, approval gates, or milestone closeout decisions.

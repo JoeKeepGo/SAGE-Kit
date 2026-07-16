@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/sage-kit/contracts/v1/evidence.schema.json",
+  "title": "Frozen SAGE-Kit Task Dispatch v1 Evidence Record",
+  "type": "object",
+  "required": ["task_id", "levels", "artifacts", "runs", "blockers", "conclusion"],
+  "properties": {
+    "task_id": {"type": "string", "pattern": "^TASK-[A-Za-z0-9._-]+$"},
+    "levels": {"type": "object"},
+    "artifacts": {"type": "object"},
+    "runs": {"type": "array"},
+    "blockers": {"type": "array"},
+    "conclusion": {"type": "object"}
+  }
+}

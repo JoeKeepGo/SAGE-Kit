@@ -1,5 +1,12 @@
 # SAGE-Kit Review And Completion
 
+Review topology, finding severity, corrective re-review scope, evidence reuse,
+and convergence are canonical in `docs/agent/EXECUTION_ECONOMY.md`. C0
+record-only corrections receive targeted consistency verification rather than
+implementation re-review. A local review count produces `HANDOFF_READY`;
+`BLOCKED` requires an unavailable dependency or two no-progress rounds for the
+same root cause.
+
 Use this reference for reviews, handoff, completion reports, milestone ledgers,
 memory maintenance, closeout, commit, or push.
 

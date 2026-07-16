@@ -1,5 +1,13 @@
 # SAGE-Kit Execution
 
+Execution economy, change classes, Bounded Corrective Authority, evidence
+invalidation, one primary review topology, shared-file serialization, and local
+limits are canonical in `docs/agent/EXECUTION_ECONOMY.md`. Use
+`docs/agent/CONTINUITY_PROTOCOL.md` when a local limit requires
+`HANDOFF_READY`. These rules prevent older generic execution guidance from
+causing broader repeated work; explicit project approval and safety gates still
+control.
+
 Use this reference for implementation, debugging, refactoring, subagent work,
 Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 

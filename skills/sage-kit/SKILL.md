@@ -85,6 +85,8 @@ before editing.
   `docs/agent/EXECUTION_ECONOMY.md`.
 - Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
   `sagekit resume` before loading broader context.
+- Task Dispatch validation contract selection or historical compatibility:
+  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`.
 
 Read only the reference files needed for the current task.
 
@@ -116,6 +118,9 @@ handoff.
   recorded P0/P1, security, authority, cross-contract, or destructive reason.
 - Reuse evidence according to its fingerprint and invalidate only affected
   paths, contracts, dependencies, platforms, packages, or authority versions.
+- Validate closed legacy Task Dispatch history with its frozen contract. Require
+  current metadata for active work; mixed or ambiguous records fail closed, and
+  a current-contract failure must never fall back to a legacy contract.
 - When a deterministic local limit is reached, create a checkpoint and return
   `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
 - Keep one task tied to one approved phase unless a batch plan defines order,
