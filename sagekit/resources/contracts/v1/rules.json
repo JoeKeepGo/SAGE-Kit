@@ -1,0 +1,75 @@
+{
+  "semantics_id": "sagekit-task-dispatch-frozen-v1",
+  "profile": "hardened",
+  "levels": ["L0", "L1", "L2", "L3", "L4"],
+  "task_types": ["BUG", "SPEC", "CHORE", "REVIEW", "INTEGRATION", "RELEASE"],
+  "priorities": ["P0", "P1", "P2", "P3"],
+  "task_statuses": [
+    "NEW",
+    "TRIAGED",
+    "READY",
+    "IN_PROGRESS",
+    "READY_FOR_REVIEW",
+    "VERIFIED",
+    "PARTIAL",
+    "BLOCKED",
+    "CLOSED"
+  ],
+  "evidence_statuses": [
+    "PENDING",
+    "VERIFIED",
+    "PARTIAL",
+    "ENV_BLOCKED",
+    "CONTRACT_BLOCKED",
+    "WORKER_BLOCKED",
+    "PM_BLOCKED"
+  ],
+  "level_statuses": ["PENDING", "PASS", "FAIL", "BLOCKED", "WAIVED", "N/A"],
+  "task_terminal_statuses": ["VERIFIED", "CLOSED"],
+  "evidence_terminal_statuses": ["VERIFIED"],
+  "passlike_level_statuses": ["PASS", "N/A", "WAIVED"],
+  "blocked_evidence_statuses": [
+    "ENV_BLOCKED",
+    "CONTRACT_BLOCKED",
+    "WORKER_BLOCKED",
+    "PM_BLOCKED"
+  ],
+  "review_results": [
+    "PENDING",
+    "ACCEPTABLE",
+    "ACCEPTABLE_WITH_CONCERNS",
+    "NEEDS_CORRECTION",
+    "BLOCKED",
+    "N/A"
+  ],
+  "acceptable_review_results": [
+    "ACCEPTABLE",
+    "ACCEPTABLE_WITH_CONCERNS"
+  ],
+  "active_run_statuses": ["RUNNING"],
+  "run_statuses": [
+    "PENDING",
+    "RUNNING",
+    "PASSED",
+    "FAILED",
+    "BLOCKED",
+    "ABORTED"
+  ],
+  "terminal_run_statuses": ["PASSED", "FAILED", "BLOCKED", "ABORTED"],
+  "active_lock_statuses": ["ACTIVE", "HELD"],
+  "lock_statuses": ["ACTIVE", "HELD", "RELEASED", "EXPIRED"],
+  "lease_statuses": ["ACTIVE", "HELD", "RELEASED", "EXPIRED"],
+  "released_lease_statuses": ["RELEASED", "EXPIRED"],
+  "resource_modes": ["EXCLUSIVE", "SHARED"],
+  "artifact_fields": [
+    "commands",
+    "files_changed",
+    "api",
+    "sql",
+    "browser",
+    "logs",
+    "screenshots",
+    "release",
+    "ids"
+  ]
+}

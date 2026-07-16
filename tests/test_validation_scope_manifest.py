@@ -22,12 +22,29 @@ TEMPLATE_ROOT = REPO_ROOT / "docs/profiles/task-dispatch/templates"
 BASELINE_HEAD = "0123456789abcdef0123456789abcdef01234567"
 
 
-def manifest_payload(*, active=(), accepted=("M1",), supersedes=None):
-    payload = {
+def manifest_payload(
+    *,
+    active=(),
+    accepted=("M1",),
+    supersedes=None,
+    contract_version=1,
+):
+    supersedes = supersedes or {}
+    return {
         "schema_version": 1,
-        "legacy_contract_version": 1,
-        "active_milestones": list(active),
-        "accepted_legacy_milestones": list(accepted),
+        "active_containers": [
+            {"id": container_id, "path": f"docs/{container_id}"}
+            for container_id in active
+        ],
+        "accepted_legacy_containers": [
+            {
+                "id": container_id,
+                "path": f"docs/{container_id}",
+                "contract_version": contract_version,
+                "supersedes": list(supersedes.get(container_id, ())),
+            }
+            for container_id in accepted
+        ],
         "authority": {
             "source": "project-owner migration acceptance",
             "approved_by": "project-owner",
@@ -35,9 +52,6 @@ def manifest_payload(*, active=(), accepted=("M1",), supersedes=None):
             "baseline_head": BASELINE_HEAD,
         },
     }
-    if supersedes is not None:
-        payload["supersedes"] = supersedes
-    return payload
 
 
 def write_json(path, payload):
@@ -47,7 +61,18 @@ def write_json(path, payload):
 
 
 def write_manifest(root, payload=None, *, relative=LOCAL_SCOPE_MANIFEST):
-    return write_json(root / relative, payload or manifest_payload())
+    payload = payload or manifest_payload()
+    for field in ("active_containers", "accepted_legacy_containers"):
+        for container in payload.get(field, ()):
+            value = container.get("path")
+            if (
+                isinstance(value, str)
+                and value.startswith("docs/")
+                and not any(character in value for character in "*?[")
+                and ".." not in Path(value).parts
+            ):
+                (root / value).mkdir(parents=True, exist_ok=True)
+    return write_json(root / relative, payload)
 
 
 def write_active_context(root, milestones=()):
@@ -147,7 +172,10 @@ class ScopeManifestParsingTests(unittest.TestCase):
 
             manifest = load_validation_scope_manifest(path)
 
-        self.assertEqual(("M1",), manifest.accepted_legacy_milestones)
+        self.assertEqual(
+            ("M1",),
+            tuple(container.id for container in manifest.accepted_legacy_containers),
+        )
         self.assertEqual(BASELINE_HEAD, manifest.authority.baseline_head)
         self.assertRegex(manifest.digest, r"^[0-9a-f]{64}$")
         self.assertEqual(path.resolve(), manifest.path)
@@ -186,15 +214,20 @@ class ScopeManifestParsingTests(unittest.TestCase):
 
     def test_unknown_schema_and_contract_versions_are_rejected(self):
         cases = (
-            ("schema_version", 2, "schema_version"),
-            ("legacy_contract_version", 2, "legacy_contract_version"),
-            ("schema_version", True, "schema_version"),
-            ("legacy_contract_version", True, "legacy_contract_version"),
+            ("schema", 2, "schema_version"),
+            ("contract", 2, "contract_version"),
+            ("schema", True, "schema_version"),
+            ("contract", True, "contract_version"),
         )
         for field, value, message in cases:
             with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
                 payload = manifest_payload()
-                payload[field] = value
+                if field == "schema":
+                    payload["schema_version"] = value
+                else:
+                    payload["accepted_legacy_containers"][0][
+                        "contract_version"
+                    ] = value
                 path = write_json(Path(directory) / "scope.json", payload)
                 with self.assertRaisesRegex(ScopeManifestError, message):
                     load_validation_scope_manifest(path)
@@ -220,7 +253,7 @@ class ScopeManifestParsingTests(unittest.TestCase):
     def test_duplicate_milestones_overlap_and_alias_collisions_are_rejected(self):
         cases = (
             (manifest_payload(accepted=("M1", "M1")), "duplicate"),
-            (manifest_payload(active=("M1",), accepted=("M1",)), "both active"),
+            (manifest_payload(active=("M1",), accepted=("M1",)), "overlapping"),
             (
                 manifest_payload(active=("M34-1",), accepted=("M34_1",)),
                 "alias",
@@ -244,24 +277,42 @@ class ScopeManifestParsingTests(unittest.TestCase):
 
     def test_ranges_globs_and_unknown_supersedes_milestones_are_rejected(self):
         cases = (
-            (manifest_payload(accepted=("M0-M99",)), "milestone ID"),
-            (manifest_payload(accepted=("M*",)), "milestone ID"),
+            (manifest_payload(accepted=("M0-M99",)), "container ID"),
+            (manifest_payload(accepted=("M*",)), "container ID"),
             (
-                manifest_payload(supersedes={"M2": ["docs/M2/MILESTONE_CLOSEOUT.md"]}),
-                "accepted_legacy_milestones",
+                {
+                    **manifest_payload(),
+                    "accepted_legacy_containers": [
+                        {
+                            "id": "M1",
+                            "path": "docs/M1",
+                            "contract_version": 1,
+                            "supersedes": [
+                                "docs/M2/MILESTONE_CLOSEOUT.md"
+                            ],
+                        }
+                    ],
+                },
+                "outside docs/M1",
             ),
             (
-                manifest_payload(
-                    supersedes={"m1": ["docs/M1/MILESTONE_CLOSEOUT.md"]}
-                ),
-                "exactly match",
+                manifest_payload(accepted=("M34-1", "M34_1")),
+                "alias",
             ),
         )
         for payload, message in cases:
             with self.subTest(message=message), tempfile.TemporaryDirectory() as directory:
-                path = write_json(Path(directory) / "scope.json", payload)
-                with self.assertRaisesRegex(ScopeManifestError, message):
-                    load_validation_scope_manifest(path)
+                root = Path(directory)
+                path = write_manifest(root, payload)
+                if "outside" in message:
+                    manifest = load_validation_scope_manifest(path)
+                    scope = RepositoryScopeResolver(root, manifest=manifest).resolve(
+                        root / "docs/M1"
+                    )
+                    self.assertIn(message, scope.detail)
+                else:
+                    with self.assertRaisesRegex(ScopeManifestError, message):
+                        load_validation_scope_manifest(path)
 
 
 class ScopeManifestResolverTests(unittest.TestCase):
@@ -438,7 +489,7 @@ class ScopeManifestResolverTests(unittest.TestCase):
             )
 
         self.assertEqual(MilestoneScopeKind.AMBIGUOUS, scope.kind)
-        self.assertIn("every milestone", scope.detail)
+        self.assertIn("every container", scope.detail)
 
 
 class ScopeManifestContractTests(unittest.TestCase):
@@ -578,7 +629,7 @@ class ScopeManifestPhaseAndCliTests(unittest.TestCase):
                 write_manifest(root, manifest_payload(active=("M2",), accepted=()))
             )
             phase = root / "docs/M2/01-current.md"
-            phase.parent.mkdir(parents=True)
+            phase.parent.mkdir(parents=True, exist_ok=True)
             phase.write_text("# Current phase\n", encoding="utf-8")
 
             findings = check_phase_docs(root, scope_manifest=manifest)
@@ -645,6 +696,7 @@ class ScopeManifestPhaseAndCliTests(unittest.TestCase):
             runner = workspace / "runner"
             target.mkdir()
             runner.mkdir()
+            (target / "docs/M1").mkdir(parents=True)
             write_json(runner / "scope.json", manifest_payload())
 
             result = run_sagekit(
@@ -674,6 +726,7 @@ class ScopeManifestPhaseAndCliTests(unittest.TestCase):
             runner.mkdir()
             local = target / LOCAL_SCOPE_MANIFEST
             local.parent.mkdir(parents=True)
+            (target / "docs/M1").mkdir(parents=True)
             local.write_text("{broken", encoding="utf-8")
             external = write_json(runner / "scope.json", manifest_payload())
 

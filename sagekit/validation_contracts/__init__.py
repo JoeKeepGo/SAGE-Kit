@@ -6,13 +6,18 @@ from importlib import resources
 from typing import Any
 
 
-SUPPORTED_CONTRACT_VERSIONS = (1, 2)
+SUPPORTED_CONTRACT_VERSIONS = (0, 1, 2)
 
 
 def contract_resource(version: int, name: str) -> Any:
     if version not in SUPPORTED_CONTRACT_VERSIONS:
         raise ValueError(f"unsupported validation contract version: {version}")
-    if name not in {"policy.json", "task.schema.json", "evidence.schema.json"}:
+    allowed = {"policy.json", "task.schema.json", "evidence.schema.json"}
+    if version in {0, 1}:
+        allowed.add("rules.json")
+    if version == 1:
+        allowed.add("validator.json")
+    if name not in allowed:
         raise ValueError(f"unknown validation contract resource: {name}")
     return resources.files("sagekit").joinpath("resources", "contracts", f"v{version}", name)
 

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any
 
 from .milestone_scope import MilestoneScope, MilestoneScopeKind
-from .validation_contracts import v1, v2
+from .validation_contracts import v0, v1, v2
 
 
 class ContractScope(str, Enum):
@@ -54,14 +54,27 @@ def select_validation_contract(
             and container_scope.kind
             == MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY
         ):
-            metadata = v1.contract_metadata()
+            version = (
+                container_scope.contract_version
+                if container_scope.contract_version is not None
+                else 1
+            )
+            contract = {0: v0, 1: v1}.get(version)
+            if contract is None:
+                raise ContractSelectionError(
+                    f"accepted legacy container selects unsupported frozen v{version}"
+                )
+            metadata = contract.contract_metadata()
             return ContractSelection(
-                version=1,
+                version=version,
                 policy_id=metadata["policy_id"],
                 policy_sha256=metadata["policy_sha256"],
                 scope=ContractScope.CLOSED_LEGACY,
                 implicit_legacy=True,
-                authority_basis=container_scope.authorities,
+                authority_basis=(
+                    container_scope.detail,
+                    *container_scope.authorities,
+                ),
             )
         if (
             container_scope is not None
@@ -89,7 +102,7 @@ def select_validation_contract(
         raise ContractSelectionError(
             f"mixed validation contract versions fail closed: task={task_version}, evidence={evidence_version}"
         )
-    if task_version != 1 and task_version != 2:
+    if type(task_version) is not int or task_version not in {0, 1, 2}:
         raise ContractSelectionError(
             f"unsupported validation contract version: {task_version}"
         )
@@ -110,32 +123,40 @@ def select_validation_contract(
         and container_scope.kind == MilestoneScopeKind.AMBIGUOUS
     ):
         raise ContractSelectionError(container_scope.detail)
-    if task_version == 1:
+    if task_version in {0, 1}:
         if (
             task_metadata.get("scope") == ContractScope.ACTIVE.value
             or evidence_metadata.get("scope") == ContractScope.ACTIVE.value
         ):
-            raise ContractSelectionError("frozen v1 must not be used for active work")
+            raise ContractSelectionError(
+                f"frozen v{task_version} must not be used for active work"
+            )
         if (
             container_scope is None
             or container_scope.kind
             != MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY
         ):
             raise ContractSelectionError(
-                "frozen v1 requires immutable accepted historical milestone scope"
+                f"frozen v{task_version} requires immutable accepted historical "
+                "container scope"
             )
         if not _is_terminal_pair(task, evidence):
             raise ContractSelectionError(
-                "frozen v1 requires a terminal task/evidence record pair"
+                f"frozen v{task_version} requires a terminal task/evidence record pair"
             )
-        expected = v1.contract_metadata()
+        contract = v0 if task_version == 0 else v1
+        expected = contract.contract_metadata()
         return ContractSelection(
-            1,
+            task_version,
             str(task_metadata.get("policy_id") or expected["policy_id"]),
             str(task_metadata.get("policy_sha256") or expected["policy_sha256"]),
             ContractScope.CLOSED_LEGACY,
             False,
-            container_scope.authorities,
+            (
+                f"explicit matching validation_contract version {task_version} metadata",
+                container_scope.detail,
+                *container_scope.authorities,
+            ),
         )
     raise ContractSelectionError(f"unsupported validation contract version: {task_version}")
 
@@ -155,12 +176,14 @@ def validate_compatible_records(
         )
     except ContractSelectionError as exc:
         return CompatibilityResult(None, (str(exc),), True)
-    if selection.version == 1:
+    if selection.version == 0:
+        errors = v0.validate_records(task, evidence, gate_ready=gate_ready)
+    elif selection.version == 1:
         errors = v1.validate_records(task, evidence, gate_ready=gate_ready)
     else:
         errors = v2.validate_records(task, evidence, gate_ready=gate_ready)
     active_reconciliation = not (
-        selection.version == 1
+        selection.version in {0, 1}
         and selection.scope == ContractScope.CLOSED_LEGACY
         and _is_terminal_pair(task, evidence)
     )

@@ -521,12 +521,14 @@ class MilestoneScopeResolverTests(unittest.TestCase):
 
 
 class ContractResourceTests(unittest.TestCase):
-    def test_packaged_policy_and_schemas_are_discoverable_for_both_versions(self):
-        for version in (1, 2):
+    def test_packaged_policy_and_schemas_are_discoverable_for_all_versions(self):
+        for version in (0, 1, 2):
             for name in ("policy.json", "task.schema.json", "evidence.schema.json"):
                 resource = contract_resource(version, name)
                 self.assertTrue(resource.is_file(), f"v{version}/{name}")
                 self.assertGreater(len(resource.read_bytes()), 20)
+            if version in {0, 1}:
+                self.assertTrue(contract_resource(version, "rules.json").is_file())
 
     def test_policy_snapshot_uses_canonical_json_not_checkout_line_endings(self):
         resource = contract_resource(2, "policy.json")
@@ -609,9 +611,17 @@ class ContractResourceTests(unittest.TestCase):
             "sagekit/candidate.py",
             "sagekit/reporting.py",
             "sagekit/validation_contracts/__init__.py",
+            "sagekit/validation_contracts/frozen_validator.py",
+            "sagekit/validation_contracts/v0.py",
             "sagekit/validation_contracts/v1.py",
             "sagekit/validation_contracts/v2.py",
+            "sagekit/resources/contracts/v0/policy.json",
+            "sagekit/resources/contracts/v0/rules.json",
+            "sagekit/resources/contracts/v0/task.schema.json",
+            "sagekit/resources/contracts/v0/evidence.schema.json",
             "sagekit/resources/contracts/v1/policy.json",
+            "sagekit/resources/contracts/v1/rules.json",
+            "sagekit/resources/contracts/v1/validator.json",
             "sagekit/resources/contracts/v1/task.schema.json",
             "sagekit/resources/contracts/v1/evidence.schema.json",
             "sagekit/resources/contracts/v2/policy.json",
@@ -1189,7 +1199,7 @@ class CompatibilityDocumentationTests(unittest.TestCase):
             )
             normalized = " ".join(source.read_text(encoding="utf-8").split()).lower()
             self.assertIn("trusted accepted", normalized)
-            self.assertIn("inactive milestone", normalized)
+            self.assertIn("container", normalized)
 
     def test_runtime_python_uses_python_310_compatible_syntax(self):
         for path in sorted((REPO_ROOT / "sagekit").rglob("*.py")):

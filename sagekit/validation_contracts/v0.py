@@ -7,12 +7,9 @@ from . import contract_json_digest, contract_resource
 from .frozen_validator import validate_frozen_records
 
 
-VERSION = 1
-POLICY_ID = "sagekit-task-dispatch-v1"
+VERSION = 0
+POLICY_ID = "sagekit-task-dispatch-v0"
 SCOPE = "closed-legacy"
-FROZEN_VALIDATOR_REGISTRY_SHA256 = (
-    "48ed5bf20231bc01ea8f721e151f6a43778e53beaaf3c979ed1de63370181f9a"
-)
 
 
 def policy_sha256() -> str:
@@ -34,6 +31,22 @@ def validate_records(
     *,
     gate_ready: bool = False,
 ) -> list[str]:
+    errors = _metadata_errors(task, evidence)
+    errors.extend(
+        validate_frozen_records(
+            VERSION,
+            task,
+            evidence,
+            gate_ready=gate_ready,
+        )
+    )
+    return errors
+
+
+def _metadata_errors(
+    task: dict[str, Any],
+    evidence: dict[str, Any],
+) -> list[str]:
     errors: list[str] = []
     expected = contract_metadata()
     for label, record in (("task", task), ("evidence", evidence)):
@@ -51,17 +64,10 @@ def validate_records(
                     f"{label} validation contract {description} mismatch: "
                     f"expected {expected_value}, got {actual}"
                 )
-    errors.extend(
-        validate_frozen_records(
-            VERSION,
-            task,
-            evidence,
-            gate_ready=gate_ready,
-            validator_registry_sha256=FROZEN_VALIDATOR_REGISTRY_SHA256,
-        )
-    )
     return errors
 
 
 def policy_payload() -> dict[str, Any]:
-    return json.loads(contract_resource(VERSION, "policy.json").read_text(encoding="utf-8"))
+    return json.loads(
+        contract_resource(VERSION, "policy.json").read_text(encoding="utf-8")
+    )

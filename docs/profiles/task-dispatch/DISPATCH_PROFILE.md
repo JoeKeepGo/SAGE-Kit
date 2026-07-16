@@ -2,12 +2,13 @@
 
 Validation contract selection is governed by
 `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Active/new records use
-explicit v2 metadata. Terminal unversioned history uses frozen v1 only with
-trusted accepted immutable container scope for an inactive milestone. A
-Validation Scope Manifest may
-provide explicit migration authority for old projects, but cannot authorize
-nonterminal or unlisted work. Ambiguous or mixed records fail closed, and v2
-failure never falls back to v1.
+explicit v2 metadata. Terminal unversioned history uses only the frozen
+contract selected by trusted accepted immutable container scope. A Validation
+Scope Manifest may provide explicit migration authority and select frozen v0
+or v1 for each declared container, but cannot authorize nonterminal or
+unlisted work.
+Ambiguous or mixed records fail closed, and validation failure never triggers
+another contract.
 
 This profile adds machine-checkable task and evidence records to SAGE-Kit. It
 is optional and should be activated by the Project Manager in the milestone

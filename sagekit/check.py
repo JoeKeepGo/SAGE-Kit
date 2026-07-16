@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from .findings import Finding
@@ -78,9 +79,17 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/validation_scope_manifest.py",
     "sagekit/reporting.py",
     "sagekit/validation_contracts/__init__.py",
+    "sagekit/validation_contracts/frozen_validator.py",
+    "sagekit/validation_contracts/v0.py",
     "sagekit/validation_contracts/v1.py",
     "sagekit/validation_contracts/v2.py",
+    "sagekit/resources/contracts/v0/policy.json",
+    "sagekit/resources/contracts/v0/rules.json",
+    "sagekit/resources/contracts/v0/task.schema.json",
+    "sagekit/resources/contracts/v0/evidence.schema.json",
     "sagekit/resources/contracts/v1/policy.json",
+    "sagekit/resources/contracts/v1/rules.json",
+    "sagekit/resources/contracts/v1/validator.json",
     "sagekit/resources/contracts/v1/task.schema.json",
     "sagekit/resources/contracts/v1/evidence.schema.json",
     "sagekit/resources/contracts/v2/policy.json",
@@ -88,6 +97,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/resources/contracts/v2/evidence.schema.json",
     "sagekit/task_dispatch_validator.py",
     "tests/test_sagekit_check.py",
+    "tests/test_frozen_contracts_and_containers.py",
     "tests/test_execution_economy.py",
     "tests/test_validation_compatibility.py",
     "tests/test_validation_scope_manifest.py",
@@ -149,8 +159,8 @@ def run_check(
                 f"loaded {manifest_source} validation scope manifest; "
                 f"digest=sha256:{manifest.digest}; "
                 f"baseline_head={manifest.authority.baseline_head}; "
-                f"active={len(manifest.active_milestones)}; "
-                f"accepted_legacy={len(manifest.accepted_legacy_milestones)}",
+                f"active={len(manifest.active_containers)}; "
+                f"accepted_legacy={len(manifest.accepted_legacy_containers)}",
             )
         )
     elif manifest_error is not None:
@@ -1152,8 +1162,8 @@ def check_task_dispatch(
     docs = root / "docs"
     if not docs.exists():
         return findings
-    task_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/task.yaml")}
-    evidence_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/evidence.yaml")}
+    discovery = discover_task_dispatch_records(root)
+    findings.extend(discovery.findings)
     active_task_paths: dict[Path, Path] = {}
     active_evidence_paths: dict[Path, Path] = {}
     resolver = RepositoryScopeResolver(
@@ -1162,53 +1172,31 @@ def check_task_dispatch(
         manifest_source=manifest_source,
         manifest_error=manifest_error,
     )
-    scopes = {}
+    scopes: dict[Path, object] = {}
     reported_scope_failures: set[Path] = set()
-    for directory in sorted(set(task_paths) | set(evidence_paths)):
-        task_path = task_paths.get(directory)
-        evidence_path = evidence_paths.get(directory)
-        if task_path is None:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "task-dispatch",
-                    relpath(root, evidence_path),
-                    None,
-                    "evidence.yaml is present but task.yaml is missing",
-                )
-            )
-            continue
-        if evidence_path is None:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "task-dispatch",
-                    relpath(root, task_path),
-                    None,
-                    "task.yaml is present but evidence.yaml is missing",
-                )
-            )
-            continue
-        relative_parts = directory.relative_to(docs).parts
-        milestone_dir = docs / relative_parts[0]
-        if milestone_dir not in scopes:
-            scopes[milestone_dir] = resolver.resolve(milestone_dir)
-        scope = scopes[milestone_dir]
+    for record in discovery.records:
+        directory = record.directory
+        task_path = record.task_path
+        evidence_path = record.evidence_path
+        container_dir = record.container_dir
+        if container_dir not in scopes:
+            scopes[container_dir] = resolver.resolve(container_dir)
+        scope = scopes[container_dir]
         if (
             scope.kind == MilestoneScopeKind.AMBIGUOUS
-            and milestone_dir not in reported_scope_failures
+            and container_dir not in reported_scope_failures
         ):
             findings.append(
                 Finding(
                     "FAIL",
                     "milestone-scope",
-                    relpath(root, milestone_dir),
+                    relpath(root, container_dir),
                     None,
                     scope.detail,
                     "Reconcile active-context and closeout authority before validating records.",
                 )
             )
-            reported_scope_failures.add(milestone_dir)
+            reported_scope_failures.add(container_dir)
         pair_findings, active_reconciliation = validate_task_dispatch_pair_with_scope(
             root,
             task_path,
@@ -1234,6 +1222,148 @@ def check_task_dispatch(
     findings.extend(check_conflicting_exclusive_leases(root, list(active_task_paths.values())))
     findings.extend(check_dispatch_boards(root, active_task_paths, active_evidence_paths))
     return findings
+
+
+@dataclass(frozen=True)
+class DiscoveredTaskDispatchRecord:
+    directory: Path
+    container_dir: Path
+    container_path: str
+    task_path: Path
+    evidence_path: Path
+
+
+@dataclass(frozen=True)
+class TaskDispatchDiscovery:
+    records: tuple[DiscoveredTaskDispatchRecord, ...]
+    findings: tuple[Finding, ...]
+
+
+def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
+    docs = root / "docs"
+    if not docs.is_dir():
+        return TaskDispatchDiscovery((), ())
+    resolved_root = root.resolve(strict=False)
+    candidates: dict[Path, dict[str, Path]] = {}
+    findings: list[Finding] = []
+    invalid_directories: set[Path] = set()
+    for path in sorted(docs.rglob("*.yaml")):
+        if path.name not in {"task.yaml", "evidence.yaml"}:
+            continue
+        try:
+            relative = path.relative_to(docs)
+        except ValueError:
+            continue
+        folded = tuple(part.casefold() for part in relative.parts)
+        if (
+            not folded
+            or folded[0] in {"templates", "profiles"}
+            or ".sagekit" in folded
+            or any("_template" in part for part in folded)
+        ):
+            continue
+        dispatch_indexes = [
+            index for index, part in enumerate(folded) if part == "dispatch"
+        ]
+        if len(dispatch_indexes) != 1 or dispatch_indexes[0] == 0:
+            if len(dispatch_indexes) > 1 and path.parent not in invalid_directories:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "task-dispatch-discovery",
+                        relpath(root, path),
+                        None,
+                        "nested dispatch path cannot determine one container",
+                    )
+                )
+            invalid_directories.add(path.parent)
+            continue
+        resolved_path = path.resolve(strict=False)
+        try:
+            resolved_path.relative_to(resolved_root)
+        except ValueError:
+            if path.parent not in invalid_directories:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "task-dispatch-discovery",
+                        relpath(root, path),
+                        None,
+                        "Task Dispatch record resolves outside the target root",
+                    )
+                )
+            invalid_directories.add(path.parent)
+            continue
+        directory = path.parent
+        candidates.setdefault(directory, {})[path.name] = path
+
+    records: list[DiscoveredTaskDispatchRecord] = []
+    for directory, pair in sorted(candidates.items()):
+        if directory in invalid_directories:
+            continue
+        task_path = pair.get("task.yaml")
+        evidence_path = pair.get("evidence.yaml")
+        if task_path is None or evidence_path is None:
+            present = task_path if task_path is not None else evidence_path
+            missing = "task.yaml" if task_path is None else "evidence.yaml"
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch",
+                    relpath(root, present),
+                    None,
+                    f"{present.name} is present but {missing} is missing",
+                )
+            )
+            continue
+        relative = task_path.relative_to(docs)
+        dispatch_index = next(
+            index
+            for index, part in enumerate(relative.parts)
+            if part.casefold() == "dispatch"
+        )
+        container_dir = docs.joinpath(*relative.parts[:dispatch_index])
+        resolved_container = container_dir.resolve(strict=False)
+        try:
+            resolved_container.relative_to(resolved_root)
+        except ValueError:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-discovery",
+                    relpath(root, container_dir),
+                    None,
+                    "Task Dispatch container resolves outside the target root",
+                )
+            )
+            continue
+        resolved_directory = directory.resolve(strict=False)
+        try:
+            resolved_directory.relative_to(resolved_container)
+            task_path.resolve(strict=False).relative_to(resolved_directory)
+            evidence_path.resolve(strict=False).relative_to(resolved_directory)
+        except ValueError:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-discovery",
+                    relpath(root, directory),
+                    None,
+                    "Task Dispatch pair resolves outside its record container "
+                    "or record directory",
+                )
+            )
+            continue
+        records.append(
+            DiscoveredTaskDispatchRecord(
+                directory=directory,
+                container_dir=container_dir,
+                container_path=container_dir.relative_to(root).as_posix(),
+                task_path=task_path,
+                evidence_path=evidence_path,
+            )
+        )
+    return TaskDispatchDiscovery(tuple(records), tuple(findings))
 
 
 def load_task_identity(task_path: Path) -> tuple[str, dict] | None:
@@ -1362,7 +1492,7 @@ def check_dispatch_boards(
     dispatch_dirs: set[Path] = set()
     for directory in set(task_paths) | set(evidence_paths):
         for candidate in [directory, *directory.parents]:
-            if candidate.name == "dispatch":
+            if candidate.name.casefold() == "dispatch":
                 dispatch_dirs.add(candidate)
                 break
     for dispatch_dir in sorted(dispatch_dirs):
@@ -1381,7 +1511,10 @@ def check_dispatch_boards(
         board_ids = active_board_task_ids(board_path)
         records: dict[str, list[tuple[Path, dict]]] = {}
         for directory, task_path in task_paths.items():
-            if dispatch_dir not in directory.parents or directory not in evidence_paths:
+            if (
+                directory != dispatch_dir
+                and dispatch_dir not in directory.parents
+            ) or directory not in evidence_paths:
                 continue
             loaded = load_task_identity(task_path)
             if loaded is not None:
@@ -1414,8 +1547,17 @@ def validate_task_dispatch_pair(
 
     container_scope = None
     try:
-        milestone_name = task_path.relative_to(root / "docs").parts[0]
-        milestone_dir = root / "docs" / milestone_name
+        relative = task_path.relative_to(root / "docs")
+        dispatch_indexes = [
+            index
+            for index, part in enumerate(relative.parts)
+            if part.casefold() == "dispatch"
+        ]
+        if len(dispatch_indexes) != 1 or dispatch_indexes[0] == 0:
+            raise ValueError("record path does not have one dispatch container")
+        container_dir = (root / "docs").joinpath(
+            *relative.parts[: dispatch_indexes[0]]
+        )
         manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
             root,
             None,
@@ -1425,7 +1567,7 @@ def validate_task_dispatch_pair(
             manifest=manifest,
             manifest_source=manifest_source,
             manifest_error=manifest_error,
-        ).resolve(milestone_dir)
+        ).resolve(container_dir)
     except (IndexError, ValueError):
         pass
     findings, _ = validate_task_dispatch_pair_with_scope(
@@ -1545,7 +1687,8 @@ def validate_task_dispatch_pair_with_scope(
                 relpath(root, task_path),
                 None,
                 f"selected v{selection.version} {selection.policy_id} "
-                f"({selection.scope.value})"
+                f"({selection.scope.value}); "
+                f"policy_digest=sha256:{selection.policy_sha256}"
                 + (" by frozen legacy rule" if selection.implicit_legacy else "")
                 + "; authority: "
                 + "; ".join(selection.authority_basis),

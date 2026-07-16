@@ -22,6 +22,8 @@ class MilestoneScope:
     kind: MilestoneScopeKind
     authorities: tuple[str, ...]
     detail: str
+    contract_version: int | None = None
+    container_path: str | None = None
 
 
 class CloseoutDisposition(str, Enum):
@@ -101,8 +103,25 @@ class RepositoryScopeResolver:
         ) = _read_active_milestones(root)
 
     def resolve(self, milestone_dir: Path) -> MilestoneScope:
-        milestone_id = milestone_dir.name
-        normalized_id = milestone_id.casefold()
+        container_id = milestone_dir.name
+        normalized_id = container_id.casefold()
+        if milestone_dir.is_symlink():
+            return MilestoneScope(
+                container_id,
+                MilestoneScopeKind.AMBIGUOUS,
+                (),
+                "container symlink identity is not trusted scope authority",
+                container_path=milestone_dir.as_posix(),
+            )
+        container_path = _container_relative_path(self.root, milestone_dir)
+        if container_path is None:
+            return MilestoneScope(
+                container_id,
+                MilestoneScopeKind.AMBIGUOUS,
+                (),
+                "container path resolves outside the target root",
+                container_path=milestone_dir.as_posix(),
+            )
         active = normalized_id in self._active_milestones
         aliases = [
             active_id
@@ -121,11 +140,12 @@ class RepositoryScopeResolver:
         authorities.extend(item.detail for item in closeouts)
         if self.manifest_error is not None:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "validation scope manifest is invalid; legacy scope selection is "
                 f"blocked: {self.manifest_error}",
+                container_path=container_path,
             )
         if self._manifest_repository_errors:
             authorities = [
@@ -137,12 +157,13 @@ class RepositoryScopeResolver:
                 *authorities,
             ]
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "validation scope manifest repository authority is invalid; "
-                "legacy scope selection is blocked for every milestone: "
+                "legacy scope selection is blocked for every container: "
                 + "; ".join(self._manifest_repository_errors),
+                container_path=container_path,
             )
         if self.manifest is not None:
             authorities = [
@@ -150,7 +171,8 @@ class RepositoryScopeResolver:
                 *authorities,
             ]
             return self._resolve_with_manifest(
-                milestone_id=milestone_id,
+                container_id=container_id,
+                container_path=container_path,
                 normalized_id=normalized_id,
                 active=active,
                 aliases=aliases,
@@ -162,89 +184,102 @@ class RepositoryScopeResolver:
 
         if aliases:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "active milestone authority uses an alternate identifier for this "
                 f"container: {', '.join(sorted(aliases))}",
+                container_path=container_path,
             )
         if uncertain:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "closeout authority is ambiguous: "
                 + "; ".join(item.detail for item in uncertain),
+                container_path=container_path,
             )
         if accepted and nonaccepted:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "closeout authority conflict: accepted and non-accepted structured outcomes coexist",
+                container_path=container_path,
             )
         if accepted and self._active_error:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 self._active_error,
+                container_path=container_path,
             )
         if accepted and not self._active_authority_available:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "active milestone authority is unavailable; accepted closeout alone "
                 "cannot prove immutable inactive history",
+                container_path=container_path,
             )
         if active and accepted:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "authority conflict: milestone is both explicitly active and accepted history",
+                container_path=container_path,
             )
         if accepted:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
                 tuple(authorities),
                 "trusted accepted closeout authority and no active milestone authority",
+                contract_version=1,
+                container_path=container_path,
             )
         if self._active_error:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.CURRENT,
                 tuple(authorities),
                 f"{self._active_error}; no trusted accepted historical scope, "
                 "so current checks remain required",
+                container_path=container_path,
             )
         if active:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.CURRENT,
                 tuple(authorities),
                 "explicit active milestone authority requires the current contract",
+                container_path=container_path,
             )
         if nonaccepted:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.CURRENT,
                 tuple(authorities),
                 "structured closeout outcome is not accepted; current checks remain required",
+                container_path=container_path,
             )
         return MilestoneScope(
-            milestone_id,
+            container_id,
             MilestoneScopeKind.CURRENT,
             (),
             "no trusted accepted closeout authority; current checks remain required",
+            container_path=container_path,
         )
 
     def _resolve_with_manifest(
         self,
         *,
-        milestone_id: str,
+        container_id: str,
+        container_path: str,
         normalized_id: str,
         active: bool,
         aliases: list[str],
@@ -254,92 +289,89 @@ class RepositoryScopeResolver:
         authorities: list[str],
     ) -> MilestoneScope:
         assert self.manifest is not None
-        manifest_active = {
-            item.casefold(): item for item in self.manifest.active_milestones
-        }
-        manifest_accepted = {
-            item.casefold(): item
-            for item in self.manifest.accepted_legacy_milestones
-        }
-        canonical = _canonical_milestone_id(normalized_id)
-        manifest_aliases = [
-            item
-            for item in (*self.manifest.active_milestones, *self.manifest.accepted_legacy_milestones)
-            if item.casefold() != normalized_id
-            and _canonical_milestone_id(item) == canonical
-        ]
+        listed_active = self.manifest.active_for_path(container_path)
+        listed_accepted = self.manifest.legacy_for_path(container_path)
+        manifest_id = (
+            listed_active.id
+            if listed_active is not None
+            else listed_accepted.id
+            if listed_accepted is not None
+            else container_id
+        )
+        manifest_aliases = list(
+            self.manifest.containers_with_alias_id(manifest_id)
+        )
         if aliases or manifest_aliases:
             rendered = sorted({*aliases, *manifest_aliases})
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
-                "milestone authority uses an alternate separator alias for this "
+                "container authority uses an alternate separator alias for this "
                 f"container: {', '.join(rendered)}",
+                container_path=container_path,
             )
 
-        listed_active = normalized_id in manifest_active
-        listed_accepted = normalized_id in manifest_accepted
-        if listed_active:
+        if listed_active is not None:
             if accepted:
                 return MilestoneScope(
-                    milestone_id,
+                    container_id,
                     MilestoneScopeKind.AMBIGUOUS,
                     tuple(authorities),
                     "authority conflict: validation scope manifest marks milestone "
                     "active while structured closeout authority marks it accepted",
+                    container_path=container_path,
                 )
             if uncertain:
                 return MilestoneScope(
-                    milestone_id,
+                    container_id,
                     MilestoneScopeKind.AMBIGUOUS,
                     tuple(authorities),
                     "authority conflict: validation scope manifest marks milestone "
                     "active while closeout authority is ambiguous",
+                    container_path=container_path,
                 )
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.CURRENT,
                 tuple(authorities),
-                "validation scope manifest explicitly requires the current contract",
+                "validation scope manifest explicitly requires the current contract "
+                f"for {container_path}",
+                container_path=container_path,
             )
 
-        if listed_accepted:
-            if active:
+        if listed_accepted is not None:
+            manifest_active_by_id = (
+                listed_accepted.id.casefold() in self._active_milestones
+            )
+            if active or manifest_active_by_id:
                 return MilestoneScope(
-                    milestone_id,
+                    container_id,
                     MilestoneScopeKind.AMBIGUOUS,
                     tuple(authorities),
                     "authority conflict: validation scope manifest marks milestone "
                     "accepted legacy while ACTIVE_CONTEXT marks it active",
+                    container_path=container_path,
                 )
-            invalid_supersedes = self._invalid_manifest_supersedes(
-                milestone_id,
-                closeouts=(*accepted, *uncertain, *nonaccepted),
-            )
-            if invalid_supersedes:
-                return MilestoneScope(
-                    milestone_id,
-                    MilestoneScopeKind.AMBIGUOUS,
-                    tuple(authorities),
-                    "validation scope manifest has unrelated or inaccurate "
-                    "supersedes authority: "
-                    + "; ".join(invalid_supersedes),
-                )
+            declared_supersedes = {
+                value.casefold() for value in listed_accepted.supersedes
+            }
             unsuperseded = [
                 item
                 for item in nonaccepted
-                if not self._manifest_supersedes(milestone_id, item.path)
+                if item.path.relative_to(self.root).as_posix().casefold()
+                not in declared_supersedes
             ]
             if unsuperseded:
                 return MilestoneScope(
-                    milestone_id,
+                    container_id,
                     MilestoneScopeKind.AMBIGUOUS,
                     tuple(authorities),
                     "validation scope manifest accepted legacy authority conflicts "
                     "with explicit non-accepted closeout authority that is not "
                     "precisely superseded: "
                     + "; ".join(item.detail for item in unsuperseded),
+                    container_path=container_path,
                 )
             if nonaccepted:
                 authorities.extend(
@@ -347,70 +379,36 @@ class RepositoryScopeResolver:
                     for item in nonaccepted
                 )
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
                 tuple(authorities),
                 "validation scope manifest explicitly accepts immutable legacy "
-                "history and no conflicting current authority remains",
+                f"history at {container_path} using frozen v"
+                f"{listed_accepted.contract_version}; no conflicting current "
+                "authority remains",
+                contract_version=listed_accepted.contract_version,
+                container_path=container_path,
             )
 
         if active and accepted:
             return MilestoneScope(
-                milestone_id,
+                container_id,
                 MilestoneScopeKind.AMBIGUOUS,
                 tuple(authorities),
                 "authority conflict: unlisted milestone is both explicitly active "
                 "and accepted by structured closeout authority",
+                container_path=container_path,
             )
         return MilestoneScope(
-            milestone_id,
+            container_id,
             MilestoneScopeKind.CURRENT,
             tuple(authorities),
-            "milestone is not listed in the validation scope manifest; current "
+            f"container {container_path} is not listed in the validation scope "
+            "manifest; current "
             "checks remain required and lower-precedence authority cannot grant "
             "implicit legacy scope",
+            container_path=container_path,
         )
-
-    def _manifest_supersedes(self, milestone_id: str, closeout_path: Path) -> bool:
-        assert self.manifest is not None
-        declared = {
-            value.casefold()
-            for value in self.manifest.superseded_paths(milestone_id)
-        }
-        actual = closeout_path.relative_to(self.root).as_posix().casefold()
-        return actual in declared
-
-    def _invalid_manifest_supersedes(
-        self,
-        milestone_id: str,
-        *,
-        closeouts: tuple[CloseoutAuthority, ...],
-    ) -> tuple[str, ...]:
-        assert self.manifest is not None
-        declared = self.manifest.superseded_paths(milestone_id)
-        if not declared:
-            return ()
-        by_path = {
-            item.path.relative_to(self.root).as_posix().casefold(): item
-            for item in closeouts
-        }
-        errors: list[str] = []
-        expected_container = (self.root / "docs" / milestone_id).resolve(strict=False)
-        for value in declared:
-            path = (self.root / Path(value)).resolve(strict=False)
-            try:
-                path.relative_to(expected_container)
-            except ValueError:
-                errors.append(f"{value} is outside docs/{milestone_id}")
-                continue
-            authority = by_path.get(value.casefold())
-            if authority is None:
-                errors.append(f"{value} does not identify an existing closeout")
-            elif authority.disposition != CloseoutDisposition.NOT_ACCEPTED:
-                errors.append(
-                    f"{value} is not an explicit non-accepted closeout"
-                )
-        return tuple(errors)
 
 
 def validate_manifest_repository_authority(
@@ -418,19 +416,40 @@ def validate_manifest_repository_authority(
     manifest: ValidationScopeManifest,
 ) -> tuple[str, ...]:
     errors: list[str] = []
-    for milestone_id, declared_paths in manifest.supersedes:
-        expected_container = (root / "docs" / milestone_id).resolve(strict=False)
-        for value in declared_paths:
-            path = (root / Path(value)).resolve(strict=False)
-            try:
-                relative = path.relative_to(expected_container)
-            except ValueError:
-                errors.append(f"{value} is outside docs/{milestone_id}")
+    resolved_root = root.resolve(strict=False)
+    containers = (
+        *manifest.active_containers,
+        *manifest.accepted_legacy_containers,
+    )
+    for container in containers:
+        container_path = (root / Path(container.path)).resolve(strict=False)
+        try:
+            container_path.relative_to(resolved_root)
+        except ValueError:
+            errors.append(f"{container.path} resolves outside the target root")
+            continue
+        if not container_path.is_dir():
+            errors.append(
+                f"{container.path} does not identify an existing container directory"
+            )
+
+    for container in manifest.accepted_legacy_containers:
+        expected_container = (root / Path(container.path)).resolve(strict=False)
+        for value in container.supersedes:
+            declared_path = root / Path(value)
+            if declared_path.is_symlink():
+                errors.append(f"{value} must not be a symlink authority")
                 continue
-            if len(relative.parts) != 1:
-                errors.append(
-                    f"{value} is not a direct closeout for docs/{milestone_id}"
-                )
+            path = declared_path.resolve(strict=False)
+            try:
+                path.relative_to(resolved_root)
+            except ValueError:
+                errors.append(f"{value} resolves outside the target root")
+                continue
+            try:
+                path.relative_to(expected_container)
+            except ValueError:
+                errors.append(f"{value} is outside {container.path}")
                 continue
             if not path.is_file():
                 errors.append(f"{value} does not identify an existing closeout")
@@ -499,10 +518,52 @@ def _read_closeout_authorities(
         path
         for path in milestone_dir.iterdir()
         if path.is_file()
-        and path.name.casefold() in _CLOSEOUT_NAMES
+        and (
+            path.name.casefold() in _CLOSEOUT_NAMES
+            or path.name.casefold().endswith("_closeout.md")
+        )
         and "_template" not in path.name.casefold()
     )
-    return [_classify_closeout(root, path) for path in paths]
+    authorities: list[CloseoutAuthority] = []
+    resolved_container = milestone_dir.resolve(strict=False)
+    for path in paths:
+        display = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            authorities.append(
+                CloseoutAuthority(
+                    CloseoutDisposition.AMBIGUOUS,
+                    path,
+                    (),
+                    f"{display} is a symlink and is not trusted closeout authority",
+                )
+            )
+            continue
+        try:
+            path.resolve(strict=False).relative_to(resolved_container)
+        except ValueError:
+            authorities.append(
+                CloseoutAuthority(
+                    CloseoutDisposition.AMBIGUOUS,
+                    path,
+                    (),
+                    f"{display} resolves outside its container",
+                )
+            )
+            continue
+        authorities.append(_classify_closeout(root, path))
+    return authorities
+
+
+def _container_relative_path(root: Path, container_dir: Path) -> str | None:
+    resolved_root = root.resolve(strict=False)
+    resolved_container = container_dir.resolve(strict=False)
+    try:
+        relative = resolved_container.relative_to(resolved_root)
+    except ValueError:
+        return None
+    if len(relative.parts) < 2 or relative.parts[0].casefold() != "docs":
+        return None
+    return relative.as_posix()
 
 
 def _classify_closeout(root: Path, path: Path) -> CloseoutAuthority:

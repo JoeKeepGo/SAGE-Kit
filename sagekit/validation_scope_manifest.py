@@ -11,19 +11,17 @@ from typing import Any
 
 LOCAL_SCOPE_MANIFEST = "docs/SAGE_VALIDATION_SCOPE.json"
 SUPPORTED_SCHEMA_VERSION = 1
-SUPPORTED_LEGACY_CONTRACT_VERSION = 1
+SUPPORTED_LEGACY_CONTRACT_VERSIONS = {0, 1}
 
-_MILESTONE_ID_RE = re.compile(r"M[0-9]+(?:[._-][A-Za-z0-9]+)*")
-_MILESTONE_RANGE_RE = re.compile(r"M[0-9]+-M[0-9]+", re.IGNORECASE)
+_CONTAINER_ID_RE = re.compile(r"[A-Z][A-Z0-9]*(?:[._-][A-Z0-9]+)*")
+_RANGE_ID_RE = re.compile(r"[A-Z]+[0-9]+-[A-Z]+[0-9]+")
 _BASELINE_HEAD_RE = re.compile(r"[0-9a-f]{40}")
 _UTC_TIMESTAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 _TOP_LEVEL_FIELDS = {
     "schema_version",
-    "legacy_contract_version",
-    "active_milestones",
-    "accepted_legacy_milestones",
+    "active_containers",
+    "accepted_legacy_containers",
     "authority",
-    "supersedes",
 }
 _AUTHORITY_FIELDS = {
     "source",
@@ -31,6 +29,10 @@ _AUTHORITY_FIELDS = {
     "approved_at",
     "baseline_head",
 }
+_ACTIVE_FIELDS = {"id", "path"}
+_LEGACY_FIELDS = {"id", "path", "contract_version", "supersedes"}
+_LEGACY_REQUIRED_FIELDS = {"id", "path", "contract_version"}
+_DISCOVERY_EXCLUDED_ROOTS = {"profiles", "templates"}
 
 
 class ScopeManifestError(ValueError):
@@ -50,22 +52,59 @@ class ScopeManifestAuthority:
 
 
 @dataclass(frozen=True)
+class ActiveContainer:
+    id: str
+    path: str
+
+
+@dataclass(frozen=True)
+class LegacyContainer:
+    id: str
+    path: str
+    contract_version: int
+    supersedes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ValidationScopeManifest:
     path: Path
     schema_version: int
-    legacy_contract_version: int
-    active_milestones: tuple[str, ...]
-    accepted_legacy_milestones: tuple[str, ...]
+    active_containers: tuple[ActiveContainer, ...]
+    accepted_legacy_containers: tuple[LegacyContainer, ...]
     authority: ScopeManifestAuthority
-    supersedes: tuple[tuple[str, tuple[str, ...]], ...]
     digest: str
 
-    def superseded_paths(self, milestone_id: str) -> tuple[str, ...]:
-        normalized = milestone_id.casefold()
-        for declared_id, paths in self.supersedes:
-            if declared_id.casefold() == normalized:
-                return paths
-        return ()
+    def active_for_path(self, container_path: str) -> ActiveContainer | None:
+        normalized = container_path.casefold()
+        return next(
+            (
+                container
+                for container in self.active_containers
+                if container.path.casefold() == normalized
+            ),
+            None,
+        )
+
+    def legacy_for_path(self, container_path: str) -> LegacyContainer | None:
+        normalized = container_path.casefold()
+        return next(
+            (
+                container
+                for container in self.accepted_legacy_containers
+                if container.path.casefold() == normalized
+            ),
+            None,
+        )
+
+    def containers_with_alias_id(self, container_id: str) -> tuple[str, ...]:
+        normalized = container_id.casefold()
+        canonical = _canonical_container_id(container_id)
+        return tuple(
+            container.id
+            for container in (*self.active_containers, *self.accepted_legacy_containers)
+            if container.id.casefold() != normalized
+            and _canonical_container_id(container.id) == canonical
+        )
 
     def authority_details(self, source_kind: str) -> tuple[str, ...]:
         return (
@@ -95,50 +134,33 @@ def load_validation_scope_manifest(path: Path) -> ValidationScopeManifest:
         raise ScopeManifestError(f"scope manifest JSON is invalid: {exc}") from exc
     if not isinstance(payload, dict):
         raise ScopeManifestError("scope manifest JSON must contain one object")
-
-    unknown = sorted(set(payload) - _TOP_LEVEL_FIELDS)
-    if unknown:
-        raise ScopeManifestError(
-            "scope manifest has unknown field(s): " + ", ".join(unknown)
-        )
-    missing = sorted((_TOP_LEVEL_FIELDS - {"supersedes"}) - set(payload))
-    if missing:
-        raise ScopeManifestError(
-            "scope manifest is missing field(s): " + ", ".join(missing)
-        )
+    _exact_fields(payload, _TOP_LEVEL_FIELDS, "scope manifest")
 
     schema_version = payload.get("schema_version")
-    if (
-        type(schema_version) is not int
-        or schema_version != SUPPORTED_SCHEMA_VERSION
-    ):
+    if type(schema_version) is not int or schema_version != SUPPORTED_SCHEMA_VERSION:
         raise ScopeManifestError(
             f"unsupported scope manifest schema_version: {schema_version}"
         )
-    legacy_contract_version = payload.get("legacy_contract_version")
-    if (
-        type(legacy_contract_version) is not int
-        or legacy_contract_version != SUPPORTED_LEGACY_CONTRACT_VERSION
-    ):
-        raise ScopeManifestError(
-            "unsupported scope manifest legacy_contract_version: "
-            f"{legacy_contract_version}"
-        )
-
-    active = _milestone_list(payload.get("active_milestones"), "active_milestones")
-    accepted = _milestone_list(
-        payload.get("accepted_legacy_milestones"),
-        "accepted_legacy_milestones",
-    )
-    _validate_milestone_relationships(active, accepted)
+    active = _active_containers(payload.get("active_containers"))
+    legacy = _legacy_containers(payload.get("accepted_legacy_containers"))
+    _validate_container_relationships(active, legacy)
     authority = _authority(payload.get("authority"))
-    supersedes = _supersedes(payload.get("supersedes", {}), accepted)
 
     canonical_payload = {
         "schema_version": schema_version,
-        "legacy_contract_version": legacy_contract_version,
-        "active_milestones": list(active),
-        "accepted_legacy_milestones": list(accepted),
+        "active_containers": [
+            {"id": container.id, "path": container.path}
+            for container in active
+        ],
+        "accepted_legacy_containers": [
+            {
+                "id": container.id,
+                "path": container.path,
+                "contract_version": container.contract_version,
+                "supersedes": list(container.supersedes),
+            }
+            for container in legacy
+        ],
         "authority": {
             "source": authority.source,
             "approved_by": authority.approved_by,
@@ -146,10 +168,6 @@ def load_validation_scope_manifest(path: Path) -> ValidationScopeManifest:
             "baseline_head": authority.baseline_head,
         },
     }
-    if supersedes:
-        canonical_payload["supersedes"] = {
-            milestone_id: list(paths) for milestone_id, paths in supersedes
-        }
     canonical = json.dumps(
         canonical_payload,
         sort_keys=True,
@@ -158,11 +176,9 @@ def load_validation_scope_manifest(path: Path) -> ValidationScopeManifest:
     return ValidationScopeManifest(
         path=resolved,
         schema_version=schema_version,
-        legacy_contract_version=legacy_contract_version,
-        active_milestones=active,
-        accepted_legacy_milestones=accepted,
+        active_containers=active,
+        accepted_legacy_containers=legacy,
         authority=authority,
-        supersedes=supersedes,
         digest=hashlib.sha256(canonical).hexdigest(),
     )
 
@@ -176,65 +192,194 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _milestone_list(value: Any, field: str) -> tuple[str, ...]:
+def _exact_fields(
+    value: dict[str, Any],
+    expected: set[str],
+    label: str,
+) -> None:
+    unknown = sorted(set(value) - expected)
+    missing = sorted(expected - set(value))
+    if unknown:
+        raise ScopeManifestError(
+            f"{label} has unknown field(s): " + ", ".join(unknown)
+        )
+    if missing:
+        raise ScopeManifestError(
+            f"{label} is missing field(s): " + ", ".join(missing)
+        )
+
+
+def _active_containers(value: Any) -> tuple[ActiveContainer, ...]:
     if not isinstance(value, list):
-        raise ScopeManifestError(f"{field} must be an array of explicit milestone IDs")
-    result: list[str] = []
-    seen: set[str] = set()
-    for item in value:
-        if (
-            not isinstance(item, str)
-            or _MILESTONE_ID_RE.fullmatch(item) is None
-            or _MILESTONE_RANGE_RE.fullmatch(item) is not None
-        ):
-            raise ScopeManifestError(
-                f"{field} contains invalid milestone ID: {item!r}"
+        raise ScopeManifestError("active_containers must be an array")
+    result: list[ActiveContainer] = []
+    for index, raw in enumerate(value):
+        label = f"active_containers[{index}]"
+        if not isinstance(raw, dict):
+            raise ScopeManifestError(f"{label} must be an object")
+        _exact_fields(raw, _ACTIVE_FIELDS, label)
+        result.append(
+            ActiveContainer(
+                id=_container_id(raw.get("id"), f"{label}.id"),
+                path=_container_path(raw.get("path"), f"{label}.path"),
             )
-        normalized = item.casefold()
-        if normalized in seen:
-            raise ScopeManifestError(f"{field} contains duplicate milestone ID: {item}")
-        seen.add(normalized)
-        result.append(item)
+        )
     return tuple(result)
 
 
-def _validate_milestone_relationships(
-    active: tuple[str, ...],
-    accepted: tuple[str, ...],
-) -> None:
-    active_ids = {item.casefold(): item for item in active}
-    accepted_ids = {item.casefold(): item for item in accepted}
-    overlap = sorted(set(active_ids) & set(accepted_ids))
-    if overlap:
-        rendered = ", ".join(active_ids[item] for item in overlap)
-        raise ScopeManifestError(
-            "milestone cannot be both active and accepted legacy: " + rendered
-        )
-
-    aliases: dict[str, str] = {}
-    for item in (*active, *accepted):
-        canonical = _canonical_milestone_id(item)
-        previous = aliases.get(canonical)
-        if previous is not None and previous.casefold() != item.casefold():
+def _legacy_containers(value: Any) -> tuple[LegacyContainer, ...]:
+    if not isinstance(value, list):
+        raise ScopeManifestError("accepted_legacy_containers must be an array")
+    result: list[LegacyContainer] = []
+    for index, raw in enumerate(value):
+        label = f"accepted_legacy_containers[{index}]"
+        if not isinstance(raw, dict):
+            raise ScopeManifestError(f"{label} must be an object")
+        unknown = sorted(set(raw) - _LEGACY_FIELDS)
+        missing = sorted(_LEGACY_REQUIRED_FIELDS - set(raw))
+        if unknown:
             raise ScopeManifestError(
-                f"milestone separator alias collision: {previous} and {item}"
+                f"{label} has unknown field(s): " + ", ".join(unknown)
             )
-        aliases[canonical] = item
+        if missing:
+            raise ScopeManifestError(
+                f"{label} is missing field(s): " + ", ".join(missing)
+            )
+        contract_version = raw.get("contract_version")
+        if (
+            type(contract_version) is not int
+            or contract_version not in SUPPORTED_LEGACY_CONTRACT_VERSIONS
+        ):
+            raise ScopeManifestError(
+                f"{label}.contract_version is unsupported: {contract_version}"
+            )
+        supersedes = _supersedes(raw.get("supersedes", []), label)
+        result.append(
+            LegacyContainer(
+                id=_container_id(raw.get("id"), f"{label}.id"),
+                path=_container_path(raw.get("path"), f"{label}.path"),
+                contract_version=contract_version,
+                supersedes=supersedes,
+            )
+        )
+    return tuple(result)
+
+
+def _container_id(value: Any, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or _CONTAINER_ID_RE.fullmatch(value) is None
+        or _RANGE_ID_RE.fullmatch(value) is not None
+    ):
+        raise ScopeManifestError(f"{label} contains invalid container ID: {value!r}")
+    return value
+
+
+def _container_path(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ScopeManifestError(f"{label} must be a non-empty relative path")
+    path = PurePosixPath(value)
+    if (
+        "\\" in value
+        or path.is_absolute()
+        or value != path.as_posix()
+        or ".." in path.parts
+        or "." in path.parts
+        or "*" in value
+        or "?" in value
+        or "[" in value
+        or "]" in value
+        or any(_RANGE_ID_RE.fullmatch(part.upper()) for part in path.parts)
+        or len(path.parts) < 2
+        or path.parts[0] != "docs"
+        or path.parts[1].casefold() in _DISCOVERY_EXCLUDED_ROOTS
+        or any(part.casefold() == "dispatch" for part in path.parts)
+        or any("_template" in part.casefold() for part in path.parts)
+    ):
+        raise ScopeManifestError(
+            f"{label} must be a normalized target-relative docs container path: {value}"
+        )
+    return path.as_posix()
+
+
+def _supersedes(value: Any, label: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ScopeManifestError(f"{label}.supersedes must be an array")
+    result: list[str] = []
+    seen: set[str] = set()
+    for index, raw_path in enumerate(value):
+        item_label = f"{label}.supersedes[{index}]"
+        if not isinstance(raw_path, str) or not raw_path:
+            raise ScopeManifestError(f"{item_label} must be a non-empty path")
+        path = PurePosixPath(raw_path)
+        if (
+            "\\" in raw_path
+            or path.is_absolute()
+            or raw_path != path.as_posix()
+            or ".." in path.parts
+            or "." in path.parts
+            or "*" in raw_path
+            or "?" in raw_path
+            or "[" in raw_path
+            or "]" in raw_path
+            or len(path.parts) < 2
+            or path.parts[0] != "docs"
+        ):
+            raise ScopeManifestError(
+                f"{item_label} must be a normalized target-relative docs path"
+            )
+        normalized = path.as_posix().casefold()
+        if normalized in seen:
+            raise ScopeManifestError(
+                f"{label}.supersedes contains duplicate path: {raw_path}"
+            )
+        seen.add(normalized)
+        result.append(path.as_posix())
+    return tuple(result)
+
+
+def _validate_container_relationships(
+    active: tuple[ActiveContainer, ...],
+    legacy: tuple[LegacyContainer, ...],
+) -> None:
+    ids: dict[str, tuple[str, str]] = {}
+    paths: dict[str, tuple[str, str]] = {}
+    aliases: dict[str, str] = {}
+    for kind, containers in (("active", active), ("accepted legacy", legacy)):
+        for container in containers:
+            normalized_id = container.id.casefold()
+            previous_id = ids.get(normalized_id)
+            if previous_id is not None:
+                raise ScopeManifestError(
+                    f"duplicate or overlapping container ID {container.id}: "
+                    f"{previous_id[0]} and {kind}"
+                )
+            ids[normalized_id] = (kind, container.id)
+            canonical = _canonical_container_id(container.id)
+            previous_alias = aliases.get(canonical)
+            if (
+                previous_alias is not None
+                and previous_alias.casefold() != normalized_id
+            ):
+                raise ScopeManifestError(
+                    f"container ID alias collision: {previous_alias} and {container.id}"
+                )
+            aliases[canonical] = container.id
+
+            normalized_path = container.path.casefold()
+            previous_path = paths.get(normalized_path)
+            if previous_path is not None:
+                raise ScopeManifestError(
+                    f"duplicate or overlapping container path {container.path}: "
+                    f"{previous_path[0]} and {kind}"
+                )
+            paths[normalized_path] = (kind, container.path)
 
 
 def _authority(value: Any) -> ScopeManifestAuthority:
     if not isinstance(value, dict):
         raise ScopeManifestError("scope manifest authority must be an object")
-    unknown = sorted(set(value) - _AUTHORITY_FIELDS)
-    missing = sorted(_AUTHORITY_FIELDS - set(value))
-    if unknown:
-        raise ScopeManifestError(
-            "scope manifest authority has unknown field(s): " + ", ".join(unknown)
-        )
-    if missing:
-        raise ScopeManifestError(
-            "scope manifest authority is missing field(s): " + ", ".join(missing)
-        )
+    _exact_fields(value, _AUTHORITY_FIELDS, "scope manifest authority")
     strings: dict[str, str] = {}
     for field in ("source", "approved_by", "approved_at", "baseline_head"):
         item = value.get(field)
@@ -261,72 +406,5 @@ def _authority(value: Any) -> ScopeManifestAuthority:
     return ScopeManifestAuthority(**strings)
 
 
-def _supersedes(
-    value: Any,
-    accepted: tuple[str, ...],
-) -> tuple[tuple[str, tuple[str, ...]], ...]:
-    if not isinstance(value, dict):
-        raise ScopeManifestError("scope manifest supersedes must be an object")
-    accepted_ids = {item.casefold(): item for item in accepted}
-    result: list[tuple[str, tuple[str, ...]]] = []
-    seen_milestones: set[str] = set()
-    for milestone_id, raw_paths in value.items():
-        if (
-            not isinstance(milestone_id, str)
-            or milestone_id.casefold() not in accepted_ids
-        ):
-            raise ScopeManifestError(
-                "supersedes milestone must appear in accepted_legacy_milestones: "
-                f"{milestone_id}"
-            )
-        declared_id = accepted_ids[milestone_id.casefold()]
-        if milestone_id != declared_id:
-            raise ScopeManifestError(
-                "supersedes milestone key must exactly match its "
-                f"accepted_legacy_milestones ID: {milestone_id}"
-            )
-        if milestone_id.casefold() in seen_milestones:
-            raise ScopeManifestError(
-                f"supersedes contains duplicate milestone key: {milestone_id}"
-            )
-        seen_milestones.add(milestone_id.casefold())
-        if not isinstance(raw_paths, list) or not raw_paths:
-            raise ScopeManifestError(
-                f"supersedes.{milestone_id} must be a non-empty array of exact paths"
-            )
-        paths: list[str] = []
-        seen: set[str] = set()
-        for raw_path in raw_paths:
-            if not isinstance(raw_path, str):
-                raise ScopeManifestError(
-                    f"supersedes.{milestone_id} contains a non-string path"
-                )
-            path = PurePosixPath(raw_path)
-            if (
-                "\\" in raw_path
-                or path.is_absolute()
-                or ".." in path.parts
-                or "*" in raw_path
-                or "?" in raw_path
-                or len(path.parts) < 3
-                or path.parts[0] != "docs"
-                or path.name.casefold()
-                not in {"milestone_closeout.md", "closeout.md"}
-            ):
-                raise ScopeManifestError(
-                    f"supersedes.{milestone_id} contains invalid exact closeout path: "
-                    f"{raw_path}"
-                )
-            normalized = path.as_posix().casefold()
-            if normalized in seen:
-                raise ScopeManifestError(
-                    f"supersedes.{milestone_id} contains duplicate path: {raw_path}"
-                )
-            seen.add(normalized)
-            paths.append(path.as_posix())
-        result.append((declared_id, tuple(paths)))
-    return tuple(result)
-
-
-def _canonical_milestone_id(value: str) -> str:
+def _canonical_container_id(value: str) -> str:
     return re.sub(r"[._-]+", ".", value.casefold())
