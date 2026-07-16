@@ -1,539 +1,42 @@
-﻿# SAGE-Kit
+# SAGE-Kit
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-SAGE-Kit is a reusable framework for Spec-driven Agent Governance & Execution.
+AI can write code quickly. Keeping a long-running project coherent is harder.
 
-It helps teams define what a project is, how it should evolve, and how AI
-agents should safely perform work inside it. The kit separates durable project
-specification from execution governance so that product, architecture, tests,
-and agent workflows can stay aligned over many sessions.
+SAGE-Kit gives people and AI agents a shared record of scope, decisions,
+evidence, and what happens next. It is designed for projects where work spans
+many sessions and "the agent said it was done" is not enough.
 
-## What SAGE-Kit Provides
+SAGE-Kit is open source, written in Python, and has no runtime dependencies.
 
-- A core project specification model.
-- Templates for project profiles, milestones, phases, ledgers, closeouts,
-  quality gates, approval gates, and completion reports.
-- Project Owner Entry for turning a non-technical idea into a lightweight
-  intake, project profile draft, capability map, and candidate milestones
-  before executable planning starts.
-- An AI agent harness for context control, file ownership, verification,
-  handoff, and review.
-- Governance Levels and an Authority Matrix for choosing Light, Standard, or
-  Heavy controls plus read/write/corrective permission by local scope.
-- Wave Execution for safe parallel development inside a phase.
-- Session Orchestration for milestone-level Project Manager, Coder, and Final
-  Review controller workflows.
-- Worktree Isolation for controlled phase, lane, or review workspaces when the
-  Project Manager authorizes isolated execution.
-- Task Dispatch Profile for structured task records, evidence records,
-  resource locks, Run/Attempt/Lease tracking, and validator-backed gate
-  closeout when a milestone needs stronger dispatch control.
-- Capability routing so controllers can delegate to relevant external
-  capabilities instead of letting governance instructions displace specialist
-  execution methods.
-- Capability Adapters for optional skills, plugins, MCP tools, CLIs, CI,
-  reviewers, frontend tools, OpenSpec, GitNexus, and browser QA without making
-  them startup or completion dependencies.
-- An external capability boundary that keeps SAGE-Kit as the governance and
-  evidence layer while external skills, plugins, tools, CI, and reviewers
-  provide execution methods.
-- Milestone planning rules that force capability maps, reviewable milestones,
-  and testable phase slices before implementation.
-- Strict Mode for lower-assurance or unknown model families.
-- Optional profile packs for common project shapes, such as state-machine
-  systems and control-plane plus execution-agent systems.
-- A default model assurance policy that projects may make stricter.
-- A zero-dependency local CLI prototype for read-only diagnostics and
-  governance structure checks.
-- Execution economy with C0-C3 change classes, bounded corrective authority,
-  one review topology, evidence invalidation, and deterministic local limits.
-- A gitignored continuity checkpoint that supports safe session resume without
-  copied chat history.
-- Versioned validation compatibility for frozen closed history and strict
-  current active records.
+## What It Helps With
 
-## Core Idea
+- Turn a product idea into reviewable milestones and phases.
+- Keep project facts outside chat history.
+- Give agents clear file, authority, and approval boundaries.
+- Require evidence before work is accepted.
+- Resume interrupted work without pasting an entire conversation.
+- Use stronger controls only when the risk justifies them.
 
-Specification defines the project contract.
+It does not replace engineering judgment, tests, code review, or specialist
+tools. It gives those activities a shared project contract.
 
-Harness defines how AI agents execute against that contract.
+## Quick Start
 
-Project profiles adapt the shared rules to a specific architecture without
-polluting the reusable core.
-
-## Kit Contents
-
-```text
-docs/
-  SAGE_CORE.md
-  *_TEMPLATE.md
-  agent/
-    AGENT_HARNESS.md
-    MODEL_ASSURANCE_POLICY.md
-    STRICT_MODE.md
-    GOVERNANCE_LEVELS.md
-    PROJECT_OWNER_ENTRY.md
-    WAVE_EXECUTION.md
-    SESSION_ORCHESTRATION.md
-    WORKTREE_ISOLATION.md
-    MILESTONE_PLANNING.md
-    CAPABILITY_ADAPTERS.md
-  profiles/
-    state-machine/
-    control-plane-agent/
-    task-dispatch/
-  templates/
-    PROJECT_OWNER_INTAKE_TEMPLATE.md
-    CAPABILITY_MAP_TEMPLATE.md
-    CAPABILITY_ADAPTER_TEMPLATE.md
-    *_TEMPLATE.md
-scripts/
-  validate_task_dispatch.py
-sagekit/
-  cli.py
-  check.py
-  doctor.py
-pyproject.toml
-skills/
-  sage-kit/
-```
-
-## Bundled Skill
-
-SAGE-Kit includes `skills/sage-kit`, a Codex skill that helps agents
-stay aligned with the framework during adoption, planning, implementation,
-review, handoff, and milestone closeout.
-
-The skill is intentionally a governance entrypoint, not a copy of every
-SAGE-Kit document. It tells agents to read `ACTIVE_CONTEXT.md` and
-`DOC_ROUTING.md` first, then load only the milestone, phase, gate, or historical
-closeout files required by the task.
-
-To use it in another environment, copy `skills/sage-kit` into the
-Codex skills directory and invoke:
-
-```text
-Use $sage-kit to plan and execute this task under SAGE-Kit.
-```
-
-The skill is designed for explicit invocation so it does not displace more
-specific coding, frontend, document, GitHub, review, CI, or runtime
-capabilities during ordinary work.
-
-SAGE-Kit is not a skill library. See `docs/SAGE_CORE.md#external-capability-boundary`
-for the rule that external capabilities execute inside SAGE-Kit authorization,
-scope, ownership, evidence, lock, and gate boundaries. Superpowers is a
-reference integration when available, not a required dependency and not
-something SAGE-Kit copies.
-
-Use `docs/agent/CAPABILITY_ADAPTERS.md` when a project wants to route through
-optional specialist providers such as frontend skills, OpenSpec, GitNexus,
-browser QA, database tools, or CI. Adapters detect, authorize, bound, invoke,
-capture, map, and fall back without silently installing tools or changing
-environment configuration.
-
-`ui-ux-pro-max`, OpenSpec, and GitNexus are approved install candidates, not
-default dependencies. New environments must read current provider docs before
-requesting approval and must disclose commands, write targets, rollback, and
-fallback.
-For `ui-ux-pro-max`, prefer a single Codex-targeted route; multi-assistant,
-global, or `design-system/` writes require explicit authorization.
-
-The skill can help bootstrap SAGE-Kit in a new project, but the project still
-needs to adopt the relevant templates and maintain its own project
-specification documents.
-
-## Local CLI Runtime
-
-SAGE-Kit includes a small Python CLI runtime. The CLI is a governance and
-evidence layer, not an AI coding agent. It does not replace Superpowers,
-skills, plugins, CI, reviewers, browser tools, or runtime tests; those
-capabilities produce work and evidence that SAGE-Kit can route, check, or
-record.
-
-Runtime policy:
-
-- Python `>=3.10`.
-- Runtime dependencies stay stdlib-only; `pyproject.toml` keeps
-  `dependencies = []`.
-- Do not introduce a TypeScript or Node runtime for the CLI.
-- The package version is sourced from `sagekit.__version__`; package metadata
-  and `sagekit --version` read from that single value.
-
-Install a reusable command with one of:
+Install the CLI:
 
 ```bash
 pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git
+```
+
+`uv` works too:
+
+```bash
 uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git
-python -m pip install -e .
 ```
 
-Use the module entrypoint from a checkout without installation:
-
-```bash
-python -m sagekit --version
-python -m sagekit doctor
-python -m sagekit init --mode light --dry-run
-python -m sagekit init --mode light
-python -m sagekit check
-python -m sagekit check --mode light
-python -m sagekit check --json
-python -m sagekit checkpoint status
-python -m sagekit resume
-```
-
-The installed command exposes the same operations:
-
-```bash
-sagekit --version
-sagekit init --mode light
-sagekit check --mode light
-sagekit check --mode standard
-sagekit check --mode heavy
-sagekit doctor
-```
-
-`sagekit init` creates SAGE-Kit governance documents for a target project. It
-supports `--mode light`, `--mode standard`, and `--mode heavy`; `--dry-run`
-prints planned writes without changing files; `--force` overwrites only the
-selected mode's target files. It refuses to initialize inside the SAGE-Kit
-source repository.
-
-`sagekit check` is the gate-oriented validator for adopted projects. It checks
-required and recommended project docs, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`,
-phase docs, completion reports, adapter evidence, and Task Dispatch records.
-It exits `1` when any `FAIL` finding exists and `0` when findings are only
-`PASS` or `WARN`.
-
-`sagekit doctor` is a read-only diagnostic command. It reports whether the
-target looks like the SAGE-Kit source repository or an adopted project, whether
-package entrypoints exist, and whether the bundled Task Dispatch validator is
-importable.
-
-`sagekit checkpoint create`, `status`, and `clear` manage only
-`.sagekit/runtime/CURRENT_RUN.json`. `sagekit resume` verifies repository,
-branch, HEAD, authority, and evidence fingerprints before returning the bounded
-next-action packet. Mismatch fails closed.
-
-`sagekit check --max-findings N` bounds displayed findings while JSON summary
-fields retain exact total, displayed, truncated, and per-level counts. Exit
-status uses all findings.
-
-All three project commands accept `--target <path>`. Without `--target`, they
-use the current working directory. With `--target`, the path is resolved as the
-project root candidate; file targets are refused so `init` cannot write into an
-unexpected parent directory.
-
-Examples:
-
-```bash
-sagekit init --target ../my-project --mode light
-sagekit check --target ../my-project --mode light
-sagekit doctor --target ../my-project
-```
-
-Mode-aware checks are explicit:
-
-```bash
-sagekit check --mode light
-sagekit check --mode standard
-sagekit check --mode heavy
-```
-
-Plain `sagekit check` keeps the legacy MVP behavior: Light-level required docs
-are blocking and Standard docs are advisory warnings. Explicit `--mode light`
-does not warn about Standard or Heavy documents. Explicit `--mode standard`
-makes Standard docs blocking. Explicit `--mode heavy` makes the minimal Heavy
-controller docs blocking, but Task Dispatch, Wave Execution, Worktree
-Isolation, profile activation, and adapter use remain opt-in and
-artifact-triggered.
-
-The SAGE-Kit source repository has a separate dogfood check:
-
-```bash
-sagekit check --source-repo
-```
-
-Source repo check verifies framework docs, packaged resources, template mapping,
-CLI package files, tests, the console script, Python/runtime dependency policy,
-and repository hygiene. It does not require instantiated project context files
-such as `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md`.
-
-The test suite also includes simulation tests that create temporary adopted
-projects and verify Light, Heavy, and failure-path governance behavior without
-committing generated project runtime state.
-
-Repository hygiene rule: the framework repository commits templates and tools,
-not generated project runtime state. Do not commit `docs/ACTIVE_CONTEXT.md`,
-`docs/DOC_ROUTING.md`, `docs/M[0-9]*/`, `docs/runs/`, `docs/task-records/`,
-`local/`, `.sagekit/`, or `.runtime/`. Template files such as
-`docs/ACTIVE_CONTEXT_TEMPLATE.md`, `docs/DOC_ROUTING_TEMPLATE.md`, and their
-`sagekit/resources/` copies remain trackable.
-
-Validator success means the governance structure is ready for review. It does
-not prove product correctness, replace runtime tests, or mark milestones
-accepted.
-
-The repository still includes `sagekit.cmd` as a Windows development
-convenience, but the package console script is the preferred cross-platform
-entrypoint.
-
-## Copy-Paste Prompts
-
-Use these prompts when onboarding another Codex environment.
-
-### 1. Install The Skill
-
-Paste this into Codex when `sage-kit` is not installed yet:
-
-```text
-Use the skill-installer workflow to install the SAGE-Kit skill from
-GitHub.
-
-Repository: JoeKeepGo/SAGE-Kit
-Path: skills/sage-kit
-
-If the skill is already installed, do not reinstall it. If installation
-succeeds, tell me to restart Codex or open a new Codex session so the new skill
-is discovered.
-```
-
-Codex normally needs a restart or new session before newly installed skills are
-available in the skill list.
-
-### 2. Start A Project From Zero
-
-After restarting Codex, paste this into the target project repository:
-
-```text
-Use $sage-kit to help me start this project from zero.
-
-First, inspect the repository boundary and current files without making
-changes. Then interview me before creating project documents.
-
-Ask me concise questions in this order:
-1. What is the product or project goal?
-2. Who will use it?
-3. What problem does it solve right now?
-4. What should users or operators be able to do when the first usable version is successful?
-5. What are the main risks, constraints, or things that must not happen?
-6. Is this a small project, a standard software project, or a large/high-risk project?
-7. Are AI agents expected to implement and review most of the work?
-8. Are there known approval gates such as production data, credentials, paid APIs, deploys, destructive operations, or external service mutation?
-
-After I answer, propose the lightest SAGE-Kit adoption mode that fits:
-Light, Standard, or Heavy.
-
-Then draft the minimum useful SAGE-Kit documents:
-- PROJECT_PROFILE
-- QUALITY_GATES
-- ACTIVE_CONTEXT
-- DOC_ROUTING
-- TECHNICAL_DESIGN when architecture is known, can be sketched, or Standard/Heavy adoption is selected
-- ENGINEERING_SYSTEM when recurring human/AI workflow needs governance or Standard/Heavy adoption is selected
-- APPROVAL_GATES when approval-sensitive actions exist or Standard/Heavy adoption is selected
-- CAPABILITY_MAP if the idea is broad, non-technical, or roadmap granularity is uncertain
-- MILESTONE_ROADMAP only after the capability map or granularity check is ready
-
-Do not create executable milestones until the milestone granularity check
-passes. Do not enable Wave Execution, Session Orchestration, Worktree Isolation,
-or Task Dispatch Profile unless the project risk justifies them.
-```
-
-For an existing project that already has requirements, replace the interview
-step with:
-
-```text
-Use $sage-kit to adopt SAGE-Kit for this existing repository.
-Read the current README, docs, package/config files, tests, and source layout
-with narrow searches first. Then propose the minimum SAGE-Kit document set and
-ask before writing files.
-```
-
-## Recommended Project Layout
-
-```text
-docs/
-  ACTIVE_CONTEXT.md
-  DOC_ROUTING.md
-  PROJECT_PROFILE.md
-  TECHNICAL_DESIGN.md
-  ENGINEERING_SYSTEM.md
-  QUALITY_GATES.md
-  APPROVAL_GATES.md
-  CAPABILITY_MAP.md       # conditional for broad, non-technical, or coarse-roadmap projects
-  MILESTONE_ROADMAP.md
-  agent/
-    AGENT_HARNESS.md
-    MODEL_ASSURANCE_POLICY.md
-    STRICT_MODE.md
-    GOVERNANCE_LEVELS.md
-    PROJECT_OWNER_ENTRY.md
-    WAVE_EXECUTION.md
-    SESSION_ORCHESTRATION.md
-    WORKTREE_ISOLATION.md
-    MILESTONE_PLANNING.md
-    CAPABILITY_ADAPTERS.md
-  templates/
-    PROJECT_OWNER_INTAKE_TEMPLATE.md
-    CAPABILITY_MAP_TEMPLATE.md
-    CAPABILITY_ADAPTER_TEMPLATE.md
-    PHASE_TEMPLATE.md
-    MILESTONE_LEDGER_TEMPLATE.md
-    MILESTONE_CLOSEOUT_TEMPLATE.md
-    MILESTONE_EXECUTION_PACKET_TEMPLATE.md
-    MILESTONE_RESULT_PACKET_TEMPLATE.md
-    STRUCTURAL_GATE_TEMPLATE.md
-    FINAL_REVIEW_PACKET_TEMPLATE.md
-    CORRECTIVE_PACKET_TEMPLATE.md
-    COMPLETION_REPORT_TEMPLATE.md
-    LANE_PACKET_TEMPLATE.md
-  M<ID>/
-    00-entry-gate.md
-    MILESTONE_LEDGER.md
-    MILESTONE_CLOSEOUT.md  # created at milestone closure
-    01-phase-name.md
-    dispatch/              # optional task-dispatch profile records
-      DISPATCH_BOARD.md
-      TASK-001/
-        task.yaml
-        evidence.yaml
-```
-
-## Copy Map
-
-Use this map when adopting SAGE-Kit into a project.
-
-| SAGE-Kit Source | Project Destination |
-|---|---|
-| `docs/SAGE_CORE.md` | `docs/SAGE_CORE.md` |
-| `docs/PROJECT_PROFILE_TEMPLATE.md` | `docs/PROJECT_PROFILE.md` |
-| `docs/TECHNICAL_DESIGN_TEMPLATE.md` | `docs/TECHNICAL_DESIGN.md` |
-| `docs/ENGINEERING_SYSTEM_TEMPLATE.md` | `docs/ENGINEERING_SYSTEM.md` |
-| `docs/QUALITY_GATES_TEMPLATE.md` | `docs/QUALITY_GATES.md` |
-| `docs/APPROVAL_GATES_TEMPLATE.md` | `docs/APPROVAL_GATES.md` |
-| `docs/ACTIVE_CONTEXT_TEMPLATE.md` | `docs/ACTIVE_CONTEXT.md` |
-| `docs/DOC_ROUTING_TEMPLATE.md` | `docs/DOC_ROUTING.md` |
-| `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md` | Optional `docs/PROJECT_OWNER_INTAKE.md` |
-| `docs/templates/CAPABILITY_MAP_TEMPLATE.md` | `docs/CAPABILITY_MAP.md` for broad, non-technical, or coarse-roadmap projects |
-| `docs/agent/CAPABILITY_ADAPTERS.md` | Optional external capability adapter policy |
-| `docs/templates/CAPABILITY_ADAPTER_TEMPLATE.md` | Optional provider-specific adapter record |
-| `docs/templates/MILESTONE_ROADMAP_TEMPLATE.md` | `docs/MILESTONE_ROADMAP.md` |
-| `docs/templates/ENTRY_GATE_TEMPLATE.md` | `docs/M<ID>/00-entry-gate.md` |
-| `docs/templates/MILESTONE_LEDGER_TEMPLATE.md` | `docs/M<ID>/MILESTONE_LEDGER.md` |
-| `docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md` | `docs/M<ID>/MILESTONE_CLOSEOUT.md` at milestone closure |
-| `docs/templates/PHASE_TEMPLATE.md` | `docs/M<ID>/<NN>-<phase-name>.md` |
-| `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` | Milestone-level Project Manager to Coder packet |
-| `docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md` | Milestone-level Coder result packet |
-| `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` | Project Manager structural gate checklist |
-| `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` | Final Review verdict packet |
-| `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` | Bounded corrective work packet |
-| `docs/agent/GOVERNANCE_LEVELS.md` | Light, Standard, or Heavy governance selector plus Authority Matrix |
-| `docs/agent/PROJECT_OWNER_ENTRY.md` | Optional lightweight project owner entry policy |
-| `docs/agent/WORKTREE_ISOLATION.md` | Optional worktree isolation policy |
-| `docs/profiles/task-dispatch/` | Optional structured task dispatch profile |
-| `scripts/validate_task_dispatch.py` | Optional task dispatch validator |
-
-Copy `docs/agent/` when AI agents will execute or review work. Copy the
-relevant `docs/profiles/<profile>/` templates only when the project uses that
-profile.
-
-## Adoption Flow
-
-1. If the project starts from a broad or non-technical idea, use Project Owner
-   Entry to create intake notes, a project profile draft, and a capability map.
-2. Fill or refine `PROJECT_PROFILE.md`.
-3. Define `QUALITY_GATES.md`.
-4. Add `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
-5. For Standard or Heavy adoption, or when risk requires them, write or adapt
-   `TECHNICAL_DESIGN.md`, `ENGINEERING_SYSTEM.md`, and `APPROVAL_GATES.md`.
-6. Create `CAPABILITY_MAP.md` for broad, non-technical, or coarse-roadmap
-   projects.
-7. Create draft milestone candidates from `CAPABILITY_MAP.md` when it is used.
-8. Promote only candidates that pass Milestone Granularity Gate into the
-   executable roadmap.
-9. Create the first milestone with `00-entry-gate.md`.
-10. Decompose the milestone into reviewable phases with explicit contracts,
-   file boundaries, tests, and runtime checks.
-11. Select the lightest safe governance level for each controller, phase, lane,
-    or worker.
-12. Execute each phase through retained phase docs and completion reports.
-13. Use Wave Execution when safe parallel lanes can speed up the phase.
-14. Use Session Orchestration for large milestones that need Project Manager,
-   Coder, and Final Review controller handoff.
-15. Use Worktree Isolation only when Project Manager authorizes isolated
-    phase, lane, or review workspaces.
-16. Use the Task Dispatch Profile only when a milestone needs structured
-    task/evidence records, resource locks, lease tracking, or validator-backed
-    dispatch closeout.
-17. Keep milestone state in `MILESTONE_LEDGER.md`.
-18. When a milestone closes, write `MILESTONE_CLOSEOUT.md` as a compact
-    historical outcome index.
-
-## Detailed Usage
-
-### Choose An Adoption Mode
-
-Start with the lightest mode that gives the project enough control.
-
-| Mode | Use When | Minimum Files |
-|---|---|---|
-| Light adoption | Small project, low risk, one or two agents, mostly linear work. | `PROJECT_PROFILE.md`, `QUALITY_GATES.md`, `ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`, one milestone ledger, one phase doc. |
-| Standard adoption | Normal software project with multiple features, reviews, and recurring agent work. | Light adoption plus `TECHNICAL_DESIGN.md`, `ENGINEERING_SYSTEM.md`, `APPROVAL_GATES.md`, `MILESTONE_ROADMAP.md`, retained phase docs, completion reports. |
-| Heavy adoption | Large milestone, multi-agent work, shared files, state machines, control-plane/runtime split, release risk, or high false-completion risk. | Standard adoption plus Governance Levels, Session Orchestration, optional Wave Execution, optional Worktree Isolation, and optional Task Dispatch Profile. |
-
-Do not enable every control by default. Select the control that matches the
-current risk:
-
-- Use Governance Levels and permission modes for every non-trivial controller,
-  phase, lane, or worker.
-- Use Wave Execution only when writable lanes have disjoint files.
-- Use Session Orchestration when a milestone is too large for repeated manual
-  handoff.
-- Use Worktree Isolation only when the Project Manager explicitly authorizes it.
-- Use Task Dispatch Profile only when structured task/evidence records and
-  validator closeout are worth the extra overhead.
-- Use Planning Package Closeout when the work is planning-only, manual handoff
-  is the main cost, submit or push is explicitly authorized or separately
-  assigned to a Submit Controller, role separation can be preserved, and one
-  root session can safely orchestrate planning author, planning review,
-  targeted fix, closure verification (strict Deterministic Closure or targeted
-  re-review), closeout/status, and submit handoff without changing product code
-  or gate authority.
-
-### Bootstrap A New Project
-
-For a new project, copy the templates selected by the adoption mode. Light
-starts with the baseline files:
-
-```text
-docs/SAGE_CORE.md
-docs/PROJECT_PROFILE.md
-docs/QUALITY_GATES.md
-docs/ACTIVE_CONTEXT.md
-docs/DOC_ROUTING.md
-docs/agent/
-docs/templates/
-```
-
-Add `TECHNICAL_DESIGN.md`, `ENGINEERING_SYSTEM.md`, `APPROVAL_GATES.md`, and
-`MILESTONE_ROADMAP.md` when Standard or Heavy adoption is selected, or when the
-project risk requires those controls.
-
-Then ask the agent to fill only the minimum useful draft:
-
-```text
-Use $sage-kit to bootstrap SAGE-Kit for this repository.
-Start with the Light baseline: PROJECT_PROFILE, QUALITY_GATES,
-ACTIVE_CONTEXT, and DOC_ROUTING. Add TECHNICAL_DESIGN, ENGINEERING_SYSTEM,
-APPROVAL_GATES, and a draft MILESTONE_ROADMAP only when Standard or Heavy
-adoption is selected or the project risk requires them.
-Do not create executable milestones until the capability map or roadmap
-granularity check is complete.
-```
-
-The CLI can create the initial document set before the agent fills it:
+From the project you want to govern:
 
 ```bash
 sagekit init --mode light --dry-run
@@ -542,264 +45,190 @@ sagekit doctor
 sagekit check --mode light
 ```
 
-Use `--mode standard` when the project already needs technical design,
-engineering system, approval gates, and a milestone roadmap. Use `--mode heavy`
-only when milestone-level controller governance is justified. `init` copies the
-selected mode's governance docs and core support templates, but it does not
-copy optional profile packs or create executable milestone folders, task
-records, worktrees, commits, or pushes.
+`init` creates the starting documents. It does not create milestones,
+worktrees, commits, or pushes.
 
-If the project begins from a broad or non-technical idea, start even lighter:
+To run directly from a checkout:
 
-```text
-Use $sage-kit and Project Owner Entry.
-Ask me for the project goal, target users, current problem, success behavior,
-and main risks. Then draft PROJECT_OWNER_INTAKE, PROJECT_PROFILE, and
-CAPABILITY_MAP before proposing executable milestones.
+```bash
+python -m sagekit --version
+python -m sagekit check --source-repo
 ```
 
-### Create The First Milestone
+Python 3.10 or newer is required.
 
-A milestone should prove one primary capability. Before implementation, create:
+## Add The Skill
 
-```text
-docs/M<ID>/00-entry-gate.md
-docs/M<ID>/MILESTONE_LEDGER.md
-docs/M<ID>/01-<phase-name>.md
-```
+The repository includes a Codex skill at
+[`skills/sage-kit`](skills/sage-kit). Install it with Codex's skill installer,
+then open a new session so Codex discovers it.
 
-The entry gate should answer:
-
-- what capability the milestone proves;
-- what is explicitly out of scope;
-- which phases exist and why they are reviewable;
-- which governance level applies to the controller and each worker;
-- which files are allowed, read-only, forbidden, or shared;
-- which gates remain closed;
-- which tests, runtime smoke, and review evidence are required;
-- whether Wave Execution, Session Orchestration, Worktree Isolation, or Task
-  Dispatch Profile is allowed.
-
-If a milestone cannot be decomposed into clear phases with file boundaries,
-contracts, tests, and smoke evidence, keep it in planning and split it further.
-
-### Daily Agent Workflow
-
-For ordinary implementation or review work, the agent should start narrow:
+Start a task with:
 
 ```text
 Use $sage-kit for this task.
-Read ACTIVE_CONTEXT and DOC_ROUTING first.
-Then read only the active milestone ledger, phase doc, quality gates, approval
-gates, and routed references required for this task.
-Select the governance level and permission mode, name allowed files, name
-forbidden files, and stop if the task needs scope expansion or a closed
-approval gate.
 ```
+
+The skill is an entrypoint, not a replacement for the project's own SAGE
+documents. It reads the current context and routing first, then loads only the
+documents needed for the task.
+
+## Choose A Starting Mode
+
+Start with the lightest mode that keeps the work safe.
+
+| Mode | Good fit |
+|---|---|
+| **Light** | Small project, low risk, mostly serial work |
+| **Standard** | Ongoing software project with multiple features and reviews |
+| **Heavy** | Large or high-risk work with multiple agents, shared state, releases, migrations, or approval gates |
+
+Heavy is not the default. Worktrees, wave execution, session orchestration,
+and structured task dispatch are optional even in a Heavy project.
+
+```bash
+sagekit init --mode standard
+sagekit check --mode standard
+```
+
+## How Work Moves
 
 ```mermaid
-flowchart TD
-  A["Task or idea"] --> B["Read ACTIVE_CONTEXT + DOC_ROUTING"]
-  B --> C["Load routed docs only"]
-  C --> D["Select governance, permission, and boundaries"]
-  D --> E{"Gate, scope, or risk issue?"}
-  E -- "Yes" --> F["Stop for PM or user decision"]
-  E -- "No" --> G["Execute or review inside approved boundary"]
-  G --> H["Verify evidence"]
-  H --> I{"Correction needed?"}
-  I -- "Yes" --> D
-  I -- "No" --> J["Report, ledger, and memory update"]
+flowchart LR
+  A["Current project facts"] --> B["Small approved scope"]
+  B --> C["Agent or human executes"]
+  C --> D["Tests and evidence"]
+  D --> E["Review or correction"]
+  E --> F["Accept, hand off, or continue"]
 ```
 
-A normal phase run should follow this loop:
+A typical task follows five steps:
 
-1. Confirm the active milestone and phase.
-2. Select `Light`, `Standard`, or `Heavy` and the permission mode for the
-   current control scope.
-3. Read the smallest safe doc set through `DOC_ROUTING.md`.
-4. Inspect code or docs before assuming structure.
-5. Name allowed files, read-only files, forbidden files, shared files, gates,
-   tests, smoke, and stop conditions.
-6. Execute only the approved phase or task.
-7. Record tests, runtime smoke, skipped checks, blockers, and evidence.
-8. Update the completion report and milestone ledger.
-9. Update `ACTIVE_CONTEXT.md` by replacement only when current-state facts
-   changed and permission mode plus ownership allow direct writes; otherwise
-   return a memory update proposal or no-change note.
-10. Update `DOC_ROUTING.md` only when routing or document topology changed and
-    permission mode plus ownership allow direct writes; otherwise return a
-    memory update proposal or no-change note.
+1. Read `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
+2. Confirm the active scope, writable files, gates, and stop conditions.
+3. Make the smallest authorized change.
+4. Run the verification affected by that change.
+5. Update durable project state or leave a compact handoff.
 
-### Governance And Authority Selection
+Historical milestones are not loaded by default. They are read only when the
+current routing points to them.
 
-Use `docs/agent/GOVERNANCE_LEVELS.md` before dispatching substantial work.
+## The Files You Use Most
 
-- `Light`: narrow read-only scan, formatting/doc correction, or one small
-  corrective task with no behavior, runtime, gate, security, or durable state
-  change.
-- `Standard`: normal phase or task that changes behavior, tests, contracts,
-  runtime-visible output, or durable project docs inside one bounded ownership
-  area.
-- `Heavy`: milestone controller work, multiple phases, multi-agent
-  orchestration, shared files, state machines, public contracts, migrations,
-  releases, approval gates, production data, or high false-completion risk.
+| File | Purpose |
+|---|---|
+| `PROJECT_PROFILE.md` | What the project is and what shapes its architecture |
+| `QUALITY_GATES.md` | What must be proven before work is accepted |
+| `APPROVAL_GATES.md` | Decisions and operations that still require a person |
+| `ACTIVE_CONTEXT.md` | Short, current project facts |
+| `DOC_ROUTING.md` | Which documents to read for each kind of task |
+| `MILESTONE_ROADMAP.md` | Reviewable capability milestones |
+| Milestone ledger | Current milestone state, evidence, decisions, and blockers |
+| Phase document | Scope, file boundaries, contracts, tests, and completion evidence |
+| Milestone closeout | Compact index of a completed milestone |
 
-A Heavy milestone controller may still delegate Light or Standard workers.
-Governance is selected per local control scope, not inherited globally.
-Permission mode is selected separately: read-only review, write-authorized,
-corrective-authorized, environment-write-authorized, or submit-authorized.
+Templates live in [`docs/`](docs) and [`docs/templates/`](docs/templates).
 
-### Large Milestone Workflow
+## CLI At A Glance
 
-Use Session Orchestration when one milestone would otherwise require repeated
-manual copying between Project Manager, Coder, and Final Review sessions.
+| Command | What it does |
+|---|---|
+| `sagekit init --mode light` | Create a starting document set |
+| `sagekit doctor` | Diagnose the current repository |
+| `sagekit check` | Validate adopted project documents |
+| `sagekit check --mode heavy` | Apply Heavy document requirements |
+| `sagekit check --json` | Emit machine-readable findings |
+| `sagekit check --source-repo` | Validate the SAGE-Kit repository itself |
+| `sagekit checkpoint status` | Check local resumable state |
+| `sagekit resume` | Validate and print the next-action packet |
+| `sagekit candidate freeze` | Freeze a stable verification candidate |
 
-The recommended control flow is:
+All project commands accept `--target <path>`. `check` reports `PASS`, `WARN`,
+and `FAIL`; it returns a non-zero exit code when blocking findings exist.
+
+The local continuity file lives at `.sagekit/runtime/CURRENT_RUN.json`. It is
+gitignored, compact, and bound to the repository, branch, HEAD, authority, and
+evidence it was created from.
+
+## Built For Long-Running Agent Work
+
+SAGE-Kit avoids making every task Heavy:
+
+- **Change classes** separate status-only edits from code, contract, and
+  destructive changes.
+- **Evidence invalidation** reruns only checks affected by the new diff.
+- **Verification lifecycle** does not count missing tools or other preflight
+  failures as real test runs.
+- **Review convergence** prevents a corrective review from expanding forever.
+- **Continuity checkpoints** let another session resume from verified state.
+- **Versioned validation** keeps closed history on its frozen contract while
+  active work uses the current one.
+
+These rules use observable workflow events. They do not depend on knowing a
+user's token allowance or platform quota.
+
+## Advanced Controls
+
+Use these only when the project needs them:
+
+| Need | Read |
+|---|---|
+| Governance and permission selection | [`GOVERNANCE_LEVELS.md`](docs/agent/GOVERNANCE_LEVELS.md) |
+| Parallel lanes | [`WAVE_EXECUTION.md`](docs/agent/WAVE_EXECUTION.md) |
+| PM, Coder, and Final Review sessions | [`SESSION_ORCHESTRATION.md`](docs/agent/SESSION_ORCHESTRATION.md) |
+| Isolated Git workspaces | [`WORKTREE_ISOLATION.md`](docs/agent/WORKTREE_ISOLATION.md) |
+| Optional tools and skills | [`CAPABILITY_ADAPTERS.md`](docs/agent/CAPABILITY_ADAPTERS.md) |
+| Execution limits and evidence reuse | [`EXECUTION_ECONOMY.md`](docs/agent/EXECUTION_ECONOMY.md) |
+| Session resume | [`CONTINUITY_PROTOCOL.md`](docs/agent/CONTINUITY_PROTOCOL.md) |
+| Legacy validation contracts | [`VALIDATION_CONTRACT_COMPATIBILITY.md`](docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md) |
+| Structured task/evidence records | [`Task Dispatch Profile`](docs/profiles/task-dispatch/README.md) |
+
+Status-only closure has a deliberately narrow `Deterministic Closure`
+exception. See Session Orchestration for its receipt rules and
+`VERDICT_FINALIZED_FROM_RECEIPT`; it does not replace Project Manager
+acceptance.
+
+## Other Skills And Tools
+
+SAGE-Kit is the governance layer. Coding skills, Superpowers, plugins, MCP
+tools, CI, browser automation, and reviewers remain execution tools.
+
+They may work inside an approved SAGE boundary, but they do not get to widen
+scope, bypass locks or approval gates, or declare a SAGE gate complete.
+Superpowers is a useful reference integration, not a dependency.
+
+## Repository Guide
 
 ```text
-Project Manager Controller
-  -> Milestone Execution Packet
-
-Coder Controller
-  -> phase workers and lane workers
-  -> Milestone Result Packet
-
-Project Manager Controller
-  -> Structural Gate
-
-Final Review Controller
-  -> review workers and validation lanes
-  -> Final Review Packet
-
-Coder Controller or Corrective Worker
-  -> bounded corrections when requested
-
-Original Final Review Controller or named review packet author
-  -> closure verification: strict Deterministic Closure receipt or corrective re-review
-     with no new review lane, subagent, or Final Review pass
-  -> updated Final Review Packet and, when precommitted,
-     VERDICT_FINALIZED_FROM_RECEIPT
-
-Project Manager Controller
-  -> accept, handoff, blocked, or next prompt
+docs/                 Framework rules, templates, and optional profiles
+sagekit/              Python CLI and packaged resources
+skills/sage-kit/      Codex skill
+scripts/              Standalone validation helpers
+tests/                Unit, simulation, packaging, and compatibility tests
 ```
 
-Coder and Final Review controllers may dispatch subagents when file ownership,
-runtime ownership, evidence expectations, and stop conditions are explicit.
-Coder may dispatch integration repair workers before Final Review when the fix
-stays inside the execution packet. Final Review may dispatch corrective workers
-only for `AUTO_CORRECTIVE` findings after review. They must stop for Project
-Manager decision when correction needs new scope, approval, public contract
-change, shared ownership change, or submit/cleanup authority. After bounded
-corrections, use independent re-review for the affected findings unless every
-strict Deterministic Closure condition below is satisfied. Project Manager
-acceptance always remains a separate decision.
+Start with [`docs/SAGE_CORE.md`](docs/SAGE_CORE.md) when you need the full
+contract. For a broad or non-technical idea, use
+[`PROJECT_OWNER_ENTRY.md`](docs/agent/PROJECT_OWNER_ENTRY.md) before building a
+roadmap.
 
-Corrective work uses a convergence rule, not a fixed "round count means
-blocked" rule. Open P0/P1 findings block acceptance. P2 findings block only
-when they affect authority, false-green risk, approval gates, security,
-validator readiness, source authority, or evidence integrity. Ordinary
-documentation consistency P2 findings can close as concerns or auto-correct; P3
-findings do not block. Continue automatic correction only inside an authorized
-corrective packet or boundary while findings or severity are decreasing, scope
-is stable, no blocking approval gate is bypassed, and no new authority,
-false-green, gate, security, validator, source-authority, or evidence-integrity
-risk appears. Block only when the same root cause stalls for two rounds,
-required evidence or authority is missing, or the approved boundary would be
-exceeded. If Project Manager judgment is needed, return `NEEDS_CORRECTION` with
-`PM_DECISION_REQUIRED`, not `BLOCKED`.
+## Is It A Good Fit?
 
-Strict Deterministic Closure is the narrow `MECHANICAL_STATUS` exception defined
-by `docs/agent/SESSION_ORCHESTRATION.md`; its owner separation, trusted evidence,
-State Truth, receipt, and reject/fallback rules are mandatory. Final Review may
-record the precommitted `VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager
-acceptance remains pending. Every ineligible or failed case follows the
-contract's targeted or full re-review path.
+SAGE-Kit is useful when:
 
-### External Capabilities And Superpowers
+- AI agents will do a meaningful share of implementation or review.
+- The project will span many sessions.
+- Scope, approval, or evidence mistakes would be expensive.
+- You need a durable record of what was accepted and why.
 
-SAGE-Kit does not replace specialist capabilities. When the runtime exposes
-skills, plugins, connectors, MCP tools, CI, browser tools, review tools, or
-Superpowers skills, route to them when they are relevant.
+It may be too much for a short script, a disposable prototype, or a project
+where one person can keep the full state in their head.
 
-The boundary is:
+Read the kit before adopting it. Use only the parts that match your project.
 
-- SAGE-Kit decides scope, file ownership, approval gates, evidence, locks, and
-  completion status.
-- External capabilities provide execution methods inside those boundaries.
-- External capability output is evidence, not automatic acceptance.
-- External planning output must be written into or mapped to SAGE-Kit milestone,
-  phase, ledger, or packet docs.
+## Project Status
 
-When Superpowers is available, it is a reference integration for execution
-discipline. It may help with brainstorming, writing plans, TDD, debugging,
-subagent execution, review, verification, and branch finishing. If it is not
-available, SAGE-Kit still runs through its own phase docs, gates, packets, and
-evidence templates.
+SAGE-Kit is an alpha project. The CLI checks governance structure and evidence
+records; it does not prove that a product is correct.
 
-Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers such as frontend
-skills, OpenSpec, GitNexus, browser QA, database tools, or CI. Adapters default
-to metadata-only or read-only. Installation, hooks, MCP config, generated
-skills, or global settings require explicit approval and a fallback path.
-
-Continuous execution is allowed only inside an approved phase, lane, task, or
-corrective boundary. Stop on closed approval gates, scope expansion,
-shared-file or resource-lock conflicts, failed required evidence, unapproved
-runtime/destructive/submit/merge/push/cleanup operations, or any condition that
-requires a higher controller decision.
-
-### What To Record Where
-
-Use each document for one job:
-
-| Document | Record |
-|---|---|
-| `ACTIVE_CONTEXT.md` | Short current-state facts needed at startup. Replace stale facts; do not append session history. |
-| `DOC_ROUTING.md` | Stable routing rules for what to read by task type. Do not record progress here. |
-| `MILESTONE_LEDGER.md` | Detailed milestone progress, evidence, phase status, decisions, blockers, and current next actions. |
-| Phase docs | Scope, file boundary, contract, tests, smoke, gates, and completion evidence for one phase. |
-| Completion report | What changed, what was verified, skipped checks, runtime evidence, memory maintenance, and remaining gaps. |
-| `MILESTONE_CLOSEOUT.md` | Compact historical outcome after the milestone is current and ready to archive. |
-| Task Dispatch records | Machine-checkable task/evidence state when the Task Dispatch Profile is active. |
-
-Workers and parallel lanes, or any role that lacks write permission and
-ownership for `ACTIVE_CONTEXT.md` or `DOC_ROUTING.md`, must not directly edit
-those files. They return memory update proposals or an explicit no-change note;
-the controller applies accepted proposals serially.
-
-### Review And Closeout
-
-Before calling work complete:
-
-- run required tests and runtime smoke, or state why they cannot run;
-- verify file boundaries and contracts;
-- verify approval gates are `PASS`, explicitly `WAIVED`, or still blocking;
-- record skipped checks and gaps;
-- update completion report and milestone ledger;
-- update active context only with durable current-state changes;
-- write milestone closeout only when the milestone is actually closing.
-
-Line-ending notices are non-blocking platform warnings when the verification
-command succeeds. For example, `git diff --check` LF-to-CRLF warnings with exit
-code `0` should be reported but must not block acceptance. Trailing whitespace,
-conflict markers, malformed patches, or any non-zero verification exit remain
-blocking.
-
-Final Review recommends. Project Manager decides milestone acceptance.
-
-Historical closeouts are not default startup context. Read them only through
-`DOC_ROUTING.md` when a task needs prior milestone outcomes, decisions, gaps, or
-provenance.
-
-## Applicability
-
-SAGE-Kit is not a fit for every project. Review the kit before adopting it to
-confirm that its planning depth, documentation structure, and AI agent workflow
-match the project you want to run.
-
-## Non-Goals
-
-- SAGE-Kit is not a project management application.
-- SAGE-Kit is not a replacement for tests, reviews, or runtime verification.
-- SAGE-Kit does not prescribe one programming language, framework, hosting
-  model, database, or agent provider.
+Licensed under the [MIT License](LICENSE).
