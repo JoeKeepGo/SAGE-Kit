@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "legacy_contract_version": 1,
+  "active_milestones": [
+    "M2"
+  ],
+  "accepted_legacy_milestones": [
+    "M1"
+  ],
+  "authority": {
+    "source": "project-owner migration acceptance",
+    "approved_by": "project-owner",
+    "approved_at": "<YYYY-MM-DDTHH:MM:SSZ>",
+    "baseline_head": "<full 40-character lowercase Git SHA>"
+  },
+  "supersedes": {
+    "M1": [
+      "docs/M1/MILESTONE_CLOSEOUT.md"
+    ]
+  }
+}

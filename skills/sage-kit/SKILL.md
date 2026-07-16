@@ -86,7 +86,11 @@ before editing.
 - Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
   `sagekit resume` before loading broader context.
 - Task Dispatch validation contract selection or historical compatibility:
-  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`.
+  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. For an existing
+  project whose accepted history predates structured active-set authority,
+  route the owner to the Validation Scope Manifest migration procedure; do not
+  invent acceptance, downgrade current work, or rewrite historical documents.
+  The CLI/validator, not this Skill, decides scope and contract selection.
 
 Read only the reference files needed for the current task.
 

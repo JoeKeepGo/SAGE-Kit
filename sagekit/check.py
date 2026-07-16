@@ -6,6 +6,12 @@ from pathlib import Path
 
 from .findings import Finding
 from .modes import LEGACY_REQUIRED_DOCS, MODES, STANDARD_DOCS, recommended_docs_for_mode, required_docs_for_mode
+from .validation_scope_manifest import (
+    LOCAL_SCOPE_MANIFEST,
+    ScopeManifestError,
+    ValidationScopeManifest,
+    load_validation_scope_manifest,
+)
 
 
 REQUIRED_DOCS = LEGACY_REQUIRED_DOCS
@@ -41,6 +47,7 @@ SOURCE_REQUIRED_FILES = [
     "docs/templates/MILESTONE_LEDGER_TEMPLATE.md",
     "docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md",
     "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
+    "docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json",
     "docs/agent/GOVERNANCE_LEVELS.md",
     "docs/agent/SESSION_ORCHESTRATION.md",
     "docs/agent/CAPABILITY_ADAPTERS.md",
@@ -68,6 +75,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/continuity.py",
     "sagekit/compatibility.py",
     "sagekit/milestone_scope.py",
+    "sagekit/validation_scope_manifest.py",
     "sagekit/reporting.py",
     "sagekit/validation_contracts/__init__.py",
     "sagekit/validation_contracts/v1.py",
@@ -82,6 +90,7 @@ SOURCE_REQUIRED_FILES = [
     "tests/test_sagekit_check.py",
     "tests/test_execution_economy.py",
     "tests/test_validation_compatibility.py",
+    "tests/test_validation_scope_manifest.py",
 ]
 
 GITIGNORE_RUNTIME_PATTERNS = [
@@ -114,23 +123,102 @@ RESOURCE_REFERENCE_RE = re.compile(
 )
 
 
-def run_check(start: Path, gate_ready: bool = False, mode: str | None = None) -> list[Finding]:
+def run_check(
+    start: Path,
+    gate_ready: bool = False,
+    mode: str | None = None,
+    scope_manifest_path: Path | None = None,
+) -> list[Finding]:
     if mode is not None and mode not in MODES:
         raise ValueError(f"unknown SAGE-Kit mode: {mode}")
     root = detect_root(start)
     findings: list[Finding] = [
         Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
     ]
+    manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+        root,
+        scope_manifest_path,
+    )
+    if manifest is not None:
+        findings.append(
+            Finding(
+                "PASS",
+                "validation-scope-manifest",
+                relpath(root, manifest.path),
+                None,
+                f"loaded {manifest_source} validation scope manifest; "
+                f"digest=sha256:{manifest.digest}; "
+                f"baseline_head={manifest.authority.baseline_head}; "
+                f"active={len(manifest.active_milestones)}; "
+                f"accepted_legacy={len(manifest.accepted_legacy_milestones)}",
+            )
+        )
+    elif manifest_error is not None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "validation-scope-manifest",
+                relpath(
+                    root,
+                    scope_manifest_path
+                    if scope_manifest_path is not None
+                    else root / LOCAL_SCOPE_MANIFEST,
+                ),
+                None,
+                manifest_error,
+                "Correct the manifest authority; invalid manifests never authorize legacy scope.",
+            )
+        )
     if mode is not None:
         findings.append(Finding("PASS", "check-mode", None, None, f"mode: {mode}"))
     findings.extend(check_required_docs(root, required_docs_for_mode(mode)))
     findings.extend(check_recommended_docs(root, recommended_docs_for_mode(mode)))
     findings.extend(check_active_context(root))
     findings.extend(check_doc_routing(root))
-    findings.extend(check_phase_docs(root))
+    findings.extend(
+        check_phase_docs(
+            root,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        )
+    )
     findings.extend(check_completion_reports(root))
-    findings.extend(check_task_dispatch(root, gate_ready=gate_ready))
+    findings.extend(
+        check_task_dispatch(
+            root,
+            gate_ready=gate_ready,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        )
+    )
     return findings
+
+
+def resolve_check_scope_manifest(
+    root: Path,
+    explicit_path: Path | None,
+) -> tuple[ValidationScopeManifest | None, str, str | None]:
+    path = explicit_path if explicit_path is not None else root / LOCAL_SCOPE_MANIFEST
+    source = "CLI" if explicit_path is not None else "project-local"
+    if explicit_path is None and not path.exists():
+        return None, source, None
+    try:
+        manifest = load_validation_scope_manifest(path)
+    except ScopeManifestError as exc:
+        return None, source, str(exc)
+    from .milestone_scope import validate_manifest_repository_authority
+
+    repository_errors = validate_manifest_repository_authority(root, manifest)
+    if repository_errors:
+        return (
+            None,
+            source,
+            "scope manifest repository authority is invalid: "
+            + "; ".join(repository_errors),
+        )
+    return manifest, source, None
 
 
 def run_source_repo_check(start: Path) -> list[Finding]:
@@ -763,7 +851,13 @@ def check_doc_routing(root: Path) -> list[Finding]:
     return findings
 
 
-def check_phase_docs(root: Path) -> list[Finding]:
+def check_phase_docs(
+    root: Path,
+    *,
+    scope_manifest: ValidationScopeManifest | None = None,
+    manifest_source: str = "project-local",
+    manifest_error: str | None = None,
+) -> list[Finding]:
     from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
 
     findings: list[Finding] = []
@@ -771,7 +865,12 @@ def check_phase_docs(root: Path) -> list[Finding]:
     for path in sorted((root / "docs").glob("M*/[0-9][0-9]-*.md")):
         if "_TEMPLATE" not in path.name:
             phase_paths.setdefault(path.parent, []).append(path)
-    resolver = RepositoryScopeResolver(root)
+    resolver = RepositoryScopeResolver(
+        root,
+        manifest=scope_manifest,
+        manifest_source=manifest_source,
+        manifest_error=manifest_error,
+    )
     for milestone_dir, paths in sorted(phase_paths.items()):
         scope = resolver.resolve(milestone_dir)
         display = relpath(root, milestone_dir)
@@ -1039,7 +1138,14 @@ def check_adapter_evidence(root: Path, path: Path, text: str) -> list[Finding]:
     return findings
 
 
-def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
+def check_task_dispatch(
+    root: Path,
+    gate_ready: bool = False,
+    *,
+    scope_manifest: ValidationScopeManifest | None = None,
+    manifest_source: str = "project-local",
+    manifest_error: str | None = None,
+) -> list[Finding]:
     from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
 
     findings: list[Finding] = []
@@ -1050,7 +1156,12 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
     evidence_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/evidence.yaml")}
     active_task_paths: dict[Path, Path] = {}
     active_evidence_paths: dict[Path, Path] = {}
-    resolver = RepositoryScopeResolver(root)
+    resolver = RepositoryScopeResolver(
+        root,
+        manifest=scope_manifest,
+        manifest_source=manifest_source,
+        manifest_error=manifest_error,
+    )
     scopes = {}
     reported_scope_failures: set[Path] = set()
     for directory in sorted(set(task_paths) | set(evidence_paths)):
@@ -1305,7 +1416,16 @@ def validate_task_dispatch_pair(
     try:
         milestone_name = task_path.relative_to(root / "docs").parts[0]
         milestone_dir = root / "docs" / milestone_name
-        container_scope = RepositoryScopeResolver(root).resolve(milestone_dir)
+        manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+            root,
+            None,
+        )
+        container_scope = RepositoryScopeResolver(
+            root,
+            manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        ).resolve(milestone_dir)
     except (IndexError, ValueError):
         pass
     findings, _ = validate_task_dispatch_pair_with_scope(

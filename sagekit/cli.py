@@ -80,6 +80,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Check the SAGE-Kit source repository instead of an adopted project.",
     )
+    check.add_argument(
+        "--scope-manifest",
+        type=Path,
+        help=(
+            "Use an explicit Validation Scope Manifest for an adopted-project "
+            "check; relative paths resolve from the invocation directory."
+        ),
+    )
 
     doctor = subparsers.add_parser("doctor", help="Diagnose SAGE-Kit project and runtime state.")
     add_target_argument(doctor)
@@ -306,10 +314,65 @@ def main(argv: list[str] | None = None) -> int:
             emit_findings(findings, getattr(args, "json", False))
             return 2
         if args.command == "check":
+            if args.source_repo and args.scope_manifest is not None:
+                findings = [
+                    Finding(
+                        "FAIL",
+                        "scope-manifest-usage",
+                        None,
+                        None,
+                        "--scope-manifest cannot be combined with --source-repo",
+                    )
+                ]
+                emit_findings(findings, args.json, max_findings=args.max_findings)
+                return 2
             if args.source_repo:
                 findings = run_source_repo_check(target)
             else:
-                findings = run_check(target, gate_ready=args.gate_ready, mode=args.mode)
+                scope_manifest_path = None
+                if args.scope_manifest is not None:
+                    scope_manifest_path = args.scope_manifest.expanduser()
+                    if not scope_manifest_path.is_absolute():
+                        scope_manifest_path = Path.cwd() / scope_manifest_path
+                    scope_manifest_path = scope_manifest_path.resolve(strict=False)
+                    if not scope_manifest_path.exists():
+                        findings = [
+                            Finding(
+                                "FAIL",
+                                "scope-manifest-usage",
+                                scope_manifest_path.as_posix(),
+                                None,
+                                f"scope manifest does not exist: {scope_manifest_path}",
+                            )
+                        ]
+                        emit_findings(
+                            findings,
+                            args.json,
+                            max_findings=args.max_findings,
+                        )
+                        return 2
+                    if not scope_manifest_path.is_file():
+                        findings = [
+                            Finding(
+                                "FAIL",
+                                "scope-manifest-usage",
+                                scope_manifest_path.as_posix(),
+                                None,
+                                f"scope manifest must be a file: {scope_manifest_path}",
+                            )
+                        ]
+                        emit_findings(
+                            findings,
+                            args.json,
+                            max_findings=args.max_findings,
+                        )
+                        return 2
+                findings = run_check(
+                    target,
+                    gate_ready=args.gate_ready,
+                    mode=args.mode,
+                    scope_manifest_path=scope_manifest_path,
+                )
         elif args.command == "doctor":
             findings = run_doctor(target)
         elif args.command == "init":

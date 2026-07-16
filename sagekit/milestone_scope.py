@@ -4,6 +4,10 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .validation_scope_manifest import ValidationScopeManifest
 
 
 class MilestoneScopeKind(str, Enum):
@@ -72,8 +76,23 @@ _ACCEPTED_COMPOSITES = {
 
 
 class RepositoryScopeResolver:
-    def __init__(self, root: Path):
+    def __init__(
+        self,
+        root: Path,
+        *,
+        manifest: ValidationScopeManifest | None = None,
+        manifest_source: str = "project-local",
+        manifest_error: str | None = None,
+    ):
         self.root = root
+        self.manifest = manifest
+        self.manifest_source = manifest_source
+        self.manifest_error = manifest_error
+        self._manifest_repository_errors = (
+            validate_manifest_repository_authority(root, manifest)
+            if manifest is not None
+            else ()
+        )
         (
             self._active_milestones,
             self._active_authorities,
@@ -100,6 +119,46 @@ class RepositoryScopeResolver:
         ]
         authorities = list(self._active_authorities)
         authorities.extend(item.detail for item in closeouts)
+        if self.manifest_error is not None:
+            return MilestoneScope(
+                milestone_id,
+                MilestoneScopeKind.AMBIGUOUS,
+                tuple(authorities),
+                "validation scope manifest is invalid; legacy scope selection is "
+                f"blocked: {self.manifest_error}",
+            )
+        if self._manifest_repository_errors:
+            authorities = [
+                *(
+                    self.manifest.authority_details(self.manifest_source)
+                    if self.manifest is not None
+                    else ()
+                ),
+                *authorities,
+            ]
+            return MilestoneScope(
+                milestone_id,
+                MilestoneScopeKind.AMBIGUOUS,
+                tuple(authorities),
+                "validation scope manifest repository authority is invalid; "
+                "legacy scope selection is blocked for every milestone: "
+                + "; ".join(self._manifest_repository_errors),
+            )
+        if self.manifest is not None:
+            authorities = [
+                *self.manifest.authority_details(self.manifest_source),
+                *authorities,
+            ]
+            return self._resolve_with_manifest(
+                milestone_id=milestone_id,
+                normalized_id=normalized_id,
+                active=active,
+                aliases=aliases,
+                accepted=accepted,
+                uncertain=uncertain,
+                nonaccepted=nonaccepted,
+                authorities=authorities,
+            )
 
         if aliases:
             return MilestoneScope(
@@ -182,6 +241,207 @@ class RepositoryScopeResolver:
             "no trusted accepted closeout authority; current checks remain required",
         )
 
+    def _resolve_with_manifest(
+        self,
+        *,
+        milestone_id: str,
+        normalized_id: str,
+        active: bool,
+        aliases: list[str],
+        accepted: list[CloseoutAuthority],
+        uncertain: list[CloseoutAuthority],
+        nonaccepted: list[CloseoutAuthority],
+        authorities: list[str],
+    ) -> MilestoneScope:
+        assert self.manifest is not None
+        manifest_active = {
+            item.casefold(): item for item in self.manifest.active_milestones
+        }
+        manifest_accepted = {
+            item.casefold(): item
+            for item in self.manifest.accepted_legacy_milestones
+        }
+        canonical = _canonical_milestone_id(normalized_id)
+        manifest_aliases = [
+            item
+            for item in (*self.manifest.active_milestones, *self.manifest.accepted_legacy_milestones)
+            if item.casefold() != normalized_id
+            and _canonical_milestone_id(item) == canonical
+        ]
+        if aliases or manifest_aliases:
+            rendered = sorted({*aliases, *manifest_aliases})
+            return MilestoneScope(
+                milestone_id,
+                MilestoneScopeKind.AMBIGUOUS,
+                tuple(authorities),
+                "milestone authority uses an alternate separator alias for this "
+                f"container: {', '.join(rendered)}",
+            )
+
+        listed_active = normalized_id in manifest_active
+        listed_accepted = normalized_id in manifest_accepted
+        if listed_active:
+            if accepted:
+                return MilestoneScope(
+                    milestone_id,
+                    MilestoneScopeKind.AMBIGUOUS,
+                    tuple(authorities),
+                    "authority conflict: validation scope manifest marks milestone "
+                    "active while structured closeout authority marks it accepted",
+                )
+            if uncertain:
+                return MilestoneScope(
+                    milestone_id,
+                    MilestoneScopeKind.AMBIGUOUS,
+                    tuple(authorities),
+                    "authority conflict: validation scope manifest marks milestone "
+                    "active while closeout authority is ambiguous",
+                )
+            return MilestoneScope(
+                milestone_id,
+                MilestoneScopeKind.CURRENT,
+                tuple(authorities),
+                "validation scope manifest explicitly requires the current contract",
+            )
+
+        if listed_accepted:
+            if active:
+                return MilestoneScope(
+                    milestone_id,
+                    MilestoneScopeKind.AMBIGUOUS,
+                    tuple(authorities),
+                    "authority conflict: validation scope manifest marks milestone "
+                    "accepted legacy while ACTIVE_CONTEXT marks it active",
+                )
+            invalid_supersedes = self._invalid_manifest_supersedes(
+                milestone_id,
+                closeouts=(*accepted, *uncertain, *nonaccepted),
+            )
+            if invalid_supersedes:
+                return MilestoneScope(
+                    milestone_id,
+                    MilestoneScopeKind.AMBIGUOUS,
+                    tuple(authorities),
+                    "validation scope manifest has unrelated or inaccurate "
+                    "supersedes authority: "
+                    + "; ".join(invalid_supersedes),
+                )
+            unsuperseded = [
+                item
+                for item in nonaccepted
+                if not self._manifest_supersedes(milestone_id, item.path)
+            ]
+            if unsuperseded:
+                return MilestoneScope(
+                    milestone_id,
+                    MilestoneScopeKind.AMBIGUOUS,
+                    tuple(authorities),
+                    "validation scope manifest accepted legacy authority conflicts "
+                    "with explicit non-accepted closeout authority that is not "
+                    "precisely superseded: "
+                    + "; ".join(item.detail for item in unsuperseded),
+                )
+            if nonaccepted:
+                authorities.extend(
+                    f"manifest supersedes {item.path.relative_to(self.root).as_posix()}"
+                    for item in nonaccepted
+                )
+            return MilestoneScope(
+                milestone_id,
+                MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
+                tuple(authorities),
+                "validation scope manifest explicitly accepts immutable legacy "
+                "history and no conflicting current authority remains",
+            )
+
+        if active and accepted:
+            return MilestoneScope(
+                milestone_id,
+                MilestoneScopeKind.AMBIGUOUS,
+                tuple(authorities),
+                "authority conflict: unlisted milestone is both explicitly active "
+                "and accepted by structured closeout authority",
+            )
+        return MilestoneScope(
+            milestone_id,
+            MilestoneScopeKind.CURRENT,
+            tuple(authorities),
+            "milestone is not listed in the validation scope manifest; current "
+            "checks remain required and lower-precedence authority cannot grant "
+            "implicit legacy scope",
+        )
+
+    def _manifest_supersedes(self, milestone_id: str, closeout_path: Path) -> bool:
+        assert self.manifest is not None
+        declared = {
+            value.casefold()
+            for value in self.manifest.superseded_paths(milestone_id)
+        }
+        actual = closeout_path.relative_to(self.root).as_posix().casefold()
+        return actual in declared
+
+    def _invalid_manifest_supersedes(
+        self,
+        milestone_id: str,
+        *,
+        closeouts: tuple[CloseoutAuthority, ...],
+    ) -> tuple[str, ...]:
+        assert self.manifest is not None
+        declared = self.manifest.superseded_paths(milestone_id)
+        if not declared:
+            return ()
+        by_path = {
+            item.path.relative_to(self.root).as_posix().casefold(): item
+            for item in closeouts
+        }
+        errors: list[str] = []
+        expected_container = (self.root / "docs" / milestone_id).resolve(strict=False)
+        for value in declared:
+            path = (self.root / Path(value)).resolve(strict=False)
+            try:
+                path.relative_to(expected_container)
+            except ValueError:
+                errors.append(f"{value} is outside docs/{milestone_id}")
+                continue
+            authority = by_path.get(value.casefold())
+            if authority is None:
+                errors.append(f"{value} does not identify an existing closeout")
+            elif authority.disposition != CloseoutDisposition.NOT_ACCEPTED:
+                errors.append(
+                    f"{value} is not an explicit non-accepted closeout"
+                )
+        return tuple(errors)
+
+
+def validate_manifest_repository_authority(
+    root: Path,
+    manifest: ValidationScopeManifest,
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    for milestone_id, declared_paths in manifest.supersedes:
+        expected_container = (root / "docs" / milestone_id).resolve(strict=False)
+        for value in declared_paths:
+            path = (root / Path(value)).resolve(strict=False)
+            try:
+                relative = path.relative_to(expected_container)
+            except ValueError:
+                errors.append(f"{value} is outside docs/{milestone_id}")
+                continue
+            if len(relative.parts) != 1:
+                errors.append(
+                    f"{value} is not a direct closeout for docs/{milestone_id}"
+                )
+                continue
+            if not path.is_file():
+                errors.append(f"{value} does not identify an existing closeout")
+                continue
+            authority = _classify_closeout(root, path)
+            if authority.disposition != CloseoutDisposition.NOT_ACCEPTED:
+                errors.append(
+                    f"{value} is not an explicit non-accepted closeout"
+                )
+    return tuple(errors)
+
 
 def _read_active_milestones(
     root: Path,
@@ -191,6 +451,7 @@ def _read_active_milestones(
         return frozenset(), (), None, False
     values: list[set[str]] = []
     authorities: list[str] = []
+    invalid_values: list[str] = []
     text = path.read_text(encoding="utf-8-sig", errors="replace")
     for line in _authority_lines(text):
         match = _ACTIVE_FIELD_RE.match(line)
@@ -203,19 +464,24 @@ def _read_active_milestones(
             continue
         parts = [part.strip().strip("`") for part in raw_value.split(",")]
         if not parts or any(_MILESTONE_ID_RE.fullmatch(part) is None for part in parts):
-            return (
-                frozenset(),
-                tuple(authorities),
-                f"active milestone authority is ambiguous: {raw_value}",
-                True,
-            )
+            invalid_values.append(raw_value)
+            continue
         values.append({part.casefold() for part in parts})
+    declared = frozenset().union(*values) if values else frozenset()
+    if invalid_values:
+        return (
+            declared,
+            tuple(authorities),
+            "active milestone authority is ambiguous: "
+            + ", ".join(invalid_values),
+            True,
+        )
     if not values:
         return frozenset(), (), None, False
     first = values[0]
     if any(value != first for value in values[1:]):
         return (
-            frozenset(),
+            declared,
             tuple(authorities),
             "active milestone authority is conflicting across structured fields",
             True,

@@ -4,8 +4,9 @@ Task Dispatch contract selection happens before record validation:
 
 ```text
 explicit matching v2 metadata                         -> current v2 contract
-terminal task/evidence + trusted accepted closeout
-  + milestone outside the active set                  -> frozen v1 contract
+explicit matching v1 metadata + immutable scope       -> frozen v1 contract
+terminal task/evidence + resolved accepted legacy
+  container scope                                     -> frozen v1 contract
 active/new work, ambiguous or mixed authority         -> fail closed
 ```
 
@@ -16,8 +17,35 @@ milestone closeout. A closeout filename, prose containing `accepted`, or
 terminal task state alone is not authority. `VERIFIED` alone never proves
 legacy scope.
 
-Authority precedence is explicit validation metadata, explicit active milestone
-authority, trusted accepted closeout authority, then inferred terminal state.
+Existing projects that cannot express historical scope with newer active-set
+fields may use a Validation Scope Manifest. `sagekit check` reads
+`docs/SAGE_VALIDATION_SCOPE.json`, or an invocation may supply an external file
+with `--scope-manifest <path>`. The JSON format is defined by
+`docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json`. It explicitly lists
+active and accepted legacy milestone IDs and records approval provenance,
+baseline HEAD, and a canonical manifest digest. It does not support ranges,
+globs, aliases, or implicit membership.
+
+The manifest is migration acceptance authority, not normal runtime state. New
+projects and ordinary v2 projects normally do not need one, and `sagekit init`
+does not create it. A CLI manifest replaces, rather than merges with, a
+project-local manifest. Container authority precedence is CLI manifest,
+project-local manifest, structured active context, structured closeout, then
+conservative current/ambiguous fallback. Lower-precedence sources still expose
+real conflicts.
+
+An accepted manifest entry may authorize history with an accepted, ambiguous,
+or missing old closeout. An explicit non-accepted closeout additionally
+requires an exact `supersedes` path identifying that closeout; unrelated or
+invented paths fail closed. Manifest acceptance that overlaps real structured
+active authority also fails closed. Unlisted milestones never become legacy.
+The manifest cannot turn a nonterminal record into v1 or downgrade an explicit
+v2 record.
+
+Record authority precedence is explicit matching v2 metadata, explicit
+matching v1 metadata, then implicit selection from resolved container scope.
+Container resolution considers explicit active milestone authority, manifest
+migration acceptance, trusted accepted closeout authority, and terminal state.
 Inferred state can satisfy the terminal-record requirement but cannot authorize
 v1 by itself. Active plus accepted authority, unknown closeout formats, and
 other conflicting, incomplete, ambiguous or mixed authority fail closed.
@@ -65,6 +93,8 @@ not rewrite accepted historical documents merely to satisfy a newer format.
 
 The Skill provides guidance only. The CLI/validator owns contract and milestone
 scope selection and must not accept a Skill claim as validation authority.
+Agents must not use a manifest to conceal current failures or rewrite accepted
+history to resemble newer formats.
 
 Finding presentation is bounded, but validation is complete. Output distinguishes
 displayed findings from exact total counts, preserves path/rule/message for each
