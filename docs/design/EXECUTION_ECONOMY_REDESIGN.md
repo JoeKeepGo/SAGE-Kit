@@ -1,7 +1,7 @@
 # Execution Economy, Continuity, and Validation Compatibility Design
 
-Status: implementation design  
-Runtime floor: Python 3.10  
+Status: implementation design
+Runtime floor: Python 3.10
 Runtime dependencies: standard library only
 
 ## 1. Purpose
