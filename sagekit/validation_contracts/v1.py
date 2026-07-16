@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from . import contract_json_digest, contract_resource
+from . import contract_json_digest, contract_resource, contract_schema_mismatches
 
 
 VERSION = 1
@@ -38,6 +38,7 @@ def validate_records(
     from ..task_dispatch_validator import validate_records as validate_legacy_records
 
     errors: list[str] = []
+    errors.extend(contract_schema_mismatches(VERSION))
     expected = contract_metadata()
     for label, record in (("task", task), ("evidence", evidence)):
         metadata = record.get("validation_contract")

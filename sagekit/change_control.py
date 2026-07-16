@@ -72,6 +72,14 @@ def decide_change(
             RunState.STOP,
             reasons=("immediate destructive risk",),
         )
+    try:
+        for value in request.changed_paths:
+            relative_repo_path(repository_root, value)
+    except ValueError as exc:
+        return ChangeDecision(
+            RunState.HUMAN_DECISION_REQUIRED,
+            reasons=(f"changed path is outside repository authority: {exc}",),
+        )
     if request.change_class == ChangeClass.C0_RECORD_ONLY:
         if not request.authority_granted:
             return ChangeDecision(
@@ -81,6 +89,12 @@ def decide_change(
             )
         return ChangeDecision(RunState.AUTO_CORRECT, ("record-consistency",))
     if request.change_class == ChangeClass.C1_BOUNDED_CORRECTIVE:
+        if not request.authority_granted:
+            return ChangeDecision(
+                RunState.HUMAN_DECISION_REQUIRED,
+                ("focused",),
+                ("bounded corrective authority is missing",),
+            )
         return _decide_corrective(repository_root, request, envelope)
     if request.change_class == ChangeClass.C2_CONTRACT_AFFECTING:
         state = RunState.CONTINUE if request.authority_granted else RunState.HUMAN_DECISION_REQUIRED

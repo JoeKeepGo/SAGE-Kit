@@ -1,7 +1,7 @@
 validation_contract:
   version: 2
   policy_id: sagekit-task-dispatch-v2
-  policy_sha256: c3acf519f25e1a476fcea418f2155dd2bceed3bed7ed4dc6d6a7cc078eb8173b
+  policy_sha256: 0a7c5039a1c1922dc5a2e7dabab04eae7cfa78c663bdc100779dd46a4cb8efc3
   scope: active
 
 task_id: TASK-000

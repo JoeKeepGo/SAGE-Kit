@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 
 from .change_control import ChangeClass
+from .evidence import EvidenceFingerprint
 from .execution_limits import ExecutionCounters
 from .pathing import is_within, relative_repo_path
 
@@ -34,7 +35,15 @@ REQUIRED_FIELDS = {
     "allowed_paths",
     "stop_conditions",
 }
-SECRET_MARKERS = ("BEGIN PRIVATE KEY", "PASSWORD=", "TOKEN=", "API_KEY=")
+SECRET_MARKERS = (
+    "BEGIN PRIVATE KEY",
+    "PASSWORD=",
+    "TOKEN=",
+    "API_KEY=",
+    "BEARER ",
+    "AUTHORIZATION:",
+    "CLIENT_SECRET",
+)
 
 
 @dataclass(frozen=True)
@@ -71,7 +80,6 @@ def create_checkpoint(
     base_sha: str | None = None,
 ) -> CheckpointResult:
     root = repository_root.resolve(strict=False)
-    _reject_secret_text(run_id, goal, authority_summary, next_action)
     git_root, branch, head = _git_state(root)
     if git_root != root:
         raise ValueError(f"target is not the repository root: {root}")
@@ -109,10 +117,12 @@ def create_checkpoint(
         "created_at": now,
         "updated_at": now,
     }
+    payload["payload_sha256"] = _json_digest(payload)
+    _reject_secrets(payload)
     encoded = (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
     if len(encoded) > MAX_CHECKPOINT_BYTES:
         raise ValueError(f"checkpoint exceeds {MAX_CHECKPOINT_BYTES} bytes")
-    path = checkpoint_path(root)
+    path = _safe_checkpoint_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="wb",
@@ -127,7 +137,12 @@ def create_checkpoint(
     return CheckpointResult(True, "checkpoint-created", f"checkpoint created at {path}", payload)
 
 
-def resume_checkpoint(repository_root: Path) -> CheckpointResult:
+def resume_checkpoint(
+    repository_root: Path,
+    *,
+    expected_authority_id: str | None = None,
+    expected_authority_version: str | None = None,
+) -> CheckpointResult:
     root = repository_root.resolve(strict=False)
     loaded = _load_checkpoint(root)
     if not loaded.ok or loaded.checkpoint is None:
@@ -146,8 +161,25 @@ def resume_checkpoint(repository_root: Path) -> CheckpointResult:
         mismatches.append(f"branch differs: checkpoint={payload.get('branch')} current={branch}")
     if payload.get("head_sha") != head:
         mismatches.append(f"HEAD differs: checkpoint={payload.get('head_sha')} current={head}")
+    recorded_payload_digest = payload.get("payload_sha256")
+    digest_payload = {key: value for key, value in payload.items() if key != "payload_sha256"}
+    if recorded_payload_digest != _json_digest(digest_payload):
+        mismatches.append("checkpoint payload digest differs")
     authority = payload.get("authority")
     if isinstance(authority, dict):
+        if expected_authority_id is not None and authority.get("id") != expected_authority_id:
+            mismatches.append(
+                f"authority id differs: checkpoint={authority.get('id')} "
+                f"expected={expected_authority_id}"
+            )
+        if (
+            expected_authority_version is not None
+            and authority.get("version") != expected_authority_version
+        ):
+            mismatches.append(
+                f"authority version differs: checkpoint={authority.get('version')} "
+                f"expected={expected_authority_version}"
+            )
         recorded_digest = authority.get("payload_sha256")
         digest_payload = {key: value for key, value in authority.items() if key != "payload_sha256"}
         if recorded_digest != _json_digest(digest_payload):
@@ -176,7 +208,10 @@ def resume_checkpoint(repository_root: Path) -> CheckpointResult:
 
 def clear_checkpoint(repository_root: Path) -> CheckpointResult:
     root = repository_root.resolve(strict=False)
-    path = checkpoint_path(root)
+    try:
+        path = _safe_checkpoint_path(root)
+    except ValueError as exc:
+        return CheckpointResult(False, "checkpoint-unsafe-path", str(exc))
     expected_parent = root / ".sagekit/runtime"
     if path.parent != expected_parent or not is_within(root, path):
         return CheckpointResult(False, "checkpoint-unsafe-path", f"unsafe checkpoint path: {path}")
@@ -187,7 +222,10 @@ def clear_checkpoint(repository_root: Path) -> CheckpointResult:
 
 
 def _load_checkpoint(root: Path) -> CheckpointResult:
-    path = checkpoint_path(root)
+    try:
+        path = _safe_checkpoint_path(root)
+    except ValueError as exc:
+        return CheckpointResult(False, "checkpoint-unsafe-path", str(exc))
     if not path.exists():
         return CheckpointResult(False, "checkpoint-missing", f"checkpoint not found: {path}")
     try:
@@ -202,6 +240,9 @@ def _load_checkpoint(root: Path) -> CheckpointResult:
             raise ValueError("checkpoint missing fields: " + ", ".join(missing))
         if payload.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
             raise ValueError(f"unsupported checkpoint schema: {payload.get('schema_version')}")
+        structure_errors = _checkpoint_structure_errors(root, payload)
+        if structure_errors:
+            raise ValueError("; ".join(structure_errors))
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         return CheckpointResult(False, "checkpoint-corrupt", f"checkpoint is corrupt: {exc}")
     return CheckpointResult(True, "checkpoint-loaded", "checkpoint loaded", payload)
@@ -248,11 +289,23 @@ def _file_reference(root: Path, value: str | Path) -> dict[str, str]:
 
 def _serialize_evidence_reference(root: Path, value: object) -> object:
     if isinstance(value, (str, Path)):
-        return _file_reference(root, value)
-    if hasattr(value, "__dataclass_fields__"):
-        return asdict(value)
+        return {"type": "file", **_file_reference(root, value)}
+    if isinstance(value, EvidenceFingerprint):
+        fingerprint = asdict(value)
+        return {
+            "type": "fingerprint",
+            "fingerprint": fingerprint,
+            "sha256": _json_digest(fingerprint),
+        }
     if isinstance(value, Mapping):
-        return dict(value)
+        fingerprint = dict(value)
+        if set(fingerprint) != set(EvidenceFingerprint.__dataclass_fields__):
+            raise ValueError("evidence fingerprint has missing or unknown fields")
+        return {
+            "type": "fingerprint",
+            "fingerprint": fingerprint,
+            "sha256": _json_digest(fingerprint),
+        }
     raise ValueError(f"unsupported evidence reference: {type(value).__name__}")
 
 
@@ -263,7 +316,21 @@ def _reference_mismatches(root: Path, references: object, label: str) -> list[st
         return [f"{label} references are invalid"]
     mismatches: list[str] = []
     for reference in references:
-        if not isinstance(reference, dict) or "path" not in reference or "sha256" not in reference:
+        if not isinstance(reference, dict):
+            mismatches.append(f"{label} reference is invalid")
+            continue
+        reference_type = "file" if label == "authority" else reference.get("type")
+        if reference_type == "fingerprint":
+            fingerprint = reference.get("fingerprint")
+            if not isinstance(fingerprint, dict) or set(fingerprint) != set(
+                EvidenceFingerprint.__dataclass_fields__
+            ):
+                mismatches.append(f"{label} fingerprint is invalid")
+            elif reference.get("sha256") != _json_digest(fingerprint):
+                mismatches.append(f"{label} fingerprint digest differs")
+            continue
+        if reference_type != "file" or "path" not in reference or "sha256" not in reference:
+            mismatches.append(f"{label} reference is invalid")
             continue
         try:
             relative = relative_repo_path(root, str(reference["path"]))
@@ -303,7 +370,93 @@ def _bounded_list(values: Iterable[str], field: str) -> list[str]:
     return items
 
 
-def _reject_secret_text(*values: str) -> None:
-    upper = "\n".join(str(value) for value in values).upper()
+def _reject_secrets(value: object) -> None:
+    strings: list[str] = []
+
+    def collect(item: object) -> None:
+        if isinstance(item, str):
+            strings.append(item)
+        elif isinstance(item, Mapping):
+            for key, child in item.items():
+                collect(key)
+                collect(child)
+        elif isinstance(item, (list, tuple)):
+            for child in item:
+                collect(child)
+
+    collect(value)
+    upper = "\n".join(strings).upper()
     if any(marker in upper for marker in SECRET_MARKERS):
         raise ValueError("checkpoint text appears to contain a credential or secret")
+
+
+def _safe_checkpoint_path(root: Path) -> Path:
+    root = root.resolve(strict=False)
+    sagekit_dir = root / ".sagekit"
+    runtime_dir = sagekit_dir / "runtime"
+    for directory in (sagekit_dir, runtime_dir):
+        if directory.exists() or directory.is_symlink():
+            if directory.is_symlink() or not is_within(root, directory):
+                raise ValueError(f"checkpoint runtime path escapes repository: {directory}")
+    return runtime_dir / "CURRENT_RUN.json"
+
+
+def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    for field in (
+        "run_id",
+        "goal",
+        "repository_root",
+        "branch",
+        "base_sha",
+        "head_sha",
+        "next_action",
+        "payload_sha256",
+    ):
+        if not isinstance(payload.get(field), str) or not payload.get(field):
+            errors.append(f"{field} must be a non-empty string")
+    try:
+        ChangeClass(str(payload.get("change_class")))
+    except ValueError:
+        errors.append("change_class is invalid")
+    list_fields = (
+        "completed_work",
+        "open_findings",
+        "evidence_references",
+        "invalidated_evidence",
+        "allowed_paths",
+        "stop_conditions",
+    )
+    for field in list_fields:
+        value = payload.get(field)
+        if not isinstance(value, list) or len(value) > 100:
+            errors.append(f"{field} must be a bounded list")
+    allowed = payload.get("allowed_paths")
+    if isinstance(allowed, list):
+        for path in allowed:
+            if not isinstance(path, str):
+                errors.append("allowed_paths entries must be strings")
+                continue
+            try:
+                relative_repo_path(root, path)
+            except ValueError:
+                errors.append(f"allowed path escapes repository: {path}")
+    counters = payload.get("execution_counters")
+    expected = set(ExecutionCounters().to_dict())
+    if not isinstance(counters, dict) or set(counters) != expected:
+        errors.append("execution_counters fields are invalid")
+    else:
+        try:
+            parsed = ExecutionCounters.from_dict(counters)
+            numeric = [getattr(parsed, name) for name in expected if name not in {
+                "root_cause_no_progress",
+                "exception_events",
+            }]
+            numeric.extend(parsed.root_cause_no_progress.values())
+            if any(item < 0 for item in numeric):
+                errors.append("execution_counters values must be non-negative")
+        except (TypeError, ValueError):
+            errors.append("execution_counters values are invalid")
+    if not isinstance(payload.get("authority"), dict):
+        errors.append("authority must be an object")
+    return errors

@@ -1041,6 +1041,7 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
             active_evidence_paths[directory] = evidence_path
     findings.extend(check_duplicate_task_ids(root, list(active_task_paths.values())))
     findings.extend(check_conflicting_exclusive_locks(root, list(active_task_paths.values())))
+    findings.extend(check_conflicting_exclusive_leases(root, list(active_task_paths.values())))
     findings.extend(check_dispatch_boards(root, active_task_paths, active_evidence_paths))
     return findings
 
@@ -1225,6 +1226,59 @@ def validate_task_dispatch_pair(
         evidence_path,
         gate_ready,
     )
+    return findings
+
+
+def check_conflicting_exclusive_leases(root: Path, task_paths: list[Path]) -> list[Finding]:
+    try:
+        from .task_dispatch_validator import ACTIVE_LOCK_STATUSES, ACTIVE_RUN_STATUSES, upper
+    except Exception:
+        return []
+    holders: list[tuple[str, str, str, str, Path]] = []
+    for task_path in sorted(task_paths):
+        loaded = load_task_identity(task_path)
+        if loaded is None:
+            continue
+        task_id, task = loaded
+        runs = task.get("runs")
+        if not isinstance(runs, list):
+            continue
+        for run in runs:
+            lease = run.get("lease") if isinstance(run, dict) else None
+            if (
+                not isinstance(lease, dict)
+                or upper(run.get("status")) not in ACTIVE_RUN_STATUSES
+                or upper(lease.get("status")) not in ACTIVE_LOCK_STATUSES
+                or upper(lease.get("mode")) != "EXCLUSIVE"
+            ):
+                continue
+            resource = str(lease.get("resource") or "").strip()
+            if resource:
+                holders.append(
+                    (
+                        normalized_lock_resource(resource),
+                        resource,
+                        task_id,
+                        str(run.get("id") or "unknown-run"),
+                        task_path,
+                    )
+                )
+    findings: list[Finding] = []
+    for index, left in enumerate(holders):
+        for right in holders[index + 1 :]:
+            if left[4] == right[4] or not lock_resources_overlap(left[0], right[0]):
+                continue
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-lease-conflict",
+                    relpath(root, left[4]),
+                    None,
+                    f"exclusive active lease conflict for {left[1]} across "
+                    f"{left[2]}/{left[3]} and {right[2]}/{right[3]}",
+                    "Release or change one lease before running concurrent work.",
+                )
+            )
     return findings
 
 

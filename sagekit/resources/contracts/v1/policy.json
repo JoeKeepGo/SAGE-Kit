@@ -7,5 +7,9 @@
   "schema_files": [
     "task.schema.json",
     "evidence.schema.json"
-  ]
+  ],
+  "schema_sha256": {
+    "task.schema.json": "d8fbfd72bfae672e740fa3aa0537e19639ff53c0165142e7a596a332e23494a3",
+    "evidence.schema.json": "59ba187deaa95cb1b95d9dccd4f135fb2f473d02af20af8469da5261645509b7"
+  }
 }

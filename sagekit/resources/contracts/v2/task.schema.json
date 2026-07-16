@@ -1,20 +1,100 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/sage-kit/contracts/v2/task.schema.json",
-  "title": "SAGE-Kit Task Dispatch v2 Task Record",
+  "$id": "https://example.invalid/sage-kit/task-dispatch/task.schema.json",
+  "title": "SAGE-Kit Task Dispatch Task Record",
   "type": "object",
-  "required": ["validation_contract", "id", "status", "lifecycle", "scope", "verification", "resources", "runs", "closure"],
+  "required": ["validation_contract", "id", "type", "title", "priority", "status", "runtime_shape", "owner", "lifecycle", "authority", "scope", "verification", "dependencies", "resources", "runs", "closure"],
   "properties": {
     "validation_contract": {"$ref": "#/$defs/validationContract"},
     "id": {"type": "string", "pattern": "^TASK-[A-Za-z0-9._-]+$"},
-    "status": {"type": "string"},
-    "lifecycle": {"type": "object"},
-    "scope": {"type": "object"},
-    "verification": {"type": "object"},
-    "resources": {"type": "object"},
-    "runs": {"type": "array"},
-    "closure": {"type": "object"}
+    "type": {"type": "string", "enum": ["bug", "spec", "chore", "review", "integration", "release"]},
+    "title": {"$ref": "#/$defs/nonEmptyString"},
+    "priority": {"type": "string", "enum": ["P0", "P1", "P2", "P3"]},
+    "status": {"$ref": "#/$defs/taskStatus"},
+    "runtime_shape": {"$ref": "#/$defs/nonEmptyString"},
+    "mode": {"type": "string"},
+    "area": {"type": "array", "items": {"$ref": "#/$defs/nonEmptyString"}, "uniqueItems": true},
+    "owner": {"$ref": "#/$defs/nonEmptyString"},
+    "lifecycle": {
+      "type": "object",
+      "required": ["phase", "review_result", "next_action"],
+      "properties": {
+        "phase": {"$ref": "#/$defs/nonEmptyString"},
+        "review_result": {"$ref": "#/$defs/reviewResult"},
+        "next_action": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "authority": {"$ref": "#/$defs/authority"},
+    "scope": {
+      "type": "object",
+      "required": ["objective", "allowed_files", "read_only_files", "forbidden_files", "non_goals", "stop_conditions"],
+      "properties": {
+        "objective": {"$ref": "#/$defs/nonEmptyString"},
+        "allowed_files": {"$ref": "#/$defs/stringArray"},
+        "read_only_files": {"$ref": "#/$defs/stringArray"},
+        "forbidden_files": {"$ref": "#/$defs/stringArray"},
+        "non_goals": {"$ref": "#/$defs/stringArray"},
+        "stop_conditions": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["required_levels", "evidence_file", "mock_allowed", "required_commands", "runtime_smoke"],
+      "properties": {
+        "required_levels": {"type": "array", "minItems": 1, "items": {"enum": ["L0", "L1", "L2", "L3", "L4"]}, "uniqueItems": true},
+        "evidence_file": {"$ref": "#/$defs/nonEmptyString"},
+        "mock_allowed": {"type": "boolean"},
+        "required_commands": {"type": "array", "items": {"$ref": "#/$defs/requiredCommand"}, "uniqueItems": true},
+        "runtime_smoke": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "required": ["requires", "blocks"],
+      "properties": {
+        "requires": {"$ref": "#/$defs/taskIdArray"},
+        "blocks": {"$ref": "#/$defs/taskIdArray"}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["locks"],
+      "properties": {"locks": {"type": "array", "items": {"$ref": "#/$defs/lockRecord"}}}
+    },
+    "runs": {"type": "array", "items": {"$ref": "#/$defs/runRecord"}},
+    "closure": {"$ref": "#/$defs/closure"}
   },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"enum": ["VERIFIED", "CLOSED"]}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "closure": {
+            "type": "object",
+            "required": ["accepted_by", "accepted_at", "review_result", "evidence_ref"],
+            "properties": {
+              "accepted_by": {"$ref": "#/$defs/nonEmptyString"},
+              "accepted_at": {"$ref": "#/$defs/nonEmptyString"},
+              "review_result": {"enum": ["ACCEPTABLE", "ACCEPTABLE_WITH_CONCERNS"]},
+              "evidence_ref": {"$ref": "#/$defs/nonEmptyString"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"status": {"const": "CLOSED"}}, "required": ["status"]},
+      "then": {
+        "properties": {
+          "closure": {
+            "type": "object",
+            "required": ["closed_at"],
+            "properties": {"closed_at": {"$ref": "#/$defs/nonEmptyString"}}
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "validationContract": {
       "type": "object",
@@ -24,6 +104,123 @@
         "policy_id": {"const": "sagekit-task-dispatch-v2"},
         "policy_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "scope": {"const": "active"}
+      }
+    },
+    "nonEmptyString": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "stringArray": {"type": "array", "items": {"$ref": "#/$defs/nonEmptyString"}, "uniqueItems": true},
+    "taskIdArray": {"type": "array", "items": {"type": "string", "pattern": "^TASK-[A-Za-z0-9._-]+$"}, "uniqueItems": true},
+    "taskStatus": {"type": "string", "enum": ["NEW", "TRIAGED", "READY", "IN_PROGRESS", "READY_FOR_REVIEW", "VERIFIED", "PARTIAL", "BLOCKED", "CLOSED"]},
+    "reviewResult": {"type": "string", "enum": ["PENDING", "ACCEPTABLE", "ACCEPTABLE_WITH_CONCERNS", "NEEDS_CORRECTION", "BLOCKED", "N/A"]},
+    "authority": {
+      "type": "object",
+      "required": ["source", "grant", "scope"],
+      "properties": {
+        "source": {"$ref": "#/$defs/nonEmptyString"},
+        "grant": {"type": "string", "enum": ["READ_ONLY_REVIEW", "WRITE_AUTHORIZED", "CORRECTIVE_AUTHORIZED", "ENVIRONMENT_WRITE_AUTHORIZED", "SUBMIT_AUTHORIZED"]},
+        "scope": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "requiredCommand": {
+      "type": "object",
+      "required": ["id", "command", "purpose", "source", "expected_result"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^CMD-[A-Za-z0-9._-]+$"},
+        "command": {"$ref": "#/$defs/nonEmptyString"},
+        "purpose": {"$ref": "#/$defs/nonEmptyString"},
+        "source": {"$ref": "#/$defs/nonEmptyString"},
+        "expected_result": {"$ref": "#/$defs/nonEmptyString"}
+      }
+    },
+    "lease": {
+      "type": "object",
+      "required": ["resource", "owner", "mode", "status"],
+      "properties": {
+        "resource": {"$ref": "#/$defs/nonEmptyString"},
+        "owner": {"$ref": "#/$defs/nonEmptyString"},
+        "mode": {"enum": ["exclusive", "shared"]},
+        "status": {"enum": ["ACTIVE", "HELD", "RELEASED", "EXPIRED"]},
+        "expires_at": {"type": ["string", "null"]},
+        "release_rule": {"type": ["string", "null"]},
+        "released_at": {"type": ["string", "null"]}
+      },
+      "anyOf": [
+        {"properties": {"expires_at": {"$ref": "#/$defs/nonEmptyString"}}, "required": ["expires_at"]},
+        {"properties": {"release_rule": {"$ref": "#/$defs/nonEmptyString"}}, "required": ["release_rule"]}
+      ]
+    },
+    "runRecord": {
+      "type": "object",
+      "required": ["id", "attempt", "status", "owner", "authority_ref", "phase", "next_action", "uses_shared_resource"],
+      "properties": {
+        "id": {"$ref": "#/$defs/nonEmptyString"},
+        "attempt": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["PENDING", "RUNNING", "PASSED", "FAILED", "BLOCKED", "ABORTED"]},
+        "owner": {"$ref": "#/$defs/nonEmptyString"},
+        "authority_ref": {"$ref": "#/$defs/nonEmptyString"},
+        "phase": {"$ref": "#/$defs/nonEmptyString"},
+        "next_action": {"$ref": "#/$defs/nonEmptyString"},
+        "uses_shared_resource": {"type": "boolean"},
+        "lease": {"$ref": "#/$defs/lease"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"uses_shared_resource": {"const": true}}, "required": ["uses_shared_resource"]},
+          "then": {"required": ["lease"]},
+          "else": {"not": {"required": ["lease"]}}
+        }
+      ]
+    },
+    "lockRecord": {
+      "type": "object",
+      "required": ["resource", "owner", "mode", "status", "carried"],
+      "properties": {
+        "resource": {"$ref": "#/$defs/nonEmptyString"},
+        "owner": {"$ref": "#/$defs/nonEmptyString"},
+        "mode": {"enum": ["exclusive", "shared"]},
+        "status": {"enum": ["ACTIVE", "HELD", "RELEASED", "EXPIRED"]},
+        "carried": {"type": "boolean"},
+        "carried_from": {"type": ["string", "null"]},
+        "expires_at": {"type": ["string", "null"]},
+        "release_rule": {"type": ["string", "null"]},
+        "released_at": {"type": ["string", "null"]},
+        "release_evidence": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"carried": {"const": true}}, "required": ["carried"]},
+          "then": {"required": ["carried_from"], "properties": {"carried_from": {"$ref": "#/$defs/nonEmptyString"}}}
+        },
+        {
+          "if": {"properties": {"status": {"enum": ["ACTIVE", "HELD"]}}, "required": ["status"]},
+          "then": {
+            "anyOf": [
+              {"properties": {"expires_at": {"$ref": "#/$defs/nonEmptyString"}}, "required": ["expires_at"]},
+              {"properties": {"release_rule": {"$ref": "#/$defs/nonEmptyString"}}, "required": ["release_rule"]}
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "RELEASED"}}, "required": ["status"]},
+          "then": {
+            "required": ["released_at", "release_evidence"],
+            "properties": {
+              "released_at": {"$ref": "#/$defs/nonEmptyString"},
+              "release_evidence": {"$ref": "#/$defs/nonEmptyString"}
+            }
+          }
+        }
+      ]
+    },
+    "closure": {
+      "type": "object",
+      "required": ["accepted_by", "accepted_at", "closed_at", "review_result", "evidence_ref", "notes"],
+      "properties": {
+        "accepted_by": {"type": ["string", "null"]},
+        "accepted_at": {"type": ["string", "null"]},
+        "closed_at": {"type": ["string", "null"]},
+        "review_result": {"$ref": "#/$defs/reviewResult"},
+        "evidence_ref": {"type": ["string", "null"]},
+        "notes": {"type": ["string", "null"]}
       }
     }
   }

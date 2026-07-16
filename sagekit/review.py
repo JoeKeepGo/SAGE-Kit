@@ -92,7 +92,7 @@ def accept_initial_report(
     )
     blocking = tuple(item for item in report.findings if is_blocking(item))
     return InitialReviewDecision(
-        RunState.BLOCKED if blocking else RunState.CONTINUE,
+        RunState.HUMAN_DECISION_REQUIRED if blocking else RunState.CONTINUE,
         updated,
         blocking,
     )
@@ -126,8 +126,10 @@ def evaluate_corrective_rereview(
     backlog: list[ReviewFinding] = list(state.backlog)
     for finding in rereview.findings:
         if finding.finding_id in original_ids or finding.direct_regression or is_blocking(finding):
-            if is_blocking(finding) or finding.finding_id in original_ids:
+            if is_blocking(finding):
                 blocking.append(finding)
+            elif finding.priority in {Priority.P2, Priority.P3}:
+                backlog.append(finding)
             continue
         if finding.priority in {Priority.P2, Priority.P3}:
             backlog.append(finding)
@@ -138,7 +140,7 @@ def evaluate_corrective_rereview(
         backlog=tuple(backlog),
     )
     return CorrectiveReviewDecision(
-        RunState.BLOCKED if blocking else RunState.CONTINUE,
+        RunState.HUMAN_DECISION_REQUIRED if blocking else RunState.CONTINUE,
         updated,
         tuple(blocking),
         tuple(backlog),

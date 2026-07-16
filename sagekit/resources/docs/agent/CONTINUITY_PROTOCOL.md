@@ -52,6 +52,10 @@ the current state without printing the full checkpoint. `sagekit resume`
 returns the bounded resume packet. It never executes arbitrary commands.
 `checkpoint clear` removes only `CURRENT_RUN.json`.
 
+Use repeated `--counter NAME=VALUE` arguments when creating a checkpoint.
+Callers that hold an authority anchor should pass `--expect-authority-id` and
+`--expect-authority-version` to `status` or `resume`; a mismatch fails closed.
+
 ## Resume Contract
 
 Resume:
@@ -59,8 +63,9 @@ Resume:
 1. finds and parses the checkpoint;
 2. validates schema and size bounds;
 3. verifies repository root, branch, and exact HEAD;
-4. verifies authority payload and reference digests;
-5. verifies file-backed evidence references;
+4. verifies the whole continuation payload digest, the authority payload,
+   optional caller authority anchors, and reference digests;
+5. verifies typed file or evidence-fingerprint references;
 6. emits completed work, open findings, invalidated evidence, counters, allowed
    paths, stop conditions, and `next_action`.
 

@@ -25,6 +25,7 @@ from sagekit.execution_limits import (
     ExecutionCounters,
     ExecutionLimits,
     consume_event,
+    consume_event_with_checkpoint,
     record_root_cause_progress,
 )
 from sagekit.pathing import is_within, normalize_contract_path
@@ -185,6 +186,22 @@ class ChangeControlTests(unittest.TestCase):
 
         self.assertEqual(RunState.HUMAN_DECISION_REQUIRED, decision.state)
 
+    def test_untrusted_or_escaping_changes_fail_closed(self):
+        for request in (
+            ChangeRequest(ChangeClass.C0_RECORD_ONLY, ("../outside",)),
+            ChangeRequest(
+                ChangeClass.C1_BOUNDED_CORRECTIVE,
+                ("src/widget.py",),
+                authority_granted=False,
+            ),
+        ):
+            decision = decide_change(
+                Path.cwd(),
+                request,
+                corrective_envelope("src/"),
+            )
+            self.assertEqual(RunState.HUMAN_DECISION_REQUIRED, decision.state)
+
 
 class EvidenceTests(unittest.TestCase):
     def test_unrelated_change_reuses_evidence(self):
@@ -255,6 +272,19 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(matching.reusable)
         self.assertTrue(unrelated.reusable)
 
+    def test_failed_evidence_and_c0_authority_drift_are_never_reused(self):
+        failed = assess_evidence(
+            evidence(result="FAIL"),
+            ChangeEvent(ChangeClass.C1_BOUNDED_CORRECTIVE),
+        )
+        authority_drift = assess_evidence(
+            evidence(kind="record-consistency"),
+            ChangeEvent(ChangeClass.C0_RECORD_ONLY, authority_version="A2"),
+        )
+
+        self.assertFalse(failed.reusable)
+        self.assertFalse(authority_drift.reusable)
+
 
 class ExecutionLimitAndReviewTests(unittest.TestCase):
     def test_limit_exhaustion_returns_handoff_ready(self):
@@ -278,6 +308,18 @@ class ExecutionLimitAndReviewTests(unittest.TestCase):
 
         self.assertEqual(RunState.CONTINUE, first.state)
         self.assertEqual(RunState.BLOCKED, second.state)
+
+    def test_limit_handoff_persists_checkpoint_before_returning(self):
+        persisted = []
+        decision = consume_event_with_checkpoint(
+            ExecutionCounters(full_suite_runs_after_baseline=1),
+            ExecutionLimits(),
+            "full_suite_runs_after_baseline",
+            lambda counters, reason: persisted.append((counters, reason)) or True,
+        )
+
+        self.assertEqual(RunState.HANDOFF_READY, decision.state)
+        self.assertEqual(1, len(persisted))
 
     def test_unrelated_new_p2_and_p3_enter_backlog(self):
         state = ReviewState()
@@ -316,6 +358,24 @@ class ExecutionLimitAndReviewTests(unittest.TestCase):
                 )
             )
         )
+
+    def test_original_nonblocking_finding_does_not_block_corrective_rereview(self):
+        original = ReviewReport(
+            "docs",
+            (ReviewFinding("STYLE", Priority.P3, "style", "formatting"),),
+        )
+        accepted = accept_initial_report(ReviewState(), original, ExecutionLimits())
+        rereview = ReviewReport("docs", original.findings)
+
+        result = evaluate_corrective_rereview(
+            accepted.state,
+            original,
+            rereview,
+            ExecutionLimits(),
+        )
+
+        self.assertEqual(RunState.CONTINUE, result.outcome)
+        self.assertEqual((), result.blocking_findings)
 
 
 class PathingTests(unittest.TestCase):
@@ -513,6 +573,88 @@ class ContinuityTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertTrue(any("authority payload digest" in item for item in result.mismatches))
 
+    def test_continuation_field_and_fingerprint_tamper_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            create_checkpoint(
+                root,
+                run_id="run-integrity",
+                goal="Protect continuation state",
+                authority_id="request",
+                authority_version="1",
+                authority_summary="Direct maintainer request",
+                change_class=ChangeClass.C1_BOUNDED_CORRECTIVE,
+                completed_work=(),
+                open_findings=(),
+                evidence_references=(evidence(),),
+                invalidated_evidence=(),
+                execution_counters=ExecutionCounters(),
+                next_action="continue",
+                allowed_paths=("tracked.txt",),
+                stop_conditions=(),
+            )
+            payload = json.loads(checkpoint_path(root).read_text(encoding="utf-8"))
+            payload["next_action"] = "unsafe replacement"
+            payload["evidence_references"][0]["fingerprint"]["result"] = "FAIL"
+            checkpoint_path(root).write_text(json.dumps(payload), encoding="utf-8")
+
+            result = resume_checkpoint(root)
+
+            self.assertFalse(result.ok)
+            self.assertTrue(any("checkpoint payload digest" in item for item in result.mismatches))
+
+    def test_secrets_are_rejected_anywhere_in_checkpoint_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            with self.assertRaisesRegex(ValueError, "credential or secret"):
+                create_checkpoint(
+                    root,
+                    run_id="run-secret",
+                    goal="Safe checkpoint",
+                    authority_id="request",
+                    authority_version="1",
+                    authority_summary="Direct maintainer request",
+                    change_class=ChangeClass.C0_RECORD_ONLY,
+                    completed_work=("Bearer abc123",),
+                    open_findings=(),
+                    evidence_references=(),
+                    invalidated_evidence=(),
+                    execution_counters=ExecutionCounters(),
+                    next_action="continue",
+                    allowed_paths=("tracked.txt",),
+                    stop_conditions=(),
+                )
+
+    def test_checkpoint_write_rejects_runtime_symlink_escape(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside:
+            root = Path(directory)
+            init_repository(root)
+            (root / ".sagekit").mkdir()
+            try:
+                (root / ".sagekit/runtime").symlink_to(Path(outside), target_is_directory=True)
+            except OSError:
+                self.skipTest("symlink creation is unavailable")
+            with self.assertRaisesRegex(ValueError, "escapes repository"):
+                create_checkpoint(
+                    root,
+                    run_id="run-link",
+                    goal="Reject path escape",
+                    authority_id="request",
+                    authority_version="1",
+                    authority_summary="Direct maintainer request",
+                    change_class=ChangeClass.C0_RECORD_ONLY,
+                    completed_work=(),
+                    open_findings=(),
+                    evidence_references=(),
+                    invalidated_evidence=(),
+                    execution_counters=ExecutionCounters(),
+                    next_action="continue",
+                    allowed_paths=("tracked.txt",),
+                    stop_conditions=(),
+                )
+
     def test_tracked_runtime_finding_names_git_hygiene_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -560,6 +702,8 @@ class ContinuityCliTests(unittest.TestCase):
                 "sagekit/",
                 "--stop-condition",
                 "authority expands",
+                "--counter",
+                "full_suite_runs_after_baseline=1",
                 cwd=root,
             )
             status = run_sagekit(
@@ -568,9 +712,23 @@ class ContinuityCliTests(unittest.TestCase):
                 "--target",
                 str(root),
                 "--json",
+                "--expect-authority-id",
+                "maintainer-request",
+                "--expect-authority-version",
+                "1",
                 cwd=root,
             )
-            resumed = run_sagekit("resume", "--target", str(root), "--json", cwd=root)
+            resumed = run_sagekit(
+                "resume",
+                "--target",
+                str(root),
+                "--json",
+                "--expect-authority-id",
+                "maintainer-request",
+                "--expect-authority-version",
+                "1",
+                cwd=root,
+            )
             cleared = run_sagekit(
                 "checkpoint",
                 "clear",
@@ -587,6 +745,12 @@ class ContinuityCliTests(unittest.TestCase):
             self.assertEqual(
                 "continue focused implementation",
                 resume_payload["resume"]["next_action"],
+            )
+            self.assertEqual(
+                1,
+                resume_payload["resume"]["execution_counters"][
+                    "full_suite_runs_after_baseline"
+                ],
             )
             self.assertNotIn("authority_summary", resume_payload)
             self.assertEqual(0, cleared.returncode, cleared.stderr)

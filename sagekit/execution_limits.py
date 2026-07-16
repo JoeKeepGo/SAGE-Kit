@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from typing import Callable
 
 from .change_control import RunState
 
@@ -70,6 +71,9 @@ class LimitDecision:
     reason: str | None = None
 
 
+CheckpointWriter = Callable[[ExecutionCounters, str], bool]
+
+
 def consume_event(
     counters: ExecutionCounters,
     limits: ExecutionLimits,
@@ -102,6 +106,33 @@ def consume_event(
     return LimitDecision(
         RunState.CONTINUE,
         replace(counters, **{event: current + 1}),
+    )
+
+
+def consume_event_with_checkpoint(
+    counters: ExecutionCounters,
+    limits: ExecutionLimits,
+    event: str,
+    checkpoint_writer: CheckpointWriter,
+    *,
+    invalidation_reason: str | None = None,
+) -> LimitDecision:
+    """Persist resumable state before exposing a limit-driven handoff."""
+    decision = consume_event(
+        counters,
+        limits,
+        event,
+        invalidation_reason=invalidation_reason,
+    )
+    if decision.state != RunState.HANDOFF_READY:
+        return decision
+    reason = decision.reason or f"{event} limit reached"
+    if checkpoint_writer(decision.counters, reason):
+        return decision
+    return LimitDecision(
+        RunState.BLOCKED,
+        decision.counters,
+        f"checkpoint persistence failed before handoff: {reason}",
     )
 
 

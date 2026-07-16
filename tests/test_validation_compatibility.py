@@ -1,6 +1,7 @@
 import json
 import hashlib
 import ast
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -204,6 +205,50 @@ class ContractResourceTests(unittest.TestCase):
             self.assertIn("validation_contract", payload["required"])
             self.assertIn("validation_contract", payload["properties"])
 
+    def test_packaged_schemas_are_exact_snapshots_with_bound_digests(self):
+        source_root = REPO_ROOT / "docs/profiles/task-dispatch/schemas"
+        for version in (1, 2):
+            policy = json.loads(contract_resource(version, "policy.json").read_text(encoding="utf-8"))
+            for name in ("task.schema.json", "evidence.schema.json"):
+                packaged = json.loads(contract_resource(version, name).read_text(encoding="utf-8"))
+                canonical = json.dumps(
+                    packaged,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                self.assertEqual(hashlib.sha256(canonical).hexdigest(), policy["schema_sha256"][name])
+                if version == 2:
+                    current = json.loads((source_root / name).read_text(encoding="utf-8"))
+                    self.assertEqual(current, packaged)
+                else:
+                    frozen = subprocess.run(
+                        [
+                            "git",
+                            "show",
+                            "626706a5c4a9bc4cce9ce7dc69effb6eaf960141:"
+                            f"docs/profiles/task-dispatch/schemas/{name}",
+                        ],
+                        cwd=REPO_ROOT,
+                        text=True,
+                        stdout=subprocess.PIPE,
+                        check=True,
+                    )
+                    self.assertEqual(json.loads(frozen.stdout), packaged)
+
+    def test_packaged_contracts_reject_records_missing_core_fields(self):
+        from sagekit.validation_contracts.v1 import validate_records as validate_v1
+        from sagekit.validation_contracts.v2 import validate_records as validate_v2
+
+        for validate in (validate_v1, validate_v2):
+            task, evidence = active_records()
+            if validate is validate_v1:
+                task, evidence = closed_legacy_records()
+            task.pop("authority", None)
+            evidence.pop("runtime_shape", None)
+            errors = validate(task, evidence)
+            self.assertTrue(any("authority" in error for error in errors))
+            self.assertTrue(any("runtime_shape" in error for error in errors))
+
     def test_source_manifest_includes_compatibility_runtime_and_policy(self):
         for relative in (
             "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
@@ -279,6 +324,41 @@ class ProjectCheckCompatibilityTests(unittest.TestCase):
                 for finding in findings
             )
         )
+
+    def test_active_exclusive_run_leases_conflict_across_tasks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index in (1, 2):
+                task, evidence = active_records()
+                task["id"] = f"TASK-{index}"
+                evidence["task_id"] = task["id"]
+                run = {
+                    "id": f"run-{index}",
+                    "attempt": 1,
+                    "status": "RUNNING",
+                    "owner": f"worker-{index}",
+                    "authority_ref": "approved task authority",
+                    "phase": "implementation",
+                    "next_action": "finish",
+                    "uses_shared_resource": True,
+                    "lease": {
+                        "resource": "src/shared",
+                        "owner": f"worker-{index}",
+                        "mode": "exclusive",
+                        "status": "ACTIVE",
+                        "release_rule": "after completion",
+                    },
+                }
+                task["runs"] = [run]
+                evidence["runs"] = [run]
+                pair = root / f"docs/M1/dispatch/TASK-{index}"
+                pair.mkdir(parents=True)
+                (pair / "task.yaml").write_text(json.dumps(task), encoding="utf-8")
+                (pair / "evidence.yaml").write_text(json.dumps(evidence), encoding="utf-8")
+
+            findings = check_task_dispatch(root)
+
+        self.assertIn("task-dispatch-lease-conflict", {item.rule for item in findings})
 
 
 class BoundedReportingTests(unittest.TestCase):

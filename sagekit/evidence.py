@@ -47,6 +47,8 @@ def assess_evidence(
     event: ChangeEvent,
 ) -> EvidenceAssessment:
     reasons: list[str] = []
+    if fingerprint.result != "PASS":
+        reasons.append(f"evidence result is not reusable: {fingerprint.result}")
     platform = "windows" if fingerprint.platform.lower().startswith("win") else "posix"
     path_changed = any(
         paths_overlap(covered, changed, platform)
@@ -57,13 +59,11 @@ def assess_evidence(
     if event.change_class == ChangeClass.C0_RECORD_ONLY:
         if fingerprint.kind == "record-consistency" and path_changed:
             reasons.append("covered record changed")
-        return EvidenceAssessment(fingerprint.evidence_id, not reasons, tuple(reasons))
-
-    if event.change_class == ChangeClass.C1_BOUNDED_CORRECTIVE and path_changed:
+    elif event.change_class == ChangeClass.C1_BOUNDED_CORRECTIVE and path_changed:
         if fingerprint.kind in {"focused", "affected-lane", "semantic", "integration"}:
             reasons.append("covered path changed")
 
-    if event.change_class == ChangeClass.C2_CONTRACT_AFFECTING:
+    elif event.change_class == ChangeClass.C2_CONTRACT_AFFECTING:
         if set(fingerprint.covered_contracts).intersection(event.changed_contracts):
             reasons.append("covered contract changed")
         if path_changed and fingerprint.kind in {"semantic", "affected-lane", "integration"}:
