@@ -2,7 +2,8 @@
 
 Validation contract selection is governed by
 `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Active/new records use
-explicit v2 metadata. Closed unversioned history uses frozen v1. Ambiguous or
+explicit v2 metadata. Terminal unversioned history uses frozen v1 only with
+trusted accepted closeout authority for an inactive milestone. Ambiguous or
 mixed records fail closed, and v2 failure never falls back to v1.
 
 This profile adds machine-checkable task and evidence records to SAGE-Kit. It

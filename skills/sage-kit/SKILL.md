@@ -121,6 +121,12 @@ handoff.
 - Validate closed legacy Task Dispatch history with its frozen contract. Require
   current metadata for active work; mixed or ambiguous records fail closed, and
   a current-contract failure must never fall back to a legacy contract.
+- CLI/validator owns contract and milestone scope selection. Skill guidance,
+  filenames, prose, or terminal record state alone cannot authorize legacy
+  validation.
+- Do not rewrite accepted historical documents to satisfy current phase format.
+  The validator reports immutable accepted history through an auditable,
+  aggregated compatibility finding.
 - When a deterministic local limit is reached, create a checkpoint and return
   `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
 - Treat full-suite and wheel/install runs before review and corrective closure

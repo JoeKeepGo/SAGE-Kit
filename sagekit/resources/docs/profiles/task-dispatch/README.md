@@ -4,7 +4,8 @@
 
 New and active task/evidence pairs declare the v2 `validation_contract` block
 shown in the templates. The policy digest must match the packaged v2 policy.
-Closed legacy pairs without version metadata are validated under frozen v1.
+Terminal legacy pairs without version metadata use frozen v1 only with trusted
+accepted closeout authority for an inactive milestone.
 Mixed records, unversioned active records, unsupported versions, and policy
 tamper fail closed. A v2 failure never falls back to v1.
 

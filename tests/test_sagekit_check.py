@@ -180,6 +180,36 @@ def write_valid_planning_phase(root):
     )
 
 
+def write_active_milestones(root, *milestones):
+    value = ", ".join(milestones) if milestones else "none"
+    write_file(
+        root,
+        "docs/ACTIVE_CONTEXT.md",
+        f"# Active Context\n\n- Current milestone: `{value}`",
+    )
+
+
+def write_closeout(root, milestone, status=None, prose=None):
+    lines = ["# Milestone Closeout", "", "## Outcome", ""]
+    if status is not None:
+        lines.append(f"- Status: `{status}`")
+    if prose is not None:
+        lines.extend(["", prose])
+    write_file(root, f"docs/{milestone}/MILESTONE_CLOSEOUT.md", "\n".join(lines))
+
+
+def write_historical_phase(root, milestone, name="01-foundation.md"):
+    write_file(
+        root,
+        f"docs/{milestone}/{name}",
+        f"""
+        # {milestone} Historical Phase
+
+        Goal: Preserve the accepted foundation.
+        """,
+    )
+
+
 def write_dispatch_pair(root, task_id, lock=None, directory_id=None):
     task = {
         "id": task_id,
@@ -355,6 +385,213 @@ class SagekitCheckTests(unittest.TestCase):
                     item["level"] == "FAIL" and item["rule"] == "phase-runtime-smoke"
                     for item in payload["findings"]
                 )
+            )
+
+    def test_accepted_historical_phase_is_not_retroactively_checked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_active_milestones(root, "M2")
+            write_closeout(root, "M1", status="ACCEPTED")
+            write_historical_phase(root, "M1")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 0, result.stdout)
+            payload = json.loads(result.stdout)
+            historical = [
+                item
+                for item in payload["findings"]
+                if item["path"] and item["path"].startswith("docs/M1")
+            ]
+            self.assertEqual(
+                1,
+                len(
+                    [
+                        item
+                        for item in historical
+                        if item["rule"] == "phase-scope-compatibility"
+                    ]
+                ),
+                historical,
+            )
+            self.assertTrue(
+                any(
+                    item["rule"] == "phase-scope-compatibility"
+                    and "immutable accepted history" in item["message"].lower()
+                    for item in historical
+                ),
+                historical,
+            )
+            self.assertFalse(
+                [
+                    item
+                    for item in historical
+                    if item["level"] == "FAIL" and item["rule"].startswith("phase-")
+                ],
+                historical,
+            )
+
+    def test_current_phase_still_requires_latest_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_active_milestones(root, "M2")
+            write_historical_phase(root, "M2", name="01-current.md")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "FAIL"
+                    and item["rule"] == "phase-governance"
+                    and item["path"].startswith("docs/M2")
+                    for item in payload["findings"]
+                ),
+                payload,
+            )
+
+    def test_active_and_accepted_phase_authority_conflict_reports_root_cause_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_active_milestones(root, "M3")
+            write_closeout(root, "M3", status="DONE")
+            write_historical_phase(root, "M3")
+            write_historical_phase(root, "M3", name="02-second.md")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            scope_failures = [
+                item
+                for item in payload["findings"]
+                if item["level"] == "FAIL"
+                and item["rule"] == "milestone-scope"
+                and item["path"] == "docs/M3"
+            ]
+            self.assertEqual(1, len(scope_failures), payload)
+            self.assertIn("authority conflict", scope_failures[0]["message"].lower())
+            self.assertFalse(
+                [
+                    item
+                    for item in payload["findings"]
+                    if item["level"] == "FAIL"
+                    and item["path"]
+                    and item["path"].startswith("docs/M3/")
+                    and item["rule"].startswith("phase-")
+                ],
+                payload,
+            )
+
+    def test_phase_checker_resolves_each_milestone_scope_once(self):
+        from sagekit.check import check_phase_docs
+        from sagekit.milestone_scope import RepositoryScopeResolver
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_active_milestones(root, "M1")
+            write_historical_phase(root, "M1")
+            write_historical_phase(root, "M1", name="02-second.md")
+            original = RepositoryScopeResolver.resolve
+            calls = []
+
+            def tracked_resolve(resolver, milestone_dir):
+                calls.append(milestone_dir.name)
+                return original(resolver, milestone_dir)
+
+            with patch.object(RepositoryScopeResolver, "resolve", tracked_resolve):
+                check_phase_docs(root)
+
+        self.assertEqual(["M1"], calls)
+
+    def test_unstructured_closeout_authority_fails_closed_without_phase_noise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_active_milestones(root, "M2")
+            write_closeout(
+                root,
+                "M3",
+                prose="This narrative says accepted but has no structured outcome.",
+            )
+            write_historical_phase(root, "M3")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["level"] == "FAIL"
+                    and item["rule"] == "milestone-scope"
+                    and item["path"] == "docs/M3"
+                    and "ambiguous" in item["message"].lower()
+                    for item in payload["findings"]
+                ),
+                payload,
+            )
+            self.assertFalse(
+                [
+                    item
+                    for item in payload["findings"]
+                    if item["level"] == "FAIL"
+                    and item["path"]
+                    and item["path"].startswith("docs/M3/")
+                    and item["rule"].startswith("phase-")
+                ],
+                payload,
+            )
+
+    def test_generic_scope_fixture_routes_history_current_and_conflict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_required_docs(root)
+            write_active_milestones(root, "M2", "M3")
+            write_closeout(root, "M1", status="DONE_WITH_CONCERNS")
+            write_closeout(root, "M3", status="ACCEPTED")
+            write_historical_phase(root, "M1")
+            write_valid_planning_phase(root)
+            source = root / "docs/M1/01-planning.md"
+            (root / "docs/M2").mkdir(parents=True, exist_ok=True)
+            source.replace(root / "docs/M2/01-current.md")
+            write_historical_phase(root, "M3")
+
+            result = run_sagekit("check", "--json", cwd=root)
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            payload = json.loads(result.stdout)
+            self.assertTrue(
+                any(
+                    item["rule"] == "phase-scope-compatibility"
+                    and item["path"] == "docs/M1"
+                    for item in payload["findings"]
+                ),
+                payload,
+            )
+            self.assertFalse(
+                any(
+                    item["level"] == "FAIL"
+                    and item["path"]
+                    and item["path"].startswith("docs/M2/")
+                    for item in payload["findings"]
+                ),
+                payload,
+            )
+            self.assertEqual(
+                1,
+                len(
+                    [
+                        item
+                        for item in payload["findings"]
+                        if item["rule"] == "milestone-scope"
+                        and item["path"] == "docs/M3"
+                    ]
+                ),
+                payload,
             )
 
     def test_empty_runtime_smoke_section_fails_even_when_tests_have_command(self):

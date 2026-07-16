@@ -67,6 +67,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/review.py",
     "sagekit/continuity.py",
     "sagekit/compatibility.py",
+    "sagekit/milestone_scope.py",
     "sagekit/reporting.py",
     "sagekit/validation_contracts/__init__.py",
     "sagekit/validation_contracts/v1.py",
@@ -763,12 +764,54 @@ def check_doc_routing(root: Path) -> list[Finding]:
 
 
 def check_phase_docs(root: Path) -> list[Finding]:
+    from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
+
     findings: list[Finding] = []
+    phase_paths: dict[Path, list[Path]] = {}
     for path in sorted((root / "docs").glob("M*/[0-9][0-9]-*.md")):
-        if "_TEMPLATE" in path.name:
+        if "_TEMPLATE" not in path.name:
+            phase_paths.setdefault(path.parent, []).append(path)
+    resolver = RepositoryScopeResolver(root)
+    for milestone_dir, paths in sorted(phase_paths.items()):
+        scope = resolver.resolve(milestone_dir)
+        display = relpath(root, milestone_dir)
+        if scope.kind == MilestoneScopeKind.AMBIGUOUS:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "milestone-scope",
+                    display,
+                    None,
+                    scope.detail,
+                    "Reconcile active-context and closeout authority before validating phases.",
+                )
+            )
             continue
-        text = read_text(path)
-        findings.extend(check_one_phase(root, path, text))
+        if scope.kind == MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY:
+            findings.append(
+                Finding(
+                    "PASS",
+                    "phase-scope-compatibility",
+                    display,
+                    None,
+                    f"treated {len(paths)} phase document(s) as immutable accepted history "
+                    f"using {'; '.join(scope.authorities)}",
+                )
+            )
+            for path in paths:
+                if not read_text(path).strip():
+                    findings.append(
+                        Finding(
+                            "FAIL",
+                            "phase-history-integrity",
+                            relpath(root, path),
+                            None,
+                            "accepted historical phase document is empty",
+                        )
+                    )
+            continue
+        for path in paths:
+            findings.extend(check_one_phase(root, path, read_text(path)))
     return findings
 
 
@@ -997,6 +1040,8 @@ def check_adapter_evidence(root: Path, path: Path, text: str) -> list[Finding]:
 
 
 def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
+    from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
+
     findings: list[Finding] = []
     docs = root / "docs"
     if not docs.exists():
@@ -1005,6 +1050,9 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
     evidence_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/evidence.yaml")}
     active_task_paths: dict[Path, Path] = {}
     active_evidence_paths: dict[Path, Path] = {}
+    resolver = RepositoryScopeResolver(root)
+    scopes = {}
+    reported_scope_failures: set[Path] = set()
     for directory in sorted(set(task_paths) | set(evidence_paths)):
         task_path = task_paths.get(directory)
         evidence_path = evidence_paths.get(directory)
@@ -1030,12 +1078,42 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
                 )
             )
             continue
+        relative_parts = directory.relative_to(docs).parts
+        milestone_dir = docs / relative_parts[0]
+        if milestone_dir not in scopes:
+            scopes[milestone_dir] = resolver.resolve(milestone_dir)
+        scope = scopes[milestone_dir]
+        if (
+            scope.kind == MilestoneScopeKind.AMBIGUOUS
+            and milestone_dir not in reported_scope_failures
+        ):
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "milestone-scope",
+                    relpath(root, milestone_dir),
+                    None,
+                    scope.detail,
+                    "Reconcile active-context and closeout authority before validating records.",
+                )
+            )
+            reported_scope_failures.add(milestone_dir)
         pair_findings, active_reconciliation = validate_task_dispatch_pair_with_scope(
             root,
             task_path,
             evidence_path,
             gate_ready,
+            scope,
         )
+        if scope.kind == MilestoneScopeKind.AMBIGUOUS:
+            pair_findings = [
+                finding
+                for finding in pair_findings
+                if not (
+                    finding.rule == "task-dispatch"
+                    and finding.message == scope.detail
+                )
+            ]
         findings.extend(pair_findings)
         if active_reconciliation:
             active_task_paths[directory] = task_path
@@ -1221,11 +1299,21 @@ def check_dispatch_boards(
 def validate_task_dispatch_pair(
     root: Path, task_path: Path, evidence_path: Path, gate_ready: bool
 ) -> list[Finding]:
+    from .milestone_scope import RepositoryScopeResolver
+
+    container_scope = None
+    try:
+        milestone_name = task_path.relative_to(root / "docs").parts[0]
+        milestone_dir = root / "docs" / milestone_name
+        container_scope = RepositoryScopeResolver(root).resolve(milestone_dir)
+    except (IndexError, ValueError):
+        pass
     findings, _ = validate_task_dispatch_pair_with_scope(
         root,
         task_path,
         evidence_path,
         gate_ready,
+        container_scope,
     )
     return findings
 
@@ -1288,6 +1376,7 @@ def validate_task_dispatch_pair_with_scope(
     task_path: Path,
     evidence_path: Path,
     gate_ready: bool,
+    container_scope=None,
 ) -> tuple[list[Finding], bool]:
     try:
         from .compatibility import validate_compatible_records
@@ -1313,7 +1402,12 @@ def validate_task_dispatch_pair_with_scope(
             raise ValidationError(f"task record must be a mapping: {task_path}")
         if not isinstance(evidence, dict):
             raise ValidationError(f"evidence record must be a mapping: {evidence_path}")
-        result = validate_compatible_records(task, evidence, gate_ready=gate_ready)
+        result = validate_compatible_records(
+            task,
+            evidence,
+            gate_ready=gate_ready,
+            container_scope=container_scope,
+        )
         errors = list(result.errors)
         active_reconciliation = result.active_reconciliation
     except ValidationError as exc:
@@ -1332,7 +1426,9 @@ def validate_task_dispatch_pair_with_scope(
                 None,
                 f"selected v{selection.version} {selection.policy_id} "
                 f"({selection.scope.value})"
-                + (" by frozen legacy rule" if selection.implicit_legacy else ""),
+                + (" by frozen legacy rule" if selection.implicit_legacy else "")
+                + "; authority: "
+                + "; ".join(selection.authority_basis),
             )
         )
     if errors:
