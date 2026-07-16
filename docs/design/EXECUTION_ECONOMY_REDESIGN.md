@@ -262,10 +262,27 @@ separately; they never consume final-candidate capacity or satisfy a merge gate.
 Final runs are keyed by candidate fingerprint and may occur once per matching
 candidate after review and corrective closure.
 
+Verification attempts use the bounded lifecycle `PREFLIGHT -> READY -> STARTED
+-> PASSED | FAILED | ABORTED`. Capability or preflight failures do not consume
+a candidate verification run. A run is consumed atomically when candidate
+execution starts. Preflight supplies named boolean checks and a candidate
+fingerprint, not an unstructured success string. Attempt ids make `STARTED`
+idempotent across checkpoint/resume; a different identity using the same id is
+rejected.
+
+Verification nodes declare a bounded `depends_on` list. Failure of one
+verification node skips only dependent successors; independent verification
+nodes continue and report their own results. The reusable decision helper
+returns `executed` or `skipped_due_to_dependency`; command scheduling remains
+outside the runtime.
+
 An approved corrective batch may replace one not-yet-final candidate with one
 successor candidate without human budget approval. A second regeneration, or a
 change after final verification, returns `HANDOFF_READY`. This bounds candidate
 creation without turning review corrections into a manual budget gate.
+After that handoff, one explicit human-approved corrective may create generation
+2 even when the predecessor had final evidence. This is a new authority event,
+not automatic budget relaxation; generation 2 can never create generation 3.
 
 `reviewer_reports_per_scope` counts first-round reports. Corrective re-review is
 counted separately by `corrective_re_review_rounds`, so one complete first report
@@ -325,6 +342,7 @@ open_findings:
 evidence_references:
 invalidated_evidence:
 execution_counters:
+  verification_attempts:
 candidate:
 next_action:
 allowed_paths:
@@ -346,7 +364,8 @@ Resume:
 3. verify canonical repository root, branch, and exact HEAD;
 4. verify authority reference hashes and version;
 5. verify referenced evidence fingerprints;
-6. verify any candidate fingerprint, closure state, and per-candidate counters;
+6. verify any candidate fingerprint, closure state, per-candidate counters,
+   and persisted verification attempts;
 7. return only the compact completed work, open findings, evidence status, and
    `next_action`.
 

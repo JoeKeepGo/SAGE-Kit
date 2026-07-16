@@ -126,10 +126,17 @@ handoff.
 - Treat full-suite and wheel/install runs before review and corrective closure
   as preliminary feedback only. They do not consume the single final run
   available to a matching frozen candidate and cannot satisfy a merge gate.
+- Capability or preflight failures do not consume a candidate verification run.
+  A run is consumed atomically when candidate execution starts. Persist started
+  attempt ids so checkpoint/resume cannot count them twice.
+- Failure of one verification node skips only dependent successors;
+  independent verification nodes continue and report their own results.
 - Freeze the candidate only after review and the bounded corrective batch
   close. One approved corrective may create one successor candidate without
   human budget relaxation; a second regeneration or any post-final code change
-  returns `HANDOFF_READY`.
+  first returns `HANDOFF_READY`. Only an explicit human-approved handoff
+  corrective may create generation 2 after final evidence; generation 3 is
+  forbidden.
 - Keep one task tied to one approved phase unless a batch plan defines order,
   gates, and stop conditions.
 - Do not invent missing contracts, fallback behavior, or success evidence.

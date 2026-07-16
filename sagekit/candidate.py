@@ -113,6 +113,7 @@ def freeze_candidate(
     previous: CandidateFingerprint | None = None,
     approved_corrective: bool = False,
     previous_final_verified: bool = False,
+    handoff_successor_approved: bool = False,
 ) -> CandidateFreezeResult:
     root = _repository_root(repository_root)
     if not review_closed or not corrective_batch_closed:
@@ -153,7 +154,7 @@ def freeze_candidate(
                 "existing stable candidate still matches",
                 previous,
             )
-        if previous_final_verified:
+        if previous_final_verified and not handoff_successor_approved:
             return CandidateFreezeResult(
                 False,
                 RunState.HANDOFF_READY,

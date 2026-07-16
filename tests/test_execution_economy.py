@@ -24,8 +24,14 @@ from sagekit.evidence import ChangeEvent, EvidenceFingerprint, assess_evidence
 from sagekit.execution_limits import (
     ExecutionCounters,
     ExecutionLimits,
+    VerificationKind,
+    VerificationPreflight,
+    VerificationPreflightCheck,
+    VerificationStage,
+    begin_verification_run,
     consume_event,
     consume_event_with_checkpoint,
+    prepare_verification_run,
     record_root_cause_progress,
 )
 from sagekit.pathing import is_within, normalize_contract_path
@@ -89,16 +95,12 @@ def candidate_api():
     return assess_candidate, freeze_candidate
 
 
-def verification_api():
-    try:
-        from sagekit.execution_limits import (
-            VerificationKind,
-            VerificationStage,
-            consume_verification_run,
-        )
-    except ImportError as exc:
-        raise AssertionError("candidate verification counter API is missing") from exc
-    return VerificationKind, VerificationStage, consume_verification_run
+def verification_preflight(attempt_id, candidate):
+    return VerificationPreflight(
+        attempt_id=attempt_id,
+        candidate_fingerprint=candidate.digest if candidate is not None else None,
+        checks=(VerificationPreflightCheck("test-preflight", True),),
+    )
 
 
 def corrective_envelope(*allowed_paths):
@@ -326,7 +328,6 @@ class CandidateVerificationTests(unittest.TestCase):
 
     def test_review_open_run_is_preliminary_and_does_not_consume_final_budget(self):
         _, freeze_candidate = candidate_api()
-        VerificationKind, VerificationStage, consume_verification_run = verification_api()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             init_repository(root)
@@ -337,10 +338,17 @@ class CandidateVerificationTests(unittest.TestCase):
                 review_closed=False,
                 corrective_batch_closed=True,
             )
-            decision = consume_verification_run(
+            prepared = prepare_verification_run(
                 ExecutionCounters(),
-                ExecutionLimits(),
                 VerificationKind.FULL_SUITE,
+                verification_preflight("review-open", frozen.candidate),
+                candidate=frozen.candidate,
+                assessment=None,
+            )
+            decision = begin_verification_run(
+                prepared.counters,
+                ExecutionLimits(),
+                "review-open",
                 candidate=frozen.candidate,
                 assessment=None,
             )
@@ -425,7 +433,6 @@ class CandidateVerificationTests(unittest.TestCase):
 
     def test_same_candidate_cannot_repeat_final_full_suite(self):
         assess_candidate, _ = candidate_api()
-        VerificationKind, VerificationStage, consume_verification_run = verification_api()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             init_repository(root)
@@ -436,30 +443,43 @@ class CandidateVerificationTests(unittest.TestCase):
                 contract_digest="contracts-v2",
                 dependency_digest="dependencies-v1",
             )
-            first = consume_verification_run(
+            first_ready = prepare_verification_run(
                 ExecutionCounters(),
-                ExecutionLimits(),
                 VerificationKind.FULL_SUITE,
+                verification_preflight("first-final", frozen.candidate),
                 candidate=frozen.candidate,
                 assessment=assessment,
             )
-            second = consume_verification_run(
-                first.counters,
+            first = begin_verification_run(
+                first_ready.counters,
                 ExecutionLimits(),
+                "first-final",
+                candidate=frozen.candidate,
+                assessment=assessment,
+            )
+            second_ready = prepare_verification_run(
+                first.counters,
                 VerificationKind.FULL_SUITE,
+                verification_preflight("second-final", frozen.candidate),
+                candidate=frozen.candidate,
+                assessment=assessment,
+            )
+            second = begin_verification_run(
+                second_ready.counters,
+                ExecutionLimits(),
+                "second-final",
                 candidate=frozen.candidate,
                 assessment=assessment,
             )
 
         self.assertEqual(VerificationStage.FINAL_CANDIDATE, first.stage)
         self.assertTrue(first.allowed_to_run)
-        self.assertTrue(first.merge_gate_eligible)
+        self.assertFalse(first.merge_gate_eligible)
         self.assertEqual(RunState.HANDOFF_READY, second.state)
         self.assertFalse(second.allowed_to_run)
 
     def test_change_after_final_verification_handoffs_instead_of_regenerating(self):
         assess_candidate, _ = candidate_api()
-        VerificationKind, _, consume_verification_run = verification_api()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             init_repository(root)
@@ -470,10 +490,17 @@ class CandidateVerificationTests(unittest.TestCase):
                 contract_digest="contracts-v2",
                 dependency_digest="dependencies-v1",
             )
-            verified = consume_verification_run(
+            ready = prepare_verification_run(
                 ExecutionCounters(),
-                ExecutionLimits(),
                 VerificationKind.FULL_SUITE,
+                verification_preflight("verified-final", first.candidate),
+                candidate=first.candidate,
+                assessment=assessment,
+            )
+            verified = begin_verification_run(
+                ready.counters,
+                ExecutionLimits(),
+                "verified-final",
                 candidate=first.candidate,
                 assessment=assessment,
             )
@@ -490,6 +517,36 @@ class CandidateVerificationTests(unittest.TestCase):
         self.assertFalse(regenerated.ok)
         self.assertEqual(RunState.HANDOFF_READY, regenerated.state)
         self.assertIsNone(regenerated.candidate)
+
+    def test_explicit_handoff_corrective_allows_one_post_final_successor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            first = self.freeze(root)
+            commit_change(root, "human-approved handoff corrective\n")
+
+            second = self.freeze(
+                root,
+                previous=first.candidate,
+                approved_corrective=True,
+                previous_final_verified=True,
+                handoff_successor_approved=True,
+            )
+            commit_change(root, "attempted third candidate\n")
+            third = self.freeze(
+                root,
+                previous=second.candidate,
+                approved_corrective=True,
+                previous_final_verified=True,
+                handoff_successor_approved=True,
+            )
+
+        self.assertTrue(second.ok)
+        self.assertEqual(2, second.candidate.generation)
+        self.assertFalse(second.manual_budget_relaxation_required)
+        self.assertFalse(third.ok)
+        self.assertEqual(RunState.HANDOFF_READY, third.state)
+        self.assertIn("regeneration limit", third.message)
 
     def test_fingerprint_mismatch_fails_closed_with_exact_differences(self):
         assess_candidate, _ = candidate_api()
@@ -517,7 +574,6 @@ class CandidateVerificationTests(unittest.TestCase):
 
     def test_checkpoint_resume_preserves_candidate_and_per_candidate_counters(self):
         assess_candidate, _ = candidate_api()
-        VerificationKind, _, consume_verification_run = verification_api()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             init_repository(root)
@@ -528,10 +584,17 @@ class CandidateVerificationTests(unittest.TestCase):
                 contract_digest="contracts-v2",
                 dependency_digest="dependencies-v1",
             )
-            counted = consume_verification_run(
+            ready = prepare_verification_run(
                 ExecutionCounters(),
-                ExecutionLimits(),
                 VerificationKind.FULL_SUITE,
+                verification_preflight("checkpoint-final", frozen.candidate),
+                candidate=frozen.candidate,
+                assessment=assessment,
+            )
+            counted = begin_verification_run(
+                ready.counters,
+                ExecutionLimits(),
+                "checkpoint-final",
                 candidate=frozen.candidate,
                 assessment=assessment,
             )
@@ -1101,6 +1164,10 @@ class DocumentationPolicyTests(unittest.TestCase):
             "Review Convergence Contract",
             "HANDOFF_READY",
             "HUMAN_DECISION_REQUIRED",
+            "Capability or preflight failures do not consume a candidate verification run.",
+            "A run is consumed atomically when candidate execution starts.",
+            "Failure of one verification node skips only dependent successors;",
+            "independent verification nodes continue and report their own results.",
         ):
             self.assertIn(token, text)
         self.assertNotRegex(text, r"\b(?:70|85|100)%\s+token")
@@ -1113,6 +1180,8 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertIn("sagekit resume", text)
         self.assertIn("sagekit checkpoint clear", text)
         self.assertIn("fail closed", text)
+        self.assertIn("checkpoint schema v3", text)
+        self.assertIn("started verification attempts", text)
 
     def test_core_records_bootstrap_maintainer_exception_without_project_bypass(self):
         text = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8")
@@ -1126,6 +1195,14 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertIn("C0 record-only", text)
         self.assertIn("targeted record consistency verification", text)
         self.assertIn("one primary review topology", text)
+        self.assertIn(
+            "Capability or preflight failures do not consume a candidate verification run.",
+            text,
+        )
+        self.assertIn(
+            "independent verification nodes continue and report their own results.",
+            text,
+        )
 
     def test_runtime_checkpoint_is_gitignored(self):
         lines = {

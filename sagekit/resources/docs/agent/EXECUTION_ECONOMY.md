@@ -80,6 +80,40 @@ wheel/install, package discovery, and outside-source smoke run once for each
 matching frozen stable candidate. A new session does not invalidate evidence.
 A record-only change does not invalidate implementation evidence.
 
+### Verification Attempt Lifecycle
+
+Every full-suite or wheel/install attempt follows:
+
+```text
+PREFLIGHT -> READY -> STARTED -> PASSED | FAILED | ABORTED
+```
+
+Capability or preflight failures do not consume a candidate verification run.
+A run is consumed atomically when candidate execution starts. `PREFLIGHT` and
+`READY` therefore do not increment preliminary or final counters. Transitioning
+to `STARTED` increments the matching counter exactly once; `PASSED`, `FAILED`,
+and `ABORTED` after start remain counted.
+
+Preflight readiness is structured evidence: an attempt id, the candidate
+fingerprint when applicable, and named boolean checks. A message alone cannot
+authorize `STARTED`. Reusing an attempt id with the same identity is idempotent
+and never consumes twice; reusing it for a different identity is rejected.
+Candidate mismatch prevents `STARTED`.
+
+Started attempts are checkpointed with their attempt id, kind, stage, candidate,
+preflight checks, and lifecycle state so resume cannot consume the same run
+again.
+
+### Verification Dependencies
+
+Each verification node declares either no dependencies (`independent`) or a
+bounded `depends_on` list. Failure of one verification node skips only dependent successors; independent verification nodes continue and report their own results.
+A skipped successor reports `skipped_due_to_dependency`; a node whose
+dependencies passed reports `executed`.
+
+This dependency decision is not a general scheduler. Callers retain ownership
+of command execution, evidence capture, and candidate lifecycle transitions.
+
 ## Stable Candidate
 
 A frozen candidate binds:
@@ -104,9 +138,10 @@ closed with exact differences and does not consume a run.
 
 One approved corrective batch may invalidate an unverified candidate and
 automatically create its successor without human budget approval. Candidate
-generation is bounded: a second regeneration, or any change after final
-verification, returns `HANDOFF_READY`. It never starts an automatic full-suite
-loop.
+generation is bounded: any change after final verification first returns
+`HANDOFF_READY`. One explicit human-approved handoff corrective may then create
+generation 2; it is not an automatic budget relaxation. Generation 2 cannot
+produce a third candidate. The system never starts an automatic full-suite loop.
 
 ## Evidence Fingerprint
 

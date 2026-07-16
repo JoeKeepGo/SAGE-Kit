@@ -27,6 +27,7 @@ open_findings:
 evidence_references:
 invalidated_evidence:
 execution_counters:
+  verification_attempts:
 candidate:
 next_action:
 allowed_paths:
@@ -48,8 +49,9 @@ sagekit checkpoint clear
 ```
 
 `checkpoint create` captures the canonical repository, named branch, HEAD,
-authority, preliminary and per-candidate final counters, optional frozen
-candidate, allowed paths, and next action. `checkpoint status` verifies
+authority, preliminary and per-candidate final counters, started verification
+attempts, optional frozen candidate, allowed paths, and next action.
+`checkpoint status` verifies
 the current state without printing the full checkpoint. `sagekit resume`
 returns the bounded resume packet. It never executes arbitrary commands.
 `checkpoint clear` removes only `CURRENT_RUN.json`.
@@ -72,10 +74,18 @@ Resume:
 7. emits completed work, open findings, invalidated evidence, counters,
    candidate, allowed paths, stop conditions, and `next_action`.
 
-Checkpoint schema v2 preserves preliminary counts separately from final
-full-suite and wheel/install counts keyed by candidate fingerprint. A v1
-checkpoint's old aggregate full-suite and wheel counts migrate conservatively
-to preliminary counts; they never consume a final-candidate budget.
+The checkpoint schema v3 preserves structured verification attempts, including
+attempt id, kind, stage, candidate fingerprint, preflight checks, and lifecycle
+state. Resuming a `STARTED`, `PASSED`, `FAILED`, or `ABORTED` attempt never
+increments its counter again.
+The checkpoint persists started verification attempts before handoff so resume
+cannot repeat their consumption.
+
+A v2 checkpoint has per-candidate counters but no attempt records; it resumes
+with an empty attempt map while preserving those counters, so exhausted
+candidate budgets remain exhausted. A v1 checkpoint's old aggregate full-suite
+and wheel counts migrate conservatively to preliminary counts; they never
+consume a final-candidate budget or fabricate a started attempt.
 
 Any mismatch must fail closed. Report all repository, branch, HEAD, authority,
 and evidence differences in one result; do not continue from a partly matching

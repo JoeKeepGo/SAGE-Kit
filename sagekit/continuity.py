@@ -16,7 +16,8 @@ from .execution_limits import COUNTER_NAMES, ExecutionCounters
 from .pathing import is_within, relative_repo_path
 
 
-CHECKPOINT_SCHEMA_VERSION = 2
+CHECKPOINT_SCHEMA_VERSION = 3
+SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = frozenset({1, 2, CHECKPOINT_SCHEMA_VERSION})
 MAX_CHECKPOINT_BYTES = 32_000
 REQUIRED_FIELDS = {
     "run_id",
@@ -208,7 +209,7 @@ def resume_checkpoint(
             )
         except ValueError as exc:
             mismatches.append(f"candidate fingerprint is invalid: {exc}")
-    elif payload.get("schema_version") == CHECKPOINT_SCHEMA_VERSION and candidate_payload is not None:
+    elif payload.get("schema_version") in {2, CHECKPOINT_SCHEMA_VERSION} and candidate_payload is not None:
         mismatches.append("candidate fingerprint is invalid")
     if mismatches:
         return CheckpointResult(
@@ -258,9 +259,9 @@ def _load_checkpoint(root: Path) -> CheckpointResult:
         missing = sorted(REQUIRED_FIELDS - set(payload))
         if missing:
             raise ValueError("checkpoint missing fields: " + ", ".join(missing))
-        if payload.get("schema_version") not in {1, CHECKPOINT_SCHEMA_VERSION}:
+        if payload.get("schema_version") not in SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported checkpoint schema: {payload.get('schema_version')}")
-        if payload.get("schema_version") == CHECKPOINT_SCHEMA_VERSION and "candidate" not in payload:
+        if payload.get("schema_version") in {2, CHECKPOINT_SCHEMA_VERSION} and "candidate" not in payload:
             raise ValueError("checkpoint missing fields: candidate")
         structure_errors = _checkpoint_structure_errors(root, payload)
         if structure_errors:
@@ -471,6 +472,7 @@ def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list
                 errors.append(f"allowed path escapes repository: {path}")
     counters = payload.get("execution_counters")
     expected = set(ExecutionCounters().to_dict())
+    previous_v2 = expected - {"verification_attempts"}
     legacy = {
         "implementation_workers",
         "read_only_review_agents",
@@ -483,10 +485,13 @@ def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list
         "exception_events",
     }
     counter_fields = frozenset(counters) if isinstance(counters, dict) else frozenset()
-    if not isinstance(counters, dict) or counter_fields not in {
-        frozenset(expected),
-        frozenset(legacy),
-    }:
+    schema_version = payload.get("schema_version")
+    allowed_counter_fields = {
+        1: {frozenset(legacy)},
+        2: {frozenset(previous_v2)},
+        CHECKPOINT_SCHEMA_VERSION: {frozenset(expected)},
+    }.get(schema_version, set())
+    if not isinstance(counters, dict) or counter_fields not in allowed_counter_fields:
         errors.append("execution_counters fields are invalid")
     else:
         try:
