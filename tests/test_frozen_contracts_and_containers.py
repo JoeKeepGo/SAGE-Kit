@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 from sagekit.check import check_task_dispatch, discover_task_dispatch_records
 from sagekit.compatibility import select_validation_contract, validate_compatible_records
-from sagekit.milestone_scope import MilestoneScope, MilestoneScopeKind
+from sagekit.milestone_scope import (
+    MilestoneScope,
+    MilestoneScopeKind,
+    RepositoryScopeResolver,
+)
 from sagekit.task_dispatch_validator import load_record
 from sagekit.validation_contracts import contract_resource
 from sagekit.validation_contracts import v0 as v0_contract
