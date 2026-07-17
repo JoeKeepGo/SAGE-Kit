@@ -9,6 +9,9 @@ or v1 for each declared container, but cannot authorize nonterminal or
 unlisted work.
 Ambiguous or mixed records fail closed, and validation failure never triggers
 another contract.
+Frozen schema runtime behavior follows the selected historical validator: v0
+retains digest-bound schema artifacts but validates records with its Python
+rules, while the hardened v1 baseline also executes its frozen schema checks.
 
 This profile adds machine-checkable task and evidence records to SAGE-Kit. It
 is optional and should be activated by the Project Manager in the milestone

@@ -7,7 +7,14 @@
   "source_validator_sha256": "b4382033de1fdeebdc1127979bd6d50ebff3df6d4d5b75c6a8ebf53967882bac",
   "validator_semantics_id": "sagekit-task-dispatch-frozen-v1",
   "validator_engine": "sagekit.validation_contracts.frozen_validator.validate_frozen_records",
-  "validator_engine_sha256": "12b408ac4b824f6241a2348d94047ea948fe95007f268e1f2ae2c4e4c1cfc194",
+  "validator_engine_sha256": "305b9511df8433661c5a18b4289111dfb28b32a137b2470cf0f43d69a3ce7ece",
   "validator_rules": "rules.json",
-  "validator_rules_sha256": "5252c76f532c1ab7b332eefca3a99cfe7cd09c2b9bf2ec41de2927827f043fc9"
+  "validator_rules_sha256": "6989c6158b3c720d54f32a70a356798c4067243cf9ec3cbcfbdd1360f0bdddde",
+  "record_schema_enforced": true,
+  "schema_artifacts_checked": [
+    "presence",
+    "valid_json",
+    "canonical_digest"
+  ],
+  "record_validation": "frozen_schema_and_python_semantics"
 }

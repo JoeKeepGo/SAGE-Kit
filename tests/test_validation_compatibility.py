@@ -529,6 +529,7 @@ class ContractResourceTests(unittest.TestCase):
                 self.assertGreater(len(resource.read_bytes()), 20)
             if version in {0, 1}:
                 self.assertTrue(contract_resource(version, "rules.json").is_file())
+                self.assertTrue(contract_resource(version, "validator.json").is_file())
 
     def test_policy_snapshot_uses_canonical_json_not_checkout_line_endings(self):
         resource = contract_resource(2, "policy.json")
@@ -617,6 +618,7 @@ class ContractResourceTests(unittest.TestCase):
             "sagekit/validation_contracts/v2.py",
             "sagekit/resources/contracts/v0/policy.json",
             "sagekit/resources/contracts/v0/rules.json",
+            "sagekit/resources/contracts/v0/validator.json",
             "sagekit/resources/contracts/v0/task.schema.json",
             "sagekit/resources/contracts/v0/evidence.schema.json",
             "sagekit/resources/contracts/v1/policy.json",

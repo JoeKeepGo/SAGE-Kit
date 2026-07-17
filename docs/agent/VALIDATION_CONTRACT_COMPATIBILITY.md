@@ -76,15 +76,19 @@ match the packaged policy. Tampering fails. After any version is selected, a
 failure must not fall back or trigger validation under another contract.
 
 Frozen policies, schemas, rule policies, and validator semantics are packaged
-under `sagekit/resources/contracts/`. The v0 policy and immutable v1 validator
-sidecar record historical source commits and paths and bind canonical schema,
-rules, and frozen-engine SHA-256 digests. The released v1 policy bytes and
-policy digest remain unchanged, so existing explicit v1 metadata stays valid.
-v0 is a semantic snapshot of the first public Task Dispatch contract; only
-non-validating schema metadata was normalized. Hermetic tests do not execute
-`git show` or require full repository history. The selector emits the selected
-version, policy identity/digest, container path, and authority. Frozen
-contracts are not widened for records that fail their selected version.
+under `sagekit/resources/contracts/`. Versioned validator sidecars record
+historical source commits and paths and bind canonical policy, schema, rules,
+and frozen-engine SHA-256 digests. A frozen schema artifact does not imply that
+the historical runtime executed it against records: v0 checked schema presence
+and valid JSON while its Python rules validated records; the hardened v1
+baseline executed both its recursive schema checks and Python rules. The
+released v1 policy bytes and policy digest remain unchanged, so existing
+explicit v1 metadata stays valid. v0 is a semantic snapshot of the first public
+Task Dispatch contract; only non-validating schema metadata was normalized.
+Hermetic tests do not execute `git show` or require full repository history.
+The selector emits the selected version, policy identity/digest, container
+path, and authority. Frozen contracts are not widened for records that fail
+their selected version.
 
 Adopted-project discovery is bounded to paired
 `docs/**/dispatch/**/{task,evidence}.yaml` records. The container is the nearest

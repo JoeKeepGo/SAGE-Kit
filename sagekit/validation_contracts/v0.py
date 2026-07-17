@@ -10,6 +10,9 @@ from .frozen_validator import validate_frozen_records
 VERSION = 0
 POLICY_ID = "sagekit-task-dispatch-v0"
 SCOPE = "closed-legacy"
+FROZEN_VALIDATOR_REGISTRY_SHA256 = (
+    "8186472ccaf641eb4f45d87f9637a69e153506f0c0e6b6fb7b25d325b38e7821"
+)
 
 
 def policy_sha256() -> str:
@@ -38,6 +41,7 @@ def validate_records(
             task,
             evidence,
             gate_ready=gate_ready,
+            validator_registry_sha256=FROZEN_VALIDATOR_REGISTRY_SHA256,
         )
     )
     return errors
@@ -48,14 +52,23 @@ def _metadata_errors(
     evidence: dict[str, Any],
 ) -> list[str]:
     errors: list[str] = []
-    expected = contract_metadata()
-    for label, record in (("task", task), ("evidence", evidence)):
+    records = (("task", task), ("evidence", evidence))
+    metadata_records: list[tuple[str, dict[str, Any]]] = []
+    for label, record in records:
         metadata = record.get("validation_contract")
         if metadata is None:
             continue
         if not isinstance(metadata, dict):
             errors.append(f"{label} validation_contract is invalid")
             continue
+        metadata_records.append((label, metadata))
+    if not metadata_records:
+        return errors
+    try:
+        expected = contract_metadata()
+    except (OSError, UnicodeError, ValueError):
+        return errors
+    for label, metadata in metadata_records:
         for field, expected_value in expected.items():
             actual = metadata.get(field)
             if actual != expected_value:

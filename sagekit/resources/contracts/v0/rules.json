@@ -1,6 +1,18 @@
 {
   "semantics_id": "sagekit-task-dispatch-frozen-v0",
   "profile": "early",
+  "task_required_fields": [
+    "id", "type", "title", "priority", "status", "scope", "verification",
+    "dependencies", "resources", "runs", "closure"
+  ],
+  "evidence_required_fields": [
+    "task_id", "changed_surface", "runtime_shape", "levels", "artifacts",
+    "runs", "blockers", "conclusion"
+  ],
+  "scope_required_fields": [
+    "objective", "allowed_files", "read_only_files", "forbidden_files",
+    "non_goals", "stop_conditions"
+  ],
   "levels": ["L0", "L1", "L2", "L3", "L4"],
   "task_types": ["BUG", "SPEC", "CHORE", "REVIEW", "INTEGRATION", "RELEASE"],
   "priorities": ["P0", "P1", "P2", "P3"],

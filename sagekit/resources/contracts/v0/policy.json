@@ -27,9 +27,9 @@
   "source_validator_sha256": "89185d1af6f1739996711cc8ff23002c060cfee9e63480aac175d99466538d11",
   "validator_semantics_id": "sagekit-task-dispatch-frozen-v0",
   "validator_engine": "sagekit.validation_contracts.frozen_validator.validate_frozen_records",
-  "validator_engine_sha256": "12b408ac4b824f6241a2348d94047ea948fe95007f268e1f2ae2c4e4c1cfc194",
+  "validator_engine_sha256": "305b9511df8433661c5a18b4289111dfb28b32a137b2470cf0f43d69a3ce7ece",
   "validator_rules": "rules.json",
-  "validator_rules_sha256": "512cb7964d0bdde46a8127d067f3cc370c5418af7620dc3155cff17e71b06f87",
+  "validator_rules_sha256": "c751cf96d6d8e2862d3334197d519f7ae781f78f2280cd6be89653e2f74ac186",
   "schema_files": [
     "task.schema.json",
     "evidence.schema.json"

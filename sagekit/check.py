@@ -85,6 +85,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/validation_contracts/v2.py",
     "sagekit/resources/contracts/v0/policy.json",
     "sagekit/resources/contracts/v0/rules.json",
+    "sagekit/resources/contracts/v0/validator.json",
     "sagekit/resources/contracts/v0/task.schema.json",
     "sagekit/resources/contracts/v0/evidence.schema.json",
     "sagekit/resources/contracts/v1/policy.json",

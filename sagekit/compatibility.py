@@ -64,7 +64,7 @@ def select_validation_contract(
                 raise ContractSelectionError(
                     f"accepted legacy container selects unsupported frozen v{version}"
                 )
-            metadata = contract.contract_metadata()
+            metadata = _frozen_contract_metadata(contract, version)
             return ContractSelection(
                 version=version,
                 policy_id=metadata["policy_id"],
@@ -145,7 +145,7 @@ def select_validation_contract(
                 f"frozen v{task_version} requires a terminal task/evidence record pair"
             )
         contract = v0 if task_version == 0 else v1
-        expected = contract.contract_metadata()
+        expected = _frozen_contract_metadata(contract, task_version)
         return ContractSelection(
             task_version,
             str(task_metadata.get("policy_id") or expected["policy_id"]),
@@ -159,6 +159,15 @@ def select_validation_contract(
             ),
         )
     raise ContractSelectionError(f"unsupported validation contract version: {task_version}")
+
+
+def _frozen_contract_metadata(contract: Any, version: int) -> dict[str, Any]:
+    try:
+        return contract.contract_metadata()
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ContractSelectionError(
+            f"frozen v{version} policy artifact cannot be read: {exc}"
+        ) from exc
 
 
 def validate_compatible_records(

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from . import contract_json_digest, contract_resource, contract_schema_mismatches
+from . import contract_resource, contract_schema_mismatches
 
 
 def validator_engine_sha256() -> str:
@@ -19,19 +19,40 @@ def frozen_contract_mismatches(
     *,
     validator_registry_sha256: str | None = None,
 ) -> list[str]:
-    policy = _load_json(version, "policy.json")
-    errors = contract_schema_mismatches(version)
-    rules = _load_json(version, "rules.json")
-    binding = policy
-    if validator_registry_sha256 is not None:
-        binding = _load_json(version, "validator.json")
-        actual_registry = contract_json_digest(version, "validator.json")
-        if actual_registry != validator_registry_sha256:
-            errors.append(
-                f"v{version} frozen validator registry digest does not match "
-                "the version module"
-            )
-    actual_rules = contract_json_digest(version, "rules.json")
+    errors, _, _ = _frozen_contract_artifacts(
+        version,
+        validator_registry_sha256=validator_registry_sha256,
+    )
+    return errors
+
+
+def _frozen_contract_artifacts(
+    version: int,
+    *,
+    validator_registry_sha256: str | None,
+) -> tuple[list[str], dict[str, Any] | None, dict[str, Any] | None]:
+    errors: list[str] = []
+    policy = _load_frozen_json(version, "policy.json", errors)
+    rules = _load_frozen_json(version, "rules.json", errors)
+    binding = _load_frozen_json(version, "validator.json", errors)
+    if policy is not None:
+        errors.extend(contract_schema_mismatches(version, policy=policy))
+    if binding is None or rules is None or policy is None:
+        return errors, binding, rules
+
+    actual_registry = _canonical_digest(binding)
+    if (
+        validator_registry_sha256 is None
+        or actual_registry != validator_registry_sha256
+    ):
+        errors.append(
+            f"v{version} frozen validator registry digest does not match "
+            "the version module"
+        )
+    actual_policy = _canonical_digest(policy)
+    if binding.get("policy_sha256") != actual_policy:
+        errors.append(f"v{version} policy digest does not match validator registry")
+    actual_rules = _canonical_digest(rules)
     if binding.get("validator_rules_sha256") != actual_rules:
         errors.append(f"v{version} rules.json digest does not match frozen policy")
     if binding.get("validator_semantics_id") != rules.get("semantics_id"):
@@ -41,7 +62,19 @@ def frozen_contract_mismatches(
     actual_engine = validator_engine_sha256()
     if binding.get("validator_engine_sha256") != actual_engine:
         errors.append(f"v{version} frozen validator engine digest does not match policy")
-    return errors
+    if not isinstance(binding.get("record_schema_enforced"), bool):
+        errors.append(
+            f"v{version} validator registry does not declare record schema behavior"
+        )
+    if binding.get("schema_artifacts_checked") != [
+        "presence",
+        "valid_json",
+        "canonical_digest",
+    ]:
+        errors.append(
+            f"v{version} validator registry does not declare frozen schema checks"
+        )
+    return errors, binding, rules
 
 
 def validate_frozen_records(
@@ -52,17 +85,22 @@ def validate_frozen_records(
     gate_ready: bool = False,
     validator_registry_sha256: str | None = None,
 ) -> list[str]:
-    errors = frozen_contract_mismatches(
+    errors, binding, rules = _frozen_contract_artifacts(
         version,
         validator_registry_sha256=validator_registry_sha256,
     )
-    rules = _load_json(version, "rules.json")
-    for label, filename, record in (
-        ("task", "task.schema.json", task),
-        ("evidence", "evidence.schema.json", evidence),
-    ):
-        schema = _load_json(version, filename)
-        _validate_schema_value(record, schema, label, schema, errors)
+    if errors or binding is None or rules is None:
+        return errors
+    if binding.get("record_schema_enforced") is True:
+        for label, filename, record in (
+            ("task", "task.schema.json", task),
+            ("evidence", "evidence.schema.json", evidence),
+        ):
+            try:
+                schema = _load_json(version, filename)
+            except (json.JSONDecodeError, UnicodeError, OSError, ValueError):
+                continue
+            _validate_schema_value(record, schema, label, schema, errors)
     _validate_historical_semantics(task, evidence, rules, gate_ready, errors)
     return errors
 
@@ -72,6 +110,35 @@ def _load_json(version: int, name: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"v{version} {name} must contain a JSON object")
     return payload
+
+
+def _load_frozen_json(
+    version: int,
+    name: str,
+    errors: list[str],
+) -> dict[str, Any] | None:
+    path = contract_resource(version, name)
+    if not path.is_file():
+        errors.append(f"v{version} frozen artifact missing: {name}")
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeError, OSError) as exc:
+        errors.append(f"v{version} frozen artifact is not valid JSON: {name}: {exc}")
+        return None
+    if not isinstance(payload, dict):
+        errors.append(
+            f"v{version} frozen artifact must contain a JSON object: {name}"
+        )
+        return None
+    return payload
+
+
+def _canonical_digest(payload: Any) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _schema_type_matches(value: Any, expected: str) -> bool:
@@ -228,8 +295,11 @@ def _nonempty(value: Any) -> bool:
     if value is None:
         return False
     if isinstance(value, str):
-        return bool(value.strip())
-    return bool(value)
+        normalized = value.strip()
+        return bool(normalized) and normalized.lower() not in {"n/a", "none", "null"}
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return True
 
 
 def _mapping(name: str, value: Any, errors: list[str]) -> dict[str, Any]:
@@ -258,6 +328,13 @@ def _validate_historical_semantics(
     evidence_terminal_statuses = set(rules["evidence_terminal_statuses"])
     passlike = set(rules["passlike_level_statuses"])
     profile = str(rules["profile"])
+
+    for field in rules["task_required_fields"]:
+        if field not in task:
+            errors.append(f"task.{field} is required")
+    for field in rules["evidence_required_fields"]:
+        if field not in evidence:
+            errors.append(f"evidence.{field} is required")
 
     task_id = str(task.get("id") or "").strip()
     evidence_task_id = str(evidence.get("task_id") or "").strip()
@@ -304,6 +381,9 @@ def _validate_historical_semantics(
         )
 
     scope = _mapping("task.scope", task.get("scope"), errors)
+    for field in rules["scope_required_fields"]:
+        if field not in scope:
+            errors.append(f"task.scope.{field} is required")
     for field in (
         "allowed_files",
         "read_only_files",

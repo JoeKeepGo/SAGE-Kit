@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from sagekit.compatibility import select_validation_contract, validate_compatibl
 from sagekit.milestone_scope import MilestoneScope, MilestoneScopeKind
 from sagekit.task_dispatch_validator import load_record
 from sagekit.validation_contracts import contract_resource
+from sagekit.validation_contracts import v0 as v0_contract
 from sagekit.validation_contracts.v0 import (
     contract_metadata as v0_metadata,
     validate_records as validate_v0,
@@ -28,9 +30,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_ROOT = REPO_ROOT / "docs/profiles/task-dispatch/templates"
 BASELINE_HEAD = "0123456789abcdef0123456789abcdef01234567"
 V0_SOURCE_COMMIT = "e6fe28061d600bfb7164c5cf40448f2d2f5d620c"
-V0_POLICY_SHA256 = "4c1e303d5c32ee7154082e4f9f81f8c88ca4868505baf6ce8e07ea14cb75d7c5"
+V0_POLICY_SHA256 = "443c99d1eecd13adef9e2960e1ca56e3f9267b1eac026ad19dd790c1111aa5cb"
 V1_VALIDATOR_REGISTRY_SHA256 = (
-    "48ed5bf20231bc01ea8f721e151f6a43778e53beaaf3c979ed1de63370181f9a"
+    "287760d3ccf9f3f752ee42377753ca0195d54fd32e18b957c3ca2e41a6985ca7"
+)
+V0_VALIDATOR_REGISTRY_SHA256 = (
+    "8186472ccaf641eb4f45d87f9637a69e153506f0c0e6b6fb7b25d325b38e7821"
 )
 V0_SOURCE_SCHEMA_SHA256 = {
     "task.schema.json": "7fe569c103e1cfbd81ed1304f130603c4223bd405dda398d6bff453538071ae5",
@@ -144,7 +149,7 @@ def hardened_records():
         {
             "phase": "closed",
             "review_result": "ACCEPTABLE",
-            "next_action": "none",
+            "next_action": "No further action required.",
         }
     )
     task["closure"].update(
@@ -165,7 +170,7 @@ def hardened_records():
             "status": "VERIFIED",
             "highest_level": "L0",
             "review_result": "ACCEPTABLE",
-            "next_action": "none",
+            "next_action": "No further action required.",
         }
     )
     return task, evidence
@@ -223,7 +228,91 @@ def write_pair(root, container, name, task, evidence):
     return record
 
 
+@contextmanager
+def replace_contract_resource(version, name, replacement):
+    original = contract_resource
+
+    def resolve(requested_version, requested_name):
+        if requested_version == version and requested_name == name:
+            return replacement
+        return original(requested_version, requested_name)
+
+    with patch("sagekit.validation_contracts.contract_resource", side_effect=resolve), patch(
+        "sagekit.validation_contracts.frozen_validator.contract_resource",
+        side_effect=resolve,
+    ):
+        yield
+
+
 class FrozenV0ProvenanceTests(unittest.TestCase):
+    def test_frozen_sidecar_and_rules_corruption_is_a_validation_failure(self):
+        for version, validate in ((0, validate_v0), (1, validate_v1)):
+            task, evidence = early_records() if version == 0 else hardened_records()
+            cases = (
+                ("policy.json", None, "frozen artifact missing"),
+                ("policy.json", "{not-json", "frozen artifact is not valid JSON"),
+                ("validator.json", None, "frozen artifact missing"),
+                ("rules.json", "{not-json", "frozen artifact is not valid JSON"),
+                ("validator.json", "[]", "frozen artifact must contain a JSON object"),
+            )
+            for name, content, expected in cases:
+                with self.subTest(version=version, name=name, content=content):
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        replacement = Path(temp_dir) / name
+                        if content is not None:
+                            replacement.write_text(content, encoding="utf-8")
+                        with replace_contract_resource(version, name, replacement):
+                            errors = validate(task, evidence)
+
+                    self.assertTrue(any(expected in error for error in errors), errors)
+
+    def test_frozen_policy_corruption_fails_selection_without_internal_error(self):
+        task, evidence = early_records()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "policy.json"
+            with replace_contract_resource(0, "policy.json", missing):
+                result = validate_compatible_records(
+                    task,
+                    evidence,
+                    container_scope=history_scope(0),
+                )
+
+        self.assertIsNone(result.selection)
+        self.assertTrue(any("policy artifact" in error for error in result.errors))
+
+    def test_v0_missing_schema_artifact_is_a_validation_failure(self):
+        task, evidence = early_records()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "missing-task.schema.json"
+            with replace_contract_resource(0, "task.schema.json", missing):
+                errors = validate_v0(task, evidence)
+
+        self.assertTrue(any("schema file missing" in error for error in errors), errors)
+
+    def test_v0_invalid_json_schema_artifact_is_a_validation_failure(self):
+        task, evidence = early_records()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            invalid = Path(temp_dir) / "task.schema.json"
+            invalid.write_text("{not-json", encoding="utf-8")
+            with replace_contract_resource(0, "task.schema.json", invalid):
+                errors = validate_v0(task, evidence)
+
+        self.assertTrue(any("not valid JSON" in error for error in errors), errors)
+
+    def test_v0_schema_artifact_digest_mismatch_is_a_validation_failure(self):
+        task, evidence = early_records()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            changed = Path(temp_dir) / "task.schema.json"
+            payload = json.loads(
+                contract_resource(0, "task.schema.json").read_text(encoding="utf-8")
+            )
+            payload["description"] = "digest mismatch fixture"
+            changed.write_text(json.dumps(payload), encoding="utf-8")
+            with replace_contract_resource(0, "task.schema.json", changed):
+                errors = validate_v0(task, evidence)
+
+        self.assertTrue(any("digest" in error for error in errors), errors)
+
     def test_v0_resources_bind_source_and_normalized_packaged_digests(self):
         policy = json.loads(contract_resource(0, "policy.json").read_text(encoding="utf-8"))
 
@@ -242,7 +331,7 @@ class FrozenV0ProvenanceTests(unittest.TestCase):
             self.assertTrue(packaged["$id"].startswith("https://example.invalid/sage-kit/"))
             self.assertTrue(packaged["title"].startswith("SAGE-Kit "))
 
-    def test_v0_policy_and_v1_sidecar_bind_rules_and_frozen_engine(self):
+    def test_frozen_contract_sidecars_bind_rules_engine_and_runtime_schema_behavior(self):
         for version in (0, 1):
             policy = json.loads(
                 contract_resource(version, "policy.json").read_text(encoding="utf-8")
@@ -250,16 +339,30 @@ class FrozenV0ProvenanceTests(unittest.TestCase):
             rules = json.loads(
                 contract_resource(version, "rules.json").read_text(encoding="utf-8")
             )
-            binding = (
-                policy
-                if version == 0
-                else json.loads(
-                    contract_resource(1, "validator.json").read_text(
-                        encoding="utf-8"
-                    )
+            binding = json.loads(
+                contract_resource(version, "validator.json").read_text(
+                    encoding="utf-8"
                 )
             )
-            if version == 1:
+            if version == 0:
+                self.assertEqual(
+                    V0_VALIDATOR_REGISTRY_SHA256,
+                    canonical_digest(binding),
+                )
+                self.assertEqual(
+                    V0_VALIDATOR_REGISTRY_SHA256,
+                    getattr(v0_contract, "FROZEN_VALIDATOR_REGISTRY_SHA256", None),
+                )
+                self.assertFalse(binding["record_schema_enforced"])
+                self.assertEqual(
+                    ["presence", "valid_json", "canonical_digest"],
+                    binding["schema_artifacts_checked"],
+                )
+                self.assertEqual(
+                    "frozen_python_semantics",
+                    binding["record_validation"],
+                )
+            else:
                 self.assertEqual(
                     V1_VALIDATOR_REGISTRY_SHA256,
                     canonical_digest(binding),
@@ -268,6 +371,12 @@ class FrozenV0ProvenanceTests(unittest.TestCase):
                     V1_VALIDATOR_REGISTRY_SHA256,
                     FROZEN_VALIDATOR_REGISTRY_SHA256,
                 )
+                self.assertTrue(binding["record_schema_enforced"])
+                self.assertEqual(
+                    "frozen_schema_and_python_semantics",
+                    binding["record_validation"],
+                )
+            self.assertEqual(canonical_digest(policy), binding["policy_sha256"])
             self.assertEqual(canonical_digest(rules), binding["validator_rules_sha256"])
             self.assertRegex(binding["validator_engine_sha256"], r"^[0-9a-f]{64}$")
             self.assertRegex(binding["source_validator_sha256"], r"^[0-9a-f]{64}$")
@@ -357,6 +466,89 @@ class FrozenV0ProvenanceTests(unittest.TestCase):
 
 
 class FrozenHistoricalShapeTests(unittest.TestCase):
+    def test_v0_scope_objective_remains_a_python_required_field(self):
+        task, evidence = early_records()
+        task["scope"].pop("objective")
+
+        errors = validate_v0(task, evidence)
+
+        self.assertIn("task.scope.objective is required", errors)
+
+    def test_historical_nonempty_predicate_rejects_sentinel_strings(self):
+        task, evidence = hardened_records()
+        task["lifecycle"]["next_action"] = "none"
+        evidence["conclusion"]["next_action"] = "none"
+
+        errors = validate_v1(task, evidence)
+
+        self.assertIn("task.lifecycle.next_action must be a non-empty string", errors)
+        self.assertIn("evidence.conclusion.next_action must be a non-empty string", errors)
+
+    def test_v0_oracle_allows_case_normalized_enums_and_schema_only_item_mismatch(self):
+        cases = (
+            ("uppercase task type", "SPEC", []),
+            ("mixed-case task type", "Spec", []),
+            ("schema-only changed-surface item", "chore", [{"kind": "documentation"}]),
+        )
+        for label, task_type, changed_surface in cases:
+            with self.subTest(label=label):
+                task, evidence = early_records()
+                task["type"] = task_type
+                evidence["changed_surface"] = changed_surface
+
+                self.assertEqual([], validate_v0(task, evidence))
+
+    def test_v0_oracle_rejects_invalid_enum_and_missing_python_required_run_attempt(self):
+        task, evidence = early_records()
+        task["type"] = "unknown"
+        task["runs"] = [{"id": "RUN-1", "status": "PASSED"}]
+        evidence["runs"] = [{"id": "RUN-1", "status": "PASSED"}]
+
+        errors = validate_v0(task, evidence)
+
+        self.assertTrue(any("task.type" in error for error in errors), errors)
+        self.assertTrue(any("task.runs[0].attempt" in error for error in errors), errors)
+        self.assertTrue(any("evidence.runs[0].attempt" in error for error in errors), errors)
+
+    def test_v0_oracle_preserves_historical_nonempty_numeric_attempt_behavior(self):
+        task, evidence = early_records()
+        task["runs"] = [{"id": "RUN-1", "attempt": 0, "status": "PASSED"}]
+        evidence["runs"] = [{"id": "RUN-1", "attempt": 0, "status": "PASSED"}]
+
+        self.assertEqual([], validate_v0(task, evidence))
+
+    def test_v0_python_required_fields_remain_strict_without_record_schema_enforcement(self):
+        task, evidence = early_records()
+        task.pop("title")
+
+        errors = validate_v0(task, evidence)
+
+        self.assertIn("task.title is required", errors)
+
+    def test_v0_oracle_preserves_gate_level_blocker_and_shape_rules(self):
+        task, evidence = early_records()
+        self.assertEqual([], validate_v0(task, evidence, gate_ready=True))
+
+        task, evidence = early_records()
+        task["verification"]["required_levels"] = ["L9"]
+        evidence["blockers"] = ["unresolved"]
+        task["runs"] = "not-a-list"
+
+        errors = validate_v0(task, evidence, gate_ready=True)
+
+        self.assertIn("invalid required evidence level: L9", errors)
+        self.assertIn("task.runs must be a list", errors)
+        self.assertIn("verified evidence cannot retain blockers", errors)
+        self.assertIn("gate-ready validation requires evidence.blockers to be empty", errors)
+
+    def test_v1_oracle_retains_historical_record_schema_enforcement(self):
+        task, evidence = hardened_records()
+        task["type"] = "Spec"
+
+        errors = validate_v1(task, evidence)
+
+        self.assertTrue(any("schema enum" in error for error in errors), errors)
+
     def test_early_shape_passes_v0_and_fails_hardened_v1(self):
         task, evidence = early_records()
 
