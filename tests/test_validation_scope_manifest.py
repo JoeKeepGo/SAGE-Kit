@@ -205,6 +205,28 @@ class ScopeManifestParsingTests(unittest.TestCase):
         )
         self.assertEqual(MilestoneScopeKind.CURRENT, external_scope.kind)
 
+    def test_external_manifest_authority_does_not_expose_absolute_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "target"
+            manifest = load_validation_scope_manifest(
+                write_json(
+                    workspace / "external/scope.json",
+                    manifest_payload(),
+                )
+            )
+            (root / "docs/M1").mkdir(parents=True)
+
+            scope = RepositoryScopeResolver(
+                root,
+                manifest=manifest,
+                manifest_source="CLI",
+            ).resolve(root / "docs/M1")
+
+        rendered = " ".join((*scope.authorities, scope.detail))
+        self.assertNotIn(str(workspace), rendered)
+        self.assertIn("validation scope manifest authority: CLI", rendered)
+
     def test_malformed_json_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "scope.json"
@@ -316,6 +338,34 @@ class ScopeManifestParsingTests(unittest.TestCase):
 
 
 class ScopeManifestResolverTests(unittest.TestCase):
+    def test_external_manifest_cannot_authorize_supersedes_symlink_escape(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside_name:
+            root = Path(directory)
+            external_manifest = Path(outside_name) / "scope.json"
+            closeout = root / "docs/M1/MILESTONE_CLOSEOUT.md"
+            closeout.parent.mkdir(parents=True)
+            outside_closeout = Path(outside_name) / "MILESTONE_CLOSEOUT.md"
+            outside_closeout.write_text("- Status: `BLOCKED`\n", encoding="utf-8")
+            try:
+                closeout.symlink_to(outside_closeout)
+            except OSError as exc:
+                self.skipTest(f"symlink creation unavailable: {exc}")
+            manifest = load_validation_scope_manifest(
+                write_json(
+                    external_manifest,
+                    manifest_payload(
+                        supersedes={"M1": ["docs/M1/MILESTONE_CLOSEOUT.md"]}
+                    ),
+                )
+            )
+
+            scope = RepositoryScopeResolver(root, manifest=manifest).resolve(
+                root / "docs/M1"
+            )
+
+        self.assertEqual(MilestoneScopeKind.AMBIGUOUS, scope.kind)
+        self.assertIn("symlink", scope.detail)
+
     def test_manifest_acceptance_handles_missing_ambiguous_and_accepted_closeouts(self):
         closeouts = (
             ("missing", None),

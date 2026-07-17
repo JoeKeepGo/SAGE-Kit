@@ -836,6 +836,7 @@ class GenericContainerManifestTests(unittest.TestCase):
                 ],
             },
             manifest_payload(legacy=(("C1", "../outside", 0, ()),)),
+            manifest_payload(legacy=(("C1", "C:/outside", 0, ()),)),
             manifest_payload(legacy=(("C1", "docs/*", 0, ()),)),
             manifest_payload(legacy=(("C1", "docs/M0-M99", 0, ()),)),
             manifest_payload(

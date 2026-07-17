@@ -6,6 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .pathing import is_within, relative_repo_path
+
 if TYPE_CHECKING:
     from .validation_scope_manifest import ValidationScopeManifest
 
@@ -359,7 +361,7 @@ class RepositoryScopeResolver:
             unsuperseded = [
                 item
                 for item in nonaccepted
-                if item.path.relative_to(self.root).as_posix().casefold()
+                if relative_repo_path(self.root, item.path).casefold()
                 not in declared_supersedes
             ]
             if unsuperseded:
@@ -375,7 +377,7 @@ class RepositoryScopeResolver:
                 )
             if nonaccepted:
                 authorities.extend(
-                    f"manifest supersedes {item.path.relative_to(self.root).as_posix()}"
+                    f"manifest supersedes {relative_repo_path(self.root, item.path)}"
                     for item in nonaccepted
                 )
             return MilestoneScope(
@@ -416,16 +418,13 @@ def validate_manifest_repository_authority(
     manifest: ValidationScopeManifest,
 ) -> tuple[str, ...]:
     errors: list[str] = []
-    resolved_root = root.resolve(strict=False)
     containers = (
         *manifest.active_containers,
         *manifest.accepted_legacy_containers,
     )
     for container in containers:
-        container_path = (root / Path(container.path)).resolve(strict=False)
-        try:
-            container_path.relative_to(resolved_root)
-        except ValueError:
+        container_path = root / Path(container.path)
+        if not is_within(root, container_path):
             errors.append(f"{container.path} resolves outside the target root")
             continue
         if not container_path.is_dir():
@@ -434,27 +433,22 @@ def validate_manifest_repository_authority(
             )
 
     for container in manifest.accepted_legacy_containers:
-        expected_container = (root / Path(container.path)).resolve(strict=False)
+        expected_container = root / Path(container.path)
         for value in container.supersedes:
             declared_path = root / Path(value)
             if declared_path.is_symlink():
                 errors.append(f"{value} must not be a symlink authority")
                 continue
-            path = declared_path.resolve(strict=False)
-            try:
-                path.relative_to(resolved_root)
-            except ValueError:
+            if not is_within(root, declared_path):
                 errors.append(f"{value} resolves outside the target root")
                 continue
-            try:
-                path.relative_to(expected_container)
-            except ValueError:
+            if not is_within(expected_container, declared_path):
                 errors.append(f"{value} is outside {container.path}")
                 continue
-            if not path.is_file():
+            if not declared_path.is_file():
                 errors.append(f"{value} does not identify an existing closeout")
                 continue
-            authority = _classify_closeout(root, path)
+            authority = _classify_closeout(root, declared_path)
             if authority.disposition != CloseoutDisposition.NOT_ACCEPTED:
                 errors.append(
                     f"{value} is not an explicit non-accepted closeout"
@@ -525,9 +519,13 @@ def _read_closeout_authorities(
         and "_template" not in path.name.casefold()
     )
     authorities: list[CloseoutAuthority] = []
-    resolved_container = milestone_dir.resolve(strict=False)
+    container_display = _container_relative_path(root, milestone_dir)
     for path in paths:
-        display = path.relative_to(root).as_posix()
+        display = (
+            f"{container_display}/{path.name}"
+            if container_display is not None
+            else path.name
+        )
         if path.is_symlink():
             authorities.append(
                 CloseoutAuthority(
@@ -538,9 +536,7 @@ def _read_closeout_authorities(
                 )
             )
             continue
-        try:
-            path.resolve(strict=False).relative_to(resolved_container)
-        except ValueError:
+        if not is_within(milestone_dir, path):
             authorities.append(
                 CloseoutAuthority(
                     CloseoutDisposition.AMBIGUOUS,
@@ -555,12 +551,11 @@ def _read_closeout_authorities(
 
 
 def _container_relative_path(root: Path, container_dir: Path) -> str | None:
-    resolved_root = root.resolve(strict=False)
-    resolved_container = container_dir.resolve(strict=False)
     try:
-        relative = resolved_container.relative_to(resolved_root)
+        relative_text = relative_repo_path(root, container_dir)
     except ValueError:
         return None
+    relative = Path(relative_text)
     if len(relative.parts) < 2 or relative.parts[0].casefold() != "docs":
         return None
     return relative.as_posix()
@@ -569,7 +564,7 @@ def _container_relative_path(root: Path, container_dir: Path) -> str | None:
 def _classify_closeout(root: Path, path: Path) -> CloseoutAuthority:
     text = path.read_text(encoding="utf-8-sig", errors="replace")
     values = _structured_closeout_values(text)
-    display = path.relative_to(root).as_posix()
+    display = relative_repo_path(root, path)
     if not values:
         return CloseoutAuthority(
             CloseoutDisposition.AMBIGUOUS,

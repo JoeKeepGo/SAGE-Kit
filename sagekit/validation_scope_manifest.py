@@ -108,7 +108,7 @@ class ValidationScopeManifest:
 
     def authority_details(self, source_kind: str) -> tuple[str, ...]:
         return (
-            f"validation scope manifest ({source_kind}): {self.path}",
+            f"validation scope manifest authority: {source_kind}",
             f"manifest digest sha256:{self.digest}",
             f"manifest authority source: {self.authority.source}",
             f"manifest approved_by: {self.authority.approved_by}",

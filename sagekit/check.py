@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .findings import Finding
 from .modes import LEGACY_REQUIRED_DOCS, MODES, STANDARD_DOCS, recommended_docs_for_mode, required_docs_for_mode
+from .pathing import is_within, relative_repo_path
 from .validation_scope_manifest import (
     LOCAL_SCOPE_MANIFEST,
     ScopeManifestError,
@@ -289,9 +290,9 @@ def detect_root(start: Path) -> Path:
 
 def relpath(root: Path, path: Path) -> str:
     try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
+        return relative_repo_path(root, path)
     except ValueError:
-        return path.as_posix()
+        return path.name
 
 
 def read_text(path: Path) -> str:
@@ -1244,7 +1245,6 @@ def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
     docs = root / "docs"
     if not docs.is_dir():
         return TaskDispatchDiscovery((), ())
-    resolved_root = root.resolve(strict=False)
     candidates: dict[Path, dict[str, Path]] = {}
     findings: list[Finding] = []
     invalid_directories: set[Path] = set()
@@ -1279,10 +1279,7 @@ def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
                 )
             invalid_directories.add(path.parent)
             continue
-        resolved_path = path.resolve(strict=False)
-        try:
-            resolved_path.relative_to(resolved_root)
-        except ValueError:
+        if not is_within(root, path):
             if path.parent not in invalid_directories:
                 findings.append(
                     Finding(
@@ -1324,10 +1321,7 @@ def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
             if part.casefold() == "dispatch"
         )
         container_dir = docs.joinpath(*relative.parts[:dispatch_index])
-        resolved_container = container_dir.resolve(strict=False)
-        try:
-            resolved_container.relative_to(resolved_root)
-        except ValueError:
+        if not is_within(root, container_dir):
             findings.append(
                 Finding(
                     "FAIL",
@@ -1338,12 +1332,11 @@ def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
                 )
             )
             continue
-        resolved_directory = directory.resolve(strict=False)
-        try:
-            resolved_directory.relative_to(resolved_container)
-            task_path.resolve(strict=False).relative_to(resolved_directory)
-            evidence_path.resolve(strict=False).relative_to(resolved_directory)
-        except ValueError:
+        if not (
+            is_within(container_dir, directory)
+            and is_within(directory, task_path)
+            and is_within(directory, evidence_path)
+        ):
             findings.append(
                 Finding(
                     "FAIL",
@@ -1359,7 +1352,7 @@ def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
             DiscoveredTaskDispatchRecord(
                 directory=directory,
                 container_dir=container_dir,
-                container_path=container_dir.relative_to(root).as_posix(),
+                container_path=relative_repo_path(root, container_dir),
                 task_path=task_path,
                 evidence_path=evidence_path,
             )
