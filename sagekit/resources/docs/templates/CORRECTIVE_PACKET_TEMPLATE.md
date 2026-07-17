@@ -81,6 +81,34 @@ Non-Goals:
 
 Approval Gates:
 
+Preauthorized Convergence Window (optional; omit or mark inactive unless
+explicitly approved):
+- Active: `<yes/no>`
+- Authority ID:
+- Execution scope / PR / branch unit:
+- Root-cause family:
+- Allowed paths:
+- Approved invariant:
+- Semantic change policy: `implementation-preserving-only`
+- Targeted review required: `<yes/no>`
+- Targeted review closed: `<yes/no>`
+- Stop conditions:
+- Approved by role:
+- Authority reference:
+- Authority digest:
+- Current root-cause ID:
+- Finding count and severity:
+- Finding trend: `initial`, `finding-count-decreased`, `severity-decreased`,
+  `next-layer-exposed`, or `no-progress`
+- Consecutive no-progress rounds:
+
+The window is opt-in and does not expand scope, paths, product behavior,
+security, evidence, gates, or permissions. Semantic-preserving implementation
+correctives may continue; policy-changing semantics return `HANDOFF_READY`.
+Each successor is a new candidate with independent final verification. The
+window is not an unlimited retry mechanism; transient rerun and code corrective
+are separate, and deterministic failures must not be rerun speculatively.
+
 Runtime Smoke:
 
 Re-Review:
@@ -149,9 +177,9 @@ Stop If:
 - fix requires redesign;
 - approval gate is needed;
 - runtime evidence cannot be produced;
-- findings do not decrease for the first same-root round: return
-  `NEEDS_CORRECTION`, `PM_DECISION_REQUIRED`, and `HANDOFF`; do not continue
-  automatically;
+- without an active Preauthorized Convergence Window, a successor would exceed
+  the default single automatic successor rule: return `HANDOFF_READY`;
+- inside an active window, the first same-root no-progress round is recorded;
 - the same root cause has no material progress for two consecutive corrective
   rounds: return `BLOCKED`;
 - scope expands or a new authority, false-green, approval-boundary,

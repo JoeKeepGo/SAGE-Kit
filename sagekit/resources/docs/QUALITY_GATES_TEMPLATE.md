@@ -115,6 +115,30 @@ is `0`. Treat trailing whitespace, conflict markers, malformed patches, or any
 non-zero verification exit as blocking until resolved or explicitly waived by
 the required authority.
 
+### Preauthorized Convergence Window Gate
+
+The Preauthorized Convergence Window is opt-in. If inactive, one approved
+corrective batch still creates at most a single automatic successor. If active,
+record its authority id and digest, execution scope, root-cause family,
+component-aware allowed paths, invariant, `implementation-preserving-only`
+policy, targeted-review state, stop conditions, and approval source.
+
+Continue across multiple candidates only for semantic-preserving corrective
+implementation while findings or severity converge, or when targeted-reviewed
+evidence shows the next deterministic layer in the same family. Do not hand off
+because of a fixed generation count. Each candidate still gets independent
+final-verification counters and may start final verification only once.
+
+Return `HANDOFF_READY` for policy-changing semantics, scope/path/invariant or
+family changes, new gates or permissions, consumer mutation, security or
+evidence weakening, test/gate weakening, or missing/malformed authority. Return
+`BLOCKED` after two consecutive no-progress rounds for the same root cause or
+when required evidence cannot be produced. Security, authority, containment,
+validator, package, and release-gate implementation correctives require the
+targeted review named by the authority. This is not an unlimited retry rule:
+transient rerun is distinct from code corrective, and deterministic failure
+must not be retried speculatively.
+
 ## Universal Blockers
 
 - behavior changed but no test or smoke path exists;

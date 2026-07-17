@@ -37,6 +37,16 @@ Permission Mode:
 - Final Review mode: `READ_ONLY_REVIEW`
 - Final Review corrective orchestration authorized: `<yes/no; does not grant controller writes>`
 - Corrective convergence budget:
+- Preauthorized Convergence Window active: `<yes/no; opt-in>`
+- Convergence authority ID and digest:
+- Stable execution scope:
+- Approved root-cause family:
+- Component-aware allowed paths:
+- Approved invariant:
+- Semantic change policy: `implementation-preserving-only`
+- Targeted review requirement:
+- Convergence stop conditions:
+- Approval source:
 - Environment-write authority:
 - Initial submit/commit/push/cleanup authority: `none`
 - Post-verdict submit/cleanup grant: `<separate grant required; not issued here>`
@@ -154,6 +164,21 @@ Worker Delegation Rules:
 - Continuous execution allowed only within approved phase/task/lane boundaries:
 
 Review Expectations:
+
+Convergence Review Rules:
+- Semantic-preserving implementation corrective may continue only inside an
+  explicit Preauthorized Convergence Window.
+- Policy-changing semantic change, scope/path/invariant expansion, new gate or
+  permission, consumer mutation, or test/security/evidence weakening returns
+  `HANDOFF_READY`.
+- Security, authority, containment, validator, package, or release-gate
+  implementation corrective requires targeted review closure.
+- Finding or severity convergence is not stopped by a fixed candidate count;
+  two consecutive no-progress rounds for the same root cause return `BLOCKED`.
+- Every successor has a new fingerprint and independent one-time final
+  verification counters.
+- The window is not an unlimited retry mechanism. Transient rerun is separate
+  from code corrective; deterministic failures are not rerun speculatively.
 
 Approval Gates:
 
