@@ -143,6 +143,11 @@ TERMINAL_ATTEMPT_STATES = frozenset(
     }
 )
 
+FINAL_VERIFICATION_INELIGIBLE_REASON = (
+    "final verification is not eligible before candidate freeze; "
+    "use focused or affected-lane verification"
+)
+
 
 @dataclass(frozen=True)
 class VerificationPreflightCheck:
@@ -364,6 +369,15 @@ def prepare_verification_run(
                 f"verification attempt id already exists with different identity: "
                 f"{preflight.attempt_id}"
             )
+    if stage == VerificationStage.PRELIMINARY:
+        return _attempt_decision(
+            counters,
+            existing or replace(identity, state=VerificationAttemptState.PREFLIGHT),
+            allowed_to_run=False,
+            counted_now=False,
+            reason=FINAL_VERIFICATION_INELIGIBLE_REASON,
+        )
+    if existing is not None:
         return _attempt_decision(
             counters,
             existing,
@@ -426,6 +440,14 @@ def begin_verification_run(
     attempt = counters.verification_attempts.get(attempt_id)
     if attempt is None:
         raise ValueError(f"verification attempt is not prepared: {attempt_id}")
+    if attempt.stage == VerificationStage.PRELIMINARY:
+        return _attempt_decision(
+            counters,
+            attempt,
+            allowed_to_run=False,
+            counted_now=False,
+            reason=FINAL_VERIFICATION_INELIGIBLE_REASON,
+        )
     if attempt.state == VerificationAttemptState.PREFLIGHT:
         return _attempt_decision(
             counters,
@@ -480,41 +502,30 @@ def begin_verification_run(
             ),
         )
 
-    if attempt.stage == VerificationStage.PRELIMINARY:
-        field_name = (
-            "preliminary_full_suite_runs"
-            if attempt.kind == VerificationKind.FULL_SUITE
-            else "preliminary_wheel_install_runs"
-        )
-        updated = replace(
-            counters,
-            **{field_name: getattr(counters, field_name) + 1},
-        )
+    if candidate is None:
+        raise ValueError("final verification attempt is missing its candidate")
+    if attempt.kind == VerificationKind.FULL_SUITE:
+        field_name = "final_full_suite_runs"
+        limit = limits.max_full_suite_runs_per_candidate
     else:
-        if candidate is None:
-            raise ValueError("final verification attempt is missing its candidate")
-        if attempt.kind == VerificationKind.FULL_SUITE:
-            field_name = "final_full_suite_runs"
-            limit = limits.max_full_suite_runs_per_candidate
-        else:
-            field_name = "final_wheel_install_runs"
-            limit = limits.max_wheel_install_runs_per_candidate
-        runs = dict(getattr(counters, field_name))
-        current = runs.get(candidate.digest, 0)
-        if current >= limit:
-            return _attempt_decision(
-                counters,
-                attempt,
-                allowed_to_run=False,
-                counted_now=False,
-                state=RunState.HANDOFF_READY,
-                reason=(
-                    f"{attempt.kind.value} final run limit reached for candidate "
-                    f"{candidate.digest}"
-                ),
-            )
-        runs[candidate.digest] = current + 1
-        updated = replace(counters, **{field_name: runs})
+        field_name = "final_wheel_install_runs"
+        limit = limits.max_wheel_install_runs_per_candidate
+    runs = dict(getattr(counters, field_name))
+    current = runs.get(candidate.digest, 0)
+    if current >= limit:
+        return _attempt_decision(
+            counters,
+            attempt,
+            allowed_to_run=False,
+            counted_now=False,
+            state=RunState.HANDOFF_READY,
+            reason=(
+                f"{attempt.kind.value} final run limit reached for candidate "
+                f"{candidate.digest}"
+            ),
+        )
+    runs[candidate.digest] = current + 1
+    updated = replace(counters, **{field_name: runs})
 
     started = replace(attempt, state=VerificationAttemptState.STARTED)
     updated = _replace_attempt(updated, started)
@@ -523,11 +534,7 @@ def begin_verification_run(
         started,
         allowed_to_run=True,
         counted_now=True,
-        reason=(
-            "verification run consumed atomically as candidate execution starts"
-            if started.stage == VerificationStage.FINAL_CANDIDATE
-            else "preliminary verification run consumed atomically as execution starts"
-        ),
+        reason="verification run consumed atomically as candidate execution starts",
     )
 
 

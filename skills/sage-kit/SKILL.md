@@ -146,9 +146,20 @@ handoff.
   aggregated compatibility finding.
 - When a deterministic local limit is reached, create a checkpoint and return
   `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
-- Treat full-suite and wheel/install runs before review and corrective closure
-  as preliminary feedback only. They do not consume the single final run
-  available to a matching frozen candidate and cannot satisfy a merge gate.
+- Managed expensive verification is eligible only for a frozen candidate whose
+  fingerprint matches current inputs. Before freeze, prohibit full suite,
+  retained regression, wheel/install, outside-source/package smoke, and full
+  integration re-review; a non-consuming legacy preliminary counter is not
+  authority to run them.
+- For one finding, run only the minimum reproduction and directly affected
+  focused tests. At a lane gate, run only the affected-lane suite. After a
+  corrective, run only targeted verification and targeted re-review. Reduce
+  harness or teardown failures to a minimum reproduction before any broader
+  rerun.
+- Reuse evidence for the same fingerprint while its inputs remain unchanged.
+  Workers and reviewers cannot expand expensive-verification authority; Lane
+  Controllers own only affected-lane verification, and the Root or Final
+  Controller exclusively owns final full-suite authority.
 - Capability or preflight failures do not consume a candidate verification run.
   A run is consumed atomically when candidate execution starts. Persist started
   attempt ids so checkpoint/resume cannot count them twice.

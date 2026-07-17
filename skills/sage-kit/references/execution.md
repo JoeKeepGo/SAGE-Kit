@@ -268,17 +268,29 @@ When Session Orchestration is active:
 
 Corrective convergence budgets may be configured by the execution or Final
 Review packet, but they are control signals, not unconditional blockers.
-Full-suite and wheel/install runs before review and corrective closure are
-preliminary feedback and do not consume final-candidate capacity. After the
-single corrective batch closes, freeze a HEAD/diff/contract/dependency
-fingerprint and allow one final run per matching candidate. One approved
-corrective batch may create one automatic successor without budget approval;
-another successor from that batch or any change after final verification
-returns `HANDOFF_READY`. A human-approved handoff corrective may create the
-next generation only when it persists an authority anchor, root-cause id, and
-finding count. Generation is not mechanically capped; the same root cause with
-no progress for two approved rounds returns `BLOCKED`, while reduced findings
-reset the no-progress count.
+Managed expensive verification is eligible only for a frozen candidate whose
+fingerprint matches current inputs. Before freeze, full suite, retained
+regression, wheel/install, outside-source/package smoke, and full integration
+re-review are prohibited; legacy preliminary counters do not authorize them.
+Workers and reviewers cannot expand this authority. A Lane Controller owns only
+affected-lane verification, and the Root or Final Controller exclusively owns
+final full-suite authority.
+
+For one finding, use the minimum reproduction and directly affected focused
+tests. At a lane gate, use only the affected-lane suite. After a corrective,
+use targeted verification and targeted re-review. Reduce harness or teardown
+failures to a minimum reproduction instead of rerunning the complete suite, and
+reuse matching-fingerprint evidence while inputs remain unchanged.
+
+After the single corrective batch closes, freeze a
+HEAD/diff/contract/dependency fingerprint and allow one final run per matching
+candidate. One approved corrective batch may create one automatic successor
+without budget approval; another successor from that batch or any change after
+final verification returns `HANDOFF_READY`. A human-approved handoff corrective
+may create the next generation only when it persists an authority anchor,
+root-cause id, and finding count. Generation is not mechanically capped; the
+same root cause with no progress for two approved rounds returns `BLOCKED`,
+while reduced findings reset the no-progress count.
 Continue automatic correction only inside an authorized corrective packet or
 boundary while findings or severity decrease, scope does not expand, no
 blocking approval gate is bypassed, and no new authority, false-green,

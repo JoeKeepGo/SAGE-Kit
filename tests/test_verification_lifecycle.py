@@ -11,6 +11,7 @@ from sagekit.continuity import checkpoint_path, create_checkpoint, resume_checkp
 from sagekit.execution_limits import (
     ExecutionCounters,
     ExecutionLimits,
+    VerificationAttempt,
     VerificationAttemptState,
     VerificationKind,
     VerificationNode,
@@ -18,6 +19,7 @@ from sagekit.execution_limits import (
     VerificationNodeResult,
     VerificationPreflight,
     VerificationPreflightCheck,
+    VerificationStage,
     begin_verification_run,
     complete_verification_run,
     decide_verification_node,
@@ -239,25 +241,55 @@ class VerificationLifecycleTests(unittest.TestCase):
         self.assertFalse(prepared.allowed_to_run)
         self.assertEqual({}, prepared.counters.final_full_suite_runs)
 
-    def test_preliminary_and_final_attempts_use_separate_counters(self):
-        preliminary_proof = preflight("preliminary", current_candidate=None)
-        ready = prepare_verification_run(
-            ExecutionCounters(),
+    def test_no_candidate_full_suite_is_denied_without_attempt_or_count(self):
+        counters = ExecutionCounters(preliminary_full_suite_runs=2)
+        preliminary_proof = preflight("no-candidate", current_candidate=None)
+
+        denied = prepare_verification_run(
+            counters,
             VerificationKind.FULL_SUITE,
             preliminary_proof,
             candidate=None,
             assessment=None,
         )
-        preliminary = begin_verification_run(
-            ready.counters,
+
+        self.assertFalse(denied.allowed_to_run)
+        self.assertFalse(denied.counted_now)
+        self.assertEqual(VerificationAttemptState.PREFLIGHT, denied.attempt_state)
+        self.assertEqual(2, denied.counters.preliminary_full_suite_runs)
+        self.assertEqual({}, denied.counters.final_full_suite_runs)
+        self.assertEqual({}, denied.counters.verification_attempts)
+        self.assertIn("not eligible before candidate freeze", denied.reason)
+
+    def test_legacy_ready_preliminary_attempt_cannot_begin_or_count(self):
+        attempt = VerificationAttempt(
+            attempt_id="legacy-preliminary",
+            kind=VerificationKind.FULL_SUITE,
+            stage=VerificationStage.PRELIMINARY,
+            candidate_fingerprint=None,
+            state=VerificationAttemptState.READY,
+            preflight_checks=(VerificationPreflightCheck("builder_available", True),),
+        )
+        counters = ExecutionCounters(
+            preliminary_full_suite_runs=3,
+            verification_attempts={attempt.attempt_id: attempt},
+        )
+
+        denied = begin_verification_run(
+            counters,
             ExecutionLimits(),
-            "preliminary",
+            attempt.attempt_id,
             candidate=None,
             assessment=None,
         )
 
-        self.assertEqual(1, preliminary.counters.preliminary_full_suite_runs)
-        self.assertEqual({}, preliminary.counters.final_full_suite_runs)
+        self.assertFalse(denied.allowed_to_run)
+        self.assertFalse(denied.counted_now)
+        self.assertEqual(VerificationAttemptState.READY, denied.attempt_state)
+        self.assertEqual(3, denied.counters.preliminary_full_suite_runs)
+        self.assertEqual({}, denied.counters.final_full_suite_runs)
+        self.assertEqual(attempt, denied.counters.verification_attempts[attempt.attempt_id])
+        self.assertIn("not eligible before candidate freeze", denied.reason)
 
     def test_checkpoint_resume_preserves_started_attempt_without_recounting(self):
         with tempfile.TemporaryDirectory() as directory:
