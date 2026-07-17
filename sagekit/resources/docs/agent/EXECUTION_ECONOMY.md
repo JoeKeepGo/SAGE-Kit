@@ -68,31 +68,50 @@ focused verification
 -> final integration verification
 ```
 
-A local edit runs focused verification. A lane gate runs only that lane's suite.
-The required order is implementation, focused verification, independent review,
-one corrective batch, targeted verification, review/corrective closure, stable
-candidate freeze, and then final integration verification.
+A single finding runs only its minimum reproduction and directly affected
+focused tests. A lane gate runs only that lane's affected suite. After a
+corrective batch, run only targeted verification and targeted re-review for the
+affected finding and direct regressions. The required order is implementation,
+focused verification, independent review, one corrective batch, targeted
+verification, review/corrective closure, stable candidate freeze, and then final
+integration verification.
 
-A full suite or wheel/install run before review and corrective closure is
-`preliminary`. It may provide development feedback, but it does not consume a
-final-candidate budget and is never merge-gate evidence. Full suite,
-wheel/install, package discovery, and outside-source smoke run once for each
-matching frozen stable candidate. A new session does not invalidate evidence.
-A record-only change does not invalidate implementation evidence.
+Managed expensive verification is eligible only for a frozen candidate whose
+fingerprint matches current inputs. Before candidate freeze, the managed
+lifecycle prohibits full suite, retained regression suite, wheel/install,
+outside-source or package smoke, and full integration re-review. The fact that
+legacy preliminary counters do not consume final-candidate capacity never
+authorizes an early run. Harness or teardown failure must first be reduced to a
+minimum reproduction; do not rerun the complete suite to diagnose it.
+
+Full suite, retained regression, wheel/install, outside-source/package smoke,
+and full integration re-review run once for each matching frozen stable
+candidate. Evidence for an existing fingerprint must be reused while its inputs
+remain unchanged. A new session does not invalidate evidence. A record-only
+change does not invalidate implementation evidence.
+
+Workers have no full-suite authority and reviewers cannot expand verification
+authority. A Lane Controller owns only affected-lane verification. The Root or
+Final Controller exclusively owns final full-suite authority.
 
 ### Verification Attempt Lifecycle
 
-Every full-suite or wheel/install attempt follows:
+Every admitted final full-suite or wheel/install attempt follows:
 
 ```text
 PREFLIGHT -> READY -> STARTED -> PASSED | FAILED | ABORTED
 ```
 
+An ineligible request before candidate freeze is denied before attempt creation,
+cannot enter `STARTED`, and increments no counter.
 Capability or preflight failures do not consume a candidate verification run.
-A run is consumed atomically when candidate execution starts. `PREFLIGHT` and
-`READY` therefore do not increment preliminary or final counters. Transitioning
-to `STARTED` increments the matching counter exactly once; `PASSED`, `FAILED`,
-and `ABORTED` after start remain counted.
+This applies to preflight for an eligible frozen candidate; it is not an
+exception to admission.
+A run is consumed atomically when candidate execution starts.
+`PREFLIGHT` and `READY`
+therefore do not increment counters. Transitioning to `STARTED` increments the
+matching final counter exactly once; `PASSED`, `FAILED`, and `ABORTED` after
+start remain counted.
 
 Preflight readiness is structured evidence: an attempt id, the candidate
 fingerprint when applicable, and named boolean checks. A message alone cannot
@@ -155,6 +174,11 @@ automatically create one successor without human budget approval. The batch id
 is bound to the successor, so the same batch cannot create another automatic
 candidate. Any change after final verification first returns `HANDOFF_READY`
 and persists state and evidence.
+
+When final verification finds a problem, diagnose and fix it with focused tests
+and close only the targeted re-review. Any code change requires a successor
+candidate; after that successor is frozen, it receives its one new final
+verification run.
 
 A later human-approved handoff corrective may create the next generation only
 when it binds a non-empty authority anchor, root-cause id, and current finding
@@ -244,7 +268,8 @@ Invalidation rules:
 - Unrelated unchanged surfaces remain valid.
 
 Evidence remains an immutable observation at its original HEAD. Reuse is a
-separate decision and never rewrites history.
+separate decision and never rewrites history. Evidence whose fingerprint and
+inputs still match must be reused rather than regenerated.
 
 ## Deterministic Limits
 
@@ -268,9 +293,9 @@ reached.
 
 ```yaml
 verification_runs:
-  preliminary:
-    purpose: development feedback
-    consumes_final_candidate_budget: false
+  candidate_ineligible:
+    allowed_to_run: false
+    counter_increment: false
   final_candidate:
     requires_review_closed: true
     requires_corrective_batch_closed: true
@@ -278,9 +303,10 @@ verification_runs:
     max_runs_per_candidate: 1
 ```
 
-Preliminary runs never decrement or exhaust final-candidate capacity. A
-successor candidate created by the one approved corrective batch has its own
-single final budget and does not require manual relaxation.
+Legacy preliminary counters remain readable for checkpoint compatibility but
+do not authorize new attempts. A successor candidate created by the one
+approved corrective batch has its own single final budget and does not require
+manual relaxation.
 
 ## Review Convergence Contract
 

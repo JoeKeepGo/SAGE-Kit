@@ -326,7 +326,7 @@ class CandidateVerificationTests(unittest.TestCase):
         values.update(overrides)
         return freeze_candidate(root, **values)
 
-    def test_review_open_run_is_preliminary_and_does_not_consume_final_budget(self):
+    def test_review_open_full_suite_is_denied_without_counting(self):
         _, freeze_candidate = candidate_api()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -345,21 +345,45 @@ class CandidateVerificationTests(unittest.TestCase):
                 candidate=frozen.candidate,
                 assessment=None,
             )
-            decision = begin_verification_run(
-                prepared.counters,
-                ExecutionLimits(),
-                "review-open",
+
+        self.assertFalse(frozen.ok)
+        self.assertEqual(VerificationStage.PRELIMINARY, prepared.stage)
+        self.assertFalse(prepared.allowed_to_run)
+        self.assertFalse(prepared.counted_now)
+        self.assertFalse(prepared.consumes_final_candidate_budget)
+        self.assertFalse(prepared.merge_gate_eligible)
+        self.assertEqual(0, prepared.counters.preliminary_full_suite_runs)
+        self.assertEqual({}, prepared.counters.final_full_suite_runs)
+        self.assertEqual({}, prepared.counters.verification_attempts)
+        self.assertIn("not eligible before candidate freeze", prepared.reason)
+
+    def test_corrective_open_wheel_install_is_denied_without_counting(self):
+        _, freeze_candidate = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            frozen = freeze_candidate(
+                root,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+                review_closed=True,
+                corrective_batch_closed=False,
+            )
+            prepared = prepare_verification_run(
+                ExecutionCounters(),
+                VerificationKind.WHEEL_INSTALL,
+                verification_preflight("corrective-open", frozen.candidate),
                 candidate=frozen.candidate,
                 assessment=None,
             )
 
         self.assertFalse(frozen.ok)
-        self.assertEqual(VerificationStage.PRELIMINARY, decision.stage)
-        self.assertTrue(decision.allowed_to_run)
-        self.assertFalse(decision.consumes_final_candidate_budget)
-        self.assertFalse(decision.merge_gate_eligible)
-        self.assertEqual(1, decision.counters.preliminary_full_suite_runs)
-        self.assertEqual({}, decision.counters.final_full_suite_runs)
+        self.assertFalse(prepared.allowed_to_run)
+        self.assertFalse(prepared.counted_now)
+        self.assertEqual(0, prepared.counters.preliminary_wheel_install_runs)
+        self.assertEqual({}, prepared.counters.final_wheel_install_runs)
+        self.assertEqual({}, prepared.counters.verification_attempts)
+        self.assertIn("use focused or affected-lane verification", prepared.reason)
 
     def test_closed_review_and_corrective_batch_freeze_bound_candidate(self):
         assess_candidate, _ = candidate_api()
@@ -1341,6 +1365,25 @@ class DocumentationPolicyTests(unittest.TestCase):
             "independent verification nodes continue and report their own results.",
             text,
         )
+
+    def test_managed_expensive_verification_requires_a_frozen_candidate_everywhere(self):
+        core_rule = (
+            "Managed expensive verification is eligible only for a frozen candidate "
+            "whose fingerprint matches current inputs."
+        )
+        paths = (
+            "docs/agent/EXECUTION_ECONOMY.md",
+            "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
+            "skills/sage-kit/SKILL.md",
+            "skills/sage-kit/references/execution.md",
+        )
+
+        for relative in paths:
+            with self.subTest(path=relative):
+                text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn(core_rule, " ".join(text.split()))
+                self.assertNotIn("preliminary feedback", text)
+                self.assertNotIn("It may provide development feedback", text)
 
     def test_runtime_checkpoint_is_gitignored(self):
         lines = {
