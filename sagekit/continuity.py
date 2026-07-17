@@ -9,15 +9,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from .candidate import CandidateFingerprint, assess_candidate
+from .candidate import (
+    CandidateFingerprint,
+    assess_candidate,
+    convergence_authority_mismatches,
+)
 from .change_control import ChangeClass
+from .convergence import PreauthorizedConvergenceAuthority
 from .evidence import EvidenceFingerprint
 from .execution_limits import COUNTER_NAMES, ExecutionCounters
 from .pathing import is_within, relative_repo_path
 
 
-CHECKPOINT_SCHEMA_VERSION = 3
-SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = frozenset({1, 2, CHECKPOINT_SCHEMA_VERSION})
+CHECKPOINT_SCHEMA_VERSION = 4
+SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = frozenset({1, 2, 3, CHECKPOINT_SCHEMA_VERSION})
 MAX_CHECKPOINT_BYTES = 32_000
 REQUIRED_FIELDS = {
     "run_id",
@@ -81,6 +86,7 @@ def create_checkpoint(
     authority_references: Iterable[str] = (),
     base_sha: str | None = None,
     candidate: CandidateFingerprint | None = None,
+    convergence_authority: PreauthorizedConvergenceAuthority | None = None,
 ) -> CheckpointResult:
     root = repository_root.resolve(strict=False)
     git_root, branch, head = _git_state(root)
@@ -95,6 +101,23 @@ def create_checkpoint(
     }
     authority_payload["payload_sha256"] = _json_digest(authority_payload)
     evidence_payload = [_serialize_evidence_reference(root, value) for value in evidence_references]
+    if candidate is not None:
+        if candidate.convergence_authority_digest is not None and convergence_authority is None:
+            raise ValueError("convergence candidate requires its authority payload")
+        if convergence_authority is not None and (
+            candidate.convergence_authority_digest != convergence_authority.digest
+        ):
+            raise ValueError("candidate convergence authority digest differs")
+        if convergence_authority is not None:
+            snapshot_mismatches = convergence_authority_mismatches(
+                candidate,
+                convergence_authority,
+            )
+            if snapshot_mismatches:
+                raise ValueError(
+                    "candidate convergence authority snapshot differs: "
+                    + "; ".join(snapshot_mismatches)
+                )
     now = datetime.now(timezone.utc).isoformat()
     payload: dict[str, object] = {
         "schema_version": CHECKPOINT_SCHEMA_VERSION,
@@ -118,6 +141,11 @@ def create_checkpoint(
         ],
         "stop_conditions": _bounded_list(stop_conditions, "stop conditions"),
         "candidate": candidate.to_dict() if candidate is not None else None,
+        "convergence_authority": (
+            convergence_authority.to_dict()
+            if convergence_authority is not None
+            else None
+        ),
         "created_at": now,
         "updated_at": now,
     }
@@ -146,6 +174,7 @@ def resume_checkpoint(
     *,
     expected_authority_id: str | None = None,
     expected_authority_version: str | None = None,
+    expected_convergence_authority: PreauthorizedConvergenceAuthority | None = None,
 ) -> CheckpointResult:
     root = repository_root.resolve(strict=False)
     loaded = _load_checkpoint(root)
@@ -194,6 +223,20 @@ def resume_checkpoint(
     mismatches.extend(
         _reference_mismatches(root, payload.get("evidence_references"), "evidence")
     )
+    convergence_authority: PreauthorizedConvergenceAuthority | None = None
+    convergence_payload = payload.get("convergence_authority")
+    if convergence_payload is not None:
+        try:
+            convergence_authority = PreauthorizedConvergenceAuthority.from_dict(
+                convergence_payload
+            )
+        except ValueError as exc:
+            mismatches.append(f"convergence authority is invalid: {exc}")
+    if expected_convergence_authority is not None:
+        if convergence_authority is None:
+            mismatches.append("expected convergence authority is missing")
+        elif convergence_authority.digest != expected_convergence_authority.digest:
+            mismatches.append("expected convergence authority digest differs")
     candidate_payload = payload.get("candidate")
     if isinstance(candidate_payload, dict):
         try:
@@ -207,9 +250,22 @@ def resume_checkpoint(
             mismatches.extend(
                 f"candidate {item}" for item in candidate_assessment.mismatches
             )
+            if candidate.convergence_authority_digest is not None:
+                if convergence_authority is None:
+                    mismatches.append("candidate convergence authority is missing")
+                else:
+                    mismatches.extend(
+                        "candidate convergence authority snapshot: " + item
+                        for item in convergence_authority_mismatches(
+                            candidate,
+                            convergence_authority,
+                        )
+                    )
+            elif convergence_authority is not None:
+                mismatches.append("legacy candidate cannot gain convergence authority")
         except ValueError as exc:
             mismatches.append(f"candidate fingerprint is invalid: {exc}")
-    elif payload.get("schema_version") in {2, CHECKPOINT_SCHEMA_VERSION} and candidate_payload is not None:
+    elif payload.get("schema_version") in {2, 3, CHECKPOINT_SCHEMA_VERSION} and candidate_payload is not None:
         mismatches.append("candidate fingerprint is invalid")
     if mismatches:
         return CheckpointResult(
@@ -261,8 +317,10 @@ def _load_checkpoint(root: Path) -> CheckpointResult:
             raise ValueError("checkpoint missing fields: " + ", ".join(missing))
         if payload.get("schema_version") not in SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported checkpoint schema: {payload.get('schema_version')}")
-        if payload.get("schema_version") in {2, CHECKPOINT_SCHEMA_VERSION} and "candidate" not in payload:
+        if payload.get("schema_version") in {2, 3, CHECKPOINT_SCHEMA_VERSION} and "candidate" not in payload:
             raise ValueError("checkpoint missing fields: candidate")
+        if payload.get("schema_version") == CHECKPOINT_SCHEMA_VERSION and "convergence_authority" not in payload:
+            raise ValueError("checkpoint missing fields: convergence_authority")
         structure_errors = _checkpoint_structure_errors(root, payload)
         if structure_errors:
             raise ValueError("; ".join(structure_errors))
@@ -489,6 +547,7 @@ def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list
     allowed_counter_fields = {
         1: {frozenset(legacy)},
         2: {frozenset(previous_v2)},
+        3: {frozenset(expected)},
         CHECKPOINT_SCHEMA_VERSION: {frozenset(expected)},
     }.get(schema_version, set())
     if not isinstance(counters, dict) or counter_fields not in allowed_counter_fields:
@@ -515,4 +574,16 @@ def _checkpoint_structure_errors(root: Path, payload: dict[str, object]) -> list
                 CandidateFingerprint.from_dict(candidate)
             except ValueError as exc:
                 errors.append(f"candidate is invalid: {exc}")
+    convergence_payload = payload.get("convergence_authority")
+    schema_version = payload.get("schema_version")
+    convergence_authority: PreauthorizedConvergenceAuthority | None = None
+    if schema_version in {1, 2, 3} and convergence_payload is not None:
+        errors.append("legacy checkpoint cannot contain convergence authority")
+    elif convergence_payload is not None:
+        try:
+            convergence_authority = PreauthorizedConvergenceAuthority.from_dict(
+                convergence_payload
+            )
+        except ValueError as exc:
+            errors.append(f"convergence_authority is invalid: {exc}")
     return errors

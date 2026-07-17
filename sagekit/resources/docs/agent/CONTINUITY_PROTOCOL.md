@@ -33,6 +33,22 @@ candidate:
   root_cause_id:
   open_findings_count:
   no_progress_rounds:
+  convergence_authority_digest:
+  root_cause_family:
+  finding_severity:
+  targeted_review_closed:
+  finding_trend:
+convergence_authority:
+  authority_id:
+  execution_scope:
+  root_cause_family:
+  allowed_paths:
+  invariant:
+  semantic_change_policy:
+  targeted_review_required:
+  stop_conditions:
+  approved_by:
+  authority_ref:
 next_action:
 allowed_paths:
 stop_conditions:
@@ -63,6 +79,9 @@ returns the bounded resume packet. It never executes arbitrary commands.
 Use repeated `--counter NAME=VALUE` arguments when creating a checkpoint.
 Callers that hold an authority anchor should pass `--expect-authority-id` and
 `--expect-authority-version` to `status` or `resume`; a mismatch fails closed.
+Callers using a Preauthorized Convergence Window may also pass
+`--convergence-authority FILE`; replacement of its digest, allowed paths,
+execution scope, family, invariant, or stop conditions fails closed.
 
 ## Resume Contract
 
@@ -78,7 +97,7 @@ Resume:
 7. emits completed work, open findings, invalidated evidence, counters,
    candidate, allowed paths, stop conditions, and `next_action`.
 
-The checkpoint schema v3 preserves structured verification attempts, including
+The checkpoint schema v4 preserves structured verification attempts, including
 attempt id, kind, stage, candidate fingerprint, preflight checks, and lifecycle
 state. Resuming a `STARTED`, `PASSED`, `FAILED`, or `ABORTED` attempt never
 increments its counter again.
@@ -91,7 +110,16 @@ and consecutive no-progress rounds. Resume therefore cannot turn an
 unapproved handoff into automatic execution or lose the two-round
 same-root-cause blocking rule.
 
-A v2 checkpoint has per-candidate counters but no attempt records; it resumes
+Schema v4 also persists the complete serialized Preauthorized Convergence
+Window and binds its digest to the current candidate. Resume restores the
+authority id, execution scope, root-cause family and id, finding count and
+severity, no-progress rounds, allowed paths, invariant, stop conditions,
+targeted-review state, and current candidate. Authority, allowed-path, or
+invariant replacement fails closed. A checkpoint cannot synthesize approval.
+
+A v3 checkpoint preserves structured attempts but has no convergence-authority
+field; it resumes with the window inactive. A v2 checkpoint has per-candidate
+counters but no attempt records; it resumes
 with an empty attempt map while preserving those counters, so exhausted
 candidate budgets remain exhausted. A v1 checkpoint's old aggregate full-suite
 and wheel counts migrate conservatively to preliminary counts; they never

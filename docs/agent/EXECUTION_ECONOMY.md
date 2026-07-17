@@ -133,6 +133,15 @@ candidate:
   root_cause_id:
   open_findings_count:
   no_progress_rounds:
+  convergence_authority_digest:
+  convergence_authority_id:
+  execution_scope:
+  root_cause_family:
+  convergence_allowed_paths:
+  convergence_invariant:
+  finding_severity:
+  targeted_review_closed:
+  finding_trend:
   fingerprint:
 ```
 
@@ -154,6 +163,53 @@ Generation numbers are audit data, not a permanent ceiling. Two approved
 rounds with the same root cause and no finding reduction return `BLOCKED`;
 finding reduction resets that no-progress count. The system never starts an
 automatic candidate or full-suite loop.
+
+### Preauthorized Convergence Window
+
+A Preauthorized Convergence Window is an explicit, opt-in authority contract
+for deterministic corrective work in one stable execution unit. Without it,
+the existing single automatic successor rule above is unchanged. With it, a
+converging sequence may create additional successor candidates without a new
+handoff merely because another remote environment layer became visible.
+
+The serialized authority names a stable authority id, execution scope,
+root-cause family, component-aware allowed paths, approved invariant,
+`implementation-preserving-only` policy, targeted-review requirement, stop
+conditions, approver role, and approval reference. It has canonical JSON and a
+stable SHA-256 digest. Absolute paths, parent traversal, malformed authority,
+or replacement of the authority digest fail closed. The runtime derives
+changed paths from Git and checks canonical containment; sibling prefixes,
+symlink escape, and implicit expansion into shared, package, or docs paths are
+not authorized.
+
+A semantic-preserving implementation corrective changes how an already
+approved contract is implemented without changing its invariant. Examples
+include cross-platform path representation, a missing test import, shell
+quoting, package resource inclusion under the same resource contract, and a
+deterministic test harness repair. Touching authority, security, containment,
+validator, package, or release-gate implementation does not by itself make the
+change policy-changing, but it requires closed targeted review when the
+authority says so.
+
+A policy-changing semantic change alters the approved invariant or public
+boundary: repository containment, symlink policy, allowed directories,
+contract selection, approval authority, required evidence, public behavior,
+or a security boundary. It returns `HANDOFF_READY`; the window cannot approve
+it automatically. Scope expansion, a new gate or permission, consumer
+mutation, test/gate weakening, or unrelated root-cause family also hand off.
+
+Finding-count or severity reduction resets consecutive no-progress rounds. A
+structured, targeted-reviewed finding increase may continue only when the
+previous fix exposed the next deterministic layer in the same family. The
+first unchanged same-root round is recorded; the second returns `BLOCKED`.
+Candidate generation is audit data and never a fixed blocking ceiling.
+
+Every successor gets a new fingerprint and predecessor digest while retaining
+the authority digest and family. Final full-suite and wheel counters remain
+per-candidate, and each candidate can start each final verification kind only
+once. The window is not an unlimited retry mechanism. A transient rerun and a
+code corrective are different actions; deterministic failures must not be
+rerun in the hope of a different result.
 
 ## Evidence Fingerprint
 

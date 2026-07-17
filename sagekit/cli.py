@@ -6,10 +6,15 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .candidate import CandidateFreezeResult, freeze_candidate
+from .candidate import CandidateFingerprint, CandidateFreezeResult, freeze_candidate
 from .change_control import ChangeClass
 from .check import run_check, run_source_repo_check
 from .continuity import CheckpointResult, clear_checkpoint, create_checkpoint, resume_checkpoint
+from .convergence import (
+    ConvergenceEvidence,
+    PreauthorizedConvergenceAuthority,
+    load_convergence_authority,
+)
 from .doctor import run_doctor
 from .execution_limits import COUNTER_NAMES, ExecutionCounters
 from .findings import Finding, has_fail
@@ -19,6 +24,10 @@ from .reporting import DEFAULT_MAX_FINDINGS, build_finding_report, finding_repor
 
 
 class TargetError(ValueError):
+    pass
+
+
+class ConfigurationError(ValueError):
     pass
 
 
@@ -143,12 +152,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Persist an execution counter; repeat as needed.",
     )
     checkpoint_create.add_argument("--base-sha")
+    checkpoint_create.add_argument(
+        "--convergence-authority",
+        type=Path,
+        help="Explicit preauthorized convergence authority JSON file.",
+    )
 
     checkpoint_status = checkpoint_commands.add_parser("status", help="Validate the current checkpoint.")
     add_target_argument(checkpoint_status)
     checkpoint_status.add_argument("--json", action="store_true", help="Print machine-readable output.")
     checkpoint_status.add_argument("--expect-authority-id")
     checkpoint_status.add_argument("--expect-authority-version")
+    checkpoint_status.add_argument("--convergence-authority", type=Path)
 
     checkpoint_clear = checkpoint_commands.add_parser("clear", help="Remove only CURRENT_RUN.json.")
     add_target_argument(checkpoint_clear)
@@ -169,12 +184,42 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_freeze.add_argument("--dependency-digest", required=True)
     candidate_freeze.add_argument("--review-closed", action="store_true")
     candidate_freeze.add_argument("--corrective-batch-closed", action="store_true")
+    candidate_freeze.add_argument("--previous-candidate", type=Path)
+    candidate_freeze.add_argument("--approved-corrective", action="store_true")
+    candidate_freeze.add_argument("--corrective-batch-id")
+    candidate_freeze.add_argument("--previous-final-verified", action="store_true")
+    candidate_freeze.add_argument("--handoff-successor-approved", action="store_true")
+    candidate_freeze.add_argument("--authority-anchor")
+    candidate_freeze.add_argument("--convergence-authority", type=Path)
+    candidate_freeze.add_argument("--execution-scope")
+    candidate_freeze.add_argument("--root-cause-family")
+    candidate_freeze.add_argument("--root-cause-id")
+    candidate_freeze.add_argument("--finding-count", type=int)
+    candidate_freeze.add_argument("--finding-severity", type=int)
+    candidate_freeze.add_argument(
+        "--semantic-change",
+        choices=("implementation-preserving", "policy-changing"),
+    )
+    candidate_freeze.add_argument("--targeted-review-closed", action="store_true")
+    candidate_freeze.add_argument("--next-layer-exposed", action="store_true")
+    candidate_freeze.add_argument("--product-scope-expanded", action="store_true")
+    candidate_freeze.add_argument("--approval-gate-opened", action="store_true")
+    candidate_freeze.add_argument("--permissions-increased", action="store_true")
+    candidate_freeze.add_argument("--test-or-gate-weakened", action="store_true")
+    candidate_freeze.add_argument("--security-or-evidence-weakened", action="store_true")
+    candidate_freeze.add_argument(
+        "--contract-or-public-behavior-changed", action="store_true"
+    )
+    candidate_freeze.add_argument("--consumer-mutation", action="store_true")
+    candidate_freeze.add_argument("--authority-precedence-changed", action="store_true")
+    candidate_freeze.add_argument("--required-evidence-unavailable", action="store_true")
 
     resume = subparsers.add_parser("resume", help="Validate and emit the current run's next action.")
     add_target_argument(resume)
     resume.add_argument("--json", action="store_true", help="Print machine-readable output.")
     resume.add_argument("--expect-authority-id")
     resume.add_argument("--expect-authority-version")
+    resume.add_argument("--convergence-authority", type=Path)
     return parser
 
 
@@ -224,10 +269,159 @@ def safe_resume_payload(result: CheckpointResult) -> dict[str, object] | None:
         "invalidated_evidence": checkpoint.get("invalidated_evidence", []),
         "execution_counters": checkpoint.get("execution_counters", {}),
         "candidate": checkpoint.get("candidate"),
+        "convergence_authority": checkpoint.get("convergence_authority"),
         "next_action": checkpoint.get("next_action"),
         "allowed_paths": checkpoint.get("allowed_paths", []),
         "stop_conditions": checkpoint.get("stop_conditions", []),
     }
+
+
+def _load_authority_argument(
+    path: Path | None,
+) -> PreauthorizedConvergenceAuthority | None:
+    if path is None:
+        return None
+    try:
+        return load_convergence_authority(path.expanduser().resolve(strict=False))
+    except (TypeError, ValueError) as exc:
+        raise ConfigurationError(str(exc)) from exc
+
+
+def _load_candidate_argument(path: Path | None) -> CandidateFingerprint | None:
+    if path is None:
+        return None
+    try:
+        payload = json.loads(path.expanduser().resolve(strict=False).read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and "candidate" in payload:
+            payload = payload["candidate"]
+        return CandidateFingerprint.from_dict(payload)
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
+        raise ConfigurationError(f"could not load previous candidate: {exc}") from exc
+
+
+def _convergence_evidence_argument(
+    args,
+    authority: PreauthorizedConvergenceAuthority | None,
+) -> ConvergenceEvidence | None:
+    if authority is None:
+        convergence_values = (
+            args.execution_scope,
+            args.root_cause_family,
+            args.root_cause_id,
+            args.finding_count,
+            args.finding_severity,
+            args.semantic_change,
+            args.targeted_review_closed,
+            args.next_layer_exposed,
+            args.product_scope_expanded,
+            args.approval_gate_opened,
+            args.permissions_increased,
+            args.test_or_gate_weakened,
+            args.security_or_evidence_weakened,
+            args.contract_or_public_behavior_changed,
+            args.consumer_mutation,
+            args.authority_precedence_changed,
+            args.required_evidence_unavailable,
+        )
+        if any(value not in {None, False} for value in convergence_values):
+            raise ConfigurationError(
+                "convergence evidence requires --convergence-authority"
+            )
+        return None
+    missing = []
+    if not args.root_cause_id:
+        missing.append("--root-cause-id")
+    if args.finding_count is None:
+        missing.append("--finding-count")
+    if not args.semantic_change:
+        missing.append("--semantic-change")
+    if missing:
+        raise ConfigurationError(
+            "convergence authority requires " + ", ".join(missing)
+        )
+    try:
+        return ConvergenceEvidence(
+            execution_scope=args.execution_scope or authority.execution_scope,
+            root_cause_family=args.root_cause_family or authority.root_cause_family,
+            root_cause_id=args.root_cause_id,
+            finding_count=args.finding_count,
+            finding_severity=args.finding_severity,
+            semantic_change=args.semantic_change,
+            targeted_review_closed=args.targeted_review_closed,
+            next_layer_exposed=args.next_layer_exposed,
+            product_scope_expanded=args.product_scope_expanded,
+            approval_gate_opened=args.approval_gate_opened,
+            permissions_increased=args.permissions_increased,
+            test_or_gate_weakened=args.test_or_gate_weakened,
+            security_or_evidence_weakened=args.security_or_evidence_weakened,
+            contract_or_public_behavior_changed=args.contract_or_public_behavior_changed,
+            consumer_mutation=args.consumer_mutation,
+            authority_precedence_changed=args.authority_precedence_changed,
+            required_evidence_unavailable=args.required_evidence_unavailable,
+        )
+    except ValueError as exc:
+        raise ConfigurationError(str(exc)) from exc
+
+
+def convergence_status_payload(
+    checkpoint: dict[str, object] | None = None,
+    *,
+    candidate: CandidateFingerprint | None = None,
+    authority: PreauthorizedConvergenceAuthority | None = None,
+    trend: str | None = None,
+    stop_reason: str | None = None,
+) -> dict[str, object]:
+    if checkpoint is not None:
+        authority_payload = checkpoint.get("convergence_authority")
+        candidate_payload = checkpoint.get("candidate")
+        if authority_payload is not None:
+            try:
+                authority = PreauthorizedConvergenceAuthority.from_dict(authority_payload)
+            except ValueError:
+                authority = None
+        if isinstance(candidate_payload, dict):
+            try:
+                candidate = CandidateFingerprint.from_dict(candidate_payload)
+            except ValueError:
+                candidate = None
+    return {
+        "active": authority is not None or (
+            candidate is not None and candidate.convergence_authority_digest is not None
+        ),
+        "authority_id": (
+            authority.authority_id
+            if authority is not None
+            else (candidate.convergence_authority_id if candidate is not None else None)
+        ),
+        "root_cause_family": (
+            authority.root_cause_family
+            if authority is not None
+            else (candidate.root_cause_family if candidate is not None else None)
+        ),
+        "root_cause_id": candidate.root_cause_id if candidate is not None else None,
+        "finding_count": candidate.open_findings_count if candidate is not None else None,
+        "finding_trend": trend or (candidate.finding_trend if candidate is not None else None),
+        "no_progress_rounds": candidate.no_progress_rounds if candidate is not None else 0,
+        "targeted_review_closed": (
+            candidate.targeted_review_closed if candidate is not None else False
+        ),
+        "stop_reason": stop_reason,
+    }
+
+
+def _emit_convergence_text(payload: dict[str, object]) -> None:
+    print(f"CONVERGENCE_WINDOW {'active' if payload['active'] else 'inactive'}")
+    for label, field in (
+        ("AUTHORITY_ID", "authority_id"),
+        ("ROOT_CAUSE_FAMILY", "root_cause_family"),
+        ("ROOT_CAUSE_ID", "root_cause_id"),
+        ("FINDING_COUNT", "finding_count"),
+        ("FINDING_TREND", "finding_trend"),
+        ("NO_PROGRESS_ROUNDS", "no_progress_rounds"),
+        ("STOP_REASON", "stop_reason"),
+    ):
+        if payload[field] is not None:
+            print(f"{label} {payload[field]}")
 
 
 def parse_execution_counters(values: list[str]) -> ExecutionCounters:
@@ -254,8 +448,10 @@ def emit_checkpoint_result(
 ) -> None:
     finding = checkpoint_finding(result)
     report = build_finding_report([finding])
+    convergence = convergence_status_payload(result.checkpoint)
     if as_json:
         payload = finding_report_payload(report)
+        payload["convergence"] = convergence
         if include_resume:
             resume_payload = safe_resume_payload(result)
             if resume_payload is not None:
@@ -268,13 +464,25 @@ def emit_checkpoint_result(
         f"FAIL={report.by_level['FAIL']} WARN={report.by_level['WARN']} "
         f"PASS={report.by_level['PASS']}"
     )
+    _emit_convergence_text(convergence)
     if include_resume:
         resume_payload = safe_resume_payload(result)
         if resume_payload is not None:
             print(f"NEXT_ACTION: {resume_payload['next_action']}")
 
 
-def emit_candidate_result(result: CandidateFreezeResult, *, as_json: bool) -> None:
+def emit_candidate_result(
+    result: CandidateFreezeResult,
+    *,
+    as_json: bool,
+    authority: PreauthorizedConvergenceAuthority | None = None,
+) -> None:
+    convergence = convergence_status_payload(
+        candidate=result.candidate,
+        authority=authority,
+        trend=result.finding_trend,
+        stop_reason=result.stop_reason,
+    )
     payload = {
         "ok": result.ok,
         "state": result.state.value,
@@ -282,6 +490,7 @@ def emit_candidate_result(result: CandidateFreezeResult, *, as_json: bool) -> No
         "manual_budget_relaxation_required": result.manual_budget_relaxation_required,
         "mismatches": list(result.mismatches),
         "candidate": result.candidate.to_dict() if result.candidate is not None else None,
+        "convergence": convergence,
     }
     if as_json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -294,6 +503,7 @@ def emit_candidate_result(result: CandidateFreezeResult, *, as_json: bool) -> No
     )
     if result.candidate is not None:
         print(f"CANDIDATE {result.candidate.digest}")
+    _emit_convergence_text(convergence)
     for mismatch in result.mismatches:
         print(f"MISMATCH {mismatch}")
 
@@ -384,17 +594,41 @@ def main(argv: list[str] | None = None) -> int:
                 exact_root=target_argument is not None,
             )
         elif args.command == "candidate":
+            convergence_authority = _load_authority_argument(
+                args.convergence_authority
+            )
+            previous_candidate = _load_candidate_argument(args.previous_candidate)
+            convergence_evidence = _convergence_evidence_argument(
+                args,
+                convergence_authority,
+            )
             result = freeze_candidate(
                 target,
                 contract_digest=args.contract_digest,
                 dependency_digest=args.dependency_digest,
                 review_closed=args.review_closed,
                 corrective_batch_closed=args.corrective_batch_closed,
+                previous=previous_candidate,
+                approved_corrective=args.approved_corrective,
+                corrective_batch_id=args.corrective_batch_id,
+                previous_final_verified=args.previous_final_verified,
+                handoff_successor_approved=args.handoff_successor_approved,
+                authority_anchor=args.authority_anchor,
+                root_cause_id=args.root_cause_id,
+                open_findings_count=args.finding_count,
+                convergence_authority=convergence_authority,
+                convergence_evidence=convergence_evidence,
             )
-            emit_candidate_result(result, as_json=args.json)
+            emit_candidate_result(
+                result,
+                as_json=args.json,
+            )
             return 0 if result.ok else 1
         elif args.command == "checkpoint":
             if args.checkpoint_command == "create":
+                convergence_authority = _load_authority_argument(
+                    args.convergence_authority
+                )
                 result = create_checkpoint(
                     target,
                     run_id=args.run_id,
@@ -413,12 +647,16 @@ def main(argv: list[str] | None = None) -> int:
                     allowed_paths=args.allowed_path,
                     stop_conditions=args.stop_condition,
                     base_sha=args.base_sha,
+                    convergence_authority=convergence_authority,
                 )
             elif args.checkpoint_command == "status":
                 result = resume_checkpoint(
                     target,
                     expected_authority_id=args.expect_authority_id,
                     expected_authority_version=args.expect_authority_version,
+                    expected_convergence_authority=_load_authority_argument(
+                        args.convergence_authority
+                    ),
                 )
             else:
                 result = clear_checkpoint(target)
@@ -429,6 +667,9 @@ def main(argv: list[str] | None = None) -> int:
                 target,
                 expected_authority_id=args.expect_authority_id,
                 expected_authority_version=args.expect_authority_version,
+                expected_convergence_authority=_load_authority_argument(
+                    args.convergence_authority
+                ),
             )
             emit_checkpoint_result(result, as_json=args.json, include_resume=True)
             return 0 if result.ok else 1
@@ -443,6 +684,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if has_fail(findings) else 0
     except KeyboardInterrupt:
         raise
+    except ConfigurationError as exc:
+        finding = Finding("FAIL", "configuration-error", None, None, str(exc))
+        emit_findings([finding], getattr(args, "json", False))
+        return 2
     except Exception as exc:
         finding = Finding("FAIL", "internal-error", None, None, str(exc))
         if getattr(args, "json", False):

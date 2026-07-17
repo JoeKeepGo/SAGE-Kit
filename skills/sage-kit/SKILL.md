@@ -83,6 +83,9 @@ before editing.
 - Execution economy, change classes, corrective authority, evidence reuse,
   review topology, or deterministic limits: read
   `docs/agent/EXECUTION_ECONOMY.md`.
+- Preauthorized Convergence Window, multi-candidate deterministic corrective
+  convergence, or successor stop rules: read
+  `docs/agent/EXECUTION_ECONOMY.md` and `docs/agent/CONTINUITY_PROTOCOL.md`.
 - Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
   `sagekit resume` before loading broader context.
 - Task Dispatch validation contract selection or historical compatibility:
@@ -119,6 +122,13 @@ handoff.
 - Use Bounded Corrective Authority for C1 and aggregate uncovered paths into one
   `AUTHORITY_DELTA`. C2 requires affected semantic review. C3 requires a human
   decision.
+- Treat a Preauthorized Convergence Window as explicit opt-in authority. Keep
+  the default single automatic successor when it is absent. Inside the window,
+  allow only semantic-preserving implementation correction with stable scope,
+  family, allowed paths, invariant, evidence, and required targeted review.
+  policy-changing semantics return `HANDOFF_READY`; two consecutive same-root
+  no-progress rounds return `BLOCKED`. Never use the window as unlimited retry
+  or to rerun deterministic failures speculatively.
 - Choose one primary review topology for an execution unit. Do not stack
   per-task, per-worker, corrective, lane, and final reviewers without a
   recorded P0/P1, security, authority, cross-contract, or destructive reason.

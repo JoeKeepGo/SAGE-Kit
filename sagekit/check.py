@@ -70,6 +70,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/findings.py",
     "sagekit/pathing.py",
     "sagekit/candidate.py",
+    "sagekit/convergence.py",
     "sagekit/change_control.py",
     "sagekit/evidence.py",
     "sagekit/execution_limits.py",
@@ -101,6 +102,7 @@ SOURCE_REQUIRED_FILES = [
     "tests/test_sagekit_check.py",
     "tests/test_frozen_contracts_and_containers.py",
     "tests/test_execution_economy.py",
+    "tests/test_convergence_authority.py",
     "tests/test_validation_compatibility.py",
     "tests/test_validation_scope_manifest.py",
 ]

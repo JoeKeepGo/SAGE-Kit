@@ -1317,7 +1317,8 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertIn("sagekit resume", text)
         self.assertIn("sagekit checkpoint clear", text)
         self.assertIn("fail closed", text)
-        self.assertIn("checkpoint schema v3", text)
+        self.assertIn("checkpoint schema v4", text)
+        self.assertIn("A v3 checkpoint", text)
         self.assertIn("started verification attempts", text)
 
     def test_core_records_bootstrap_maintainer_exception_without_project_bypass(self):
