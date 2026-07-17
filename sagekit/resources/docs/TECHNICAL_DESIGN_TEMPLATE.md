@@ -50,4 +50,3 @@ that apply to this project.
 
 List architectural choices or scopes that are explicitly not part of the
 current project direction.
-
