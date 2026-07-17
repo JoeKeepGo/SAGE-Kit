@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from .findings import Finding
 from .modes import LEGACY_REQUIRED_DOCS, MODES, STANDARD_DOCS, recommended_docs_for_mode, required_docs_for_mode
+from .pathing import is_within, relative_repo_path
+from .validation_scope_manifest import (
+    LOCAL_SCOPE_MANIFEST,
+    ScopeManifestError,
+    ValidationScopeManifest,
+    load_validation_scope_manifest,
+)
 
 
 REQUIRED_DOCS = LEGACY_REQUIRED_DOCS
@@ -41,6 +49,7 @@ SOURCE_REQUIRED_FILES = [
     "docs/templates/MILESTONE_LEDGER_TEMPLATE.md",
     "docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md",
     "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
+    "docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json",
     "docs/agent/GOVERNANCE_LEVELS.md",
     "docs/agent/SESSION_ORCHESTRATION.md",
     "docs/agent/CAPABILITY_ADAPTERS.md",
@@ -67,11 +76,22 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/review.py",
     "sagekit/continuity.py",
     "sagekit/compatibility.py",
+    "sagekit/milestone_scope.py",
+    "sagekit/validation_scope_manifest.py",
     "sagekit/reporting.py",
     "sagekit/validation_contracts/__init__.py",
+    "sagekit/validation_contracts/frozen_validator.py",
+    "sagekit/validation_contracts/v0.py",
     "sagekit/validation_contracts/v1.py",
     "sagekit/validation_contracts/v2.py",
+    "sagekit/resources/contracts/v0/policy.json",
+    "sagekit/resources/contracts/v0/rules.json",
+    "sagekit/resources/contracts/v0/validator.json",
+    "sagekit/resources/contracts/v0/task.schema.json",
+    "sagekit/resources/contracts/v0/evidence.schema.json",
     "sagekit/resources/contracts/v1/policy.json",
+    "sagekit/resources/contracts/v1/rules.json",
+    "sagekit/resources/contracts/v1/validator.json",
     "sagekit/resources/contracts/v1/task.schema.json",
     "sagekit/resources/contracts/v1/evidence.schema.json",
     "sagekit/resources/contracts/v2/policy.json",
@@ -79,8 +99,10 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/resources/contracts/v2/evidence.schema.json",
     "sagekit/task_dispatch_validator.py",
     "tests/test_sagekit_check.py",
+    "tests/test_frozen_contracts_and_containers.py",
     "tests/test_execution_economy.py",
     "tests/test_validation_compatibility.py",
+    "tests/test_validation_scope_manifest.py",
 ]
 
 GITIGNORE_RUNTIME_PATTERNS = [
@@ -113,23 +135,102 @@ RESOURCE_REFERENCE_RE = re.compile(
 )
 
 
-def run_check(start: Path, gate_ready: bool = False, mode: str | None = None) -> list[Finding]:
+def run_check(
+    start: Path,
+    gate_ready: bool = False,
+    mode: str | None = None,
+    scope_manifest_path: Path | None = None,
+) -> list[Finding]:
     if mode is not None and mode not in MODES:
         raise ValueError(f"unknown SAGE-Kit mode: {mode}")
     root = detect_root(start)
     findings: list[Finding] = [
         Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
     ]
+    manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+        root,
+        scope_manifest_path,
+    )
+    if manifest is not None:
+        findings.append(
+            Finding(
+                "PASS",
+                "validation-scope-manifest",
+                relpath(root, manifest.path),
+                None,
+                f"loaded {manifest_source} validation scope manifest; "
+                f"digest=sha256:{manifest.digest}; "
+                f"baseline_head={manifest.authority.baseline_head}; "
+                f"active={len(manifest.active_containers)}; "
+                f"accepted_legacy={len(manifest.accepted_legacy_containers)}",
+            )
+        )
+    elif manifest_error is not None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "validation-scope-manifest",
+                relpath(
+                    root,
+                    scope_manifest_path
+                    if scope_manifest_path is not None
+                    else root / LOCAL_SCOPE_MANIFEST,
+                ),
+                None,
+                manifest_error,
+                "Correct the manifest authority; invalid manifests never authorize legacy scope.",
+            )
+        )
     if mode is not None:
         findings.append(Finding("PASS", "check-mode", None, None, f"mode: {mode}"))
     findings.extend(check_required_docs(root, required_docs_for_mode(mode)))
     findings.extend(check_recommended_docs(root, recommended_docs_for_mode(mode)))
     findings.extend(check_active_context(root))
     findings.extend(check_doc_routing(root))
-    findings.extend(check_phase_docs(root))
+    findings.extend(
+        check_phase_docs(
+            root,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        )
+    )
     findings.extend(check_completion_reports(root))
-    findings.extend(check_task_dispatch(root, gate_ready=gate_ready))
+    findings.extend(
+        check_task_dispatch(
+            root,
+            gate_ready=gate_ready,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        )
+    )
     return findings
+
+
+def resolve_check_scope_manifest(
+    root: Path,
+    explicit_path: Path | None,
+) -> tuple[ValidationScopeManifest | None, str, str | None]:
+    path = explicit_path if explicit_path is not None else root / LOCAL_SCOPE_MANIFEST
+    source = "CLI" if explicit_path is not None else "project-local"
+    if explicit_path is None and not path.exists():
+        return None, source, None
+    try:
+        manifest = load_validation_scope_manifest(path)
+    except ScopeManifestError as exc:
+        return None, source, str(exc)
+    from .milestone_scope import validate_manifest_repository_authority
+
+    repository_errors = validate_manifest_repository_authority(root, manifest)
+    if repository_errors:
+        return (
+            None,
+            source,
+            "scope manifest repository authority is invalid: "
+            + "; ".join(repository_errors),
+        )
+    return manifest, source, None
 
 
 def run_source_repo_check(start: Path) -> list[Finding]:
@@ -189,9 +290,9 @@ def detect_root(start: Path) -> Path:
 
 def relpath(root: Path, path: Path) -> str:
     try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
+        return relative_repo_path(root, path)
     except ValueError:
-        return path.as_posix()
+        return path.name
 
 
 def read_text(path: Path) -> str:
@@ -762,13 +863,66 @@ def check_doc_routing(root: Path) -> list[Finding]:
     return findings
 
 
-def check_phase_docs(root: Path) -> list[Finding]:
+def check_phase_docs(
+    root: Path,
+    *,
+    scope_manifest: ValidationScopeManifest | None = None,
+    manifest_source: str = "project-local",
+    manifest_error: str | None = None,
+) -> list[Finding]:
+    from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
+
     findings: list[Finding] = []
+    phase_paths: dict[Path, list[Path]] = {}
     for path in sorted((root / "docs").glob("M*/[0-9][0-9]-*.md")):
-        if "_TEMPLATE" in path.name:
+        if "_TEMPLATE" not in path.name:
+            phase_paths.setdefault(path.parent, []).append(path)
+    resolver = RepositoryScopeResolver(
+        root,
+        manifest=scope_manifest,
+        manifest_source=manifest_source,
+        manifest_error=manifest_error,
+    )
+    for milestone_dir, paths in sorted(phase_paths.items()):
+        scope = resolver.resolve(milestone_dir)
+        display = relpath(root, milestone_dir)
+        if scope.kind == MilestoneScopeKind.AMBIGUOUS:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "milestone-scope",
+                    display,
+                    None,
+                    scope.detail,
+                    "Reconcile active-context and closeout authority before validating phases.",
+                )
+            )
             continue
-        text = read_text(path)
-        findings.extend(check_one_phase(root, path, text))
+        if scope.kind == MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY:
+            findings.append(
+                Finding(
+                    "PASS",
+                    "phase-scope-compatibility",
+                    display,
+                    None,
+                    f"treated {len(paths)} phase document(s) as immutable accepted history "
+                    f"using {'; '.join(scope.authorities)}",
+                )
+            )
+            for path in paths:
+                if not read_text(path).strip():
+                    findings.append(
+                        Finding(
+                            "FAIL",
+                            "phase-history-integrity",
+                            relpath(root, path),
+                            None,
+                            "accepted historical phase document is empty",
+                        )
+                    )
+            continue
+        for path in paths:
+            findings.extend(check_one_phase(root, path, read_text(path)))
     return findings
 
 
@@ -996,46 +1150,71 @@ def check_adapter_evidence(root: Path, path: Path, text: str) -> list[Finding]:
     return findings
 
 
-def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
+def check_task_dispatch(
+    root: Path,
+    gate_ready: bool = False,
+    *,
+    scope_manifest: ValidationScopeManifest | None = None,
+    manifest_source: str = "project-local",
+    manifest_error: str | None = None,
+) -> list[Finding]:
+    from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
+
     findings: list[Finding] = []
     docs = root / "docs"
     if not docs.exists():
         return findings
-    task_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/task.yaml")}
-    evidence_paths = {path.parent: path for path in docs.glob("M*/dispatch/**/evidence.yaml")}
+    discovery = discover_task_dispatch_records(root)
+    findings.extend(discovery.findings)
     active_task_paths: dict[Path, Path] = {}
     active_evidence_paths: dict[Path, Path] = {}
-    for directory in sorted(set(task_paths) | set(evidence_paths)):
-        task_path = task_paths.get(directory)
-        evidence_path = evidence_paths.get(directory)
-        if task_path is None:
+    resolver = RepositoryScopeResolver(
+        root,
+        manifest=scope_manifest,
+        manifest_source=manifest_source,
+        manifest_error=manifest_error,
+    )
+    scopes: dict[Path, object] = {}
+    reported_scope_failures: set[Path] = set()
+    for record in discovery.records:
+        directory = record.directory
+        task_path = record.task_path
+        evidence_path = record.evidence_path
+        container_dir = record.container_dir
+        if container_dir not in scopes:
+            scopes[container_dir] = resolver.resolve(container_dir)
+        scope = scopes[container_dir]
+        if (
+            scope.kind == MilestoneScopeKind.AMBIGUOUS
+            and container_dir not in reported_scope_failures
+        ):
             findings.append(
                 Finding(
                     "FAIL",
-                    "task-dispatch",
-                    relpath(root, evidence_path),
+                    "milestone-scope",
+                    relpath(root, container_dir),
                     None,
-                    "evidence.yaml is present but task.yaml is missing",
+                    scope.detail,
+                    "Reconcile active-context and closeout authority before validating records.",
                 )
             )
-            continue
-        if evidence_path is None:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "task-dispatch",
-                    relpath(root, task_path),
-                    None,
-                    "task.yaml is present but evidence.yaml is missing",
-                )
-            )
-            continue
+            reported_scope_failures.add(container_dir)
         pair_findings, active_reconciliation = validate_task_dispatch_pair_with_scope(
             root,
             task_path,
             evidence_path,
             gate_ready,
+            scope,
         )
+        if scope.kind == MilestoneScopeKind.AMBIGUOUS:
+            pair_findings = [
+                finding
+                for finding in pair_findings
+                if not (
+                    finding.rule == "task-dispatch"
+                    and finding.message == scope.detail
+                )
+            ]
         findings.extend(pair_findings)
         if active_reconciliation:
             active_task_paths[directory] = task_path
@@ -1045,6 +1224,140 @@ def check_task_dispatch(root: Path, gate_ready: bool = False) -> list[Finding]:
     findings.extend(check_conflicting_exclusive_leases(root, list(active_task_paths.values())))
     findings.extend(check_dispatch_boards(root, active_task_paths, active_evidence_paths))
     return findings
+
+
+@dataclass(frozen=True)
+class DiscoveredTaskDispatchRecord:
+    directory: Path
+    container_dir: Path
+    container_path: str
+    task_path: Path
+    evidence_path: Path
+
+
+@dataclass(frozen=True)
+class TaskDispatchDiscovery:
+    records: tuple[DiscoveredTaskDispatchRecord, ...]
+    findings: tuple[Finding, ...]
+
+
+def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
+    docs = root / "docs"
+    if not docs.is_dir():
+        return TaskDispatchDiscovery((), ())
+    candidates: dict[Path, dict[str, Path]] = {}
+    findings: list[Finding] = []
+    invalid_directories: set[Path] = set()
+    for path in sorted(docs.rglob("*.yaml")):
+        if path.name not in {"task.yaml", "evidence.yaml"}:
+            continue
+        try:
+            relative = path.relative_to(docs)
+        except ValueError:
+            continue
+        folded = tuple(part.casefold() for part in relative.parts)
+        if (
+            not folded
+            or folded[0] in {"templates", "profiles"}
+            or ".sagekit" in folded
+            or any("_template" in part for part in folded)
+        ):
+            continue
+        dispatch_indexes = [
+            index for index, part in enumerate(folded) if part == "dispatch"
+        ]
+        if len(dispatch_indexes) != 1 or dispatch_indexes[0] == 0:
+            if len(dispatch_indexes) > 1 and path.parent not in invalid_directories:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "task-dispatch-discovery",
+                        relpath(root, path),
+                        None,
+                        "nested dispatch path cannot determine one container",
+                    )
+                )
+            invalid_directories.add(path.parent)
+            continue
+        if not is_within(root, path):
+            if path.parent not in invalid_directories:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "task-dispatch-discovery",
+                        relpath(root, path),
+                        None,
+                        "Task Dispatch record resolves outside the target root",
+                    )
+                )
+            invalid_directories.add(path.parent)
+            continue
+        directory = path.parent
+        candidates.setdefault(directory, {})[path.name] = path
+
+    records: list[DiscoveredTaskDispatchRecord] = []
+    for directory, pair in sorted(candidates.items()):
+        if directory in invalid_directories:
+            continue
+        task_path = pair.get("task.yaml")
+        evidence_path = pair.get("evidence.yaml")
+        if task_path is None or evidence_path is None:
+            present = task_path if task_path is not None else evidence_path
+            missing = "task.yaml" if task_path is None else "evidence.yaml"
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch",
+                    relpath(root, present),
+                    None,
+                    f"{present.name} is present but {missing} is missing",
+                )
+            )
+            continue
+        relative = task_path.relative_to(docs)
+        dispatch_index = next(
+            index
+            for index, part in enumerate(relative.parts)
+            if part.casefold() == "dispatch"
+        )
+        container_dir = docs.joinpath(*relative.parts[:dispatch_index])
+        if not is_within(root, container_dir):
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-discovery",
+                    relpath(root, container_dir),
+                    None,
+                    "Task Dispatch container resolves outside the target root",
+                )
+            )
+            continue
+        if not (
+            is_within(container_dir, directory)
+            and is_within(directory, task_path)
+            and is_within(directory, evidence_path)
+        ):
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "task-dispatch-discovery",
+                    relpath(root, directory),
+                    None,
+                    "Task Dispatch pair resolves outside its record container "
+                    "or record directory",
+                )
+            )
+            continue
+        records.append(
+            DiscoveredTaskDispatchRecord(
+                directory=directory,
+                container_dir=container_dir,
+                container_path=relative_repo_path(root, container_dir),
+                task_path=task_path,
+                evidence_path=evidence_path,
+            )
+        )
+    return TaskDispatchDiscovery(tuple(records), tuple(findings))
 
 
 def load_task_identity(task_path: Path) -> tuple[str, dict] | None:
@@ -1173,7 +1486,7 @@ def check_dispatch_boards(
     dispatch_dirs: set[Path] = set()
     for directory in set(task_paths) | set(evidence_paths):
         for candidate in [directory, *directory.parents]:
-            if candidate.name == "dispatch":
+            if candidate.name.casefold() == "dispatch":
                 dispatch_dirs.add(candidate)
                 break
     for dispatch_dir in sorted(dispatch_dirs):
@@ -1192,7 +1505,10 @@ def check_dispatch_boards(
         board_ids = active_board_task_ids(board_path)
         records: dict[str, list[tuple[Path, dict]]] = {}
         for directory, task_path in task_paths.items():
-            if dispatch_dir not in directory.parents or directory not in evidence_paths:
+            if (
+                directory != dispatch_dir
+                and dispatch_dir not in directory.parents
+            ) or directory not in evidence_paths:
                 continue
             loaded = load_task_identity(task_path)
             if loaded is not None:
@@ -1221,11 +1537,39 @@ def check_dispatch_boards(
 def validate_task_dispatch_pair(
     root: Path, task_path: Path, evidence_path: Path, gate_ready: bool
 ) -> list[Finding]:
+    from .milestone_scope import RepositoryScopeResolver
+
+    container_scope = None
+    try:
+        relative = task_path.relative_to(root / "docs")
+        dispatch_indexes = [
+            index
+            for index, part in enumerate(relative.parts)
+            if part.casefold() == "dispatch"
+        ]
+        if len(dispatch_indexes) != 1 or dispatch_indexes[0] == 0:
+            raise ValueError("record path does not have one dispatch container")
+        container_dir = (root / "docs").joinpath(
+            *relative.parts[: dispatch_indexes[0]]
+        )
+        manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+            root,
+            None,
+        )
+        container_scope = RepositoryScopeResolver(
+            root,
+            manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        ).resolve(container_dir)
+    except (IndexError, ValueError):
+        pass
     findings, _ = validate_task_dispatch_pair_with_scope(
         root,
         task_path,
         evidence_path,
         gate_ready,
+        container_scope,
     )
     return findings
 
@@ -1288,6 +1632,7 @@ def validate_task_dispatch_pair_with_scope(
     task_path: Path,
     evidence_path: Path,
     gate_ready: bool,
+    container_scope=None,
 ) -> tuple[list[Finding], bool]:
     try:
         from .compatibility import validate_compatible_records
@@ -1313,7 +1658,12 @@ def validate_task_dispatch_pair_with_scope(
             raise ValidationError(f"task record must be a mapping: {task_path}")
         if not isinstance(evidence, dict):
             raise ValidationError(f"evidence record must be a mapping: {evidence_path}")
-        result = validate_compatible_records(task, evidence, gate_ready=gate_ready)
+        result = validate_compatible_records(
+            task,
+            evidence,
+            gate_ready=gate_ready,
+            container_scope=container_scope,
+        )
         errors = list(result.errors)
         active_reconciliation = result.active_reconciliation
     except ValidationError as exc:
@@ -1331,8 +1681,11 @@ def validate_task_dispatch_pair_with_scope(
                 relpath(root, task_path),
                 None,
                 f"selected v{selection.version} {selection.policy_id} "
-                f"({selection.scope.value})"
-                + (" by frozen legacy rule" if selection.implicit_legacy else ""),
+                f"({selection.scope.value}); "
+                f"policy_digest=sha256:{selection.policy_sha256}"
+                + (" by frozen legacy rule" if selection.implicit_legacy else "")
+                + "; authority: "
+                + "; ".join(selection.authority_basis),
             )
         )
     if errors:

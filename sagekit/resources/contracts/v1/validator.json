@@ -1,0 +1,20 @@
+{
+  "contract_version": 1,
+  "policy_id": "sagekit-task-dispatch-v1",
+  "policy_sha256": "2f1796fa24262200dea64e74b969ad86cb33b1781dd4754b35bd7328c7cc20a2",
+  "frozen_from_base_sha": "626706a5c4a9bc4cce9ce7dc69effb6eaf960141",
+  "source_validator_path": "sagekit/task_dispatch_validator.py",
+  "source_validator_sha256": "b4382033de1fdeebdc1127979bd6d50ebff3df6d4d5b75c6a8ebf53967882bac",
+  "validator_semantics_id": "sagekit-task-dispatch-frozen-v1",
+  "validator_engine": "sagekit.validation_contracts.frozen_validator.validate_frozen_records",
+  "validator_engine_sha256": "305b9511df8433661c5a18b4289111dfb28b32a137b2470cf0f43d69a3ce7ece",
+  "validator_rules": "rules.json",
+  "validator_rules_sha256": "6989c6158b3c720d54f32a70a356798c4067243cf9ec3cbcfbdd1360f0bdddde",
+  "record_schema_enforced": true,
+  "schema_artifacts_checked": [
+    "presence",
+    "valid_json",
+    "canonical_digest"
+  ],
+  "record_validation": "frozen_schema_and_python_semantics"
+}

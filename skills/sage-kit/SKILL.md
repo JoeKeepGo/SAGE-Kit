@@ -86,7 +86,13 @@ before editing.
 - Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
   `sagekit resume` before loading broader context.
 - Task Dispatch validation contract selection or historical compatibility:
-  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`.
+  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. For an existing
+  project whose accepted history predates structured active-set authority,
+  route the owner to the Validation Scope Manifest migration procedure. Require
+  an explicit container path and frozen v0/v1 version selected from historical
+  provenance; do not choose a version by trying validators, invent acceptance,
+  downgrade current work, or rewrite historical documents. The CLI/validator,
+  not this Skill, decides scope and contract selection.
 
 Read only the reference files needed for the current task.
 
@@ -118,9 +124,16 @@ handoff.
   recorded P0/P1, security, authority, cross-contract, or destructive reason.
 - Reuse evidence according to its fingerprint and invalidate only affected
   paths, contracts, dependencies, platforms, packages, or authority versions.
-- Validate closed legacy Task Dispatch history with its frozen contract. Require
-  current metadata for active work; mixed or ambiguous records fail closed, and
-  a current-contract failure must never fall back to a legacy contract.
+- Validate closed legacy Task Dispatch history with the manifest-selected frozen
+  v0/v1 contract. Require current metadata for active work; mixed or ambiguous
+  records fail closed, and a selected-contract failure must never fall back to
+  another contract.
+- CLI/validator owns contract and milestone scope selection. Skill guidance,
+  filenames, prose, or terminal record state alone cannot authorize legacy
+  validation.
+- Do not rewrite accepted historical documents to satisfy current phase format.
+  The validator reports immutable accepted history through an auditable,
+  aggregated compatibility finding.
 - When a deterministic local limit is reached, create a checkpoint and return
   `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
 - Treat full-suite and wheel/install runs before review and corrective closure

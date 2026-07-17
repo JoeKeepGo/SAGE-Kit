@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "active_containers": [
+    {
+      "id": "M2",
+      "path": "docs/M2"
+    }
+  ],
+  "accepted_legacy_containers": [
+    {
+      "id": "M1",
+      "path": "docs/M1",
+      "contract_version": 0,
+      "supersedes": [
+        "docs/M1/MILESTONE_CLOSEOUT.md"
+      ]
+    },
+    {
+      "id": "ARCHIVE-1",
+      "path": "docs/history/ARCHIVE_1",
+      "contract_version": 1,
+      "supersedes": []
+    }
+  ],
+  "authority": {
+    "source": "project-owner migration acceptance",
+    "approved_by": "project-owner",
+    "approved_at": "<YYYY-MM-DDTHH:MM:SSZ>",
+    "baseline_head": "<full 40-character lowercase Git SHA>"
+  }
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from types import ModuleType
 
 
 def normalize_contract_path(value: str | Path, platform: str | None = None) -> str:
@@ -17,27 +18,58 @@ def canonical_path(root: Path, value: str | Path) -> Path:
     candidate = Path(value)
     if not candidate.is_absolute():
         candidate = root / candidate
-    return candidate.resolve(strict=False)
+    return Path(_canonical_filesystem_path(candidate, os.path))
+
+
+def _canonical_filesystem_path(
+    value: str | Path,
+    path_module: ModuleType,
+) -> str:
+    return path_module.normpath(path_module.realpath(os.fspath(value)))
+
+
+def canonical_relative_path(
+    root: str | Path,
+    candidate: str | Path,
+    *,
+    _path_module: ModuleType | None = None,
+) -> str | None:
+    """Return a stable relative path when both names resolve inside one root."""
+
+    path_module = _path_module or os.path
+    canonical_root = _canonical_filesystem_path(root, path_module)
+    canonical_candidate = _canonical_filesystem_path(candidate, path_module)
+    comparison_root = path_module.normcase(canonical_root)
+    comparison_candidate = path_module.normcase(canonical_candidate)
+    try:
+        common = path_module.commonpath([comparison_root, comparison_candidate])
+    except (OSError, TypeError, ValueError):
+        return None
+    if path_module.normcase(path_module.normpath(common)) != comparison_root:
+        return None
+    try:
+        relative = path_module.relpath(canonical_candidate, canonical_root)
+    except (OSError, TypeError, ValueError):
+        return None
+    if path_module is os.path and os.name != "nt":
+        return PurePosixPath(relative).as_posix()
+    if getattr(path_module, "sep", None) == "\\":
+        return PureWindowsPath(relative).as_posix()
+    return PurePosixPath(relative).as_posix()
 
 
 def is_within(root: Path, candidate: Path) -> bool:
-    root_resolved = root.resolve(strict=False)
-    candidate_resolved = candidate.resolve(strict=False)
-    try:
-        candidate_resolved.relative_to(root_resolved)
-    except ValueError:
-        return False
-    return True
+    return canonical_relative_path(root, candidate) is not None
 
 
 def relative_repo_path(root: Path, value: str | Path) -> str:
-    candidate = canonical_path(root, value)
-    root_resolved = root.resolve(strict=False)
-    try:
-        relative = candidate.relative_to(root_resolved)
-    except ValueError as exc:
-        raise ValueError(f"path resolves outside repository: {value}") from exc
-    return relative.as_posix()
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    relative = canonical_relative_path(root, candidate)
+    if relative is None:
+        raise ValueError("path resolves outside repository")
+    return relative
 
 
 def scope_contains(root: Path, scope: str, candidate: str | Path) -> bool:

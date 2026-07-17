@@ -1,0 +1,37 @@
+{
+  "contract_version": 0,
+  "policy_id": "sagekit-task-dispatch-v0",
+  "scope": "closed-legacy",
+  "frozen_from_base_sha": "e6fe28061d600bfb7164c5cf40448f2d2f5d620c",
+  "frozen_from_paths": {
+    "task.schema.json": "docs/profiles/task-dispatch/schemas/task.schema.json",
+    "evidence.schema.json": "docs/profiles/task-dispatch/schemas/evidence.schema.json",
+    "validator": "scripts/validate_task_dispatch.py"
+  },
+  "source_schema_sha256": {
+    "task.schema.json": "7fe569c103e1cfbd81ed1304f130603c4223bd405dda398d6bff453538071ae5",
+    "evidence.schema.json": "1c1d7fe983f830b5dd2be7d9eadf4ccd184fc4c4f762dc3dd7eb75852003f9f3"
+  },
+  "schema_sha256": {
+    "task.schema.json": "6d213c9a06617aec61e83e24615865333a62e01f7d5159e6072e0fe9f9cb54ca",
+    "evidence.schema.json": "207e44ec2bad0ed14e9f37135ff103be58a0b5c5e6c6736dbcfee1c39f503ee1"
+  },
+  "normalization": {
+    "kind": "metadata-only $id/title replacement",
+    "fields": [
+      "$id",
+      "title"
+    ],
+    "semantic_keywords_unchanged": true
+  },
+  "source_validator_sha256": "89185d1af6f1739996711cc8ff23002c060cfee9e63480aac175d99466538d11",
+  "validator_semantics_id": "sagekit-task-dispatch-frozen-v0",
+  "validator_engine": "sagekit.validation_contracts.frozen_validator.validate_frozen_records",
+  "validator_engine_sha256": "305b9511df8433661c5a18b4289111dfb28b32a137b2470cf0f43d69a3ce7ece",
+  "validator_rules": "rules.json",
+  "validator_rules_sha256": "c751cf96d6d8e2862d3334197d519f7ae781f78f2280cd6be89653e2f74ac186",
+  "schema_files": [
+    "task.schema.json",
+    "evidence.schema.json"
+  ]
+}

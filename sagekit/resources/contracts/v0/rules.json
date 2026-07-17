@@ -1,0 +1,56 @@
+{
+  "semantics_id": "sagekit-task-dispatch-frozen-v0",
+  "profile": "early",
+  "task_required_fields": [
+    "id", "type", "title", "priority", "status", "scope", "verification",
+    "dependencies", "resources", "runs", "closure"
+  ],
+  "evidence_required_fields": [
+    "task_id", "changed_surface", "runtime_shape", "levels", "artifacts",
+    "runs", "blockers", "conclusion"
+  ],
+  "scope_required_fields": [
+    "objective", "allowed_files", "read_only_files", "forbidden_files",
+    "non_goals", "stop_conditions"
+  ],
+  "levels": ["L0", "L1", "L2", "L3", "L4"],
+  "task_types": ["BUG", "SPEC", "CHORE", "REVIEW", "INTEGRATION", "RELEASE"],
+  "priorities": ["P0", "P1", "P2", "P3"],
+  "task_statuses": [
+    "NEW",
+    "TRIAGED",
+    "READY",
+    "IN_PROGRESS",
+    "READY_FOR_REVIEW",
+    "VERIFIED",
+    "PARTIAL",
+    "BLOCKED",
+    "CLOSED"
+  ],
+  "evidence_statuses": [
+    "PENDING",
+    "VERIFIED",
+    "PARTIAL",
+    "ENV_BLOCKED",
+    "CONTRACT_BLOCKED",
+    "WORKER_BLOCKED",
+    "PM_BLOCKED"
+  ],
+  "level_statuses": ["PENDING", "PASS", "FAIL", "BLOCKED", "WAIVED", "N/A"],
+  "task_terminal_statuses": ["VERIFIED", "CLOSED"],
+  "evidence_terminal_statuses": ["VERIFIED"],
+  "passlike_level_statuses": ["PASS", "N/A", "WAIVED"],
+  "active_run_statuses": ["RUNNING", "ACTIVE", "IN_PROGRESS"],
+  "active_lock_statuses": ["ACTIVE", "HELD"],
+  "artifact_fields": [
+    "commands",
+    "files_changed",
+    "api",
+    "sql",
+    "browser",
+    "logs",
+    "screenshots",
+    "release",
+    "ids"
+  ]
+}

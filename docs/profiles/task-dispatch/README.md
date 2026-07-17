@@ -4,9 +4,14 @@
 
 New and active task/evidence pairs declare the v2 `validation_contract` block
 shown in the templates. The policy digest must match the packaged v2 policy.
-Closed legacy pairs without version metadata are validated under frozen v1.
+Terminal legacy pairs without version metadata use only the frozen v0 or v1
+selected by trusted accepted immutable container authority. Existing projects
+may supply an explicit Validation Scope Manifest as migration authority when
+newer structured active-set fields are unavailable. Each accepted legacy
+container names its target-relative path and exact contract version; unlisted,
+conflicting, mixed, or nonterminal records still fail closed.
 Mixed records, unversioned active records, unsupported versions, and policy
-tamper fail closed. A v2 failure never falls back to v1.
+tamper fail closed. Validation never tries another version after a failure.
 
 See `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Closed history is
 excluded from active duplicate, lease, lock, and dispatch-board reconciliation
@@ -15,6 +20,11 @@ after its own pair validation.
 Task Dispatch is an optional SAGE-Kit profile for milestones that need stronger
 task dispatch, evidence capture, resource coordination, and gate closeout than
 plain phase documents provide.
+
+Adopted-project checks discover bounded record pairs below one
+`docs/**/dispatch/` segment, so a manifest may also authorize a generic
+non-milestone container. Framework templates, profile resources, `_TEMPLATE`
+paths, nested `dispatch` paths, and target-external symlinks are excluded.
 
 Use it when a milestone has many worker tasks, repeated validation paths,
 resource contention, cross-surface integration, or a high risk of verbal
