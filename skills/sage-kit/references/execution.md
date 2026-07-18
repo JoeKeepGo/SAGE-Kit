@@ -92,7 +92,7 @@ configuration unless the active SAGE-Kit boundary or user approval explicitly
 allows it.
 
 For approved install candidates such as `ui-ux-pro-max`, `OpenSpec`, or
-`GitNexus`, do not rely on remembered commands. Read current provider
+`GitNexus`, do not rely on remembered commands. Read current capability
 documentation, package metadata, or installed-tool help first; then request
 approval with exact command, write list, runtime requirements, rollback path,
 and fallback. If docs are unclear or conflict, return `HANDOFF`.
@@ -268,29 +268,77 @@ When Session Orchestration is active:
 
 Corrective convergence budgets may be configured by the execution or Final
 Review packet, but they are control signals, not unconditional blockers.
+
+### Advanced Execution Economy
+
+Apply this lifecycle only when managed expensive verification is relevant to
+Heavy, corrective, or final-verification work. Ordinary Light or Standard work,
+including affected-lane focused verification, stays in the basic workflow above
+and does not load or apply these advanced runtime details by default.
+
 Managed expensive verification is eligible only for a frozen candidate whose
 fingerprint matches current inputs. Before freeze, full suite, retained
 regression, wheel/install, outside-source/package smoke, and full integration
 re-review are prohibited; legacy preliminary counters do not authorize them.
-Workers and reviewers cannot expand this authority. A Lane Controller owns only
-affected-lane verification, and the Root or Final Controller exclusively owns
-final full-suite authority.
+Any legacy pre-freeze result remains only a historical development signal and
+cannot serve as final acceptance evidence.
 
 For one finding, use the minimum reproduction and directly affected focused
 tests. At a lane gate, use only the affected-lane suite. After a corrective,
 use targeted verification and targeted re-review. Reduce harness or teardown
-failures to a minimum reproduction instead of rerunning the complete suite, and
-reuse matching-fingerprint evidence while inputs remain unchanged.
+failures to a minimum reproduction instead of rerunning the complete suite.
+Ordinary record or status correction uses targeted consistency verification
+and does not reopen a product full suite while implementation inputs remain
+unchanged.
+
+Reuse matching-fingerprint evidence while its inputs remain unchanged. A new
+diff invalidates only the affected checks, paths, contracts, dependencies,
+platforms, or packages; independent evidence remains reusable. Workers and
+reviewers cannot expand expensive-verification authority. A Lane Controller
+owns only affected-lane verification, and the Root or Final Controller
+exclusively owns final full-suite authority.
+
+Capability or preflight failure for an eligible candidate does not consume a
+final run. Each admitted attempt keeps one stable identity, records `STARTED`
+once and its terminal completion, and resumes from checkpoints under that same
+identity without recounting. When one verification-graph node fails, skip only
+successors that depend on it; continue and report independent nodes.
 
 After the single corrective batch closes, freeze a
 HEAD/diff/contract/dependency fingerprint and allow one final run per matching
-candidate. One approved corrective batch may create one automatic successor
-without budget approval; another successor from that batch or any change after
-final verification returns `HANDOFF_READY`. A human-approved handoff corrective
-may create the next generation only when it persists an authority anchor,
+candidate. Final verification and acceptance bind only to that exact frozen
+candidate. A candidate change retains the old result as history but forbids
+reusing it as current final evidence.
+
+One approved corrective batch may create one automatic successor without
+budget approval; another successor from that batch or any change after final
+verification returns `HANDOFF_READY`. A human-approved handoff corrective may
+create the next generation only when it persists an authority anchor,
 root-cause id, and finding count. Generation is not mechanically capped; the
 same root cause with no progress for two approved rounds returns `BLOCKED`,
 while reduced findings reset the no-progress count.
+
+Within an explicit Preauthorized Convergence Window, each successor candidate
+keeps a distinct fingerprint, checkpoint, finding trend, and final-verification
+budget. A successor must identify its predecessor and state which findings it
+closed and retained; it must not overwrite candidate identity or delete
+historical records to manufacture convergence. Checkpoints remain traceable to
+their input candidate and caller-supplied finding evidence. Final verification
+must run against the final candidate, and acceptance binds only that verified
+candidate rather than reusing an earlier success claim.
+
+Stop or return `HANDOFF_READY` when a correction expands scope, changes
+authority, weakens an invariant, gate, security boundary, or test, or crosses
+the protected-path boundary.
+
+This reference does not itself authorize querying, polling, or operating
+remote CI. Only an explicitly authorized Capability Adapter may do so;
+otherwise the caller supplies CI and finding evidence, and SAGE-Kit binds that
+evidence to candidate continuity, checkpoints, and consistency verification.
+
+Do not infer a governance result from user token budgets, platform quotas, or
+similar service limits. Record the concrete capability or evidence constraint
+and use the applicable handoff, checkpoint, or stop rule instead.
 Continue automatic correction only inside an authorized corrective packet or
 boundary while findings or severity decrease, scope does not expand, no
 blocking approval gate is bypassed, and no new authority, false-green,

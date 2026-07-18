@@ -76,8 +76,10 @@ before editing.
 
 - Adoption or bootstrap: read `references/adoption.md`.
 - Milestone, roadmap, or phase planning: read `references/planning.md`.
-- Implementation, debugging, refactor, or subagent execution: read
-  `references/execution.md`.
+- Implementation, debugging, refactor, or subagent execution: read only the
+  relevant core sections of `references/execution.md`. Load its Advanced
+  Execution Economy section only under the Heavy, corrective, or
+  final-verification rule below.
 - Review, handoff, completion, or closeout: read
   `references/review-completion.md`.
 - Execution economy, change classes, corrective authority, evidence reuse,
@@ -98,6 +100,10 @@ before editing.
   not this Skill, decides scope and contract selection.
 
 Read only the reference files needed for the current task.
+
+Load advanced execution-economy detail only for relevant Heavy, corrective,
+or final-verification work. Ordinary Light or Standard tasks use the core
+workflow and must not carry that advanced runtime context by default.
 
 ## Context Budget
 
