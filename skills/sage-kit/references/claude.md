@@ -82,7 +82,7 @@ phase doc and execution packets.
 | Read-only exploration lanes | Built-in `Explore` and `Plan` subagents — reuse them |
 | Wave Execution | Parallel subagent calls only when Wave Readiness is proven — unchanged rule |
 | Worktree Isolation | Native: set `isolation: worktree` on the worker subagent |
-| Serial files (`ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`) | Hard-enforced inside the worker subagent through its frontmatter PreToolUse hook (below); the controller session does not load it |
+| Serial files (`ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`) | Structured edit tools receive deterministic path-based protection inside the worker subagent through its frontmatter PreToolUse hook (below); Bash protection is best-effort, and hard isolation requires a no-Bash worker plus an environment-enforced write boundary. The controller session does not load the hook |
 | Strict Mode task cards | Run the skill or packet with `context: fork` for isolated execution |
 
 Copy the shipped agent files into the governed project's `.claude/agents/`
@@ -101,11 +101,11 @@ POSIX (`.sh`) and a Windows PowerShell (`.ps1`) variant:
   is bound inside the `sage-coder` subagent's frontmatter hooks, not in
   global settings. It has two honesty levels:
   - Structured edit tools: hard boundary. Paths are canonicalized against
-    `CLAUDE_PROJECT_DIR` before comparison (dot-segment and separator tricks
-    resolve to their real target), the comparison is lane-wide and
-    case-insensitive (any canonical path ending in a serial-file name is
-    blocked, whatever its root), and missing or non-string `file_path`
-    values fail closed.
+    `CLAUDE_PROJECT_DIR` before comparison (dot segments and separator
+    variants collapse lexically; symlinks are not resolved), the
+    comparison is lane-wide and case-insensitive (any canonical path
+    ending in a serial-file name is blocked, whatever its root), and
+    missing or non-string `file_path` values fail closed.
   - Bash: best-effort heuristic. Commands that mention a serial file and
     contain a write-shaped operator are blocked, but shell string matching
     is evadable by design. A lane that needs a hard shell-level boundary

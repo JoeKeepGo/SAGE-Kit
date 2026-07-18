@@ -7,7 +7,8 @@
 # Boundary honesty:
 # - Structured edit tools (Edit/Write/MultiEdit): hard boundary. Paths are
 #   canonicalized against CLAUDE_PROJECT_DIR before comparison, so
-#   dot-segment and separator tricks resolve to their real target. The
+#   dot segments and separator variants collapse lexically (symlinks are
+#   not resolved). The
 #   comparison is lane-wide and case-insensitive: any canonical path ending
 #   in docs/ACTIVE_CONTEXT.md or docs/DOC_ROUTING.md is blocked, whatever
 #   its root, because a worker never owns a governance serial file.
