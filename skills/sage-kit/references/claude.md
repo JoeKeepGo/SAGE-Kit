@@ -78,7 +78,7 @@ phase doc and execution packets.
 |---|---|
 | Project Manager session | Main session running the sage-kit skill; owns routing, serial files, gates, submit authority |
 | Coder Controller and workers | `sage-coder` subagent (shipped at `references/claude/agents/sage-coder.md`), dispatched with a bounded prompt naming SAGE docs, allowed files, gates, and stop conditions |
-| Final Review session | `sage-final-review` subagent (shipped at `references/claude/agents/sage-final-review.md`) with a read-only tool allowlist; returns a verdict packet |
+| Final Review session | `sage-final-review` subagent (shipped at `references/claude/agents/sage-final-review.md`) with a read-only tool allowlist and no shell; verification execution stays with the controller |
 | Read-only exploration lanes | Built-in `Explore` and `Plan` subagents — reuse them |
 | Wave Execution | Parallel subagent calls only when Wave Readiness is proven — unchanged rule |
 | Worktree Isolation | Native: set `isolation: worktree` on the worker subagent |
@@ -97,11 +97,17 @@ Claude Code hooks let SAGE-Kit rules execute as code instead of relying on
 model compliance. Two hooks ship under `references/claude/hooks/`:
 
 - `protect-serial-files.sh` (PreToolUse, matcher `Edit|Write|MultiEdit`):
-  blocks writes to `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` unless
-  `SAGE_SERIAL_WRITE=1` is set by the controller for an authorized write.
-  Workers must return Memory Update Proposals.
+  blocks writes to `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`.
+  Windows-style path separators are normalized before matching, and the hook
+  fails closed when `jq` is missing or the hook input is malformed. An
+  authorized controller write uses a one-shot token: write the target path
+  into `.sagekit/runtime/SERIAL_WRITE_TOKEN` immediately before the edit;
+  a matching write consumes the token once. All other writers must return
+  Memory Update Proposals.
 - `stop-sagekit-check.sh` (Stop, opt-in via `SAGE_STOP_CHECK=1`): runs
-  `sagekit check` and blocks completion while blocking findings exist.
+  `sagekit check` and blocks completion while blocking findings exist. It
+  fails closed when the validator or a Python interpreter is unavailable,
+  reporting the capability gap as a handoff rather than a pass or a finding.
 
 Wire them in the governed project's `.claude/settings.json`:
 

@@ -69,10 +69,12 @@ Agent 运行时中使用。安装时请复制整个目录（包含 `references/`
 | **Codex** | Codex skill installer | `Use $sage-kit for this task.` |
 | **Claude Code** | `.claude/skills/sage-kit/` 或 `~/.claude/skills/sage-kit/` | `/sage-kit` |
 | **OpenCode** | `.opencode/skills/sage-kit/` 或 `~/.config/opencode/skills/sage-kit/` | 按名称请求 `sage-kit` Skill |
-| **Kimi Work / Kimi Code CLI** | 运行时的 skills 目录 | 按名称请求 `sage-kit` Skill |
+| **Kimi Code CLI** | 运行时的 skills 目录 | `/skill:sage-kit` |
+| **Kimi Work** | 运行时的 skills 目录 | 按名称请求 `sage-kit` Skill |
 
-Skill 在所有运行时中都仅支持显式调用：只有你点名时才加载，不会因为
-任务“看起来像治理”就自动介入。
+显式调用在 Codex、Claude Code 和 Kimi Code CLI 上有原生强制；在
+OpenCode 上需要配置 `permission.skill.sage-kit: ask` 才能达到同等保证；
+在 Kimi Work 上则是由 Skill 描述中的显式触发措辞提供的软保证。
 
 每个运行时的环境档案位于
 [`skills/sage-kit/references/`](skills/sage-kit/references)，分别描述

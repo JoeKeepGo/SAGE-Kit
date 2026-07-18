@@ -35,9 +35,9 @@ hard-coded from one machine's setup.
 
 | Codex | Kimi runtime (Work and Code CLI) |
 |---|---|
-| `$sage-kit` mention invokes the skill | The runtime invokes skills through its Skill tool by exact name; the skills index is the source of truth |
+| `$sage-kit` mention invokes the skill | The runtime invokes skills through its Skill tool by exact name; the skills index is the source of truth. In Kimi Code CLI, manual invocation is `/skill:sage-kit` |
 | `agents/openai.yaml` (`display_name`, `default_prompt`) | Ignored; display metadata only, no behavior loss |
-| `allow_implicit_invocation: false` (hard config) | No hard equivalent. The `SKILL.md` description carries the policy through explicit trigger and negative-trigger wording ("Use when SAGE-Kit is explicit...", "Do not use for generic milestones..."). Preserve that wording in any Kimi runtime install |
+| `allow_implicit_invocation: false` (hard config) | Kimi Code CLI: native hard equivalent — it honors `disable-model-invocation: true` (kebab-case alias accepted), which the shared SKILL.md already sets. Kimi Work desktop: no hard equivalent; the description's explicit trigger and negative-trigger wording carries the policy as a soft guarantee |
 
 ## Runtime Capability Mapping
 
@@ -100,6 +100,14 @@ Subagent constraints to record in execution packets:
   write lane packets, result packets, and evidence into the repository.
 - Subagents have no independent cross-process persistence. Long milestone
   work must checkpoint through `.sagekit/runtime/CURRENT_RUN.json`.
+- Nested delegation is denied by default. In Kimi Code CLI a `coder`
+  subagent can dispatch its own nested subagents, the `Agent` tool is
+  allowed by default, and permissions inherit from the parent; dispatch
+  prompts must therefore state: maximum delegation depth is 1 (the worker
+  itself), no further subagent dispatch, and any exception requires named
+  controller authority. Kimi Work desktop subagents currently do not expose
+  a delegation tool, but the same rule applies wherever the capability
+  exists.
 
 ## Authorization Level Mapping
 

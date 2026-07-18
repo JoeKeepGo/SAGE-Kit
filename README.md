@@ -70,10 +70,13 @@ with it, then restart or open a new session so the runtime discovers it.
 | **Codex** | Codex skill installer | `Use $sage-kit for this task.` |
 | **Claude Code** | `.claude/skills/sage-kit/` or `~/.claude/skills/sage-kit/` | `/sage-kit` |
 | **OpenCode** | `.opencode/skills/sage-kit/` or `~/.config/opencode/skills/sage-kit/` | Ask for the `sage-kit` skill by name |
-| **Kimi Work / Kimi Code CLI** | The runtime's skills directory | Ask for the `sage-kit` skill by name |
+| **Kimi Code CLI** | The runtime's skills directory | `/skill:sage-kit` |
+| **Kimi Work** | The runtime's skills directory | Ask for the `sage-kit` skill by name |
 
-The skill is explicit-only across all runtimes: it loads when you ask for
-it, not because a task vaguely resembles governance work.
+Explicit invocation is enforced natively on Codex, Claude Code, and Kimi
+Code CLI. On OpenCode, set `permission.skill.sage-kit: ask` for the same
+guarantee. On Kimi Work it is a soft guarantee carried by the skill
+description's explicit-trigger wording.
 
 Each runtime has an environment profile under
 [`skills/sage-kit/references/`](skills/sage-kit/references) that maps

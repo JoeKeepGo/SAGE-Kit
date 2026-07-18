@@ -21,7 +21,7 @@ the active environment at use time.
 | `SKILL.md` with YAML frontmatter | yes |
 | `name` 1–64 chars, lowercase kebab-case, matches directory | `sage-kit` passes |
 | `description` 1–1024 chars | passes (~500 chars) |
-| Unknown frontmatter fields | none used; `agents/openai.yaml` is outside the scanned surface and is ignored |
+| Unknown frontmatter fields | OpenCode ignores them. The shared SKILL.md sets `disable-model-invocation: true` for runtimes that honor it; explicit-only behavior in OpenCode comes from the `permission.skill` config below, not from frontmatter. `agents/openai.yaml` is outside the scanned surface and is ignored |
 
 Discovery paths (any one is sufficient):
 
