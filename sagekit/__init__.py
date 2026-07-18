@@ -1,3 +1,3 @@
 """Local SAGE-Kit runtime prototype."""
 
-__version__ = "0.1.0"
+__version__ = "2026.7.19.1"

@@ -29,13 +29,13 @@ Skill 可在 Codex、Claude Code、OpenCode 和 Kimi Work / Kimi Code CLI
 安装 CLI：
 
 ```bash
-pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git
+pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.1
 ```
 
 也可以使用 `uv`：
 
 ```bash
-uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git
+uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.1
 ```
 
 进入需要采用 SAGE-Kit 的项目：
