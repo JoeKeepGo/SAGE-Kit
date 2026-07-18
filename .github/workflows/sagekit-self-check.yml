@@ -45,3 +45,9 @@ jobs:
       - name: Run Claude Code hook tests
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: bash tests/test_claude_hooks.sh
+
+      - name: Run Claude Code hook tests (PowerShell)
+        if: matrix.os == 'windows-latest' && matrix.python-version == '3.12'
+        run: |
+          pwsh -File tests/test_claude_hooks.ps1
+          powershell -File tests/test_claude_hooks.ps1

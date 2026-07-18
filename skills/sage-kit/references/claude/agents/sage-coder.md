@@ -9,7 +9,7 @@ maxTurns: 30
 model: inherit
 hooks:
   PreToolUse:
-    - matcher: "Edit|Write|MultiEdit"
+    - matcher: "Edit|Write|MultiEdit|Bash"
       hooks:
         - type: command
           # POSIX default. On Windows use protect-serial-files.ps1 with

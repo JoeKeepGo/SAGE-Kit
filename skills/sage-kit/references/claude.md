@@ -97,20 +97,26 @@ Claude Code hooks let SAGE-Kit rules execute as code instead of relying on
 model compliance. Two hooks ship under `references/claude/hooks/`, each in a
 POSIX (`.sh`) and a Windows PowerShell (`.ps1`) variant:
 
-- `protect-serial-files` (PreToolUse, matcher `Edit|Write|MultiEdit`) is
-  bound inside the `sage-coder` subagent's frontmatter hooks, not in global
-  settings. Scope is what makes the authorization real: the hook has no
-  bypass, so workers can never write `docs/ACTIVE_CONTEXT.md` or
-  `docs/DOC_ROUTING.md`, while the controller session simply does not load
-  it and can perform legitimate controller writes. Windows-style path
-  separators are normalized before matching, and the hook fails closed when
-  `jq` is missing or the hook input is malformed.
+- `protect-serial-files` (PreToolUse, matcher `Edit|Write|MultiEdit|Bash`)
+  is bound inside the `sage-coder` subagent's frontmatter hooks, not in
+  global settings. It has two honesty levels:
+  - Structured edit tools: hard boundary. Paths are canonicalized against
+    `CLAUDE_PROJECT_DIR` before comparison (dot-segment and separator tricks
+    resolve to their real target), the comparison is lane-wide and
+    case-insensitive (any canonical path ending in a serial-file name is
+    blocked, whatever its root), and missing or non-string `file_path`
+    values fail closed.
+  - Bash: best-effort heuristic. Commands that mention a serial file and
+    contain a write-shaped operator are blocked, but shell string matching
+    is evadable by design. A lane that needs a hard shell-level boundary
+    must use a worker without `Bash` in `tools` and let the controller run
+    the verification commands instead.
 - `stop-sagekit-check` (Stop, opt-in via `SAGE_STOP_CHECK=1`) is wired
   globally in the governed project's `.claude/settings.json`. It runs
   `sagekit check` and reads its exit code: `0` passes, `1` blocks on
-  findings, anything else blocks as an invocation/capability failure
-  reported as HANDOFF. A missing validator or Python interpreter also fails
-  closed with a handoff message.
+  findings, `2` (usage/config error) and `3` (internal error) block as
+  invocation/capability failures reported as HANDOFF. A missing validator or
+  Python interpreter also fails closed with a handoff message.
 
 Global wiring in the governed project's `.claude/settings.json`:
 

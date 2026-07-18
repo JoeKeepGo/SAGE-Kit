@@ -46,6 +46,33 @@ check "guard: normal file allowed" 0 $?
 printf '%s\n' 'not json' | "$GUARD" >/dev/null 2>&1
 check "guard: malformed input fails closed" 2 $?
 
+printf '%s\n' '{"tool_input":{}}' | "$GUARD" >/dev/null 2>&1
+check "guard: missing file_path fails closed" 2 $?
+
+printf '%s\n' '{"tool_input":{"file_path":null}}' | "$GUARD" >/dev/null 2>&1
+check "guard: null file_path fails closed" 2 $?
+
+printf '%s\n' '{"tool_input":{"file_path":123}}' | "$GUARD" >/dev/null 2>&1
+check "guard: non-string file_path fails closed" 2 $?
+
+printf '%s\n' '{"tool_input":{"file_path":"docs/sub/../ACTIVE_CONTEXT.md"}}' | "$GUARD" >/dev/null 2>&1
+check "guard: dot-segment serial path blocked" 2 $?
+
+printf '%s\n' '{"tool_input":{"file_path":"docs/ACTIVE_CONTEXT.MD"}}' | "$GUARD" >/dev/null 2>&1
+check "guard: case-variant serial path blocked" 2 $?
+
+printf '%s\n' '{"tool_input":{"command":"cat docs/ACTIVE_CONTEXT.md"}}' | "$GUARD" >/dev/null 2>&1
+check "guard: bash read of serial file allowed" 0 $?
+
+printf '%s\n' '{"tool_input":{"command":"echo x >> docs/ACTIVE_CONTEXT.md"}}' | "$GUARD" >/dev/null 2>&1
+check "guard: bash append to serial file blocked" 2 $?
+
+printf '%s\n' '{"tool_input":{"command":"sed -i s/a/b/ docs/DOC_ROUTING.md"}}' | "$GUARD" >/dev/null 2>&1
+check "guard: bash in-place edit of serial file blocked" 2 $?
+
+printf '%s\n' '{"tool_input":{"command":"npm test"}}' | "$GUARD" >/dev/null 2>&1
+check "guard: unrelated bash command allowed" 0 $?
+
 grep -q "protect-serial-files" "$ROOT/skills/sage-kit/references/claude/agents/sage-coder.md"
 check "guard: bound in sage-coder frontmatter" 0 $?
 
@@ -79,6 +106,12 @@ OUT=$(SAGE_STOP_CHECK=1 PATH="$TMP/gov-ok/bin:/usr/bin:/bin" "$STOP" 2>&1); RC=$
 check "stop: validator invocation error blocks stop" 2 "$RC"
 printf '%s' "$OUT" | grep -q "HANDOFF"
 check "stop: exit 2 reported as handoff not findings" 0 $?
+
+printf '#!/bin/bash\nexit 3\n' > bin/sagekit
+OUT=$(SAGE_STOP_CHECK=1 PATH="$TMP/gov-ok/bin:/usr/bin:/bin" "$STOP" 2>&1); RC=$?
+check "stop: validator internal error blocks stop" 2 "$RC"
+printf '%s' "$OUT" | grep -q "HANDOFF"
+check "stop: exit 3 reported as handoff not findings" 0 $?
 
 echo "---"
 echo "PASS=$PASS FAIL=$FAIL"
