@@ -132,6 +132,18 @@ Parallel lanes must have disjoint writable files. If a lane needs a shared
 startup context file, it returns a proposal and the controller applies it
 serially.
 
+Before selecting `SERIAL`, record the dependency DAG, parallel candidates,
+serial barriers, and phase-internal lanes. Shared serial ownership does not
+justify milestone-wide serial execution. Assign shared files to a serial
+integration owner and preserve parallelism for mutually exclusive files.
+`SERIAL` requires a concrete phase or lane dependency, file conflict, gate, or
+runtime ownership reason. Do not repartition an active phase by default; apply
+the new shape from the next safe barrier or wave.
+
+A missing readiness item serializes only the affected node; continue evaluating
+unaffected parallel candidates. Milestone-wide `SERIAL` is allowed only when
+the barrier cannot be isolated.
+
 ## Session Orchestration Planning
 
 Use Session Orchestration for large milestones with many phases, repeated
@@ -147,8 +159,8 @@ Plan:
 - worker and lane governance levels, selected per scope;
 - Coder self-execution policy, normally `not allowed` except narrow glue or
   integration repair before Final Review;
-- wave readiness decision, with serial fallback when lane independence is not
-  proven;
+- wave readiness decision, with affected-node serial fallback when lane
+  independence is not proven;
 - worktree isolation authorization, if allowed;
 - capability discovery and specialist routing;
 - milestone execution packet;

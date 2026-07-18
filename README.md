@@ -29,13 +29,13 @@ tools. It gives those activities a shared project contract.
 Install the CLI:
 
 ```bash
-pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.1
+pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 ```
 
 `uv` works too:
 
 ```bash
-uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.1
+uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 ```
 
 From the project you want to govern:

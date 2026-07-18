@@ -121,6 +121,42 @@ Project Manager Controller
 - Additional controllers are exceptional and must be justified by scope,
   context contamination, specialized review, or independent runtime ownership.
 
+## Compact Controller Launch Envelope
+
+When a controller can read local project authority, launch it with a Compact
+Controller Launch Envelope containing only:
+
+- role and objective;
+- authority references;
+- baseline or entry condition;
+- permission mode;
+- PM authority deltas;
+- terminal state;
+- the necessary prohibitions and stop conditions not already resolved by the
+  referenced authority.
+
+The envelope must not duplicate the execution packet, phase authority, test
+plan, or file tables. The controller follows the references through project
+routing and reads phase-specific authority when that phase starts. A 40-80 line
+envelope is a guideline, not a correctness gate; authority completeness and
+unambiguous deltas take precedence over length.
+
+Each PM authority delta records its authority ID, source, priority, and
+reconciliation destination. Only a `launch-only delta` may stay in the launch
+envelope, such as a reporting instruction or execution-order hint already
+allowed by the approved dependency DAG. A launch-only delta must not change
+scope, gates, permission, shared ownership, contracts, or runtime authority.
+Any such change must first update and receive approval in the execution packet
+or other named authority source. If a referenced prompt or packet is missing,
+unreadable, contradictory, or conflicts with a delta, fail closed before
+editing and return the authority gap.
+
+Worker prompts remain explicit. Every worker still receives its exact allowed,
+read-only, and forbidden files, tests, evidence, runtime ownership, and stop
+conditions. A worker or external agent that cannot read the referenced project
+authority receives the complete boundary it needs rather than the compact
+controller form.
+
 ## Permission Mode Assignment
 
 Use `docs/agent/GOVERNANCE_LEVELS.md#authority-matrix` before issuing a packet
@@ -252,9 +288,12 @@ A wave is ready only when the execution packet or phase doc names:
 - integration owner;
 - stop conditions for conflicts.
 
-If any item is missing, keep execution `SERIAL` or return `STOP_FOR_PM`. Do not
-create a cosmetic wave plan where the Coder Controller still performs all
-implementation work directly.
+A missing readiness item serializes only the affected node; continue evaluating
+unaffected parallel candidates. Milestone-wide `SERIAL` is allowed only when
+the barrier cannot be isolated. Return `STOP_FOR_PM` when isolating or changing
+the affected node needs Project Manager authority. Do not create a cosmetic
+wave plan where the Coder Controller still performs all implementation work
+directly.
 
 ## Coder Self Review
 
@@ -277,8 +316,11 @@ packet reaches Final Review are integration repairs, not corrective rounds.
 
 Coder and Final Review controllers both assess execution shape:
 
-- `SERIAL`: phase or lane order matters, shared files overlap, or gates are
-  unresolved;
+- record the dependency DAG, parallel candidates, serial barriers, and
+  phase-internal lanes before selecting an execution shape;
+
+- `SERIAL`: a concrete phase or lane dependency, file conflict, unresolved
+  gate, or runtime ownership constraint prevents safe parallel work;
 - `PARALLEL_WITH_WAVES`: lanes are independent inside a phase and serial gates
   remain protected;
 - `PARALLEL_PHASES`: phases have disjoint ownership, frozen contracts, and no
@@ -288,6 +330,11 @@ Coder and Final Review controllers both assess execution shape:
 
 Coder uses this assessment to choose worker execution. Final Review uses it to
 verify whether the chosen execution shape was safe.
+
+Shared serial ownership does not justify milestone-wide serial execution.
+Assign shared files to the serial integration owner and preserve parallelism
+for disjoint peripheral work. An already active phase is not repartitioned by
+default; a new shape begins at the next safe barrier or wave.
 
 ## Governance Level Assignment
 

@@ -228,9 +228,17 @@ handoff.
   guess the policy from memory.
 - Use Wave Execution only when file ownership is disjoint and serial gates stay
   serial.
+- Before choosing milestone-wide `SERIAL`, route planning through a dependency
+  DAG that isolates parallel candidates, serial barriers, and phase-internal
+  lanes; shared integration ownership alone is not sufficient.
 - Use Session Orchestration only for large milestones where Project Manager,
   Coder, and Final Review controller packets reduce handoff overhead without
   weakening gates.
+- When local project authority is readable, use a Compact Controller Launch
+  Envelope that references it instead of copying the execution packet; allow
+  only identified launch-only deltas, fail closed on missing or conflicting
+  authority, and keep worker prompts explicit when they need complete execution
+  boundaries.
 - In Session Orchestration, Coder Controller orchestrates workers by default.
   It may self-execute only when the execution packet explicitly allows a narrow
   phase, glue step, or integration repair before Final Review, and it must

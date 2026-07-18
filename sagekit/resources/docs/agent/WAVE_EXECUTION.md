@@ -1,24 +1,37 @@
 # Wave Execution
 
-Wave Execution speeds up development by parallelizing safe work inside a phase
-while keeping integration, verification, approval gates, and submission serial.
+Wave Execution speeds up development by parallelizing safe work across
+independent phases or inside a phase while keeping integration, final
+verification, approval gates, and submission serial.
 
 For milestone-level Project Manager, Coder, and Final Review controller
 handoff, use `docs/agent/SESSION_ORCHESTRATION.md`. Wave Execution remains the
-rule for safe parallel lanes inside a phase.
+rule for safe parallel phases and phase-internal lanes.
 
 The rule is:
 
 ```text
-phase stays linear
+dependency DAG controls phase order
 waves run in parallel where safe
 gates stay serial
 governance level is assigned per lane
 permission mode is assigned per lane
 ```
 
-Heavy governance does not create wave readiness by itself. If lanes cannot be
-made independent, keep the phase serial.
+Heavy governance does not create wave readiness by itself. If a lane cannot be
+made independent, keep that lane or affected node serial and continue testing
+the remaining candidates for safe parallel execution.
+
+Shared serial ownership does not justify milestone-wide serial execution.
+Keep shared files with a named serial integration owner and evaluate the
+remaining mutually exclusive files as parallel candidates. Before declaring
+`SERIAL`, record the dependency DAG, serial barriers, phase-internal lanes, and
+the concrete phase or lane dependency, file conflict, gate, or runtime
+ownership reason that prevents safe parallel work.
+
+Do not repartition an already active phase by default. Adopt a changed wave
+shape at the next safe barrier or wave unless active authority explicitly
+permits repartitioning.
 
 ## Why Waves Exist
 
@@ -79,10 +92,12 @@ Wave readiness requires:
 - stop conditions for file conflicts, contract drift, runtime conflicts, and
   failed required evidence.
 
-If any readiness item is missing, use serial phase execution or return
-`STOP_FOR_PM`. Do not start parallel writable lanes from broad labels such as
-"frontend", "backend", "tests", or "polish" unless each lane has concrete file
-ownership and evidence.
+A missing readiness item serializes only the affected node; continue evaluating
+unaffected parallel candidates. Milestone-wide `SERIAL` is allowed only when
+the barrier cannot be isolated. Return `STOP_FOR_PM` only when resolving the
+affected node requires authority outside the approved plan. Do not start
+parallel writable lanes from broad labels such as "frontend", "backend",
+"tests", or "polish" unless each lane has concrete file ownership and evidence.
 
 ## Safe Parallel Work
 
@@ -139,6 +154,10 @@ These must remain serial unless the project explicitly defines a safer process:
 Wave Plan:
 
 Wave Readiness:
+- dependency DAG:
+- parallel candidates:
+- serial barriers:
+- phase-internal lanes:
 - useful parallel lanes:
 - exclusive writable files:
 - shared files kept serial:

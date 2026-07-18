@@ -269,6 +269,25 @@ When Session Orchestration is active:
 Corrective convergence budgets may be configured by the execution or Final
 Review packet, but they are control signals, not unconditional blockers.
 
+### Compact Controller Launch Envelope
+
+When local project authority is readable, launch a controller with role and
+objective, authority references, baseline or entry condition, permission mode,
+PM authority deltas, terminal state, and only necessary prohibitions or stop
+conditions. The envelope must not duplicate the execution packet. A 40-80 line
+target is a guideline, not a correctness gate.
+
+Every PM authority delta records its authority ID, source, priority, and
+reconciliation destination. Only a `launch-only delta` may remain in the
+envelope, and it must not change scope, gates, permission, shared ownership,
+contracts, or runtime authority. Update and approve the packet before making
+any such change. Missing, unreadable, contradictory, or conflicting prompt or
+packet authority must fail closed before editing.
+
+Worker prompts remain explicit. Workers and external agents that cannot read
+the referenced authority still receive exact allowed, read-only, and forbidden
+files, tests, evidence, runtime ownership, and stop conditions.
+
 ### Advanced Execution Economy
 
 Apply this lifecycle only when managed expensive verification is relevant to
@@ -354,6 +373,14 @@ run serially, with waves inside phases, or with parallel phases. Heavy mode
 does not imply wave readiness. Stop for Project Manager when a sequencing
 change affects scope, approval gates, public contracts, shared ownership, or
 final decision authority.
+
+That assessment starts from the dependency DAG, parallel candidates, serial
+barriers, and phase-internal lanes. Shared serial ownership does not justify
+milestone-wide serial execution. Keep shared files with a serial integration
+owner; `SERIAL` requires a concrete phase or lane dependency, file conflict,
+gate, or runtime ownership reason. Preserve the active phase and apply a new
+shape at the next safe barrier or wave unless its authority permits
+repartitioning.
 
 ## Runtime And Integration Claims
 

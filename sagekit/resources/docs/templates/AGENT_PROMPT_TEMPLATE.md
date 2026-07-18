@@ -2,6 +2,104 @@
 
 Use this template to start a focused AI agent task.
 
+## Compact Controller Launch Envelope
+
+Use this form for a Project Manager, Coder, or Final Review controller that can
+read the project's local authority:
+
+```markdown
+Role and objective:
+- <controller role and one objective>
+
+Authority references:
+- <ACTIVE_CONTEXT, DOC_ROUTING, execution packet, active ledger or gate paths>
+
+Baseline or entry condition:
+- <required branch/commit/state or entry gate>
+
+Permission mode:
+- <mode and controller-owned writes, if any>
+
+PM authority deltas:
+- authority ID: <stable identifier or none>
+- source: <PM decision or approved authority path>
+- priority: <relationship to the referenced authorities>
+- reconciliation destination: <execution packet, ledger, or other authority>
+- classification: <launch-only delta or packet update required>
+- instruction: <non-authority-changing launch instruction or none>
+
+Terminal state:
+- <required handoff or verdict state>
+
+Necessary prohibitions and stop conditions:
+- <only constraints not already made unambiguous by the references>
+```
+
+This envelope must not duplicate the execution packet, phase authority, file
+tables, or test plan. Let project routing select the narrow read set and load a
+phase-specific authority only when that phase starts. Keeping the envelope near
+40-80 lines is a guideline, not a correctness gate.
+
+A `launch-only delta` may clarify reporting or execution order already allowed
+by approved authority. It must not change scope, gates, permission, shared
+ownership, contracts, or runtime authority. Changes to those boundaries must
+first be written to and approved in the execution packet or other named
+authority source. If any required prompt or packet reference is missing,
+unreadable, contradictory, or conflicts with the delta, fail closed before
+editing.
+
+## Standalone Task Exception
+
+These are mutually exclusive paths: use either this standalone packet or the
+Explicit Local Worker Prompt below, never both.
+
+When an agent has no repository access, give it a complete and self-contained
+lane or task packet that does not require inaccessible local paths. An external
+agent without repository access uses only this standalone packet.
+
+```markdown
+Role and objective:
+- <bounded worker role and one objective>
+
+Governance and Strict Mode:
+- governance level: <Light, Standard, or Heavy>
+- Strict Mode: <required/not required and exact restrictions>
+
+Authority supplied in this packet:
+- authority ID:
+- authority source and approval state:
+- permission mode:
+
+Boundaries supplied in this packet:
+- allowed files or surfaces:
+- read-only files or surfaces:
+- forbidden files or surfaces:
+- contracts and runtime ownership:
+
+Commands and evidence:
+- exact commands:
+- required evidence:
+- skipped-check policy:
+
+Stop conditions:
+- <authority, scope, gate, conflict, verification, or safety stops>
+
+Return format:
+- <structured completion, finding, blocker, or handoff fields>
+```
+
+Missing required authority fails closed. The standalone agent must not guess
+project facts, permissions, contracts, paths, commands, acceptance state, or
+fallback behavior. This exception supplies an explicit worker boundary; it
+does not grant authority that the packet does not contain.
+
+## Explicit Local Worker Prompt
+
+Worker prompts remain explicit. Use the full template below only for a worker,
+lane, or corrective agent that can read the project's local authority.
+Preserve exact allowed files, read-only files, forbidden files, tests, runtime
+ownership, evidence, and stop conditions.
+
 ```markdown
 You are working inside a SAGE-Kit governed project.
 

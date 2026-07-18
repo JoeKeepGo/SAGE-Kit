@@ -55,7 +55,18 @@ Permission Mode:
 Execution Shape:
 - `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
 
+Dependency DAG:
+- `<phase/lane>` depends on `<phase/lane or none>` because `<contract/evidence/gate>`
+
+Parallel candidates:
+- `<phases or phase-internal lanes with disjoint ownership>`
+
+Serial barriers:
+- `<shared file, gate, runtime owner, integration point, or dependency>`
+
 Parallelism Rationale:
+- `SERIAL` requires a concrete phase/lane dependency, file conflict, gate, or
+  runtime ownership reason; shared integration ownership alone is insufficient.
 
 Wave Readiness:
 - Useful parallel lanes:
@@ -68,6 +79,25 @@ Wave Readiness:
 - Integration owner:
 - Conflict stop conditions:
 - Decision: `SERIAL`, `PARALLEL_WITH_WAVES`, `PARALLEL_PHASES`, or `STOP_FOR_PM`
+
+Controller Launch Guidance:
+- Use a Compact Controller Launch Envelope when the controller can read this
+  packet and its authority references locally.
+- Include role and objective, authority references, baseline or entry
+  condition, permission mode, PM authority deltas, terminal state, and only
+  necessary prohibitions or stop conditions.
+- The launch envelope must not duplicate the execution packet.
+- 40-80 lines is a guideline, not a correctness gate.
+- Worker prompts remain explicit and carry their exact files, tests, evidence,
+  runtime ownership, and stop conditions.
+- PM authority deltas in the envelope must record authority ID, source,
+  priority, and reconciliation destination.
+- Only a `launch-only delta` may remain outside this packet. It must not change
+  scope, gates, permission, shared ownership, contracts, or runtime authority.
+- A boundary or authority change must update and receive approval in this
+  packet or another named authority source before launch.
+- Missing, unreadable, contradictory, or conflicting prompt/packet authority
+  must fail closed before editing.
 
 Coder Controller Integration Edit Policy:
 - Direct controller edits allowed: `<yes/no>`

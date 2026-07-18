@@ -1655,6 +1655,124 @@ class SagekitCheckTests(unittest.TestCase):
                 r"Planning Author, Planning Review, Targeted Fix, Closure Verification.{0,100}strict Deterministic Closure.{0,100}Targeted Re-Review.{0,100}Closeout/Status.{0,100}Submit Controller",
             )
 
+    def test_planning_isolates_serial_barriers_before_rejecting_parallelism(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        planning_contracts = [
+            (root / "docs/agent/MILESTONE_PLANNING.md").read_text(encoding="utf-8"),
+            (root / "docs/agent/WAVE_EXECUTION.md").read_text(encoding="utf-8"),
+            (root / "docs/agent/SESSION_ORCHESTRATION.md").read_text(encoding="utf-8"),
+            (REPO_ROOT / "skills/sage-kit/references/planning.md").read_text(encoding="utf-8"),
+        ]
+        combined = " ".join(" ".join(text.split()) for text in planning_contracts)
+
+        self.assertIn(
+            "Shared serial ownership does not justify milestone-wide serial execution",
+            combined,
+        )
+        for requirement in [
+            "dependency DAG",
+            "parallel candidates",
+            "serial barriers",
+            "phase-internal lanes",
+        ]:
+            self.assertIn(requirement, combined)
+        self.assertRegex(
+            combined,
+            r"SERIAL.{0,500}(phase|lane).{0,200}(dependency|conflict|gate|runtime)",
+        )
+        self.assertIn(
+            "A missing readiness item serializes only the affected node",
+            combined,
+        )
+        self.assertIn("continue evaluating unaffected parallel candidates", combined)
+        self.assertIn(
+            "Milestone-wide `SERIAL` is allowed only when the barrier cannot be isolated",
+            combined,
+        )
+
+        packet = (
+            root / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Dependency DAG", packet)
+        self.assertIn("Parallel candidates", packet)
+        self.assertIn("Serial barriers", packet)
+
+    def test_controller_launch_envelope_references_readable_project_authority(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        prompt_template = (
+            root / "docs/templates/AGENT_PROMPT_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        execution_packet = (
+            root / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        orchestration = (
+            root / "docs/agent/SESSION_ORCHESTRATION.md"
+        ).read_text(encoding="utf-8")
+        skill_execution = (
+            REPO_ROOT / "skills/sage-kit/references/execution.md"
+        ).read_text(encoding="utf-8")
+        combined = " ".join(
+            " ".join(text.split())
+            for text in [prompt_template, execution_packet, orchestration, skill_execution]
+        )
+
+        self.assertIn("Compact Controller Launch Envelope", combined)
+        for field in [
+            "role and objective",
+            "authority references",
+            "baseline or entry condition",
+            "permission mode",
+            "PM authority deltas",
+            "terminal state",
+        ]:
+            self.assertIn(field, combined)
+        self.assertIn("must not duplicate the execution packet", combined)
+        self.assertIn("Worker prompts remain explicit", combined)
+        self.assertIn("guideline, not a correctness gate", combined)
+        self.assertIn("Standalone Task Exception", prompt_template)
+        self.assertIn("complete and self-contained", prompt_template)
+        self.assertIn("does not require inaccessible local paths", prompt_template)
+        self.assertIn("Missing required authority fails closed", prompt_template)
+        self.assertIn("These are mutually exclusive paths", prompt_template)
+        standalone = prompt_template.split("## Standalone Task Exception", 1)[1].split(
+            "## Explicit Local Worker Prompt", 1
+        )[0]
+        for local_path in [
+            "docs/ACTIVE_CONTEXT.md",
+            "docs/DOC_ROUTING.md",
+            "docs/agent/GOVERNANCE_LEVELS.md",
+        ]:
+            self.assertNotIn(local_path, standalone)
+        local_worker = prompt_template.split("## Explicit Local Worker Prompt", 1)[1]
+        self.assertIn("docs/ACTIVE_CONTEXT.md", local_worker)
+        self.assertNotIn("cannot read", local_worker)
+        for field in [
+            "authority ID",
+            "source",
+            "priority",
+            "reconciliation destination",
+        ]:
+            self.assertIn(field, combined)
+        self.assertIn("launch-only delta", combined)
+        self.assertIn(
+            "must not change scope, gates, permission, shared ownership, contracts, or runtime authority",
+            combined,
+        )
+        self.assertIn("fail closed before editing", combined)
+        for authority_text in [execution_packet, orchestration, skill_execution]:
+            authority_contract = " ".join(authority_text.split())
+            for rule in [
+                "authority ID",
+                "reconciliation destination",
+                "launch-only delta",
+                "fail closed before editing",
+            ]:
+                self.assertIn(rule, authority_contract)
+
     def test_ledger_uses_only_canonical_corrective_rereview_row(self):
         from sagekit.init import package_resource_root
 

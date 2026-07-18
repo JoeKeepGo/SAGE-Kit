@@ -95,6 +95,24 @@ Use this ladder before accepting a milestone plan:
     corrective-authorized, environment-write-authorized, or submit-authorized?
 14. Integration gate: what must remain serial?
 
+## Execution Shape Analysis
+
+Before choosing an execution shape, record a dependency DAG for the milestone.
+The analysis must list parallel candidates, serial barriers, and any
+phase-internal lanes that can use disjoint ownership. Shared serial ownership
+does not justify milestone-wide serial execution.
+
+Assign shared files to a named serial integration owner, then continue checking
+whether work on mutually exclusive files can run in parallel around that
+barrier. A `SERIAL` decision must identify the concrete phase or lane
+dependency, file conflict, approval gate, or runtime ownership constraint that
+prevents a safe wave. A broad label such as migration, integration, backend, or
+frontend is not sufficient by itself.
+
+Do not repartition a phase that is already active unless its authority
+explicitly permits it. Apply a safer parallel plan from the next safe
+barrier or wave.
+
 ## Milestone Entry Gate Checklist
 
 Before implementation starts, the entry gate must answer the required core
@@ -108,6 +126,9 @@ Required core gate:
   capability map enabled?
 - What is explicitly out of scope?
 - What are the phases?
+- What dependency DAG connects the phases, and which nodes are parallel
+  candidates or serial barriers?
+- Which phases contain phase-internal lanes with disjoint writable ownership?
 - What contract does each phase own?
 - What files or modules are likely to change?
 - Which files are shared, and which named controller or integration owner owns
