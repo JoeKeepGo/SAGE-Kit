@@ -1,42 +1,35 @@
 #!/bin/bash
 # SAGE-Kit serial-file guard for Claude Code (PreToolUse hook).
 #
-# Matcher: Edit|Write|MultiEdit
-# Blocks writes to controller-owned serial files. Fail-closed: a missing jq
-# or malformed hook input blocks the write rather than silently allowing it.
+# Bind this hook to worker subagents through their frontmatter hooks (see
+# references/claude/agents/sage-coder.md), not to the controller session.
+# It has no bypass by design: workers can never write the controller-owned
+# serial files and must return Memory Update Proposals instead. The
+# controller session does not load this hook, so legitimate controller
+# writes are unaffected.
 #
-# Authorized controller writes use a one-shot token: write the normalized
-# target path into .sagekit/runtime/SERIAL_WRITE_TOKEN immediately before the
-# edit (for example via Bash). A matching write consumes the token once.
-#
-# Install: copy to .claude/hooks/ and wire in .claude/settings.json (see
-# references/claude.md).
+# Fail-closed: a missing jq or malformed hook input blocks the write rather
+# than silently allowing it.
 
-TOKEN_FILE='.sagekit/runtime/SERIAL_WRITE_TOKEN'
-
-block() {
-  echo "Blocked: $1" >&2
+command -v jq >/dev/null 2>&1 || {
+  echo "Blocked: protect-serial-files requires jq on PATH; refusing to fail open." >&2
   exit 2
 }
 
-command -v jq >/dev/null 2>&1 || \
-  block "protect-serial-files: jq is required but not on PATH; refusing to fail open."
-
 INPUT=$(cat)
 FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
-[ $? -eq 0 ] || \
-  block "protect-serial-files: malformed hook input; refusing to fail open."
+[ $? -eq 0 ] || {
+  echo "Blocked: protect-serial-files received malformed hook input; refusing to fail open." >&2
+  exit 2
+}
 
 # Normalize Windows-style separators before matching.
 NORM=$(printf '%s' "$FILE" | tr '\\' '/')
 
 case "$NORM" in
   */docs/ACTIVE_CONTEXT.md|*/docs/DOC_ROUTING.md|docs/ACTIVE_CONTEXT.md|docs/DOC_ROUTING.md)
-    if [ -f "$TOKEN_FILE" ] && [ "$(head -n 1 "$TOKEN_FILE" | tr '\\' '/')" = "$NORM" ]; then
-      rm -f "$TOKEN_FILE"
-      exit 0
-    fi
-    block "$NORM is a SAGE-Kit controller-owned serial file. Return a Memory Update Proposal, or create a one-shot token at $TOKEN_FILE naming this path before an authorized write."
+    echo "Blocked: $NORM is a SAGE-Kit controller-owned serial file. Workers must return a Memory Update Proposal instead of editing it." >&2
+    exit 2
     ;;
 esac
 

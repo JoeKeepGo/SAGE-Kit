@@ -2,13 +2,13 @@
 # SAGE-Kit completion gate for Claude Code (Stop hook, opt-in).
 #
 # Runs `sagekit check` when the repository is SAGE-governed and
-# SAGE_STOP_CHECK=1 is set. Blocking findings prevent the session from
-# stopping so the agent must resolve or report them first.
+# SAGE_STOP_CHECK=1 is set. Blocks the stop so the agent must resolve or
+# report before claiming DONE.
 #
-# Fail-closed: when the owner opted in but no validator is available (no
-# sagekit command, no source module, no Python interpreter), the hook blocks
-# and reports the capability gap. A missing validator is never a pass, and a
-# capability failure is never reported as a validator finding.
+# Exit-code contract of the validator: 0 = pass, 1 = blocking findings,
+# anything else = invocation or internal error. The hook fails closed on
+# capability gaps and reports them as HANDOFF, never as a pass and never
+# mislabeled as findings.
 #
 # Install: copy to .claude/hooks/ and wire in .claude/settings.json (see
 # references/claude.md).
@@ -33,9 +33,18 @@ else
   exit 2
 fi
 
-$RUN >/dev/null 2>&1 || {
-  echo "sagekit check reported blocking findings. Resolve them or report the gap before claiming DONE." >&2
-  exit 2
-}
-
-exit 0
+$RUN >/dev/null 2>&1
+RC=$?
+case "$RC" in
+  0)
+    exit 0
+    ;;
+  1)
+    echo "sagekit check reported blocking findings. Resolve them or report the gap before claiming DONE." >&2
+    exit 2
+    ;;
+  *)
+    echo "sagekit check exited $RC: invocation or internal error, not validation findings. Report HANDOFF; do not claim DONE." >&2
+    exit 2
+    ;;
+esac

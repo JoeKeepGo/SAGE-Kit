@@ -145,8 +145,10 @@ Subagent constraints to record in execution packets:
 
 1. `agents/openai.yaml` is ignored by the Kimi runtime (display metadata
    only).
-2. Hard `allow_implicit_invocation: false` has no Kimi equivalent; it is
-   enforced through the skill description wording as a soft guarantee.
+2. Explicit-only invocation is split: Kimi Code CLI has a hard equivalent
+   (it natively honors `disable-model-invocation: true`); Kimi Work desktop
+   has none, so it remains a soft guarantee carried by the skill description
+   wording there.
 3. Codex-targeted adapter install commands are not applicable; use the
    Kimi-native capability table above.
 4. Subagents differ from Codex sessions (bounded runs, controller-visible

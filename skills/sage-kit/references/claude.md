@@ -82,7 +82,7 @@ phase doc and execution packets.
 | Read-only exploration lanes | Built-in `Explore` and `Plan` subagents — reuse them |
 | Wave Execution | Parallel subagent calls only when Wave Readiness is proven — unchanged rule |
 | Worktree Isolation | Native: set `isolation: worktree` on the worker subagent |
-| Serial files (`ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`) | Soft rule plus optional hard enforcement through the shipped PreToolUse hook (below) |
+| Serial files (`ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`) | Hard-enforced inside the worker subagent through its frontmatter PreToolUse hook (below); the controller session does not load it |
 | Strict Mode task cards | Run the skill or packet with `context: fork` for isolated execution |
 
 Copy the shipped agent files into the governed project's `.claude/agents/`
@@ -94,34 +94,29 @@ replaces, the milestone ledger.
 ## Deterministic Enforcement
 
 Claude Code hooks let SAGE-Kit rules execute as code instead of relying on
-model compliance. Two hooks ship under `references/claude/hooks/`:
+model compliance. Two hooks ship under `references/claude/hooks/`, each in a
+POSIX (`.sh`) and a Windows PowerShell (`.ps1`) variant:
 
-- `protect-serial-files.sh` (PreToolUse, matcher `Edit|Write|MultiEdit`):
-  blocks writes to `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`.
-  Windows-style path separators are normalized before matching, and the hook
-  fails closed when `jq` is missing or the hook input is malformed. An
-  authorized controller write uses a one-shot token: write the target path
-  into `.sagekit/runtime/SERIAL_WRITE_TOKEN` immediately before the edit;
-  a matching write consumes the token once. All other writers must return
-  Memory Update Proposals.
-- `stop-sagekit-check.sh` (Stop, opt-in via `SAGE_STOP_CHECK=1`): runs
-  `sagekit check` and blocks completion while blocking findings exist. It
-  fails closed when the validator or a Python interpreter is unavailable,
-  reporting the capability gap as a handoff rather than a pass or a finding.
+- `protect-serial-files` (PreToolUse, matcher `Edit|Write|MultiEdit`) is
+  bound inside the `sage-coder` subagent's frontmatter hooks, not in global
+  settings. Scope is what makes the authorization real: the hook has no
+  bypass, so workers can never write `docs/ACTIVE_CONTEXT.md` or
+  `docs/DOC_ROUTING.md`, while the controller session simply does not load
+  it and can perform legitimate controller writes. Windows-style path
+  separators are normalized before matching, and the hook fails closed when
+  `jq` is missing or the hook input is malformed.
+- `stop-sagekit-check` (Stop, opt-in via `SAGE_STOP_CHECK=1`) is wired
+  globally in the governed project's `.claude/settings.json`. It runs
+  `sagekit check` and reads its exit code: `0` passes, `1` blocks on
+  findings, anything else blocks as an invocation/capability failure
+  reported as HANDOFF. A missing validator or Python interpreter also fails
+  closed with a handoff message.
 
-Wire them in the governed project's `.claude/settings.json`:
+Global wiring in the governed project's `.claude/settings.json`:
 
 ```json
 {
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          { "type": "command", "command": ".claude/hooks/protect-serial-files.sh" }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
@@ -132,6 +127,16 @@ Wire them in the governed project's `.claude/settings.json`:
   }
 }
 ```
+
+On Windows, use the `.ps1` variants and declare the shell in each hook
+entry (also inside the `sage-coder` frontmatter hook):
+
+```json
+{ "type": "command", "command": ".claude/hooks/stop-sagekit-check.ps1", "shell": "powershell" }
+```
+
+The PowerShell variants parse hook input with `ConvertFrom-Json` and do not
+require `jq`.
 
 Hooks are enforcement, not authority: permission mode and ownership in the
 active SAGE-Kit artifact still decide whether a write is legitimate.
