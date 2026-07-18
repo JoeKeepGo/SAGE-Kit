@@ -9,6 +9,8 @@ evidence, and what happens next. It is designed for projects where work spans
 many sessions and "the agent said it was done" is not enough.
 
 SAGE-Kit is open source, written in Python, and has no runtime dependencies.
+The companion agent skill runs on Codex, Claude Code, OpenCode, and Kimi
+Work / Kimi Code CLI.
 
 ## What It Helps With
 
@@ -57,21 +59,41 @@ python -m sagekit check --source-repo
 
 Python 3.10 or newer is required.
 
-## Add The Skill
+## Install The Skill
 
-The repository includes a Codex skill at
-[`skills/sage-kit`](skills/sage-kit). Install it with Codex's skill installer,
-then open a new session so Codex discovers it.
+The repository ships one skill at [`skills/sage-kit`](skills/sage-kit) that
+runs across agent runtimes. Copy the whole directory so `references/` ships
+with it, then restart or open a new session so the runtime discovers it.
 
-Start a task with:
+| Runtime | Install | Invoke explicitly |
+|---|---|---|
+| **Codex** | Codex skill installer | `Use $sage-kit for this task.` |
+| **Claude Code** | `.claude/skills/sage-kit/` or `~/.claude/skills/sage-kit/` | `/sage-kit` |
+| **OpenCode** | `.opencode/skills/sage-kit/` or `~/.config/opencode/skills/sage-kit/` | Ask for the `sage-kit` skill by name |
+| **Kimi Work / Kimi Code CLI** | The runtime's skills directory | Ask for the `sage-kit` skill by name |
 
-```text
-Use $sage-kit for this task.
-```
+The skill is explicit-only across all runtimes: it loads when you ask for
+it, not because a task vaguely resembles governance work.
+
+Each runtime has an environment profile under
+[`skills/sage-kit/references/`](skills/sage-kit/references) that maps
+invocation, permissions, orchestration, and continuity onto that runtime:
+
+- **Codex** is the native home; `agents/openai.yaml` holds display metadata.
+- **Claude Code**
+  ([`references/claude.md`](skills/sage-kit/references/claude.md)) ships
+  ready-to-copy subagents and hooks under `references/claude/` that turn
+  serial-file ownership and completion checks into deterministic enforcement.
+- **OpenCode**
+  ([`references/opencode.md`](skills/sage-kit/references/opencode.md)) ships
+  a permission baseline and subagent templates.
+- **Kimi Work / Kimi Code CLI**
+  ([`references/kimi-runtime.md`](skills/sage-kit/references/kimi-runtime.md))
+  maps the skill onto Kimi's skills index and subagent model.
 
 The skill is an entrypoint, not a replacement for the project's own SAGE
-documents. It reads the current context and routing first, then loads only the
-documents needed for the task.
+documents. It reads the current context and routing first, then loads only
+the documents needed for the task.
 
 ## Choose A Starting Mode
 
@@ -202,7 +224,7 @@ Superpowers is a useful reference integration, not a dependency.
 ```text
 docs/                 Framework rules, templates, and optional profiles
 sagekit/              Python CLI and packaged resources
-skills/sage-kit/      Codex skill
+skills/sage-kit/      Agent skill plus per-runtime environment profiles
 scripts/              Standalone validation helpers
 tests/                Unit, simulation, packaging, and compatibility tests
 ```
