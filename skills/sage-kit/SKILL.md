@@ -1,6 +1,7 @@
 ---
 name: sage-kit
 description: "Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt/bootstrap SAGE-Kit, or references SAGE-Kit-owned docs or constructs such as docs/ACTIVE_CONTEXT.md, docs/DOC_ROUTING.md, docs/agent/AGENT_HARNESS.md, SAGE-Kit Governance Levels, Authority Matrix, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch Profile, or Capability Adapters. Do not use for generic milestones, gates, phase docs, planning, review, or debugging unless tied to SAGE-Kit."
+disable-model-invocation: true
 ---
 
 # SAGE-Kit
@@ -48,7 +49,12 @@ supports.
    SAGE-Kit, read `references/adoption.md`.
 4. If this is the SAGE-Kit source repository, edit kit templates or skills only
    when requested; do not expect instantiated project docs to exist.
-5. If the repo is not SAGE-Kit governed and the user did not ask to adopt it,
+5. If the runtime has a SAGE-Kit environment profile, read it for
+   invocation, capability, and orchestration mapping in that environment:
+   - Kimi Work or Kimi Code CLI: `references/kimi-runtime.md`
+   - OpenCode: `references/opencode.md`
+   - Claude Code: `references/claude.md`
+6. If the repo is not SAGE-Kit governed and the user did not ask to adopt it,
    do not impose SAGE-Kit.
 
 ## Default Startup
