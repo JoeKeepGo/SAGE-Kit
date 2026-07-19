@@ -112,6 +112,43 @@ The selected adapter must stop before:
 Superpowers may provide execution discipline when available. Treat it as a
 reference integration, not a dependency.
 
+### Codex GPT-5.6 Runtime Override
+
+For a Codex session running any GPT-5.6 family model, Superpowers is
+`DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not read,
+invoke, or delegate to Superpowers, including `using-superpowers` and composite
+Superpowers workflows. `using-superpowers` is explicitly disabled even when its
+skill metadata describes invocation as mandatory. All descendants inherit this
+override.
+
+Inheritance must be explicit at every delegation boundary. Every controller
+must copy `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition
+into each subagent launch packet. Every subagent that is authorized to delegate
+must copy the same rule into every child packet. Context compaction, handoff,
+resume, or a newly spawned descendant does not clear the policy. A one-time
+message to an already running worker is not a substitute for launch-time
+propagation.
+
+This override disables only the adapter. It does not disable engineering
+discipline. Controllers and workers must use model-native brainstorming,
+planning, test-driven implementation, systematic debugging, subagent
+orchestration, review, and verification inside the active SAGE-Kit boundary.
+These are required native behaviors, not similarly named skill invocations.
+
+Capability discovery records Superpowers as disabled and must not treat
+disabled Superpowers as a capability gap, fallback trigger, blocker, or reason
+to stop. Existing packets that selected Superpowers route to equivalent
+model-native execution without reopening scope or gates. Claude, Kimi,
+OpenCode, and non-GPT-5.6 runtime mappings remain unchanged.
+
+Precedence is:
+
+```text
+Codex GPT-5.6 Runtime Override
+> generic capability routing
+> Superpowers availability
+```
+
 Recommended mapping:
 
 | Need | Superpowers capability |

@@ -1,7 +1,18 @@
 interface:
   display_name: "SAGE-Kit"
   short_description: "Align SAGE-Kit scope, adapters, and evidence"
-  default_prompt: "Use $sage-kit to plan and execute this task under SAGE-Kit."
+  default_prompt: >-
+    Use $sage-kit to plan and execute this task under SAGE-Kit. When running a
+    GPT-5.6 family model in Codex, apply the Codex GPT-5.6 Runtime Override:
+    Superpowers is DISABLED_BY_RUNTIME_POLICY; do not read, invoke, or delegate
+    to Superpowers. Explicitly disable using-superpowers even when its metadata
+    describes invocation as mandatory. Use model-native brainstorming,
+    planning, test-driven implementation, systematic debugging, subagent
+    orchestration, review, and verification as native behaviors, not similarly
+    named skill invocations. Otherwise use the runtime's normal adapter policy.
+    Repeat the disabled status and using-superpowers prohibition in every
+    subagent launch packet; descendants that delegate must repeat both in every
+    child packet, including after compaction, handoff, or resume.
 
 policy:
   allow_implicit_invocation: false

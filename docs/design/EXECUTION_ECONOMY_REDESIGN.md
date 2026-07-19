@@ -195,6 +195,21 @@ generation, predecessor, corrective-batch id, and any human-resume authority,
 root-cause, finding-count, and no-progress data. Final verification requires an
 exact match and a worktree with no unexpected changes.
 
+The default `clean-head` snapshot keeps that clean-worktree contract. An
+explicitly authorized `working-tree` snapshot may instead bind the complete
+non-ignored repository state: committed branch diff, staged state, unstaged
+state, untracked path/content, deletion and mode state, and symlink identity.
+It is a versioned fingerprint, not permission to ignore dirtiness. Assessment
+must recompute it before and after final verification; any drift invalidates the
+candidate. Dirty submodules and unrepresentable state fail closed. Existing
+candidate versions keep their original clean semantics, and no mode fallback is
+allowed.
+
+The working-tree candidate also binds a non-empty snapshot authority identifier
+from the approved execution packet. The CLI requires this value explicitly;
+`clean-head` rejects it, and it cannot replace corrective, convergence, or
+submit authority.
+
 One approved corrective batch may replace an unverified candidate with one
 automatic successor. Reusing that batch id cannot create another automatic
 successor. Any change after final verification produces `HANDOFF_READY`.

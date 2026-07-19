@@ -139,8 +139,11 @@ A frozen candidate binds:
 
 ```yaml
 candidate:
+  snapshot_mode: clean-head | working-tree
+  snapshot_authority:
   head_sha:
   diff_hash:
+  working_tree_digest:
   contract_digest:
   dependency_digest:
   review_closed:
@@ -165,9 +168,36 @@ candidate:
 ```
 
 Final verification is authorized only when review and the corrective batch are
-closed, the candidate fingerprint matches the current HEAD, diff, contracts,
-and dependencies, and the worktree has no unexpected changes. A mismatch fails
-closed with exact differences and does not consume a run.
+closed and the candidate fingerprint matches its declared snapshot mode,
+current inputs, contracts, and dependencies. A mismatch fails closed with exact
+differences and does not consume a run.
+
+Candidate snapshot modes are explicit:
+
+- `clean-head` is the default and preserves the existing contract. It binds the
+  committed branch diff and rejects staged, unstaged, or untracked worktree
+  changes.
+- `working-tree` is opt-in and must be authorized by the active execution
+  packet. The CLI requires a non-empty `--snapshot-authority` identifier and
+  binds it into the versioned candidate fingerprint. It binds `HEAD`,
+  committed branch diff, index/staged state,
+  unstaged state, non-ignored untracked paths and content, deletion and file
+  mode state, and symlink identity without following an external target.
+
+`working-tree` is a deterministic candidate snapshot, not a commit, submit,
+acceptance, or permission upgrade. Its assessment recomputes the same snapshot
+before and after final verification. Any staged, unstaged, untracked, file-mode,
+or symlink drift invalidates the candidate. Git-ignored outputs are not candidate
+inputs and cannot be claimed as frozen evidence. Dirty submodules or another
+repository state that cannot be bound deterministically fail closed.
+
+The CLI must not provide an unbound `--allow-dirty` bypass or automatically
+fall back between modes. Older candidate fingerprints retain their original
+clean-worktree semantics; only a versioned working-tree candidate receives the
+new snapshot fields. Convergence path checks include committed, staged,
+unstaged, deleted, and untracked paths selected by the working-tree snapshot.
+`clean-head` rejects a snapshot authority because it does not use this opt-in
+contract.
 
 One approved corrective batch may invalidate an unverified candidate and
 automatically create one successor without human budget approval. The batch id

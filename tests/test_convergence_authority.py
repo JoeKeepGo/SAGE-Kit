@@ -695,6 +695,91 @@ class ConvergenceStopTests(unittest.TestCase):
         self.assertEqual(RunState.HANDOFF_READY, result.state)
         self.assertIn("outside convergence allowed paths", result.message)
 
+    def test_working_tree_untracked_path_cannot_bypass_convergence_authority(self):
+        narrow = authority(allowed_paths=("tracked.txt",))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "outside.txt").write_text("not authorized\n", encoding="utf-8")
+            result = freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+                convergence_authority=narrow,
+                convergence_evidence=evidence(1),
+            )
+
+        self.assertFalse(result.ok)
+        self.assertEqual(RunState.HANDOFF_READY, result.state)
+        self.assertIn("outside.txt", result.message)
+
+    def test_working_tree_deleted_path_cannot_bypass_convergence_authority(self):
+        narrow = authority(allowed_paths=("allowed/",))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").unlink()
+            result = freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+                convergence_authority=narrow,
+                convergence_evidence=evidence(1),
+            )
+
+        self.assertFalse(result.ok)
+        self.assertIn("tracked.txt", result.message)
+
+    @unittest.skipIf(os.name == "nt", "POSIX backslash filename regression")
+    def test_committed_backslash_path_fails_closed_during_authority_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "back\\slash.txt").write_text("unsafe path\n", encoding="utf-8")
+            git(root, "add", "back\\slash.txt")
+            git(root, "commit", "-m", "add unrepresentable path")
+
+            result = freeze(
+                root,
+                convergence_authority=authority(allowed_paths=("tracked.txt",)),
+                convergence_evidence=evidence(1),
+            )
+
+        self.assertFalse(result.ok)
+        self.assertIn("unsupported backslash", result.message)
+
+    def test_dirty_submodule_fails_closed_in_working_tree_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            child = base / "child"
+            root = base / "root"
+            child.mkdir()
+            root.mkdir()
+            init_repository(child)
+            init_repository(root)
+            git(
+                root,
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                str(child),
+                "vendor/child",
+            )
+            git(root, "commit", "-m", "add submodule")
+            (root / "vendor/child/tracked.txt").write_text(
+                "dirty submodule\n", encoding="utf-8"
+            )
+
+            result = freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            )
+
+        self.assertFalse(result.ok)
+        self.assertIn("dirty submodule", result.message)
+
     def test_policy_changing_classification_handoffs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

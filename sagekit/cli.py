@@ -182,6 +182,22 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_freeze.add_argument("--json", action="store_true")
     candidate_freeze.add_argument("--contract-digest", required=True)
     candidate_freeze.add_argument("--dependency-digest", required=True)
+    candidate_freeze.add_argument(
+        "--snapshot-mode",
+        choices=("clean-head", "working-tree"),
+        default="clean-head",
+        help=(
+            "Freeze a clean HEAD by default, or explicitly bind staged, "
+            "unstaged, and untracked Git state."
+        ),
+    )
+    candidate_freeze.add_argument(
+        "--snapshot-authority",
+        help=(
+            "Required ID or digest authorizing working-tree snapshot mode; "
+            "invalid for clean-head."
+        ),
+    )
     candidate_freeze.add_argument("--review-closed", action="store_true")
     candidate_freeze.add_argument("--corrective-batch-closed", action="store_true")
     candidate_freeze.add_argument("--previous-candidate", type=Path)
@@ -618,6 +634,8 @@ def main(argv: list[str] | None = None) -> int:
                 open_findings_count=args.finding_count,
                 convergence_authority=convergence_authority,
                 convergence_evidence=convergence_evidence,
+                snapshot_mode=args.snapshot_mode,
+                snapshot_authority=args.snapshot_authority,
             )
             emit_candidate_result(
                 result,

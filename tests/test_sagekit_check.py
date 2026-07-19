@@ -1773,6 +1773,107 @@ class SagekitCheckTests(unittest.TestCase):
             ]:
                 self.assertIn(rule, authority_contract)
 
+    def test_codex_gpt56_uses_native_workflows_without_superpowers(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        capability_source = (REPO_ROOT / "docs/agent/CAPABILITY_ADAPTERS.md").read_text(
+            encoding="utf-8"
+        )
+        capability_packaged = (
+            root / "docs/agent/CAPABILITY_ADAPTERS.md"
+        ).read_text(encoding="utf-8")
+        prompt = (root / "docs/templates/AGENT_PROMPT_TEMPLATE.md").read_text(
+            encoding="utf-8"
+        )
+        packet = (
+            root / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        execution = (
+            REPO_ROOT / "skills/sage-kit/references/execution.md"
+        ).read_text(encoding="utf-8")
+        openai_profile = (
+            REPO_ROOT / "skills/sage-kit/agents/openai.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(capability_source, capability_packaged)
+        codex_contracts = [
+            capability_source,
+            prompt,
+            packet,
+            skill,
+            execution,
+            openai_profile,
+        ]
+        combined = " ".join(" ".join(text.split()) for text in codex_contracts)
+        for rule in [
+            "Codex GPT-5.6 Runtime Override",
+            "DISABLED_BY_RUNTIME_POLICY",
+            "must not read, invoke, or delegate to Superpowers",
+            "`using-superpowers` is explicitly disabled even when its skill metadata describes invocation as mandatory",
+            "model-native brainstorming, planning, test-driven implementation, systematic debugging, subagent orchestration, review, and verification",
+            "native behaviors, not similarly named skill invocations",
+            "descendants inherit",
+            "Every subagent launch packet must explicitly repeat",
+            "descendant authorized to delegate must",
+            "compaction, handoff, or resume",
+            "must not treat disabled Superpowers as a capability gap",
+        ]:
+            self.assertIn(rule, combined)
+
+        for text in [capability_source, skill, execution]:
+            normalized = " ".join(text.split())
+            self.assertIn("Codex GPT-5.6 Runtime Override", normalized)
+            self.assertIn("DISABLED_BY_RUNTIME_POLICY", normalized)
+            self.assertIn("model-native brainstorming", normalized)
+
+        self.assertIn("When running a GPT-5.6 family model in Codex", " ".join(openai_profile.split()))
+        self.assertIn("Otherwise use the runtime's normal adapter policy", " ".join(openai_profile.split()))
+        self.assertIn("Superpowers Reference Integration", capability_source)
+        self.assertIn("references/kimi-runtime.md", skill)
+        self.assertIn("references/claude.md", skill)
+        self.assertIn("references/opencode.md", skill)
+
+    def test_working_tree_candidate_snapshot_is_explicit_and_bound(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        source = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+            encoding="utf-8"
+        )
+        packaged = (root / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+            encoding="utf-8"
+        )
+        packet = (
+            REPO_ROOT / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        execution = (
+            REPO_ROOT / "skills/sage-kit/references/execution.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(source, packaged)
+        contract = " ".join(
+            " ".join(text.split()) for text in [source, packet, skill, execution]
+        )
+        for rule in [
+            "clean-head",
+            "working-tree",
+            "must be authorized by the active execution packet",
+            "`--snapshot-authority`",
+            "binds it into the versioned candidate fingerprint",
+            "index/staged state",
+            "non-ignored untracked",
+            "symlink identity",
+            "before and after final verification",
+            "Dirty submodules",
+            "not a commit, submit, acceptance, or permission upgrade",
+            "must not provide an unbound `--allow-dirty` bypass",
+            "Older candidate fingerprints retain their original clean-worktree semantics",
+        ]:
+            self.assertIn(rule, contract)
+
     def test_ledger_uses_only_canonical_corrective_rereview_row(self):
         from sagekit.init import package_resource_root
 

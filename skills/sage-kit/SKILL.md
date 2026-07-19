@@ -172,6 +172,14 @@ handoff.
   Workers and reviewers cannot expand expensive-verification authority; Lane
   Controllers own only affected-lane verification, and the Root or Final
   Controller exclusively owns final full-suite authority.
+- Candidate freeze defaults to `clean-head` and rejects dirty worktrees. Use
+  `working-tree` only when the active packet explicitly authorizes an
+  uncommitted snapshot. Bind committed, staged, unstaged, non-ignored
+  untracked, deletion, mode, and symlink state; reassess before and after final
+  verification. Pass and bind the packet's non-empty snapshot authority.
+  Never use an unbound allow-dirty bypass, follow external
+  symlink targets, accept a dirty submodule, or treat a snapshot as
+  commit/submit authority.
 - Capability or preflight failures do not consume a candidate verification run.
   A run is consumed atomically when candidate execution starts. Persist started
   attempt ids so checkpoint/resume cannot count them twice.
@@ -222,6 +230,20 @@ handoff.
   available and relevant, selected superpowers skills may guide execution
   inside an approved SAGE-Kit boundary. If unavailable, continue with SAGE-Kit
   phase, gate, packet, and evidence templates.
+- Codex GPT-5.6 Runtime Override: in a Codex session running any GPT-5.6
+  family model, Superpowers is `DISABLED_BY_RUNTIME_POLICY`. Controllers and
+  descendants must not read, invoke, or delegate to Superpowers.
+  `using-superpowers` is explicitly
+  disabled even when its skill metadata describes invocation as mandatory, and
+  all descendants inherit the override. They must still use model-native
+  brainstorming, planning, test-driven implementation, systematic debugging,
+  subagent orchestration, review, and verification as native behaviors, not
+  similarly named skill invocations. Capability routing must not treat disabled
+  Superpowers as a capability gap, fallback trigger, blocker, or stop reason.
+  Every subagent launch packet must explicitly repeat
+  `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition. Every
+  descendant authorized to delegate must propagate both into each child packet,
+  including after compaction, handoff, or resume.
 - Do not treat external capability completion as SAGE-Kit gate completion.
   Record it as execution evidence and keep gate decisions in SAGE-Kit docs.
 - Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`; do not

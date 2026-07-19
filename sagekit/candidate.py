@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +46,10 @@ class CandidateFingerprint:
     finding_severity: int | None = None
     targeted_review_closed: bool = False
     finding_trend: str | None = None
+    snapshot_mode: str = "clean-head"
+    working_tree_digest: str | None = None
+    snapshot_paths: tuple[str, ...] = ()
+    snapshot_authority: str | None = None
 
     @property
     def digest(self) -> str:
@@ -71,7 +77,7 @@ class CandidateFingerprint:
                     "no_progress_rounds": self.no_progress_rounds,
                 }
             )
-        if self.fingerprint_version == 3:
+        if self.fingerprint_version >= 3:
             payload.update(
                 {
                     "convergence_authority_digest": self.convergence_authority_digest,
@@ -85,6 +91,15 @@ class CandidateFingerprint:
                     "finding_severity": self.finding_severity,
                     "targeted_review_closed": self.targeted_review_closed,
                     "finding_trend": self.finding_trend,
+                }
+            )
+        if self.fingerprint_version >= 4:
+            payload.update(
+                {
+                    "snapshot_mode": self.snapshot_mode,
+                    "working_tree_digest": self.working_tree_digest,
+                    "snapshot_paths": list(self.snapshot_paths),
+                    "snapshot_authority": self.snapshot_authority,
                 }
             )
         return payload
@@ -126,13 +141,30 @@ class CandidateFingerprint:
             "targeted_review_closed",
             "finding_trend",
         }
+        version_4_fields = version_3_fields | {
+            "snapshot_mode",
+            "working_tree_digest",
+            "snapshot_paths",
+            "snapshot_authority",
+        }
         fields = set(value)
-        if fields not in {
-            frozenset(legacy_fields),
-            frozenset(version_2_fields),
-            frozenset(version_3_fields),
-        }:
-            raise ValueError("candidate fingerprint fields are invalid")
+        fingerprint_version = value.get("fingerprint_version", 1)
+        if (
+            not isinstance(fingerprint_version, int)
+            or isinstance(fingerprint_version, bool)
+            or fingerprint_version not in {1, 2, 3, 4}
+        ):
+            raise ValueError("candidate fingerprint version is invalid")
+        expected_fields = {
+            1: legacy_fields,
+            2: version_2_fields,
+            3: version_3_fields,
+            4: version_4_fields,
+        }[fingerprint_version]
+        if fields != expected_fields:
+            raise ValueError(
+                f"candidate fingerprint fields do not match version {fingerprint_version}"
+            )
         if not all(
             isinstance(value[field], str) and value[field]
             for field in ("head_sha", "diff_hash", "contract_digest", "dependency_digest")
@@ -148,9 +180,6 @@ class CandidateFingerprint:
         predecessor = value["predecessor_digest"]
         if predecessor is not None and (not isinstance(predecessor, str) or not predecessor):
             raise ValueError("candidate predecessor digest is invalid")
-        fingerprint_version = value.get("fingerprint_version", 1)
-        if fingerprint_version not in {1, 2, 3}:
-            raise ValueError("candidate fingerprint version is invalid")
         optional_strings = (
             "corrective_batch_id",
             "authority_anchor",
@@ -183,7 +212,8 @@ class CandidateFingerprint:
             "convergence_semantic_change_policy",
             "finding_trend",
         )
-        if fingerprint_version == 3:
+        has_convergence = value.get("convergence_authority_digest") is not None
+        if fingerprint_version >= 3 and has_convergence:
             for field in convergence_strings:
                 if not isinstance(value.get(field), str) or not str(value[field]).strip():
                     raise ValueError(f"candidate {field.replace('_', ' ')} is invalid")
@@ -204,8 +234,37 @@ class CandidateFingerprint:
                 or finding_severity < 0
             ):
                 raise ValueError("candidate finding severity is invalid")
+        elif fingerprint_version == 3:
+            raise ValueError("version 3 candidate requires convergence authority")
         elif any(value.get(field) is not None for field in convergence_strings):
-            raise ValueError("legacy candidate cannot contain convergence authority")
+            raise ValueError("candidate cannot contain partial convergence authority")
+        elif fingerprint_version >= 4 and (
+            value.get("convergence_allowed_paths")
+            or value.get("convergence_stop_conditions")
+            or value.get("finding_severity") is not None
+            or value.get("targeted_review_closed") is not False
+        ):
+            raise ValueError("candidate cannot contain partial convergence evidence")
+        if fingerprint_version == 4:
+            if value.get("snapshot_mode") != "working-tree":
+                raise ValueError("version 4 candidate snapshot mode is invalid")
+            if not isinstance(value.get("working_tree_digest"), str) or not value[
+                "working_tree_digest"
+            ]:
+                raise ValueError("working-tree candidate digest is invalid")
+            snapshot_paths = value.get("snapshot_paths")
+            if not isinstance(snapshot_paths, list) or not all(
+                isinstance(item, str) and item for item in snapshot_paths
+            ):
+                raise ValueError("working-tree candidate paths are invalid")
+            if snapshot_paths != sorted(set(snapshot_paths)) or any(
+                Path(item).is_absolute()
+                or item.replace("\\", "/") != item
+                or ".." in Path(item).parts
+                for item in snapshot_paths
+            ):
+                raise ValueError("working-tree candidate paths are not canonical")
+            _required_snapshot_authority(value.get("snapshot_authority"))
         candidate = cls(
             head_sha=value["head_sha"],
             diff_hash=value["diff_hash"],
@@ -236,6 +295,10 @@ class CandidateFingerprint:
             finding_severity=value.get("finding_severity"),
             targeted_review_closed=value.get("targeted_review_closed", False),
             finding_trend=value.get("finding_trend"),
+            snapshot_mode=value.get("snapshot_mode", "clean-head"),
+            working_tree_digest=value.get("working_tree_digest"),
+            snapshot_paths=tuple(value.get("snapshot_paths", ())),
+            snapshot_authority=value.get("snapshot_authority"),
         )
         if value["fingerprint"] != candidate.digest:
             raise ValueError("candidate fingerprint digest differs")
@@ -262,6 +325,12 @@ class CandidateFreezeResult:
     stop_reason: str | None = None
 
 
+@dataclass(frozen=True)
+class WorkingTreeSnapshot:
+    digest: str
+    paths: tuple[str, ...]
+
+
 def freeze_candidate(
     repository_root: Path,
     *,
@@ -279,8 +348,45 @@ def freeze_candidate(
     open_findings_count: int | None = None,
     convergence_authority: PreauthorizedConvergenceAuthority | None = None,
     convergence_evidence: ConvergenceEvidence | None = None,
+    snapshot_mode: str = "clean-head",
+    snapshot_authority: str | None = None,
 ) -> CandidateFreezeResult:
     root = _repository_root(repository_root)
+    try:
+        normalized_snapshot_mode = _normalize_snapshot_mode(snapshot_mode)
+    except ValueError as exc:
+        reason = str(exc)
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
+        )
+    try:
+        normalized_snapshot_authority = (
+            _required_snapshot_authority(snapshot_authority)
+            if normalized_snapshot_mode == "working-tree"
+            else None
+        )
+    except ValueError as exc:
+        reason = str(exc)
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
+        )
+    if normalized_snapshot_mode == "clean-head" and snapshot_authority is not None:
+        reason = "snapshot authority is valid only for working-tree mode"
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
+        )
     if not review_closed or not corrective_batch_closed:
         missing = []
         if not review_closed:
@@ -293,14 +399,60 @@ def freeze_candidate(
             "; ".join(missing),
             mismatches=tuple(missing),
         )
-    changes = _worktree_changes(root)
-    if changes:
-        mismatch = "unexpected worktree changes: " + ", ".join(changes)
+    working_snapshot: WorkingTreeSnapshot | None = None
+    if normalized_snapshot_mode == "clean-head":
+        changes = _worktree_changes(root)
+        if changes:
+            mismatch = "unexpected worktree changes: " + ", ".join(changes)
+            return CandidateFreezeResult(
+                False,
+                RunState.HANDOFF_READY,
+                mismatch,
+                mismatches=(mismatch,),
+            )
+    else:
+        try:
+            working_snapshot = _working_tree_snapshot(root)
+        except ValueError as exc:
+            reason = f"working-tree snapshot unavailable: {exc}"
+            return CandidateFreezeResult(
+                False,
+                RunState.HANDOFF_READY,
+                reason,
+                mismatches=(reason,),
+                stop_reason=reason,
+            )
+
+    snapshot_mode_changed = (
+        previous is not None
+        and previous.snapshot_mode != normalized_snapshot_mode
+    )
+    if snapshot_mode_changed and not handoff_successor_approved:
+        reason = (
+            "snapshot mode differs from previous candidate: "
+            f"candidate={previous.snapshot_mode} requested={normalized_snapshot_mode}"
+            "; explicit handoff successor approval is required"
+        )
         return CandidateFreezeResult(
             False,
             RunState.HANDOFF_READY,
-            mismatch,
-            mismatches=(mismatch,),
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
+        )
+    if (
+        previous is not None
+        and not snapshot_mode_changed
+        and previous.snapshot_mode == "working-tree"
+        and previous.snapshot_authority != normalized_snapshot_authority
+    ):
+        reason = "snapshot authority differs from previous candidate"
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
         )
 
     if (convergence_authority is None) != (convergence_evidence is None):
@@ -324,6 +476,18 @@ def freeze_candidate(
             contract_digest=contract_digest,
             dependency_digest=dependency_digest,
         )
+        if assessment.ok and snapshot_mode_changed:
+            mode_mismatch = (
+                "snapshot mode differs from previous candidate: "
+                f"candidate={previous.snapshot_mode} "
+                f"requested={normalized_snapshot_mode}"
+            )
+            assessment = CandidateAssessment(
+                False,
+                RunState.HANDOFF_READY,
+                mode_mismatch,
+                (mode_mismatch,),
+            )
         if assessment.ok:
             if previous.convergence_authority_digest is None:
                 if convergence_authority is not None:
@@ -442,7 +606,23 @@ def freeze_candidate(
                     mismatches=assessment.mismatches,
                     stop_reason=reason,
                 )
-            changed_paths = _changed_paths(root, previous.head_sha)
+            try:
+                changed_paths = _changed_paths(
+                    root,
+                    previous.head_sha,
+                    working_tree_paths=(
+                        working_snapshot.paths if working_snapshot is not None else ()
+                    ),
+                )
+            except ValueError as exc:
+                reason = f"changed path discovery failed closed: {exc}"
+                return CandidateFreezeResult(
+                    False,
+                    RunState.HANDOFF_READY,
+                    reason,
+                    mismatches=(reason,),
+                    stop_reason=reason,
+                )
             outside = paths_outside_authority(root, convergence_authority, changed_paths)
             if outside:
                 reason = "changed paths outside convergence allowed paths: " + ", ".join(outside)
@@ -551,10 +731,27 @@ def freeze_candidate(
         generation = previous.generation + 1
         predecessor = previous.digest
     elif convergence_authority is not None and convergence_evidence is not None:
+        try:
+            changed_paths = _changed_paths(
+                root,
+                None,
+                working_tree_paths=(
+                    working_snapshot.paths if working_snapshot is not None else ()
+                ),
+            )
+        except ValueError as exc:
+            reason = f"changed path discovery failed closed: {exc}"
+            return CandidateFreezeResult(
+                False,
+                RunState.HANDOFF_READY,
+                reason,
+                mismatches=(reason,),
+                stop_reason=reason,
+            )
         outside = paths_outside_authority(
             root,
             convergence_authority,
-            _changed_paths(root, None),
+            changed_paths,
         )
         if outside:
             reason = "changed paths outside convergence allowed paths: " + ", ".join(outside)
@@ -583,6 +780,29 @@ def freeze_candidate(
             )
         finding_trend = convergence.trend
 
+    if working_snapshot is not None:
+        try:
+            final_working_snapshot = _working_tree_snapshot(root)
+        except ValueError as exc:
+            reason = f"final working-tree snapshot unavailable: {exc}"
+            return CandidateFreezeResult(
+                False,
+                RunState.HANDOFF_READY,
+                reason,
+                mismatches=(reason,),
+                stop_reason=reason,
+            )
+        if final_working_snapshot != working_snapshot:
+            reason = "working-tree snapshot changed after authority processing"
+            return CandidateFreezeResult(
+                False,
+                RunState.HANDOFF_READY,
+                reason,
+                mismatches=(reason,),
+                stop_reason=reason,
+            )
+        working_snapshot = final_working_snapshot
+
     candidate = CandidateFingerprint(
         head_sha=_git_text(root, "rev-parse", "HEAD"),
         diff_hash=_diff_hash(root),
@@ -592,7 +812,11 @@ def freeze_candidate(
         corrective_batch_closed=True,
         generation=generation,
         predecessor_digest=predecessor,
-        fingerprint_version=3 if convergence_authority is not None else 2,
+        fingerprint_version=(
+            4
+            if normalized_snapshot_mode == "working-tree"
+            else (3 if convergence_authority is not None else 2)
+        ),
         corrective_batch_id=(
             str(corrective_batch_id).strip() if corrective_batch_id else None
         ),
@@ -661,7 +885,30 @@ def freeze_candidate(
             else False
         ),
         finding_trend=finding_trend,
+        snapshot_mode=normalized_snapshot_mode,
+        working_tree_digest=(
+            working_snapshot.digest if working_snapshot is not None else None
+        ),
+        snapshot_paths=(
+            working_snapshot.paths if working_snapshot is not None else ()
+        ),
+        snapshot_authority=normalized_snapshot_authority,
     )
+    final_assessment = assess_candidate(
+        root,
+        candidate,
+        contract_digest=_required_digest(contract_digest, "contract"),
+        dependency_digest=_required_digest(dependency_digest, "dependency"),
+    )
+    if not final_assessment.ok:
+        reason = "candidate changed during final consistency assessment"
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=final_assessment.mismatches,
+            stop_reason=reason,
+        )
     return CandidateFreezeResult(
         True,
         RunState.CONTINUE,
@@ -711,9 +958,24 @@ def assess_candidate(
         mismatches.append("candidate review is not closed")
     if not candidate.corrective_batch_closed:
         mismatches.append("candidate corrective batch is not closed")
-    changes = _worktree_changes(root)
-    if changes:
-        mismatches.append("unexpected worktree changes: " + ", ".join(changes))
+    if candidate.snapshot_mode == "working-tree":
+        try:
+            current_snapshot = _working_tree_snapshot(root)
+        except ValueError as exc:
+            mismatches.append(f"working-tree snapshot unavailable: {exc}")
+        else:
+            if candidate.working_tree_digest != current_snapshot.digest:
+                mismatches.append(
+                    "working-tree snapshot differs: "
+                    f"candidate={candidate.working_tree_digest} "
+                    f"current={current_snapshot.digest}"
+                )
+            if candidate.snapshot_paths != current_snapshot.paths:
+                mismatches.append("working-tree snapshot paths differ")
+    else:
+        changes = _worktree_changes(root)
+        if changes:
+            mismatches.append("unexpected worktree changes: " + ", ".join(changes))
     if mismatches:
         return CandidateAssessment(
             False,
@@ -755,7 +1017,227 @@ def _worktree_changes(root: Path) -> tuple[str, ...]:
     )
 
 
-def _changed_paths(root: Path, previous_head: str | None) -> tuple[str, ...]:
+def _normalize_snapshot_mode(value: str) -> str:
+    normalized = str(value).strip().lower()
+    if normalized not in {"clean-head", "working-tree"}:
+        raise ValueError(
+            "snapshot mode must be clean-head or working-tree; no fallback is allowed"
+        )
+    return normalized
+
+
+def _required_snapshot_authority(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("working-tree snapshot authority is required")
+    if value != value.strip() or not value:
+        raise ValueError("working-tree snapshot authority must be a non-empty trimmed string")
+    if len(value) > 256 or any(ord(character) < 32 for character in value):
+        raise ValueError("working-tree snapshot authority is malformed")
+    return value
+
+
+def _working_tree_snapshot(root: Path) -> WorkingTreeSnapshot:
+    status = _snapshot_status(root)
+    _reject_unsupported_worktree_states(status)
+    index_state = _git_bytes(root, "ls-files", "--stage", "-z")
+    staged_diff = _git_bytes(
+        root,
+        "diff",
+        "--cached",
+        "--binary",
+        "--full-index",
+        "--no-ext-diff",
+        "--no-renames",
+    )
+    unstaged_diff = _git_bytes(
+        root,
+        "diff",
+        "--binary",
+        "--full-index",
+        "--no-ext-diff",
+        "--no-renames",
+    )
+    untracked_raw = _git_bytes(
+        root,
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+    )
+    untracked_paths = tuple(
+        _decode_repository_path(item)
+        for item in untracked_raw.split(b"\0")
+        if item
+    )
+    untracked_entries = tuple(
+        _snapshot_untracked_entry(root, relative) for relative in untracked_paths
+    )
+    staged_paths = _git_name_only(root, "diff", "--cached")
+    unstaged_paths = _git_name_only(root, "diff")
+
+    final_status = _snapshot_status(root)
+    final_index_state = _git_bytes(root, "ls-files", "--stage", "-z")
+    final_staged_diff = _git_bytes(
+        root,
+        "diff",
+        "--cached",
+        "--binary",
+        "--full-index",
+        "--no-ext-diff",
+        "--no-renames",
+    )
+    final_unstaged_diff = _git_bytes(
+        root,
+        "diff",
+        "--binary",
+        "--full-index",
+        "--no-ext-diff",
+        "--no-renames",
+    )
+    final_untracked_raw = _git_bytes(
+        root,
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+    )
+    final_untracked_paths = tuple(
+        _decode_repository_path(item)
+        for item in final_untracked_raw.split(b"\0")
+        if item
+    )
+    final_untracked_entries = tuple(
+        _snapshot_untracked_entry(root, relative)
+        for relative in final_untracked_paths
+    )
+    final_staged_paths = _git_name_only(root, "diff", "--cached")
+    final_unstaged_paths = _git_name_only(root, "diff")
+    if (
+        status != final_status
+        or index_state != final_index_state
+        or staged_diff != final_staged_diff
+        or unstaged_diff != final_unstaged_diff
+        or untracked_paths != final_untracked_paths
+        or untracked_entries != final_untracked_entries
+        or staged_paths != final_staged_paths
+        or unstaged_paths != final_unstaged_paths
+    ):
+        raise ValueError(
+            "Git status, index, diff, or untracked content changed while snapshotting"
+        )
+
+    paths = tuple(sorted(set(staged_paths) | set(unstaged_paths) | set(untracked_paths)))
+    payload = {
+        "snapshot_format": 1,
+        "status_sha256": hashlib.sha256(status).hexdigest(),
+        "index_sha256": hashlib.sha256(index_state).hexdigest(),
+        "staged_diff_sha256": hashlib.sha256(staged_diff).hexdigest(),
+        "unstaged_diff_sha256": hashlib.sha256(unstaged_diff).hexdigest(),
+        "untracked": list(untracked_entries),
+        "paths": list(paths),
+    }
+    return WorkingTreeSnapshot(_json_digest(payload), paths)
+
+
+def _snapshot_status(root: Path) -> bytes:
+    return _git_bytes(
+        root,
+        "status",
+        "--porcelain=v2",
+        "-z",
+        "--untracked-files=all",
+        "--ignore-submodules=none",
+    )
+
+
+def _reject_unsupported_worktree_states(status_output: bytes) -> None:
+    records = [record for record in status_output.split(b"\0") if record]
+    for record in records:
+        if record.startswith(b"u "):
+            raise ValueError("unmerged index state cannot be deterministically bound")
+        if not (record.startswith(b"1 ") or record.startswith(b"2 ")):
+            continue
+        fields = record.split(b" ", 3)
+        if len(fields) < 3:
+            raise ValueError("Git returned malformed worktree status")
+        submodule_state = fields[2]
+        if submodule_state.startswith(b"S") and submodule_state != b"S...":
+            raise ValueError(
+                "dirty submodule state cannot be deterministically bound: "
+                + submodule_state.decode("ascii", errors="replace")
+            )
+
+
+def _git_name_only(root: Path, *prefix: str) -> tuple[str, ...]:
+    raw = _git_bytes(
+        root,
+        *prefix,
+        "--name-only",
+        "-z",
+        "--no-renames",
+    )
+    return tuple(
+        _decode_repository_path(item) for item in raw.split(b"\0") if item
+    )
+
+
+def _decode_repository_path(value: bytes) -> str:
+    path = value.decode("utf-8", errors="strict")
+    if "\\" in path:
+        raise ValueError(
+            f"repository path contains an unsupported backslash: {path!r}"
+        )
+    parts = Path(path).parts
+    if not path or Path(path).is_absolute() or ".." in parts:
+        raise ValueError(f"Git returned unsafe repository path: {path!r}")
+    return path
+
+
+def _snapshot_untracked_entry(root: Path, relative: str) -> dict[str, object]:
+    path = root.joinpath(*relative.split("/"))
+    before = path.lstat()
+    mode = before.st_mode
+    if stat.S_ISLNK(mode):
+        target = os.readlink(path)
+        entry: dict[str, object] = {
+            "path": relative,
+            "kind": "symlink",
+            "mode": stat.S_IMODE(mode),
+            "target": target,
+        }
+    elif stat.S_ISREG(mode):
+        content = path.read_bytes()
+        entry = {
+            "path": relative,
+            "kind": "file",
+            "mode": stat.S_IMODE(mode),
+            "size": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        }
+    else:
+        raise ValueError(
+            f"unsupported untracked entry type cannot be bound: {relative}"
+        )
+    after = path.lstat()
+    if (
+        before.st_mode,
+        before.st_size,
+        before.st_mtime_ns,
+    ) != (
+        after.st_mode,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
+        raise ValueError(f"untracked entry changed while snapshotting: {relative}")
+    return entry
+
+
+def _changed_paths(
+    root: Path,
+    previous_head: str | None,
+    *,
+    working_tree_paths: tuple[str, ...] = (),
+) -> tuple[str, ...]:
     if previous_head is None:
         try:
             base = _git_text(root, "merge-base", "HEAD", "origin/main")
@@ -772,11 +1254,10 @@ def _changed_paths(root: Path, previous_head: str | None) -> tuple[str, ...]:
         "-z",
         f"{base}..HEAD",
     )
-    return tuple(
-        item.decode("utf-8", errors="strict").replace("\\", "/")
-        for item in raw.split(b"\0")
-        if item
+    committed = tuple(
+        _decode_repository_path(item) for item in raw.split(b"\0") if item
     )
+    return tuple(sorted(set(committed) | set(working_tree_paths)))
 
 
 def convergence_authority_mismatches(

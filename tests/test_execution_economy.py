@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from sagekit.change_control import (
     ChangeClass,
@@ -408,6 +409,387 @@ class CandidateVerificationTests(unittest.TestCase):
         self.assertEqual("dependencies-v1", frozen.candidate.dependency_digest)
         self.assertTrue(frozen.candidate.review_closed)
         self.assertTrue(frozen.candidate.corrective_batch_closed)
+
+    def test_default_candidate_freeze_still_rejects_dirty_worktree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+
+            frozen = self.freeze(root)
+
+        self.assertFalse(frozen.ok)
+        self.assertIn("unexpected worktree changes", frozen.message)
+
+    def test_working_tree_snapshot_freezes_and_detects_each_dirty_layer(self):
+        assess_candidate, _ = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("staged\n", encoding="utf-8")
+            git(root, "add", "tracked.txt")
+            (root / "tracked.txt").write_text("unstaged\n", encoding="utf-8")
+            (root / "new.txt").write_text("untracked\n", encoding="utf-8")
+
+            frozen = self.freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            )
+            matching = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            (root / "new.txt").write_text("drift\n", encoding="utf-8")
+            untracked_drift = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+            (root / "new.txt").write_text("untracked\n", encoding="utf-8")
+            git(root, "add", "tracked.txt")
+            index_drift = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+
+        self.assertTrue(frozen.ok)
+        self.assertEqual(4, frozen.candidate.fingerprint_version)
+        self.assertEqual("working-tree", frozen.candidate.snapshot_mode)
+        self.assertEqual("AUTH-SNAPSHOT-1", frozen.candidate.snapshot_authority)
+        self.assertEqual(
+            frozen.candidate,
+            type(frozen.candidate).from_dict(frozen.candidate.to_dict()),
+        )
+        self.assertTrue(matching.ok)
+        self.assertFalse(untracked_drift.ok)
+        self.assertFalse(index_drift.ok)
+        self.assertTrue(
+            any("working-tree snapshot" in item for item in untracked_drift.mismatches)
+        )
+
+    def test_working_tree_snapshot_ignores_git_ignored_files(self):
+        assess_candidate, _ = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+            git(root, "add", ".gitignore")
+            git(root, "commit", "-m", "ignore runtime output")
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+            frozen = self.freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            )
+            (root / "ignored").mkdir()
+            (root / "ignored/output.bin").write_bytes(b"runtime")
+            assessment = assess_candidate(
+                root,
+                frozen.candidate,
+                contract_digest="contracts-v2",
+                dependency_digest="dependencies-v1",
+            )
+
+        self.assertTrue(frozen.ok)
+        self.assertTrue(assessment.ok)
+
+    def test_candidate_cli_requires_explicit_working_tree_snapshot_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+            common = (
+                "candidate",
+                "freeze",
+                "--target",
+                str(root),
+                "--contract-digest",
+                "contracts-v2",
+                "--dependency-digest",
+                "dependencies-v1",
+                "--review-closed",
+                "--corrective-batch-closed",
+                "--json",
+            )
+
+            default = run_sagekit(*common, cwd=root)
+            explicit = run_sagekit(
+                *common,
+                "--snapshot-mode",
+                "working-tree",
+                "--snapshot-authority",
+                "AUTH-SNAPSHOT-1",
+                cwd=root,
+            )
+
+        self.assertEqual(1, default.returncode)
+        self.assertEqual(0, explicit.returncode, explicit.stderr)
+        self.assertEqual("working-tree", json.loads(explicit.stdout)["candidate"]["snapshot_mode"])
+
+    def test_legacy_candidate_serialization_keeps_clean_head_semantics(self):
+        from sagekit.candidate import CandidateFingerprint
+
+        legacy = CandidateFingerprint(
+            head_sha="a" * 40,
+            diff_hash="b" * 64,
+            contract_digest="contracts-v1",
+            dependency_digest="dependencies-v1",
+            review_closed=True,
+            corrective_batch_closed=True,
+        )
+
+        restored = CandidateFingerprint.from_dict(legacy.to_dict())
+
+        self.assertEqual(1, restored.fingerprint_version)
+        self.assertEqual("clean-head", restored.snapshot_mode)
+        self.assertNotIn("snapshot_mode", legacy.to_dict())
+
+    def test_candidate_shape_must_exactly_match_declared_version(self):
+        from sagekit.candidate import CandidateFingerprint
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+            payload = self.freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            ).candidate.to_dict()
+
+        downgraded = dict(payload)
+        downgraded["fingerprint_version"] = 3
+        mixed = dict(payload)
+        mixed.pop("snapshot_authority")
+        explicit_v1 = CandidateFingerprint(
+            head_sha="a" * 40,
+            diff_hash="b" * 64,
+            contract_digest="contracts-v1",
+            dependency_digest="dependencies-v1",
+            review_closed=True,
+            corrective_batch_closed=True,
+        ).to_dict()
+        explicit_v1["fingerprint_version"] = 1
+
+        for malformed in (downgraded, mixed, explicit_v1):
+            with self.subTest(fields=sorted(malformed)):
+                with self.assertRaisesRegex(ValueError, "fields do not match version"):
+                    CandidateFingerprint.from_dict(malformed)
+
+    def test_working_tree_snapshot_authority_is_required_and_digest_bound(self):
+        from sagekit.candidate import CandidateFingerprint
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+            missing = self.freeze(root, snapshot_mode="working-tree")
+            malformed = self.freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority=" AUTH-SNAPSHOT-1 ",
+            )
+            clean_with_authority = self.freeze(
+                root,
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            )
+            frozen = self.freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            )
+
+        tampered = frozen.candidate.to_dict()
+        tampered["snapshot_authority"] = "AUTH-SNAPSHOT-2"
+
+        self.assertFalse(missing.ok)
+        self.assertFalse(malformed.ok)
+        self.assertFalse(clean_with_authority.ok)
+        with self.assertRaisesRegex(ValueError, "fingerprint digest differs"):
+            CandidateFingerprint.from_dict(tampered)
+
+    def test_candidate_cli_rejects_working_tree_without_snapshot_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+            result = run_sagekit(
+                "candidate",
+                "freeze",
+                "--target",
+                str(root),
+                "--contract-digest",
+                "contracts-v2",
+                "--dependency-digest",
+                "dependencies-v1",
+                "--review-closed",
+                "--corrective-batch-closed",
+                "--snapshot-mode",
+                "working-tree",
+                "--json",
+                cwd=root,
+            )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("snapshot authority is required", result.stdout)
+
+    def test_snapshot_mode_switch_requires_explicit_handoff_successor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            previous = self.freeze(root).candidate
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+
+            denied = self.freeze(
+                root,
+                previous=previous,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+                approved_corrective=True,
+            )
+            allowed = self.freeze(
+                root,
+                previous=previous,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+                approved_corrective=True,
+                handoff_successor_approved=True,
+                authority_anchor="AUTH-WORKTREE-SNAPSHOT",
+                root_cause_id="dirty-freeze-deadlock",
+                open_findings_count=0,
+            )
+
+        self.assertFalse(denied.ok)
+        self.assertIn("explicit handoff successor approval", denied.message)
+        self.assertTrue(allowed.ok, allowed.message)
+        self.assertEqual(2, allowed.candidate.generation)
+        self.assertEqual("working-tree", allowed.candidate.snapshot_mode)
+
+    def test_working_tree_snapshot_fails_closed_on_torn_index_read(self):
+        import sagekit.candidate as candidate_module
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+            original = candidate_module._git_bytes
+            index_reads = 0
+
+            def changing_index(target, *args):
+                nonlocal index_reads
+                result = original(target, *args)
+                if args == ("ls-files", "--stage", "-z"):
+                    index_reads += 1
+                    if index_reads == 2:
+                        return result + b"synthetic-index-drift"
+                return result
+
+            with mock.patch.object(candidate_module, "_git_bytes", changing_index):
+                result = self.freeze(
+                    root,
+                    snapshot_mode="working-tree",
+                    snapshot_authority="AUTH-SNAPSHOT-1",
+                )
+
+        self.assertFalse(result.ok)
+        self.assertIn("changed while snapshotting", result.message)
+
+    def test_working_tree_snapshot_rechecks_after_authority_processing(self):
+        import sagekit.candidate as candidate_module
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "tracked.txt").write_text("dirty-one\n", encoding="utf-8")
+            original = candidate_module._working_tree_snapshot
+            snapshot_reads = 0
+
+            def mutate_after_initial_snapshot(target):
+                nonlocal snapshot_reads
+                result = original(target)
+                snapshot_reads += 1
+                if snapshot_reads == 1:
+                    (root / "tracked.txt").write_text(
+                        "dirty-two\n", encoding="utf-8"
+                    )
+                return result
+
+            with mock.patch.object(
+                candidate_module,
+                "_working_tree_snapshot",
+                mutate_after_initial_snapshot,
+            ):
+                result = self.freeze(
+                    root,
+                    snapshot_mode="working-tree",
+                    snapshot_authority="AUTH-SNAPSHOT-1",
+                )
+
+        self.assertFalse(result.ok)
+        self.assertIn("changed after authority processing", result.message)
+
+    @unittest.skipIf(os.name == "nt", "POSIX backslash filename regression")
+    def test_posix_backslash_repository_path_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            (root / "back\\slash.txt").write_text("unsafe path\n", encoding="utf-8")
+
+            result = self.freeze(
+                root,
+                snapshot_mode="working-tree",
+                snapshot_authority="AUTH-SNAPSHOT-1",
+            )
+
+        self.assertFalse(result.ok)
+        self.assertIn("unsupported backslash", result.message)
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlinks are unavailable")
+    def test_working_tree_snapshot_hashes_symlink_identity_without_following_target(self):
+        assess_candidate, _ = candidate_api()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            outside = root.parent / f"{root.name}-outside.txt"
+            outside.write_text("outside-one\n", encoding="utf-8")
+            link = root / "outside-link"
+            try:
+                link.symlink_to(outside)
+            except OSError as exc:
+                self.skipTest(f"symlink creation is unavailable: {exc}")
+            try:
+                frozen = self.freeze(
+                    root,
+                    snapshot_mode="working-tree",
+                    snapshot_authority="AUTH-SNAPSHOT-1",
+                )
+                outside.write_text("outside-two\n", encoding="utf-8")
+                matching = assess_candidate(
+                    root,
+                    frozen.candidate,
+                    contract_digest="contracts-v2",
+                    dependency_digest="dependencies-v1",
+                )
+                link.unlink()
+                link.symlink_to("tracked.txt")
+                changed_link = assess_candidate(
+                    root,
+                    frozen.candidate,
+                    contract_digest="contracts-v2",
+                    dependency_digest="dependencies-v1",
+                )
+            finally:
+                outside.unlink(missing_ok=True)
+
+        self.assertTrue(frozen.ok)
+        self.assertTrue(matching.ok)
+        self.assertFalse(changed_link.ok)
 
     def test_approved_corrective_invalidates_old_candidate_and_creates_new_without_budget_relaxation(self):
         assess_candidate, _ = candidate_api()

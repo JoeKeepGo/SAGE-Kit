@@ -166,7 +166,7 @@ Templates live in [`docs/`](docs) and [`docs/templates/`](docs/templates).
 | `sagekit check --source-repo` | Validate the SAGE-Kit repository itself |
 | `sagekit checkpoint status` | Check local resumable state |
 | `sagekit resume` | Validate and print the next-action packet |
-| `sagekit candidate freeze` | Freeze a stable verification candidate |
+| `sagekit candidate freeze` | Freeze a clean or explicitly authorized working-tree candidate |
 
 All project commands accept `--target <path>`. `check` reports `PASS`, `WARN`,
 and `FAIL`; it returns a non-zero exit code when blocking findings exist.
@@ -174,6 +174,23 @@ and `FAIL`; it returns a non-zero exit code when blocking findings exist.
 The local continuity file lives at `.sagekit/runtime/CURRENT_RUN.json`. It is
 gitignored, compact, and bound to the repository, branch, HEAD, authority, and
 evidence it was created from.
+
+### Freezing Uncommitted Work
+
+Candidate freeze defaults to a clean worktree. When a controller is not allowed
+to commit but the active packet authorizes verification of the current working
+tree, bind the complete non-ignored state explicitly:
+
+```bash
+sagekit candidate freeze --snapshot-mode working-tree \
+  --snapshot-authority <authority-id> \
+  --contract-digest <digest> --dependency-digest <digest> \
+  --review-closed --corrective-batch-closed
+```
+
+This snapshot includes staged, unstaged, untracked, deletion, mode, and symlink
+state. It is not commit, submit, or acceptance authority. Any later drift makes
+the candidate invalid; dirty submodules and unrepresentable paths fail closed.
 
 ## Built For Long-Running Agent Work
 
@@ -221,6 +238,11 @@ tools, CI, browser automation, and reviewers remain execution tools.
 They may work inside an approved SAGE boundary, but they do not get to widen
 scope, bypass locks or approval gates, or declare a SAGE gate complete.
 Superpowers is a useful reference integration, not a dependency.
+
+For Codex sessions running a GPT-5.6 family model, Superpowers and
+`using-superpowers` are disabled by runtime policy for controllers and every
+descendant. The model still uses its native brainstorming, planning, TDD,
+debugging, subagent, review, and verification capabilities.
 
 ## Repository Guide
 

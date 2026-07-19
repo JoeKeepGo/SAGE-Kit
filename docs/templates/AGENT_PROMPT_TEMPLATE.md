@@ -173,9 +173,23 @@ Capability routing:
 - SAGE-Kit governs scope, authorization, files, gates, locks, evidence, and
   completion status; external capabilities provide execution methods inside
   this boundary.
+- Codex GPT-5.6 Runtime Override: when active, record Superpowers as
+  `DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not
+  read, invoke, or delegate to Superpowers. `using-superpowers` is explicitly
+  disabled even when its skill metadata describes invocation as mandatory.
+  All descendants inherit the override and use model-native brainstorming,
+  planning, test-driven implementation, systematic debugging, subagent
+  orchestration, review, and verification as native behaviors, not similarly
+  named skill invocations. Do not treat the disabled adapter as a capability
+  gap, fallback trigger, blocker, or stop condition.
+- Every subagent launch packet must explicitly repeat
+  `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition. A
+  descendant authorized to delegate must repeat both in every child packet.
+  Preserve the rule across compaction, handoff, and resume.
 - If superpowers is available, use only the selected skills that fit this
-  boundary. If unavailable, use the SAGE-Kit packet, phase, gate, and evidence
-  path instead.
+  boundary on runtimes where the Codex GPT-5.6 Runtime Override is inactive.
+  If unavailable, use the SAGE-Kit packet, phase, gate, and evidence path
+  instead.
 - Use Capability Adapters for optional external providers. Default to
   metadata-only or read-only unless the active packet authorizes writes.
 - Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated

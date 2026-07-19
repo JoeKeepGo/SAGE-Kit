@@ -138,9 +138,16 @@ Task Dispatch Policy:
 
 Capability Discovery:
 - Capability registry checked: `<yes/no/not available>`
+- Runtime/model family:
+- Execution method owner: `<MODEL_NATIVE / ADAPTER>`
+- Codex GPT-5.6 Runtime Override: `<active/inactive>`
+- Superpowers policy: `<DISABLED_BY_RUNTIME_POLICY / optional / selected>`
+- `using-superpowers` policy: `<disabled for Codex GPT-5.6 / runtime default>`
+- Native workflow coverage: `<brainstorming, planning, TDD, debugging, subagent orchestration, review, verification; behaviors, not skill invocations>`
+- Descendant policy inheritance: `<explicitly repeat the status and using-superpowers prohibition in every child launch packet>`
 - SAGE-Kit boundary: `<scope/files/gates/locks/evidence controlled by this packet>`
 - Selected skills:
-- Selected superpowers skills:
+- Selected superpowers skills: `<skills or N/A when DISABLED_BY_RUNTIME_POLICY>`
 - superpowers boundary:
 - Selected plugins/connectors:
 - Selected tools:
@@ -152,6 +159,16 @@ Capability Discovery:
 - Fallback if capability is missing:
 - External planning output destination:
 - External capability completion counts as: `execution evidence only`
+
+Candidate Snapshot Policy:
+- Snapshot mode: `<clean-head / working-tree>`
+- Working-tree snapshot authority (`--snapshot-authority`): `<authority id/digest or n/a>`
+- Expected staged state:
+- Expected unstaged state:
+- Expected non-ignored untracked scope:
+- Dirty submodule policy: `<fail closed>`
+- Snapshot assessment points: `<before and after final verification nodes>`
+- Candidate snapshot does not grant commit/submit/acceptance authority: `<confirmed>`
 
 Allowed Scope:
 

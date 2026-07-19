@@ -85,6 +85,38 @@ available, route only to the named skills that fit the current need. If it is
 unavailable, continue with SAGE-Kit phase, gate, packet, and evidence
 templates.
 
+### Codex GPT-5.6 Runtime Override
+
+For every Codex GPT-5.6 family session, Superpowers is
+`DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not read,
+invoke, or delegate to Superpowers, including `using-superpowers` and composite
+Superpowers workflows. `using-superpowers` is explicitly disabled even when its
+skill metadata describes invocation as mandatory. All descendants inherit this
+override and must not re-enable the adapter through delegation.
+
+Every subagent launch packet must explicitly repeat
+`DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition. Every
+descendant authorized to delegate must copy both into each child launch packet.
+Preserve the policy across context compaction, handoff, resume, and replacement
+workers; do not rely on a one-time follow-up message to an already running
+worker.
+
+Use model-native brainstorming, planning, test-driven implementation,
+systematic debugging, subagent orchestration, review, and verification instead.
+These are required native behaviors, not similarly named skill invocations. The
+override changes the method provider, not the required engineering discipline
+or SAGE-Kit evidence contract.
+
+Record the adapter as disabled. Capability routing must not treat disabled
+Superpowers as a capability gap, fallback trigger, blocker, or stop reason. If
+an existing packet selected a Superpowers workflow, use the equivalent
+model-native workflow inside the same approved boundary without reopening scope
+or gates.
+
+Precedence is `Codex GPT-5.6 Runtime Override > generic capability routing >
+Superpowers availability`. Claude, Kimi, OpenCode, and non-GPT-5.6 runtime
+mappings remain unchanged.
+
 Apply `docs/agent/CAPABILITY_ADAPTERS.md` for external capabilities. Use
 metadata-only or read-only behavior by default. Do not install capabilities,
 write MCP config, add hooks, generate global skills, or mutate environment
@@ -328,6 +360,15 @@ HEAD/diff/contract/dependency fingerprint and allow one final run per matching
 candidate. Final verification and acceptance bind only to that exact frozen
 candidate. A candidate change retains the old result as history but forbids
 reusing it as current final evidence.
+
+Candidate freeze defaults to `clean-head`, which rejects staged, unstaged, and
+untracked changes. When the active packet explicitly authorizes it, use
+`working-tree` to bind the complete non-ignored uncommitted state without
+granting commit or submit authority. Pass and bind the packet's non-empty
+snapshot authority. Reassess that snapshot before and after
+final verification. Any staged, unstaged, untracked, deletion, mode, or symlink
+drift invalidates it. Dirty submodules and unrepresentable state fail closed;
+there is no unbound allow-dirty option or automatic fallback to another mode.
 
 One approved corrective batch may create one automatic successor without
 budget approval; another successor from that batch or any change after final
