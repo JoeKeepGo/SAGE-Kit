@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "standard-milestone@v1",
+  "generic_rules": [
+    "Use the lightest governance sufficient for the milestone risk, while preserving explicit project authority and approval gates.",
+    "Treat dependency edges, shared-file ownership, approval gates, integration, and final acceptance as serial barriers unless the project explicitly proves a safer boundary.",
+    "Run focused verification before managed full verification, and reuse evidence while its bound inputs remain unchanged.",
+    "Use worktree isolation only when project authority names the mode, base, ownership, submit authority, and cleanup policy.",
+    "Keep corrective work inside its authorized paths and invariant; require targeted re-review when authority, security, validation, or evidence integrity is affected.",
+    "Use one primary review topology and batch findings; open severity or authority findings block milestone acceptance.",
+    "Completion requires project acceptance criteria, required evidence, gate disposition, and a bounded record of remaining gaps."
+  ],
+  "policy": {
+    "verification_economy": "focused-first",
+    "worktree_policy": "explicit-authorization-only",
+    "corrective_policy": "bounded-authority-and-targeted-rereview",
+    "review_policy": "single-primary-topology-with-risk-gated-independent-review",
+    "completion_semantics": "acceptance-and-evidence-required",
+    "approval_required_for_write": true
+  }
+}

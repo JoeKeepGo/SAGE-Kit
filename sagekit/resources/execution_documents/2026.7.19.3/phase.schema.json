@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sage-kit.dev/contracts/execution-documents/2026.7.19.3/phase.schema.json",
+  "title": "SAGE-Kit Thin Phase Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sagekit_contract",
+    "document_model",
+    "phase_id",
+    "objective",
+    "depends_on",
+    "execution_profile",
+    "permission_mode",
+    "owner",
+    "writable_paths",
+    "read_only_references",
+    "forbidden_paths",
+    "inherit_forbidden",
+    "acceptance_criteria",
+    "verification_commands",
+    "evidence_requirements",
+    "stop_conditions",
+    "handoff_target",
+    "state"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "sagekit_contract": {
+      "const": "2026.7.19.3"
+    },
+    "document_model": {
+      "const": "thin-v1"
+    },
+    "phase_id": {
+      "$ref": "#/$defs/phase_id"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "depends_on": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/phase_id"
+      }
+    },
+    "execution_profile": {
+      "const": "standard-phase@v1"
+    },
+    "permission_mode": {
+      "$ref": "#/$defs/permission_mode"
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "writable_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repository_path"
+      }
+    },
+    "read_only_references": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repository_reference"
+      }
+    },
+    "forbidden_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repository_path"
+      }
+    },
+    "inherit_forbidden": {
+      "type": "boolean"
+    },
+    "acceptance_criteria": {
+      "$ref": "#/$defs/non_empty_unique_strings"
+    },
+    "verification_commands": {
+      "$ref": "#/$defs/non_empty_unique_strings"
+    },
+    "evidence_requirements": {
+      "$ref": "#/$defs/non_empty_unique_strings"
+    },
+    "stop_conditions": {
+      "$ref": "#/$defs/non_empty_unique_strings"
+    },
+    "handoff_target": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "enum": [
+        "planned",
+        "ready",
+        "active",
+        "blocked",
+        "complete"
+      ]
+    }
+  },
+  "$defs": {
+    "phase_id": {
+      "type": "string",
+      "pattern": "^P[0-9]+(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "permission_mode": {
+      "enum": [
+        "READ_ONLY_REVIEW",
+        "WRITE_AUTHORIZED",
+        "CORRECTIVE_AUTHORIZED",
+        "ENVIRONMENT_WRITE_AUTHORIZED",
+        "SUBMIT_AUTHORIZED"
+      ]
+    },
+    "repository_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*\\.\\.?/)(?!\\.\\.?$)(?!.*[*?\\[\\]:])(?!.*[ .](?:/|$)).+$"
+    },
+    "repository_reference": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*#.*#)(?!.*\\.\\.?/)(?!\\.\\.?(?:#|$))(?!.*[*?\\[\\]:])(?!.*[ .](?:/|#|$))[^#]+(?:#[A-Za-z0-9_.-]+)?$"
+    },
+    "non_empty_unique_strings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

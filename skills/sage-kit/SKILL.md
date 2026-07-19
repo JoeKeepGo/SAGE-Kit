@@ -19,10 +19,44 @@ skills, plugins, MCP tools, CLIs, CI systems, reviewers, frontend builders,
 OpenSpec, GitNexus, browser tools, and database tools are optional capability
 adapters unless a project explicitly defines a narrower policy.
 
-This skill does not replace the project's own specification documents. The project
-remains responsible for maintaining its `docs/` profile, design, gates, active
-context, routing, milestones, phase docs, ledgers, completion reports, and
-closeouts.
+This skill does not replace the project's own specification authority. The
+project remains responsible for its profile, design, gates, active context,
+routing, project-specific milestone/phase facts, ledgers, evidence, and
+closeouts. It does not need to copy generic governance prose into each
+milestone or phase.
+
+## Thin Execution Documents
+
+SAGE-Kit is a governance interpreter, not a document-copying system. Generic
+governance belongs to this repository Skill and the pinned, versioned SAGE-Kit
+contract. Project documents retain project-specific authority, scope,
+exceptions, state, acceptance, and evidence.
+
+Two independent version dimensions exist:
+
+- Task Dispatch validation contract: v0, v1, or v2.
+- Execution document model: `legacy-markdown` or `thin-v1`.
+
+Never treat `thin-v1` as Task Dispatch v3. Accepted historical documents remain
+immutable. An active milestone may use its explicit legacy model or its
+explicit thin model, but mixed, missing, or conflicting model authority fails
+closed without fallback.
+
+For `thin-v1`, read the project lock at `SAGE_PROJECT.json`, then the selected
+`docs/<M>/MILESTONE_MANIFEST.json` and `docs/<M>/phases/<P>.json`. Resolve
+policy in this order: explicit project approval/gate, project-local override,
+pinned SAGE-Kit contract/profile, then runtime defaults. Conflicts fail closed.
+
+Installed Skill is not project authority. Do not use an Installed Skill's
+current files or version to infer the project contract. The project lock and
+packaged versioned resources control resolution even when a local Skill is
+missing or older.
+
+Use `sagekit packet compile` only to create an ephemeral packet. A compact
+packet binds the pinned profile and source digests without repeating generic
+governance prose. A standalone compiled packet includes the resolved rules when
+the runtime cannot load the matching contract. Do not write compiled prose back
+to milestone or phase manifests, `ACTIVE_CONTEXT`, or `DOC_ROUTING`.
 
 ## Core Rule
 
@@ -63,8 +97,9 @@ For a SAGE-Kit governed project:
 
 1. Read `docs/ACTIVE_CONTEXT.md`.
 2. Read `docs/DOC_ROUTING.md`.
-3. Read only the active milestone ledger, phase doc, contract docs, or gates
-   named by routing and task scope.
+3. If `SAGE_PROJECT.json` exists, validate its explicit document model and
+   contract pin. Read only the active thin manifest or legacy milestone/phase
+   authority selected by routing and task scope.
 4. Select the governance level and permission mode for the current control
    scope using `docs/agent/GOVERNANCE_LEVELS.md` when the task is non-trivial,
    delegated, controller-level, review, corrective, environment-writing, or

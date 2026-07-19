@@ -3,6 +3,23 @@
 Use this reference when a project is being evaluated for SAGE-Kit or when
 SAGE-Kit docs need to be bootstrapped.
 
+## Choose The Execution Document Model
+
+Adoption must be explicit. Keep the established `legacy-markdown` path for an
+existing project unless the project creates a valid `SAGE_PROJECT.json` that
+pins `execution_document_model: thin-v1` and a versioned SAGE-Kit contract.
+
+For `thin-v1`, create project-specific authority only:
+
+- `SAGE_PROJECT.json` from `docs/templates/SAGE_PROJECT_TEMPLATE.json`;
+- `docs/<M>/MILESTONE_MANIFEST.json`;
+- `docs/<M>/phases/<P>.json`.
+
+Do not copy generic governance prose into these manifests. It stays in the
+pinned contract and profiles. Accepted historical legacy documents remain
+immutable, adoption does not migrate them, and a thin artifact without valid
+lock authority fails closed. Installed Skill is not project authority.
+
 ## Fit Check
 
 SAGE-Kit is useful when the project needs durable planning, explicit contracts,
@@ -18,7 +35,7 @@ throwaway prototype, or informal exploration without retained governance.
    - `docs/PROJECT_OWNER_INTAKE.md`
    - `docs/CAPABILITY_MAP.md`
    These are planning inputs, not implementation authorization.
-3. Copy the reusable core rules:
+3. For `legacy-markdown`, copy the reusable core rules:
    - `docs/SAGE_CORE.md`
 4. Create or adapt the Light baseline:
    - `docs/PROJECT_PROFILE.md`
@@ -32,31 +49,36 @@ throwaway prototype, or informal exploration without retained governance.
    not use a capability map, record why roadmap granularity is already clear.
 7. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
    `docs/MILESTONE_ROADMAP.md`.
-8. Copy `docs/agent/` when AI agents will execute or review work.
+8. For `legacy-markdown`, copy `docs/agent/` when AI agents will execute or
+   review work. Thin projects reference the pinned contract instead of copying
+   generic agent governance into milestone and phase manifests.
 9. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
    external skills, plugins, MCP tools, CLIs, CI, reviewers, frontend tools,
    OpenSpec, GitNexus, browser QA, or database tools.
 10. Copy profile templates only when the project matches that profile.
-11. Create the first milestone:
-   - `docs/M<ID>/00-entry-gate.md`
-   - `docs/M<ID>/MILESTONE_LEDGER.md`
-   - one phase doc per reviewable slice
+11. Create the first milestone using exactly one document model:
+   - For `legacy-markdown`, create `docs/M<ID>/00-entry-gate.md`,
+     `docs/M<ID>/MILESTONE_LEDGER.md`, and one Markdown phase document per
+     reviewable slice.
+   - For `thin-v1`, create `SAGE_PROJECT.json`,
+     `docs/M<ID>/MILESTONE_MANIFEST.json`, and one
+     `docs/M<ID>/phases/<P>.json` manifest per reviewable slice. Do not create
+     legacy active milestone or phase documents in that container.
 12. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
 
 ## Minimum Viable Specification
 
-For a new project, the minimum useful SAGE-Kit setup is:
+For a new project, both models need project profile, architecture boundaries,
+quality/approval gates, active context, and document routing. Then choose one
+model-specific minimum:
 
-- project profile;
-- SAGE Core rules;
-- capability map for broad, non-technical, or coarse-roadmap projects;
-- technical design or architecture boundary;
-- quality and approval gates;
-- active context;
-- document routing;
-- first milestone entry gate;
-- milestone ledger;
-- at least one phase doc.
+- `legacy-markdown`: copied SAGE Core rules, the first milestone entry gate,
+  milestone ledger, and at least one Markdown phase document.
+- `thin-v1`: `SAGE_PROJECT.json`, one thin milestone manifest, and at least one
+  thin phase manifest. Generic SAGE Core and agent policy stays in the pinned
+  contract/profile rather than being copied into the active milestone.
+
+Add a capability map for broad, non-technical, or coarse-roadmap projects.
 
 ## Adoption Stop Conditions
 

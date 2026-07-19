@@ -19,14 +19,20 @@ Default startup read set:
 
 1. `docs/ACTIVE_CONTEXT.md`
 2. `docs/DOC_ROUTING.md`
-3. Active milestone entry gate and ledger, if the task belongs to a milestone
-4. Active phase document, if implementation or review is requested
+3. `SAGE_PROJECT.json`, when present, to select `execution_document_model` and
+   its pinned contract
+4. Active `MILESTONE_MANIFEST.json` or legacy entry gate and ledger, if the task
+   belongs to a milestone
+5. Active thin phase manifest or legacy phase document, if implementation or
+   review is requested
 
 ## Read Policy By Task
 
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` if present |
+| Thin document validation | `SAGE_PROJECT.json`, active `docs/<M>/MILESTONE_MANIFEST.json`, selected `docs/<M>/phases/<P>.json` | Referenced project gates and evidence only |
+| Thin packet compilation | Project lock, active milestone manifest, selected phase manifest | Exact pinned contract/profile resources; standalone output only when the runtime cannot load them |
 | Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
 | Capability map or roadmap granularity audit | Project profile, `docs/CAPABILITY_MAP.md` if present or `docs/templates/CAPABILITY_MAP_TEMPLATE.md` if creating it, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design, relevant profile templates, prior closeouts only when the capability depends on history |

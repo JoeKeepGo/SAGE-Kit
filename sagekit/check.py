@@ -50,6 +50,15 @@ SOURCE_REQUIRED_FILES = [
     "docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md",
     "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
     "docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json",
+    "docs/templates/SAGE_PROJECT_TEMPLATE.json",
+    "docs/templates/THIN_MILESTONE_TEMPLATE.json",
+    "docs/templates/THIN_PHASE_TEMPLATE.json",
+    "docs/contracts/execution-documents/2026.7.19.3/contract.json",
+    "docs/contracts/execution-documents/2026.7.19.3/project.schema.json",
+    "docs/contracts/execution-documents/2026.7.19.3/milestone.schema.json",
+    "docs/contracts/execution-documents/2026.7.19.3/phase.schema.json",
+    "docs/contracts/execution-documents/2026.7.19.3/profiles/standard-milestone-v1.json",
+    "docs/contracts/execution-documents/2026.7.19.3/profiles/standard-phase-v1.json",
     "docs/agent/GOVERNANCE_LEVELS.md",
     "docs/agent/SESSION_ORCHESTRATION.md",
     "docs/agent/CAPABILITY_ADAPTERS.md",
@@ -79,6 +88,9 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/compatibility.py",
     "sagekit/milestone_scope.py",
     "sagekit/validation_scope_manifest.py",
+    "sagekit/execution_documents.py",
+    "sagekit/policy_resolution.py",
+    "sagekit/packet.py",
     "sagekit/reporting.py",
     "sagekit/validation_contracts/__init__.py",
     "sagekit/validation_contracts/frozen_validator.py",
@@ -99,12 +111,24 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/resources/contracts/v2/task.schema.json",
     "sagekit/resources/contracts/v2/evidence.schema.json",
     "sagekit/task_dispatch_validator.py",
+    "sagekit/resources/execution_documents/2026.7.19.3/contract.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/project.schema.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/milestone.schema.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/phase.schema.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/profiles/standard-milestone-v1.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/profiles/standard-phase-v1.json",
+    "scripts/wheel_smoke.py",
     "tests/test_sagekit_check.py",
     "tests/test_frozen_contracts_and_containers.py",
     "tests/test_execution_economy.py",
     "tests/test_convergence_authority.py",
     "tests/test_validation_compatibility.py",
     "tests/test_validation_scope_manifest.py",
+    "tests/test_thin_execution_documents.py",
+    "tests/test_packet_compile.py",
+    "tests/test_thin_documentation.py",
+    "tests/test_thin_routing.py",
+    "tests/test_package_smoke.py",
 ]
 
 GITIGNORE_RUNTIME_PATTERNS = [
@@ -133,7 +157,7 @@ FORBIDDEN_RUNTIME_STACK_PATHS = [
 ]
 
 RESOURCE_REFERENCE_RE = re.compile(
-    r"docs/(?:agent|templates|profiles)/[A-Za-z0-9_./-]+\.(?:md|yaml|json)"
+    r"docs/(?:agent|templates|profiles|contracts)/[A-Za-z0-9_./-]+\.(?:md|yaml|json)"
 )
 
 
@@ -190,7 +214,7 @@ def run_check(
     findings.extend(check_active_context(root))
     findings.extend(check_doc_routing(root))
     findings.extend(
-        check_phase_docs(
+        check_execution_documents(
             root,
             scope_manifest=manifest,
             manifest_source=manifest_source,
@@ -267,6 +291,7 @@ def run_source_repo_check(start: Path) -> list[Finding]:
     findings.extend(check_source_init_resources(root))
     findings.extend(check_source_resource_references(root))
     findings.extend(check_source_resource_mirrors(root))
+    findings.extend(check_source_execution_document_mirrors(root))
     findings.extend(check_source_pyproject(root))
     findings.extend(check_source_gitignore(root))
     findings.extend(check_source_tracked_runtime(root))
@@ -276,6 +301,79 @@ def run_source_repo_check(start: Path) -> list[Finding]:
 
 def is_kit_source_repo(root: Path) -> bool:
     return all((root / marker).exists() for marker in SOURCE_REPO_MARKERS)
+
+
+def check_source_execution_document_mirrors(root: Path) -> list[Finding]:
+    """Require a byte-identical, bidirectional source/package contract tree."""
+
+    source_root = root / "docs/contracts/execution-documents"
+    package_root = root / "sagekit/resources/execution_documents"
+    source_files = {
+        path.relative_to(source_root).as_posix(): path
+        for path in source_root.rglob("*")
+        if path.is_file()
+    } if source_root.is_dir() else {}
+    package_files = {
+        path.relative_to(package_root).as_posix(): path
+        for path in package_root.rglob("*")
+        if path.is_file()
+    } if package_root.is_dir() else {}
+    findings: list[Finding] = []
+    for relative in sorted(set(source_files) | set(package_files)):
+        source = source_files.get(relative)
+        packaged = package_files.get(relative)
+        display = f"docs/contracts/execution-documents/{relative}"
+        if source is None:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "execution-resource-mirror",
+                    display,
+                    None,
+                    "packaged execution contract has no source counterpart",
+                )
+            )
+        elif packaged is None:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "execution-resource-mirror",
+                    display,
+                    None,
+                    "source execution contract has no packaged counterpart",
+                )
+            )
+        elif source.read_bytes() != packaged.read_bytes():
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "execution-resource-mirror",
+                    display,
+                    None,
+                    "source and packaged execution contracts differ byte-for-byte",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    "PASS",
+                    "execution-resource-mirror",
+                    display,
+                    None,
+                    "source and packaged execution contracts match",
+                )
+            )
+    if not source_files and not package_files:
+        findings.append(
+            Finding(
+                "FAIL",
+                "execution-resource-mirror",
+                "docs/contracts/execution-documents",
+                None,
+                "versioned execution contract resources are missing",
+            )
+        )
+    return findings
 
 
 def detect_root(start: Path) -> Path:
@@ -925,6 +1023,301 @@ def check_phase_docs(
             continue
         for path in paths:
             findings.extend(check_one_phase(root, path, read_text(path)))
+    return findings
+
+
+def check_execution_documents(
+    root: Path,
+    *,
+    scope_manifest: ValidationScopeManifest | None = None,
+    manifest_source: str = "project-local",
+    manifest_error: str | None = None,
+) -> list[Finding]:
+    """Select legacy-markdown or thin-v1 independently from Task Dispatch."""
+
+    from .execution_documents import (
+        ExecutionDocumentError,
+        compare_milestone_ids,
+        load_execution_contract,
+        load_execution_project,
+        load_project_lock,
+    )
+    from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
+    from .policy_resolution import PolicyResolutionError, validate_project_overrides
+
+    docs = root / "docs"
+    legacy_by_milestone: dict[Path, list[Path]] = {}
+    thin_by_milestone: dict[Path, list[Path]] = {}
+    for path in sorted(docs.glob("M*/[0-9][0-9]-*.md")):
+        if "_TEMPLATE" not in path.name:
+            legacy_by_milestone.setdefault(path.parent, []).append(path)
+    for path in sorted(docs.glob("M*/MILESTONE_MANIFEST.json")):
+        thin_by_milestone.setdefault(path.parent, []).append(path)
+    for path in sorted(docs.glob("M*/phases/*.json")):
+        thin_by_milestone.setdefault(path.parent.parent, []).append(path)
+
+    lock_path = root / "SAGE_PROJECT.json"
+    alias_findings = check_reserved_execution_document_aliases(root)
+    if not thin_by_milestone and not lock_path.exists() and not alias_findings:
+        return check_phase_docs(
+            root,
+            scope_manifest=scope_manifest,
+            manifest_source=manifest_source,
+            manifest_error=manifest_error,
+        )
+
+    findings: list[Finding] = list(alias_findings)
+    lock = None
+    lock_error: str | None = None
+    if lock_path.exists():
+        try:
+            lock = load_project_lock(root)
+            contract = load_execution_contract(lock)
+            validate_project_overrides(lock, contract)
+            findings.append(
+                Finding(
+                    "PASS",
+                    "project-contract",
+                    "SAGE_PROJECT.json",
+                    None,
+                    f"loaded thin-v1 project contract; digest=sha256:{lock.digest}; "
+                    f"contract=sha256:{contract.digest}",
+                )
+            )
+        except (ExecutionDocumentError, PolicyResolutionError) as exc:
+            lock_error = str(exc)
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "project-contract",
+                    "SAGE_PROJECT.json",
+                    None,
+                    lock_error,
+                    "Correct the exact project lock; invalid authority never falls back to legacy.",
+                )
+            )
+
+    resolver = RepositoryScopeResolver(
+        root,
+        manifest=scope_manifest,
+        manifest_source=manifest_source,
+        manifest_error=manifest_error,
+    )
+    milestone_set = set(legacy_by_milestone) | set(thin_by_milestone)
+    if lock is not None:
+        milestone_set.add(docs / lock.effective_from)
+    milestones = sorted(milestone_set)
+    for milestone_dir in milestones:
+        legacy_paths = legacy_by_milestone.get(milestone_dir, [])
+        thin_paths = thin_by_milestone.get(milestone_dir, [])
+        display = relpath(root, milestone_dir)
+        scope = resolver.resolve(milestone_dir)
+        if scope.kind == MilestoneScopeKind.AMBIGUOUS:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "milestone-scope",
+                    display,
+                    None,
+                    scope.detail,
+                    "Reconcile active-context and closeout authority before selecting a document model.",
+                )
+            )
+            continue
+        if scope.kind == MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY:
+            if lock is not None and milestone_dir.name == lock.effective_from:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "execution-document-authority",
+                        display,
+                        None,
+                        "project lock effective_from targets immutable accepted legacy history",
+                        "Move the adoption anchor to a current milestone; do not rewrite accepted history.",
+                    )
+                )
+            findings.append(
+                Finding(
+                    "PASS",
+                    "phase-scope-compatibility",
+                    display,
+                    None,
+                    f"treated {len(legacy_paths) + len(thin_paths)} execution document(s) as "
+                    f"immutable accepted history using {'; '.join(scope.authorities)}",
+                )
+            )
+            for path in legacy_paths + thin_paths:
+                if not read_text(path).strip():
+                    findings.append(
+                        Finding(
+                            "FAIL",
+                            "phase-history-integrity",
+                            relpath(root, path),
+                            None,
+                            "accepted historical execution document is empty",
+                        )
+                    )
+            continue
+        position: int | None = None
+        if lock is not None:
+            try:
+                position = compare_milestone_ids(milestone_dir.name, lock.effective_from)
+            except ExecutionDocumentError as exc:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "execution-document-authority",
+                        display,
+                        None,
+                        str(exc),
+                    )
+                )
+                continue
+        if legacy_paths and thin_paths:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "execution-document-mixed-format",
+                    display,
+                    None,
+                    "active milestone contains both legacy-markdown and thin-v1 artifacts",
+                    "Retain exactly one explicit document model for this active milestone.",
+                )
+            )
+            continue
+        if thin_paths:
+            if not lock_path.exists():
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "execution-document-authority",
+                        display,
+                        None,
+                        "thin-v1 artifact requires SAGE_PROJECT.json authority",
+                    )
+                )
+                continue
+            if lock is None:
+                continue
+            if position is not None and position < 0:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "execution-document-authority",
+                        display,
+                        None,
+                        f"thin-v1 milestone precedes effective_from {lock.effective_from}",
+                    )
+                )
+                continue
+            try:
+                project = load_execution_project(root, milestone_dir.name)
+            except (ExecutionDocumentError, PolicyResolutionError) as exc:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "thin-document-validation",
+                        display,
+                        None,
+                        str(exc),
+                    )
+                )
+                continue
+            findings.append(
+                Finding(
+                    "PASS",
+                    "execution-document-model",
+                    display,
+                    None,
+                    f"selected thin-v1 explicitly; milestone=sha256:{project.milestone.digest}; "
+                    f"phases={len(project.phases)}",
+                )
+            )
+            continue
+
+        if lock is not None and position is not None and position >= 0:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "execution-document-authority",
+                    display,
+                    None,
+                    f"project lock effective_from {lock.effective_from} requires an explicit "
+                    "thin-v1 milestone manifest",
+                )
+            )
+            continue
+        for path in legacy_paths:
+            findings.extend(check_one_phase(root, path, read_text(path)))
+    return findings
+
+
+def check_reserved_execution_document_aliases(root: Path) -> list[Finding]:
+    """Reject non-canonical reserved names before platform glob semantics can route them."""
+
+    findings: list[Finding] = []
+
+    def reject(path: Path, canonical: str) -> None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "execution-document-name",
+                relpath(root, path),
+                None,
+                f"reserved execution-document name must be exactly {canonical}",
+            )
+        )
+
+    try:
+        root_entries = list(root.iterdir())
+    except OSError:
+        root_entries = []
+    for path in root_entries:
+        if path.name.casefold() == "sage_project.json" and path.name != "SAGE_PROJECT.json":
+            reject(path, "SAGE_PROJECT.json")
+    docs = root / "docs"
+    if not docs.is_dir():
+        return findings
+    try:
+        milestones = list(docs.iterdir())
+    except OSError:
+        return findings
+    for milestone in milestones:
+        if not milestone.is_dir():
+            continue
+        if (
+            re.fullmatch(r"m[0-9]+(?:[._-][A-Za-z0-9]+)*", milestone.name, re.IGNORECASE)
+            and re.fullmatch(r"M[0-9]+(?:[._-][A-Za-z0-9]+)*", milestone.name) is None
+        ):
+            reject(milestone, "an uppercase M milestone directory")
+        try:
+            entries = list(milestone.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if (
+                entry.name.casefold() == "milestone_manifest.json"
+                and entry.name != "MILESTONE_MANIFEST.json"
+            ):
+                reject(entry, "MILESTONE_MANIFEST.json")
+            if entry.name.casefold() == "phases" and entry.name != "phases":
+                reject(entry, "phases")
+            if entry.is_dir() and entry.name.casefold() == "phases":
+                try:
+                    phase_entries = list(entry.iterdir())
+                except OSError:
+                    continue
+                for phase in phase_entries:
+                    if phase.name.casefold().endswith(".json"):
+                        canonical = (
+                            re.fullmatch(
+                                r"P[0-9]+(?:[._-][A-Za-z0-9]+)*\.json",
+                                phase.name,
+                            )
+                            is not None
+                        )
+                        if not canonical:
+                            reject(phase, "an uppercase phase ID with lowercase .json suffix")
     return findings
 
 

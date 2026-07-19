@@ -10,6 +10,20 @@ same root cause.
 Use this reference for reviews, handoff, completion reports, milestone ledgers,
 memory maintenance, closeout, commit, or push.
 
+## Thin Document Review
+
+For `thin-v1`, review `SAGE_PROJECT.json`, the active
+`MILESTONE_MANIFEST.json`, and selected phase manifests as structured authority.
+Confirm their contract/profile references and digests, dependency integrity,
+path containment, approval/permission consistency, acceptance, state, and
+evidence references. Generic governance prose is not required in the project
+manifest because it is resolved from the pinned contract.
+
+Accepted historical legacy documents remain immutable and are not reviewed
+against thin fields. An active milestone that mixes `legacy-markdown` and
+`thin-v1`, lacks model authority, or selects an unknown profile must not fall
+back and cannot receive a completion verdict.
+
 ## Review Stance
 
 Review for:

@@ -53,6 +53,18 @@ V0_SEMANTIC_SCHEMA_SHA256 = {
     "task.schema.json": "d692c739bad4c49e301cdf97a10c9f358978ec34492af21939f345a8c2b47a4d",
     "evidence.schema.json": "71470bdd4295f5134936da17480c24b6a9daeadf78698af29222304eb52445f0",
 }
+FROZEN_RESOURCE_RAW_SHA256 = {
+    "v0/evidence.schema.json": "bee5b18eb887fbc2f8195d6b9871a0ff044354c24075c471a75aaaf77b24555c",
+    "v0/policy.json": "e2a19a4ed8c9a8b027e2c4bd4f4f11d8189f717356414092dfec6a38f8cc6241",
+    "v0/rules.json": "d936b4d52414622062c3fd4bf3f6ccc26f225d4f3b8472697d41ed7f6204c485",
+    "v0/task.schema.json": "381a59bdd69dd1c3470025ea3714f90109271189e294c863ffa2751349e5f9d7",
+    "v0/validator.json": "8f4105d2cccf6e055c018fd2b71f2ced67874ac875cab3a2df31b39db2ac0f46",
+    "v1/evidence.schema.json": "4c45ab92737a32e80023af900151cc304551a23619d59e1f221f474cdcc9017e",
+    "v1/policy.json": "7f5e61a28e125cbf65f3d27cd0347c53cd45c49d7acf5cadb7712cc856a97f66",
+    "v1/rules.json": "f0dc4b47ac2a611d545df7e2ef82c98bd8301126dce939172cfabdf4300b2fdb",
+    "v1/task.schema.json": "165a426372f74d3a4a57b4d1dfd489387445e0f5904438a4b0056fd8188f1304",
+    "v1/validator.json": "5459268a28bfc40bd7abe25c61eefa53a88020d4237bbf72c296af0a536f1300",
+}
 
 
 def canonical_digest(payload):
@@ -249,6 +261,20 @@ def replace_contract_resource(version, name, replacement):
 
 
 class FrozenV0ProvenanceTests(unittest.TestCase):
+    def test_frozen_v0_v1_resource_bytes_match_pinned_hashes(self):
+        resource_root = REPO_ROOT / "sagekit/resources/contracts"
+
+        actual = {
+            path.relative_to(resource_root).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for version in ("v0", "v1")
+            for path in sorted((resource_root / version).rglob("*"))
+            if path.is_file()
+        }
+
+        self.assertEqual(FROZEN_RESOURCE_RAW_SHA256, actual)
+
     def test_frozen_sidecar_and_rules_corruption_is_a_validation_failure(self):
         for version, validate in ((0, validate_v0), (1, validate_v1)):
             task, evidence = early_records() if version == 0 else hardened_records()

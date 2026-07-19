@@ -59,6 +59,48 @@ python -m sagekit check --source-repo
 
 Python 3.10 or newer is required.
 
+## Thin Execution Documents
+
+SAGE-Kit is a governance interpreter, not a document-copying system. Generic
+governance belongs to the versioned kit contract; a project keeps only its
+version lock, local overrides, authority, scope, state, acceptance, and
+evidence. In short: **thick kit, thin project**.
+
+Opt-in projects pin the contract in `SAGE_PROJECT.json`, then use explicit
+manifests such as:
+
+```text
+SAGE_PROJECT.json
+docs/M36/MILESTONE_MANIFEST.json
+docs/M36/phases/P1.json
+```
+
+Validate the project, then compile an execution packet only when it is needed:
+
+```bash
+sagekit check
+sagekit packet compile --target . --milestone M36 --phase P1
+sagekit packet compile --target . --milestone M36 --phase P1 --compact --json
+```
+
+Compilation writes to stdout by default and does not update the manifests,
+`ACTIVE_CONTEXT`, or `DOC_ROUTING`. A compact packet references the exact
+pinned profile and digest. A standalone compiled packet includes the resolved
+rules for a runtime that cannot load the matching kit contract.
+Writing a packet requires an explicit project-relative `--output`; an existing
+generated packet is replaced only with `--overwrite-generated`, and unknown
+files are never overwritten.
+
+`thin-v1` is an execution document model, not Task Dispatch v3. Existing
+`legacy-markdown` milestones remain supported and accepted historical
+documents remain immutable. The two models may coexist in a project, but one
+active milestone may not mix them. Adoption is explicit; there is no automatic
+historical migration or downgrade.
+
+Installed Skill is not project authority. The project lock and its packaged,
+versioned contract determine resolution even when a local Skill is missing or
+older.
+
 ## Install The Skill
 
 The repository ships one skill at [`skills/sage-kit`](skills/sage-kit) that
@@ -164,6 +206,7 @@ Templates live in [`docs/`](docs) and [`docs/templates/`](docs/templates).
 | `sagekit check --mode heavy` | Apply Heavy document requirements |
 | `sagekit check --json` | Emit machine-readable findings |
 | `sagekit check --source-repo` | Validate the SAGE-Kit repository itself |
+| `sagekit packet compile --milestone M36 --phase P1` | Compile an ephemeral thin execution packet to stdout |
 | `sagekit checkpoint status` | Check local resumable state |
 | `sagekit resume` | Validate and print the next-action packet |
 | `sagekit candidate freeze` | Freeze a clean or explicitly authorized working-tree candidate |

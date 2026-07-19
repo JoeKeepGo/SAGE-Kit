@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "sagekit_contract": "2026.7.19.3",
+  "document_model": "thin-v1",
+  "milestone_id": "M36",
+  "objective": "Add deterministic import validation for the sample service.",
+  "capability_outcome": "Operators can reject malformed imports before any record is written.",
+  "authority_references": [
+    "SAGE_PROJECT.json",
+    "docs/APPROVAL_GATES.md"
+  ],
+  "governance_profile": "standard-milestone@v1",
+  "dependency_dag": {
+    "P1": [],
+    "P2": [
+      "P1"
+    ]
+  },
+  "approval_gates": [
+    {
+      "id": "implementation",
+      "applies_to": [
+        "P1"
+      ],
+      "status": "approved",
+      "permission_mode": "WRITE_AUTHORIZED",
+      "authority_reference": "docs/APPROVAL_GATES.md#implementation"
+    }
+  ],
+  "phase_ids": [
+    "P1",
+    "P2"
+  ],
+  "acceptance_criteria": [
+    "The invalid-import fixture is rejected with exit code 1.",
+    "The valid-import fixture records evidence/import-validation.json."
+  ],
+  "invariants": [
+    "Existing export behavior and stored records remain unchanged."
+  ],
+  "state": "planned",
+  "evidence_references": []
+}

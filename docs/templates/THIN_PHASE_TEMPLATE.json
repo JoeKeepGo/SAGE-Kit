@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "sagekit_contract": "2026.7.19.3",
+  "document_model": "thin-v1",
+  "phase_id": "P1",
+  "objective": "Implement strict import-header validation for the sample service.",
+  "depends_on": [],
+  "execution_profile": "standard-phase@v1",
+  "permission_mode": "WRITE_AUTHORIZED",
+  "owner": "phase-controller",
+  "writable_paths": [
+    "src/import_validation.py",
+    "tests/test_import_validation.py"
+  ],
+  "read_only_references": [
+    "SAGE_PROJECT.json",
+    "docs/M36/MILESTONE_MANIFEST.json"
+  ],
+  "forbidden_paths": [
+    "docs/ACTIVE_CONTEXT.md",
+    "docs/DOC_ROUTING.md"
+  ],
+  "inherit_forbidden": true,
+  "acceptance_criteria": [
+    "An import missing account_id is rejected before any record write."
+  ],
+  "verification_commands": [
+    "python -B -m unittest tests.test_import_validation"
+  ],
+  "evidence_requirements": [
+    "Record the invalid-header fixture result and changed-file scope."
+  ],
+  "stop_conditions": [
+    "Stop if import validation requires a stored-record schema change.",
+    "Stop if the implementation approval recorded for P1 is withdrawn."
+  ],
+  "handoff_target": "milestone-controller",
+  "state": "planned"
+}

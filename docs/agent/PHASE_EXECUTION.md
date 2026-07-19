@@ -2,6 +2,18 @@
 
 Phase execution keeps work reviewable and bounded.
 
+For an explicitly adopted `thin-v1` milestone, the executable phase authority
+is `docs/<M>/phases/<P>.json`, selected through `SAGE_PROJECT.json` and
+`MILESTONE_MANIFEST.json`. It records only the phase objective, dependencies,
+execution profile, permission, owner, paths, acceptance, verification, evidence,
+phase-specific stop conditions, handoff target, and state. Resolve generic
+rules from the pinned profile and compile them ephemerally with
+`sagekit packet compile`; do not write expanded rules back to the project.
+
+An active `legacy-markdown` milestone continues to use the requirements below.
+Accepted historical legacy phases are not retrofitted. Mixed or ambiguous
+document models must not fall back.
+
 For large milestones with multiple phases and separate Project Manager, Coder,
 and Final Review controllers, wrap phase execution with
 `docs/agent/SESSION_ORCHESTRATION.md`. Phase Execution still defines what each

@@ -115,6 +115,34 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--dry-run", action="store_true", help="Show planned writes without changing files.")
     init.add_argument("--force", action="store_true", help="Overwrite existing SAGE-Kit documents.")
 
+    packet = subparsers.add_parser(
+        "packet",
+        help="Compile ephemeral execution packets from pinned thin documents.",
+    )
+    packet_commands = packet.add_subparsers(dest="packet_command", required=True)
+    packet_compile = packet_commands.add_parser(
+        "compile",
+        help="Compile a standalone packet by default, or an explicit compact packet.",
+    )
+    add_target_argument(packet_compile)
+    packet_compile.add_argument("--milestone", required=True, help="Exact milestone ID, such as M36.")
+    packet_compile.add_argument("--phase", help="Exact phase ID; omit for a milestone packet.")
+    packet_compile.add_argument(
+        "--compact",
+        action="store_true",
+        help="Emit a compact packet bound to exact contract/profile digests.",
+    )
+    packet_compile.add_argument("--json", action="store_true", help="Print structured packet output.")
+    packet_compile.add_argument(
+        "--output",
+        help="Explicit project-relative output file; omitted output is stdout-only.",
+    )
+    packet_compile.add_argument(
+        "--overwrite-generated",
+        action="store_true",
+        help="Replace only a recognized previously generated packet.",
+    )
+
     checkpoint = subparsers.add_parser("checkpoint", help="Manage local resumable run state.")
     checkpoint_commands = checkpoint.add_subparsers(dest="checkpoint_command", required=True)
 
@@ -609,6 +637,76 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
                 exact_root=target_argument is not None,
             )
+        elif args.command == "packet":
+            from .packet import PacketError, compile_packet, write_compiled_packet
+
+            if not target.exists() or not target.is_dir():
+                findings = [
+                    Finding(
+                        "FAIL",
+                        "packet-target",
+                        str(target),
+                        None,
+                        "packet compilation requires an existing project directory",
+                    )
+                ]
+                emit_findings(findings, args.json)
+                return 2
+            if args.overwrite_generated and args.output is None:
+                findings = [
+                    Finding(
+                        "FAIL",
+                        "packet-output-usage",
+                        None,
+                        None,
+                        "--overwrite-generated requires --output",
+                    )
+                ]
+                emit_findings(findings, args.json)
+                return 2
+            try:
+                compiled = compile_packet(
+                    target,
+                    args.milestone,
+                    args.phase,
+                    compact=args.compact,
+                )
+                output_path = None
+                if args.output is not None:
+                    output_path = write_compiled_packet(
+                        target,
+                        args.output,
+                        compiled,
+                        overwrite_generated=args.overwrite_generated,
+                    )
+            except PacketError as exc:
+                finding = Finding("FAIL", "packet-compile", None, None, str(exc))
+                emit_findings([finding], args.json)
+                return 1
+
+            packet_payload = compiled.payload
+            output_display = (
+                output_path.relative_to(target).as_posix()
+                if output_path is not None
+                else None
+            )
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "packet_sha256": compiled.digest,
+                            "packet": packet_payload,
+                            "output": output_display,
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print("SAGEKIT_GENERATED_PACKET_V1")
+                print(json.dumps(packet_payload, indent=2, sort_keys=True))
+            return 0
         elif args.command == "candidate":
             convergence_authority = _load_authority_argument(
                 args.convergence_authority

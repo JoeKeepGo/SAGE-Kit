@@ -42,6 +42,9 @@ jobs:
       - name: Run source repository check
         run: python -B -m sagekit check --source-repo
 
+      - name: Run wheel install smoke
+        run: python -B scripts/wheel_smoke.py
+
       - name: Run Claude Code hook tests
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: bash tests/test_claude_hooks.sh

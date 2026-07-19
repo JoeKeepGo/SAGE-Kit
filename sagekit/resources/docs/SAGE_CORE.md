@@ -4,6 +4,44 @@ SAGE Core defines the reusable rules that every project using SAGE-Kit should
 follow. Project-specific details belong in project profiles, technical designs,
 milestones, and phase documents.
 
+## Execution Document Models
+
+SAGE-Kit is a governance interpreter, not a document-copying system. Generic
+governance belongs to the repository Skill and versioned SAGE-Kit contracts.
+Project documents retain project-specific authority, scope, exceptions, state,
+acceptance, and evidence.
+
+The execution document model is separate from the Task Dispatch validation
+contract:
+
+- `legacy-markdown` keeps the established milestone and phase document flow.
+- `thin-v1` uses `SAGE_PROJECT.json`,
+  `docs/<M>/MILESTONE_MANIFEST.json`, and `docs/<M>/phases/<P>.json`.
+- Task Dispatch versions remain v0, v1, and v2. `thin-v1` is not v3.
+
+Adoption is explicit. Accepted historical documents remain immutable, active
+legacy milestones continue through the legacy checker, and one active milestone
+must not mix legacy and thin execution documents. Missing, mixed, or conflicting
+document-model authority fails closed without downgrade.
+
+For `thin-v1`, policy resolution is deterministic:
+
+1. explicit project approval or gate;
+2. project-local override;
+3. pinned SAGE-Kit contract and profile;
+4. runtime default.
+
+Only policy keys declared overrideable by the pinned contract may be changed.
+Conflicting authority fails closed. Installed Skill is not project authority;
+the project lock and packaged versioned contract remain authoritative when a
+local Skill is missing or older.
+
+Use `sagekit packet compile` to create an ephemeral execution packet. Compact
+packets bind the exact contract/profile references and digests. A standalone
+compiled packet contains the resolved rules for runtimes without the matching
+contract. Compilation does not rewrite manifests, `ACTIVE_CONTEXT`, or
+`DOC_ROUTING`.
+
 ## Bootstrap Maintainer Policy
 
 SAGE-Kit does not force maintainers of the SAGE-Kit source repository to manage
@@ -142,7 +180,9 @@ Trivial work is limited to typo fixes, formatting-only documentation edits, or
 metadata changes that do not affect behavior, contracts, verification, security,
 runtime operation, release process, or agent execution.
 
-All other work is non-trivial and requires a retained phase or task document.
+All other work is non-trivial and requires a retained phase/task authority:
+either the selected legacy document or an explicitly adopted thin phase
+manifest.
 
 ## Project Document Baselines
 

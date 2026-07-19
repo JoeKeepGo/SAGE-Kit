@@ -5,6 +5,19 @@ The Agent Harness defines how AI agents work inside a SAGE-Kit project.
 The harness does not replace the project spec. It tells agents how to execute
 against the spec without losing context, widening scope, or hiding risk.
 
+## Execution Document Authority
+
+If `SAGE_PROJECT.json` is absent, established projects continue through the
+`legacy-markdown` workflow. If it is present, validate its
+`execution_document_model` and pinned contract before reading executable
+milestone documents. `thin-v1` routes to
+`docs/<M>/MILESTONE_MANIFEST.json` and `docs/<M>/phases/<P>.json`.
+
+The thin manifests contain project authority and task facts. Generic governance
+comes from the pinned profile and must not be copied into each manifest. One
+active milestone cannot mix legacy and thin documents. Missing, unknown, or
+conflicting model/profile authority must not fall back.
+
 ## Operating Rules
 
 - Read the smallest safe context first.
@@ -70,7 +83,8 @@ Strict Mode.
 
 1. Read `docs/ACTIVE_CONTEXT.md`.
 2. Read `docs/DOC_ROUTING.md`.
-3. Read active milestone ledger and phase doc when applicable.
+3. Read the active thin manifest or legacy milestone ledger and phase document
+   selected by project authority.
 4. Check change-control state, such as branch, changelist, revision, and dirty
    files when applicable.
 5. Read active Task Dispatch records only when the routed task uses that

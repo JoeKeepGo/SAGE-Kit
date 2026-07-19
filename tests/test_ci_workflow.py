@@ -36,3 +36,15 @@ class SelfCheckWorkflowTests(unittest.TestCase):
 
         self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", text)
         self.assertIn('python-version: ["3.10", "3.11", "3.12"]', text)
+
+    def test_every_matrix_job_runs_fresh_venv_wheel_smoke(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertEqual(1, text.count("python -B scripts/wheel_smoke.py"))
+        wheel_step = re.search(
+            r"(?ms)^      - name: Run wheel install smoke\s*$\n"
+            r"(?P<body>.*?)(?=^      - name:|\Z)",
+            text,
+        )
+        self.assertIsNotNone(wheel_step, text)
+        self.assertNotIn("if:", wheel_step.group("body"))

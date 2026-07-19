@@ -58,6 +58,43 @@ python -m sagekit check --source-repo
 
 需要 Python 3.10 或更高版本。
 
+## Thin Execution Documents
+
+SAGE-Kit 是 governance interpreter，不是文档复制系统。通用治理规则属于
+versioned kit contract；项目只保留版本锁、本地 override、authority、scope、
+state、acceptance 和 evidence。也就是：**thick kit, thin project**。
+
+项目显式采用时，在 `SAGE_PROJECT.json` 固定合同，并使用轻量 manifest：
+
+```text
+SAGE_PROJECT.json
+docs/M36/MILESTONE_MANIFEST.json
+docs/M36/phases/P1.json
+```
+
+先检查项目，只在执行时临时编译 packet：
+
+```bash
+sagekit check
+sagekit packet compile --target . --milestone M36 --phase P1
+sagekit packet compile --target . --milestone M36 --phase P1 --compact --json
+```
+
+编译默认输出到 stdout，不更新 manifest、`ACTIVE_CONTEXT` 或
+`DOC_ROUTING`。compact packet 引用精确的 pinned profile 和 digest；
+standalone compiled packet 为无法加载相同 kit contract 的 runtime 展开
+resolved rules。
+只有显式提供项目相对路径 `--output` 才会写文件；已有 generated packet
+仅能通过 `--overwrite-generated` 替换，未知文件永不覆盖。
+
+`thin-v1` 是 execution document model，不是 Task Dispatch v3。现有
+`legacy-markdown` milestone 继续受支持，accepted historical documents
+保持 immutable。两种模型可以存在于同一项目，但同一个 active milestone
+不得混用。采用必须显式完成；不会自动迁移历史，也不会自动 downgrade。
+
+Installed Skill is not project authority。即使本地 Skill 缺失或版本较旧，
+resolution 仍由项目锁和 packaged versioned contract 决定。
+
 ## 安装 Skill
 
 仓库在 [`skills/sage-kit`](skills/sage-kit) 提供同一个 Skill，可在多个
@@ -160,6 +197,7 @@ flowchart LR
 | `sagekit check --mode heavy` | 使用 Heavy 文档要求 |
 | `sagekit check --json` | 输出机器可读结果 |
 | `sagekit check --source-repo` | 检查 SAGE-Kit 源码仓库 |
+| `sagekit packet compile --milestone M36 --phase P1` | 把临时 thin execution packet 输出到 stdout |
 | `sagekit checkpoint status` | 检查本地续接状态 |
 | `sagekit resume` | 验证并输出下一步任务包 |
 | `sagekit candidate freeze` | 冻结 clean 或明确授权的 working-tree 验证候选 |
