@@ -29,19 +29,17 @@ Skill 可在 Codex、Claude Code、OpenCode 和 Kimi Work / Kimi Code CLI
 安装 CLI：
 
 ```bash
-pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
+pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.20.2
 ```
 
 也可以使用 `uv`：
 
 ```bash
-uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
+uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.20.2
 ```
 
-上述真实 tag 是这些安装命令得到的稳定版本。本 README 后文的 Host Resource
-Governance、Workspace Binding、packet schema v3 与相关 CLI 示例属于当前
-`2026.7.20.1` source candidate；本文不声称它们已存在于 `v2026.7.19.2`。
-只有在明确 checkout 此 branch 或 commit 时才使用这些候选功能。
+此版本包含 Host Resource Governance、Workspace Binding、packet schema v3
+和位置无关的 SPEC source。
 
 进入需要采用 SAGE-Kit 的项目：
 
@@ -95,8 +93,9 @@ package 的 version 和安全 runtime/resource manifest digest，不复制 runti
 Skill、template 或 tests。Framework vendoring 仅作为显式 compatibility 选项。
 
 `thin-v1` 只减少重复的通用治理文字，不降低规划深度，也不对 Milestone、
-Wave、Phase 或 changed files 设置统一上限。Accepted history 保持 immutable，
-只有显式选择 history scope 时才审计。权威的 authority、scope、history、
+Wave、Phase 或 changed files 设置统一上限。采用新 scope contract 的项目会
+保持 Accepted history immutable，并且只在显式选择 history scope 时审计；
+legacy 和 unversioned 项目继续保持既有行为。权威的 authority、scope、history、
 resource admission 和 review 规则见
 [SPEC Source Contract](docs/agent/SPEC_SOURCE_CONTRACT.md)。
 

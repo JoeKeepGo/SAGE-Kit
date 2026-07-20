@@ -10,11 +10,13 @@ implementation starts.
 ## Thin Milestone Manifest
 
 An explicitly adopted `thin-v1` project pins its contract in
-`SAGE_PROJECT.json`. Plan each new thin milestone in
-`docs/<M>/MILESTONE_MANIFEST.json` and its phases in
-`docs/<M>/phases/<P>.json`. Keep the manifest limited to project-specific
-objective, capability outcome, authority references, profile, dependency DAG,
-approval gates, phase IDs, acceptance, invariants, state, and evidence.
+`SAGE_PROJECT.json`. Plan each new thin milestone and its phases at the explicit
+or configured SPEC sources selected by project authority. The legacy adapter
+continues to use `docs/<M>/MILESTONE_MANIFEST.json` and
+`docs/<M>/phases/<P>.json` as compatible defaults. Paths are provenance, not
+authority. Keep the manifest limited to project-specific objective, capability
+outcome, authority references, profile, dependency DAG, approval gates, phase
+IDs, acceptance, invariants, state, and evidence.
 
 Do not restate generic governance. The pinned `standard-milestone@v1` and
 `standard-phase@v1` profiles supply it. Existing `legacy-markdown` planning

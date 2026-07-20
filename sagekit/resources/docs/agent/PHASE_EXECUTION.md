@@ -2,13 +2,16 @@
 
 Phase execution keeps work reviewable and bounded.
 
-For an explicitly adopted `thin-v1` milestone, the executable phase authority
-is `docs/<M>/phases/<P>.json`, selected through `SAGE_PROJECT.json` and
-`MILESTONE_MANIFEST.json`. It records only the phase objective, dependencies,
-execution profile, permission, owner, paths, acceptance, verification, evidence,
-phase-specific stop conditions, handoff target, and state. Resolve generic
-rules from the pinned profile and compile them ephemerally with
-`sagekit packet compile`; do not write expanded rules back to the project.
+For an explicitly adopted `thin-v1` milestone, resolve executable phase
+authority through `SAGE_PROJECT.json`, an explicit source, or its configured
+milestone mapping. The legacy adapter continues to use
+`docs/<M>/phases/<P>.json` as a compatible default; the path itself is
+provenance, not authority. The selected source records only the phase objective,
+dependencies, execution profile, permission, owner, paths, acceptance,
+verification, evidence, phase-specific stop conditions, handoff target, and
+state. Resolve generic rules from the pinned profile and compile them
+ephemerally with `sagekit packet compile`; do not write expanded rules back to
+the project.
 
 An active `legacy-markdown` milestone continues to use the requirements below.
 Accepted historical legacy phases are not retrofitted. Mixed or ambiguous

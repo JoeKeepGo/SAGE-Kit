@@ -93,8 +93,10 @@ def load_json(path: Path) -> object:
 
 
 class ThinExecutionContractResourceTests(unittest.TestCase):
-    def test_package_candidate_version_matches_current_execution_contract(self):
-        self.assertEqual(CONTRACT_VERSION, __version__)
+    def test_frozen_execution_contract_is_independent_of_package_release(self):
+        self.assertEqual(__version__, "2026.7.20.2")
+        self.assertEqual(CONTRACT_VERSION, "2026.7.20.1")
+        self.assertNotEqual(CONTRACT_VERSION, __version__)
 
     def test_contract_sources_runtime_resources_and_packaged_docs_are_byte_identical(self):
         for relative in CONTRACT_FILES:
@@ -265,6 +267,13 @@ class ThinTemplateTests(unittest.TestCase):
 
 
 class ThinDocumentationTests(unittest.TestCase):
+    def test_readmes_install_current_release_without_candidate_language(self):
+        for filename in ("README.md", "README.zh-CN.md"):
+            with self.subTest(readme=filename):
+                text = (REPO_ROOT / filename).read_text(encoding="utf-8")
+                self.assertIn("@v2026.7.20.2", text)
+                self.assertNotIn("source candidate", text.casefold())
+
     def test_readmes_core_and_repository_skill_route_resource_governance(self):
         readmes = "\n".join(
             (REPO_ROOT / filename).read_text(encoding="utf-8")
@@ -354,6 +363,23 @@ class ThinDocumentationTests(unittest.TestCase):
             "must not fall back",
         ):
             self.assertIn(phrase, combined)
+
+        for path in (
+            "docs/agent/MILESTONE_PLANNING.md",
+            "docs/agent/PHASE_EXECUTION.md",
+            "docs/DOC_ROUTING_TEMPLATE.md",
+            "skills/sage-kit/references/planning.md",
+        ):
+            with self.subTest(location_independent_source=path):
+                text = " ".join(
+                    (REPO_ROOT / path)
+                    .read_text(encoding="utf-8")
+                    .casefold()
+                    .split()
+                )
+                self.assertIn("explicit", text)
+                self.assertIn("configured", text)
+                self.assertIn("provenance, not authority", text)
 
 
 if __name__ == "__main__":

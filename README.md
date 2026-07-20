@@ -27,18 +27,17 @@ tools. It gives those activities a shared project contract.
 Install the CLI:
 
 ```bash
-pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
+pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.20.2
 ```
 
 `uv` works too:
 
 ```bash
-uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
+uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.20.2
 ```
 
-That tag is the stable version above. Host Resource Governance, Workspace Binding,
-packet schema v3, and related examples describe the current `2026.7.20.1` source
-candidate; use them only from an intentional checkout of this branch or commit.
+This release includes Host Resource Governance, Workspace Binding, packet schema
+v3, and location-independent SPEC sources.
 
 From the project you want to govern:
 
@@ -94,8 +93,9 @@ Framework vendoring remains an explicit compatibility option.
 
 `thin-v1` removes repeated generic governance prose; it does not reduce planning
 depth or impose a universal maximum on Milestones, Waves, Phases, or changed
-files. Accepted history remains immutable and is audited only when history scope
-is explicitly requested. See the
+files. For projects that adopt the new scope contract, accepted history remains
+immutable and is audited only when history scope is explicitly requested.
+Legacy and unversioned projects retain their existing behavior. See the
 [SPEC Source Contract](docs/agent/SPEC_SOURCE_CONTRACT.md) for the canonical
 authority, scope, history, resource-admission, and review rules.
 
