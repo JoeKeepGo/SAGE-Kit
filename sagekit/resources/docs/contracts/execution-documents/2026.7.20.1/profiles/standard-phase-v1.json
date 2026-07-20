@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "standard-phase@v1",
+  "generic_rules": [
+    "Execute only the objective, paths, permission mode, and authority references resolved for this phase.",
+    "Treat writable, read-only, and forbidden paths as containment boundaries; ambiguity, overlap, traversal, absolute escape, and symlink escape fail closed.",
+    "Use focused tests and runtime checks named by the phase; do not substitute unrelated broad verification for missing required evidence.",
+    "Do not create or mutate worktrees without explicit project authorization, and do not infer submit or cleanup authority from write authority.",
+    "Stop when scope, permission, approval, shared ownership, contract, verification, or safety would exceed the resolved phase boundary.",
+    "Correct only inside separately authorized corrective scope and return bounded evidence for targeted re-review.",
+    "A capability result is execution evidence, not project acceptance or permission to change durable authority."
+  ],
+  "policy": {
+    "verification_economy": "focused-first",
+    "worktree_policy": "explicit-authorization-only",
+    "corrective_policy": "bounded-authority-and-targeted-rereview",
+    "review_policy": "single-primary-topology-with-risk-gated-independent-review",
+    "completion_semantics": "acceptance-and-evidence-required",
+    "approval_required_for_write": true
+  }
+}

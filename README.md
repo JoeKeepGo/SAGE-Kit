@@ -38,6 +38,12 @@ pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 ```
 
+That real tag is the stable version installed by the commands above. Host
+Resource Governance, Workspace Binding, packet schema v2, and the related CLI
+examples later in this README describe the current `2026.7.20.1` source
+candidate; they are not claimed to exist in `v2026.7.19.2`. Use the source
+candidate only when you intentionally check out this branch or commit.
+
 From the project you want to govern:
 
 ```bash
@@ -100,6 +106,12 @@ historical migration or downgrade.
 Installed Skill is not project authority. The project lock and its packaged,
 versioned contract determine resolution even when a local Skill is missing or
 older.
+
+Packet schema v2 also binds the workspace and resolved
+`conservative-host-v1` policy. Verify it with `sagekit workspace verify`, then
+route local argv through `sagekit resource run`. Managed process-tree results
+report `HARD` or `MANAGED`; bypass interception remains a soft cooperative
+boundary; it cannot intercept a command that bypasses the runtime.
 
 ## Install The Skill
 
@@ -264,6 +276,7 @@ Use these only when the project needs them:
 | Isolated Git workspaces | [`WORKTREE_ISOLATION.md`](docs/agent/WORKTREE_ISOLATION.md) |
 | Optional tools and skills | [`CAPABILITY_ADAPTERS.md`](docs/agent/CAPABILITY_ADAPTERS.md) |
 | Execution limits and evidence reuse | [`EXECUTION_ECONOMY.md`](docs/agent/EXECUTION_ECONOMY.md) |
+| Host resources and workspace binding | [`HOST_RESOURCE_GOVERNANCE.md`](docs/agent/HOST_RESOURCE_GOVERNANCE.md) |
 | Session resume | [`CONTINUITY_PROTOCOL.md`](docs/agent/CONTINUITY_PROTOCOL.md) |
 | Legacy validation contracts | [`VALIDATION_CONTRACT_COMPATIBILITY.md`](docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md) |
 | Structured task/evidence records | [`Task Dispatch Profile`](docs/profiles/task-dispatch/README.md) |

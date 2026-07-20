@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -18,6 +17,7 @@ from .change_control import ChangeClass
 from .convergence import PreauthorizedConvergenceAuthority
 from .evidence import EvidenceFingerprint
 from .execution_limits import COUNTER_NAMES, ExecutionCounters
+from .managed_execution import ManagedExecutionError, run_managed_git
 from .pathing import is_within, relative_repo_path
 
 
@@ -347,17 +347,16 @@ def _base_sha(root: Path, head: str) -> str:
 
 
 def _run_git(root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=root,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise ValueError(result.stderr.strip() or f"git {' '.join(args)} failed")
-    return result.stdout.strip()
+    try:
+        result = run_managed_git(
+            root,
+            args,
+            stage=f"continuity-git-{'-'.join(args[:2]) or 'command'}",
+            timeout=30.0,
+        )
+    except ManagedExecutionError as exc:
+        raise ValueError(str(exc)) from exc
+    return result.stdout.decode("utf-8", errors="strict").strip()
 
 
 def _file_reference(root: Path, value: str | Path) -> dict[str, str]:

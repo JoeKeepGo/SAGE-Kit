@@ -1459,7 +1459,7 @@ class SagekitCheckTests(unittest.TestCase):
                 self.assertFalse(is_runtime_state_path(path), path)
 
     def test_source_repo_tracked_runtime_filters_numeric_milestone_paths(self):
-        from sagekit.check import check_source_tracked_runtime
+        from sagekit.check import check_source_tracked_runtime_paths
 
         double_digit_milestone = "docs/M" + "19/closeout.md"
         tracked_paths = [
@@ -1469,17 +1469,8 @@ class SagekitCheckTests(unittest.TestCase):
             "docs/MODEL_ASSURANCE.md",
             "docs/agent/MODEL_ASSURANCE_POLICY.md",
         ]
-        result = subprocess.CompletedProcess(
-            args=["git", "ls-files"],
-            returncode=0,
-            stdout=("\0".join(tracked_paths) + "\0").encode("utf-8"),
-            stderr=b"",
-        )
-        with tempfile.TemporaryDirectory() as tmp:
-            with patch("sagekit.check.subprocess.run", return_value=result) as run:
-                findings = check_source_tracked_runtime(Path(tmp))
+        findings = check_source_tracked_runtime_paths(tracked_paths)
 
-        self.assertEqual(run.call_args.args[0], ["git", "ls-files", "-z"])
         self.assertEqual(findings[0].level, "FAIL")
         self.assertIn("docs/M1/phase.md", findings[0].message)
         self.assertIn(double_digit_milestone, findings[0].message)

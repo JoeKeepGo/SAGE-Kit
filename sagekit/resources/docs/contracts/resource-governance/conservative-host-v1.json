@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "id": "conservative-host-v1",
+  "active_agent_limits": {
+    "light": 1,
+    "standard": 3,
+    "heavy": 5
+  },
+  "writer_limits": {
+    "light": 1,
+    "standard": 1,
+    "heavy": 2
+  },
+  "writer_ownership": "worktree-scoped-heavy-guarded",
+  "allowed_resource_classes": [
+    "reasoning-only",
+    "repo-read",
+    "repo-write",
+    "cpu-heavy",
+    "io-heavy",
+    "package-build",
+    "runtime-exclusive",
+    "submit-exclusive"
+  ],
+  "host_limits": {
+    "cpu-heavy": 1,
+    "package-build": 1
+  },
+  "project_limits": {
+    "submit-exclusive": 1,
+    "git-index-mutation": 1,
+    "verification-controller": 1
+  },
+  "worktree_limits": {
+    "repo-write": 1,
+    "local-managed-command": 1
+  },
+  "verification_controller": "root-only",
+  "descendant_default": "reasoning-only",
+  "lease_requirements": {
+    "reasoning-only": [
+      "no-local-command"
+    ],
+    "repo-read": [
+      "workspace-binding"
+    ],
+    "repo-write": [
+      "workspace-binding",
+      "worktree-writer"
+    ],
+    "cpu-heavy": [
+      "workspace-binding",
+      "host-cpu-heavy"
+    ],
+    "io-heavy": [
+      "workspace-binding",
+      "host-io-heavy"
+    ],
+    "package-build": [
+      "workspace-binding",
+      "host-cpu-heavy",
+      "host-package-build"
+    ],
+    "runtime-exclusive": [
+      "workspace-binding",
+      "named-runtime-exclusive"
+    ],
+    "submit-exclusive": [
+      "workspace-binding",
+      "worktree-writer",
+      "git-common-index-mutation",
+      "git-common-submit"
+    ]
+  },
+  "wait_policy": {
+    "poll_interval_seconds": 1,
+    "max_wait_seconds": 300
+  },
+  "process_policy": {
+    "max_direct_managed_children": 1,
+    "max_owned_processes": 32,
+    "max_output_bytes": 65536,
+    "priority": "below-normal",
+    "thread_limit": 1
+  },
+  "containment_policy": {
+    "minimum_level": "MANAGED",
+    "hard_adapters_optional": [
+      "linux-cgroup-v2",
+      "macos-strong-sandbox"
+    ],
+    "soft_bypass_disclosed": true
+  }
+}

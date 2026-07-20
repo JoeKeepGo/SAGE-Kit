@@ -38,6 +38,11 @@ pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 ```
 
+上述真实 tag 是这些安装命令得到的稳定版本。本 README 后文的 Host Resource
+Governance、Workspace Binding、packet schema v2 与相关 CLI 示例属于当前
+`2026.7.20.1` source candidate；本文不声称它们已存在于 `v2026.7.19.2`。
+只有在明确 checkout 此 branch 或 commit 时才使用这些候选功能。
+
 进入需要采用 SAGE-Kit 的项目：
 
 ```bash
@@ -94,6 +99,12 @@ resolved rules。
 
 Installed Skill is not project authority。即使本地 Skill 缺失或版本较旧，
 resolution 仍由项目锁和 packaged versioned contract 决定。
+
+Packet schema v2 同时绑定 workspace 与 resolved `conservative-host-v1`
+policy。先用 `sagekit workspace verify` 验证，再通过
+`sagekit resource run` 启动本地 argv。受管进程树结果会报告 `HARD` 或
+`MANAGED`；对绕过 runtime 的命令仍只有 soft cooperative boundary，
+无法拦截绕过该 runtime 的命令。
 
 ## 安装 Skill
 
@@ -249,6 +260,7 @@ SAGE-Kit 不会把每项工作都变成 Heavy：
 | 隔离 Git 工作区 | [`WORKTREE_ISOLATION.md`](docs/agent/WORKTREE_ISOLATION.md) |
 | 可选工具和 Skills | [`CAPABILITY_ADAPTERS.md`](docs/agent/CAPABILITY_ADAPTERS.md) |
 | 执行限制和证据复用 | [`EXECUTION_ECONOMY.md`](docs/agent/EXECUTION_ECONOMY.md) |
+| Host 资源与 Workspace Binding | [`HOST_RESOURCE_GOVERNANCE.md`](docs/agent/HOST_RESOURCE_GOVERNANCE.md) |
 | Session 续接 | [`CONTINUITY_PROTOCOL.md`](docs/agent/CONTINUITY_PROTOCOL.md) |
 | 历史验证合同 | [`VALIDATION_CONTRACT_COMPATIBILITY.md`](docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md) |
 | 结构化 Task/Evidence | [`Task Dispatch Profile`](docs/profiles/task-dispatch/README.md) |

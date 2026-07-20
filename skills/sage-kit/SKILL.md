@@ -58,6 +58,37 @@ governance prose. A standalone compiled packet includes the resolved rules when
 the runtime cannot load the matching contract. Do not write compiled prose back
 to milestone or phase manifests, `ACTIVE_CONTEXT`, or `DOC_ROUTING`.
 
+## Host Resource And Workspace Boundary
+
+Resolve the independent `conservative-host-v1` Resource Policy for current or
+future execution; do not retrofit resource fields into accepted history.
+Packet schema v2 binds the canonical workspace and resolved resource policy.
+Before any local Git scan, test, build, wheel, virtual-environment, database, or
+browser command, resolve that policy. When the CLI is available, first use
+`sagekit workspace verify`, then route argv through `sagekit resource run`.
+Descendants default to reasoning-only. Reviewers do not rerun tests; they ask
+the Root verification controller for missing evidence.
+
+Independent verification nodes continuing means their logical results remain
+required; it does not authorize parallel CPU use. A node waiting for a lease is
+`WAITING_FOR_RESOURCE`, not `STOP` or `BLOCKED`, and continues automatically
+after release. Wave Readiness also requires Resource Readiness. Heavy work may
+use the policy's limited writers only in independent worktrees with disjoint
+writable paths and an integration owner; host CPU-heavy and package-build
+leases remain serial. Keep the detailed Resource Policy in its versioned
+contract and host-governance document rather than copying it into every phase
+or milestone.
+
+Containment reported by a managed run may be `HARD` or `MANAGED` according to
+its platform adapter. The guarantee that arbitrary direct commands cannot
+bypass the runtime remains `SOFT`: SAGE-Kit cannot intercept an agent, plugin,
+shell, or arbitrary child that does not use `resource run`. When the project contains
+`docs/agent/HOST_RESOURCE_GOVERNANCE.md`, use it for lease, wait, process-tree,
+and serial verification behavior. Thin adoption deliberately may not copy that
+generic document; when it is absent, use the packet's resolved resource policy
+and the installed CLI's packaged versioned contract instead of inventing a
+project-local file or rule.
+
 ## Core Rule
 
 Do not read every SAGE-Kit document by default. Start from the active project
@@ -198,6 +229,16 @@ handoff.
   retained regression, wheel/install, outside-source/package smoke, and full
   integration re-review; a non-consuming legacy preliminary counter is not
   authority to run them.
+- Before candidate freeze, run the diff-whitespace preflight. Safe extra EOF
+  blank lines, missing final newline, and trailing spaces/tabs route to
+  `AUTO_NORMALIZATION_CORRECTIVE` through an exact-file whitespace-only fixer;
+  Review/Closeout remains read-only. Do not request new user authority or return
+  `STOP_FOR_PM` for those ordinary findings. Never auto-normalize broad line
+  endings or generated, vendored, signed, frozen, accepted, historical,
+  deployed-migration, or byte/checksum-bound files. Candidate migrations are
+  eligible only when unaccepted and already writable. After a normalization
+  successor, run only diff-check, non-whitespace digest, related focused tests,
+  and targeted re-review; invalidate only affected or byte-sensitive evidence.
 - For one finding, run only the minimum reproduction and directly affected
   focused tests. At a lane gate, run only the affected-lane suite. After a
   corrective, run only targeted verification and targeted re-review. Reduce

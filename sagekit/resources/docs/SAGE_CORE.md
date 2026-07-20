@@ -42,6 +42,15 @@ compiled packet contains the resolved rules for runtimes without the matching
 contract. Compilation does not rewrite manifests, `ACTIVE_CONTEXT`, or
 `DOC_ROUTING`.
 
+Resource Policy is an independent version dimension. Current execution may
+resolve `conservative-host-v1` without adding fields to accepted history.
+Packet schema v2 carries its resolved policy and Workspace Binding. Before a
+managed local command, verify the packet with `sagekit workspace verify` and
+route argv through `sagekit resource run`. A managed run reports its actual
+`HARD` or `MANAGED` platform containment; interception of arbitrary commands
+that bypass the runtime remains only a `SOFT` guarantee.
+The reusable contract is in `docs/agent/HOST_RESOURCE_GOVERNANCE.md`.
+
 ## Bootstrap Maintainer Policy
 
 SAGE-Kit does not force maintainers of the SAGE-Kit source repository to manage

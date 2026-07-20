@@ -5,11 +5,14 @@ import hashlib
 import importlib.metadata
 import json
 import os
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Mapping, Sequence
+
+from sagekit.managed_execution import ManagedExecutionError, run_managed_command
+from sagekit.process_supervisor import ProcessResult
+from sagekit.resource_governor import ResourceClass
 
 
 class SmokeFailure(RuntimeError):
@@ -70,11 +73,13 @@ def installed_smoke_commands(python: Path) -> list[list[str]]:
         "root=importlib.resources.files('sagekit').joinpath('resources'); "
         "required=('contracts/v0/policy.json','contracts/v1/policy.json',"
         "'contracts/v2/policy.json',"
-        "'execution_documents/2026.7.19.3/contract.json',"
-        "'execution_documents/2026.7.19.3/project.schema.json',"
-        "'execution_documents/2026.7.19.3/milestone.schema.json',"
-        "'execution_documents/2026.7.19.3/phase.schema.json',"
-        "'execution_documents/2026.7.19.3/profiles/standard-phase-v1.json'); "
+        "'execution_documents/2026.7.20.1/contract.json',"
+        "'execution_documents/2026.7.20.1/project.schema.json',"
+        "'execution_documents/2026.7.20.1/milestone.schema.json',"
+        "'execution_documents/2026.7.20.1/phase.schema.json',"
+         "'execution_documents/2026.7.20.1/profiles/standard-phase-v1.json',"
+         "'resource_governance/conservative-host-v1.json',"
+         "'docs/agent/HOST_RESOURCE_GOVERNANCE.md'); "
         "missing=[item for item in required if not root.joinpath(item).is_file()]; "
         "assert not missing, f'missing packaged resources: {missing}'"
     )
@@ -84,6 +89,9 @@ def installed_smoke_commands(python: Path) -> list[list[str]]:
         [*prefix, "-m", "sagekit", "--version"],
         [*prefix, "-m", "sagekit", "check", "--help"],
         [*prefix, "-m", "sagekit", "packet", "compile", "--help"],
+        [*prefix, "-m", "sagekit", "workspace", "verify", "--help"],
+        [*prefix, "-m", "sagekit", "resource", "status", "--help"],
+        [*prefix, "-m", "sagekit", "resource", "run", "--help"],
         [*prefix, "-c", resource_probe],
     ]
 
@@ -131,8 +139,9 @@ def write_synthetic_thin_project(root: Path) -> None:
         root / "SAGE_PROJECT.json",
         {
             "schema_version": 1,
-            "sagekit_contract": "2026.7.19.3",
+            "sagekit_contract": "2026.7.20.1",
             "execution_document_model": "thin-v1",
+            "resource_contract": "conservative-host-v1",
             "effective_from": "M36",
             "legacy_documents": "immutable",
             "profiles": ["standard-milestone@v1", "standard-phase@v1"],
@@ -143,7 +152,7 @@ def write_synthetic_thin_project(root: Path) -> None:
         root / "docs/M36/MILESTONE_MANIFEST.json",
         {
             "schema_version": 1,
-            "sagekit_contract": "2026.7.19.3",
+            "sagekit_contract": "2026.7.20.1",
             "document_model": "thin-v1",
             "milestone_id": "M36",
             "objective": "Verify the installed thin execution-document runtime.",
@@ -171,12 +180,14 @@ def write_synthetic_thin_project(root: Path) -> None:
         root / "docs/M36/phases/P01.json",
         {
             "schema_version": 1,
-            "sagekit_contract": "2026.7.19.3",
+            "sagekit_contract": "2026.7.20.1",
             "document_model": "thin-v1",
             "phase_id": "P01",
             "objective": "Compile one deterministic standalone packet.",
             "depends_on": [],
             "execution_profile": "standard-phase@v1",
+            "resource_profile": "conservative-host-v1",
+            "resource_overrides": {},
             "permission_mode": "WRITE_AUTHORIZED",
             "owner": "package-smoke-controller",
             "writable_paths": ["src/synthetic.py"],
@@ -273,21 +284,29 @@ def run(
     *,
     cwd: Path,
     environment: Mapping[str, str],
-) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        list(command),
-        cwd=cwd,
-        env=dict(environment),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    if result.returncode != 0:
-        rendered = " ".join(command)
-        details = result.stderr.strip() or result.stdout.strip() or "no output"
-        raise SmokeFailure(f"command failed ({result.returncode}): {rendered}\n{details}")
-    return result
+    repository: Path | None = None,
+    stage: str = "wheel-smoke-command",
+    temp_root: Path | None = None,
+    timeout: float = 300.0,
+) -> ProcessResult:
+    try:
+        return run_managed_command(
+            cwd if repository is None else repository,
+            command,
+            resource_class=ResourceClass.PACKAGE_BUILD,
+            permission_mode="ENVIRONMENT_WRITE_AUTHORIZED",
+            controller="sagekit-root-verification-controller",
+            stage=stage,
+            run_id=f"wheel-smoke-{stage}",
+            timeout=timeout,
+            max_output_bytes=1024 * 1024,
+            environment=environment,
+            cwd=cwd,
+            temp_root=temp_root,
+            wait_timeout=300.0,
+        )
+    except ManagedExecutionError as exc:
+        raise SmokeFailure(str(exc)) from exc
 
 
 def find_built_wheel(wheelhouse: Path) -> Path:
@@ -317,22 +336,38 @@ def run_wheel_smoke(repository: Path) -> None:
             build_command(Path(sys.executable), repository, wheelhouse),
             cwd=outside_source,
             environment=environment,
+            repository=repository,
+            stage="wheel-build",
+            temp_root=workspace,
         )
         wheel = find_built_wheel(wheelhouse)
         run(
             [sys.executable, "-I", "-B", "-m", "venv", str(fresh_venv)],
             cwd=outside_source,
             environment=environment,
+            repository=repository,
+            stage="fresh-venv",
+            temp_root=workspace,
         )
         python = venv_python(fresh_venv)
         run(
             install_command(python, wheel),
             cwd=outside_source,
             environment=environment,
+            repository=repository,
+            stage="wheel-install",
+            temp_root=workspace,
         )
         for command in installed_smoke_commands(python):
             try:
-                run(command, cwd=outside_source, environment=environment)
+                run(
+                    command,
+                    cwd=outside_source,
+                    environment=environment,
+                    repository=repository,
+                    stage="installed-cli-smoke",
+                    temp_root=workspace,
+                )
             except SmokeFailure as exc:
                 if command[-3:] == ["packet", "compile", "--help"]:
                     raise SmokeFailure(
@@ -344,7 +379,14 @@ def run_wheel_smoke(repository: Path) -> None:
         write_synthetic_thin_project(synthetic_project)
         project_before = tree_digest(synthetic_project)
         thin_results = [
-            run(command, cwd=outside_source, environment=environment)
+            run(
+                command,
+                cwd=outside_source,
+                environment=environment,
+                repository=repository,
+                stage="installed-thin-smoke",
+                temp_root=workspace,
+            )
             for command in thin_smoke_commands(python, synthetic_project)
         ]
         try:

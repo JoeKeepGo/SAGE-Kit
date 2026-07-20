@@ -61,8 +61,13 @@ class WheelSmokeScriptTests(unittest.TestCase):
         flattened = "\n".join(" ".join(command) for command in commands)
         self.assertIn("-m sagekit --help", flattened)
         self.assertIn("-m sagekit packet compile --help", flattened)
+        self.assertIn("-m sagekit workspace verify --help", flattened)
+        self.assertIn("-m sagekit resource status --help", flattened)
+        self.assertIn("-m sagekit resource run --help", flattened)
         self.assertIn("importlib.resources", flattened)
-        self.assertIn("execution_documents/2026.7.19.3/phase.schema.json", flattened)
+        self.assertIn("execution_documents/2026.7.20.1/phase.schema.json", flattened)
+        self.assertIn("resource_governance/conservative-host-v1.json", flattened)
+        self.assertIn("docs/agent/HOST_RESOURCE_GOVERNANCE.md", flattened)
 
     def test_subprocess_environment_removes_source_import_overrides(self):
         wheel_smoke = load_wheel_smoke()
@@ -112,8 +117,10 @@ class WheelSmokeScriptTests(unittest.TestCase):
                     (root / "docs/M36/phases/P01.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual("thin-v1", lock["execution_document_model"])
+                self.assertEqual("conservative-host-v1", lock["resource_contract"])
                 self.assertEqual("M36", milestone["milestone_id"])
                 self.assertEqual("P01", phase["phase_id"])
+                self.assertEqual("conservative-host-v1", phase["resource_profile"])
 
         commands = wheel_smoke.thin_smoke_commands(python, project)
         flattened = "\n".join(" ".join(command) for command in commands)

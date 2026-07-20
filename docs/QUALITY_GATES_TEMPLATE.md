@@ -111,9 +111,11 @@ that contract.
 Mechanical verification noise is not a blocking finding when the verification
 command exits successfully. For example, `git diff --check` line-ending notices
 such as LF-to-CRLF conversion warnings are non-blocking warnings when exit code
-is `0`. Treat trailing whitespace, conflict markers, malformed patches, or any
-non-zero verification exit as blocking until resolved or explicitly waived by
-the required authority.
+is `0`. Ordinary EOF/trailing-whitespace findings use the pre-freeze
+`AUTO_NORMALIZATION_CORRECTIVE` contract in
+`docs/agent/EXECUTION_ECONOMY.md`; they do not directly become an artificial
+human blocker. Conflict markers, malformed patches, protected-byte findings,
+or any remaining non-zero verification exit still fail closed.
 
 ### Preauthorized Convergence Window Gate
 

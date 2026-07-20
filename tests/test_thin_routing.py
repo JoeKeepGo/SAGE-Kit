@@ -371,7 +371,7 @@ class ThinExecutionRoutingTests(unittest.TestCase):
             )
 
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertIn("SAGEKIT_GENERATED_PACKET_V1", result.stdout)
+            self.assertIn("SAGEKIT_GENERATED_PACKET_V2", result.stdout)
             self.assertIn('"packet_sha256"', result.stdout)
             self.assertEqual(before, tree_digest(root))
 

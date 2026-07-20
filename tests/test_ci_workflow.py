@@ -31,20 +31,35 @@ class SelfCheckWorkflowTests(unittest.TestCase):
         )
         self.assertIn("cancel-in-progress: true", text)
 
-    def test_matrix_keeps_all_supported_os_and_python_versions(self):
+    def test_unit_matrix_keeps_all_supported_os_and_python_versions(self):
         text = WORKFLOW.read_text(encoding="utf-8")
 
-        self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", text)
-        self.assertIn('python-version: ["3.10", "3.11", "3.12"]', text)
+        unit = self.job(text, "unit", "integration")
+        self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", unit)
+        self.assertIn('python-version: ["3.10", "3.11", "3.12"]', unit)
+        self.assertIn("python -B -m scripts.run_tests unit --json", unit)
 
-    def test_every_matrix_job_runs_fresh_venv_wheel_smoke(self):
+    def test_integration_and_package_use_one_python_per_platform(self):
         text = WORKFLOW.read_text(encoding="utf-8")
 
-        self.assertEqual(1, text.count("python -B scripts/wheel_smoke.py"))
-        wheel_step = re.search(
-            r"(?ms)^      - name: Run wheel install smoke\s*$\n"
-            r"(?P<body>.*?)(?=^      - name:|\Z)",
-            text,
-        )
-        self.assertIsNotNone(wheel_step, text)
-        self.assertNotIn("if:", wheel_step.group("body"))
+        integration = self.job(text, "integration", "package-process-resource-smoke")
+        package = self.job(text, "package-process-resource-smoke", None)
+        for job in (integration, package):
+            self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", job)
+            self.assertNotIn('python-version: ["3.10", "3.11", "3.12"]', job)
+            self.assertIn("python-version: \"3.12\"", job)
+        self.assertIn("python -B -m scripts.run_tests integration --json", integration)
+        self.assertIn("python -B -m scripts.run_tests package --json", package)
+
+    def test_expensive_package_flow_is_not_repeated_in_other_jobs(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertEqual(1, text.count("scripts.run_tests package --json"))
+        self.assertNotIn("python -B scripts/wheel_smoke.py", text)
+        self.assertEqual(1, text.count("scripts.run_tests integration --json"))
+
+    @staticmethod
+    def job(text: str, name: str, next_name: str | None) -> str:
+        start = text.index(f"  {name}:\n")
+        end = len(text) if next_name is None else text.index(f"  {next_name}:\n", start)
+        return text[start:end]

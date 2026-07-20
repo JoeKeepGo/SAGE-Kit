@@ -205,6 +205,31 @@ is bound to the successor, so the same batch cannot create another automatic
 candidate. Any change after final verification first returns `HANDOFF_READY`
 and persists state and evidence.
 
+### Mechanical Normalization Corrective
+
+Before candidate freeze, run a diff-whitespace preflight and classify extra
+blank lines at EOF, missing final newlines, trailing spaces/tabs, broad
+line-ending rewrites, and non-whitespace changes. The first three route to
+`AUTO_NORMALIZATION_CORRECTIVE` when the exact file is in writable scope and is
+not generated, vendored, signed, frozen, accepted, historical, deployed, or
+byte/checksum bound. This correction needs no new user authorization and never
+returns `STOP_FOR_PM` merely for ordinary EOF or trailing whitespace.
+
+The Review or Closeout Controller stays read-only and issues an exact-file,
+whitespace-only fixer receipt. The fixer verifies the finding's byte digest,
+changes no non-whitespace content, does not cross a symlink/reparse point, and
+cannot touch any unlisted file. A migration is eligible only when it is an
+unaccepted candidate already inside writable scope; accepted, applied, or
+hash-bound migrations hand off without modification. Broad CRLF/LF rewrites
+are never automatic, while ordinary successful Git CRLF notices remain
+non-blocking.
+
+After correction, run only `git diff --check`, the non-whitespace digest check,
+file-related focused tests, and targeted re-review. A changed exact candidate
+byte fingerprint creates a normalization successor. Invalidate only evidence
+covering the affected file or byte-sensitive inputs; do not mechanically rerun
+the full suite.
+
 When final verification finds a problem, diagnose and fix it with focused tests
 and close only the targeted re-review. Any code change requires a successor
 candidate; after that successor is frozen, it receives its one new final

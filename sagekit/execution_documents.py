@@ -15,6 +15,7 @@ PROJECT_LOCK_NAME = "SAGE_PROJECT.json"
 MILESTONE_MANIFEST_NAME = "MILESTONE_MANIFEST.json"
 DOCUMENT_MODEL = "thin-v1"
 SCHEMA_VERSION = 1
+RESOURCE_AWARE_CONTRACTS = frozenset({"2026.7.20.1"})
 PERMISSION_MODES = frozenset(
     {
         "READ_ONLY_REVIEW",
@@ -40,6 +41,7 @@ PROJECT_FIELDS = frozenset(
         "overrides",
     }
 )
+RESOURCE_PROJECT_FIELDS = PROJECT_FIELDS | {"resource_contract"}
 MILESTONE_FIELDS = frozenset(
     {
         "schema_version",
@@ -82,6 +84,7 @@ PHASE_FIELDS = frozenset(
         "state",
     }
 )
+RESOURCE_PHASE_FIELDS = PHASE_FIELDS | {"resource_profile", "resource_overrides"}
 GATE_FIELDS = frozenset(
     {"id", "applies_to", "status", "permission_mode", "authority_reference"}
 )
@@ -98,6 +101,7 @@ CONTRACT_FIELDS = frozenset(
         "profiles",
     }
 )
+RESOURCE_CONTRACT_FIELDS = CONTRACT_FIELDS | {"resource_contract"}
 PROFILE_FIELDS = frozenset({"schema_version", "id", "generic_rules", "policy"})
 
 
@@ -115,6 +119,7 @@ class ProjectLock:
     legacy_documents: str
     profiles: tuple[str, ...]
     overrides: Mapping[str, Mapping[str, Any]]
+    resource_contract: str | None
     digest: str
 
 
@@ -170,6 +175,8 @@ class PhaseManifest:
     stop_conditions: tuple[str, ...]
     handoff_target: str
     state: str
+    resource_profile: str | None
+    resource_overrides: Mapping[str, Any]
     digest: str
 
 
@@ -189,6 +196,7 @@ class ExecutionContract:
     overrideable_policy_keys: tuple[str, ...]
     profiles: Mapping[str, GovernanceProfile]
     resource_digests: Mapping[str, str]
+    resource_contract: str | None
     digest: str
 
 
@@ -240,17 +248,46 @@ def load_execution_project(
     from .policy_resolution import resolve_policy
 
     resolve_policy(project, milestone, None)
-    for phase in phases.values():
-        resolve_policy(project, milestone, phase)
+    from .resource_policy import ResourcePolicyError, resolve_resource_policy
+
+    try:
+        resolve_resource_policy(
+            resource_contract_id=lock.resource_contract,
+            resource_profile=None,
+            overrides=None,
+            permission_mode="READ_ONLY_REVIEW",
+            execution_profile=None,
+            milestone_packet=True,
+        )
+        for phase in phases.values():
+            resolve_policy(project, milestone, phase)
+            resolve_resource_policy(
+                resource_contract_id=lock.resource_contract,
+                resource_profile=phase.resource_profile,
+                overrides=phase.resource_overrides,
+                permission_mode=phase.permission_mode,
+                execution_profile=phase.execution_profile,
+                milestone_packet=False,
+            )
+    except ResourcePolicyError as exc:
+        raise ExecutionDocumentError(str(exc)) from exc
     return project
 
 
 def load_project_lock(root: Path) -> ProjectLock:
     path = root / PROJECT_LOCK_NAME
     payload, digest = _load_authority_json(root, path, "project lock")
-    _exact_fields(payload, PROJECT_FIELDS, "project lock")
+    raw_contract = _nonempty(
+        payload.get("sagekit_contract"), "project lock.sagekit_contract"
+    )
+    resource_aware = raw_contract in RESOURCE_AWARE_CONTRACTS
+    _exact_fields(
+        payload,
+        RESOURCE_PROJECT_FIELDS if resource_aware else PROJECT_FIELDS,
+        "project lock",
+    )
     _schema_version(payload, "project lock")
-    contract = _nonempty(payload.get("sagekit_contract"), "project lock.sagekit_contract")
+    contract = raw_contract
     if payload.get("execution_document_model") != DOCUMENT_MODEL:
         raise ExecutionDocumentError("project lock execution_document_model must be thin-v1")
     effective = _id(payload.get("effective_from"), MILESTONE_ID_RE, "effective_from")
@@ -265,6 +302,17 @@ def load_project_lock(root: Path) -> ProjectLock:
         if not isinstance(profile_id, str) or not isinstance(values, dict):
             raise ExecutionDocumentError("project lock overrides must map profile IDs to objects")
         normalized_overrides[profile_id] = dict(values)
+    resource_contract = None
+    if resource_aware:
+        resource_contract = _nonempty(
+            payload.get("resource_contract"), "project lock.resource_contract"
+        )
+        from .resource_policy import ResourcePolicyError, load_resource_contract
+
+        try:
+            load_resource_contract(resource_contract)
+        except ResourcePolicyError as exc:
+            raise ExecutionDocumentError(str(exc)) from exc
     return ProjectLock(
         path,
         SCHEMA_VERSION,
@@ -274,6 +322,7 @@ def load_project_lock(root: Path) -> ProjectLock:
         "immutable",
         profiles,
         normalized_overrides,
+        resource_contract,
         digest,
     )
 
@@ -288,12 +337,26 @@ def load_execution_contract(
         base = contract_root
     root = base.joinpath(lock.sagekit_contract)
     payload, digest = _load_json(root.joinpath("contract.json"), "execution contract")
-    _exact_fields(payload, CONTRACT_FIELDS, "execution contract")
+    resource_aware = lock.sagekit_contract in RESOURCE_AWARE_CONTRACTS
+    _exact_fields(
+        payload,
+        RESOURCE_CONTRACT_FIELDS if resource_aware else CONTRACT_FIELDS,
+        "execution contract",
+    )
     _schema_version(payload, "execution contract")
     if payload.get("contract_id") != lock.sagekit_contract:
         raise ExecutionDocumentError("execution contract contract_id does not match project lock")
     if payload.get("execution_document_model") != lock.execution_document_model:
         raise ExecutionDocumentError("execution contract document model does not match project lock")
+    resource_contract = None
+    if resource_aware:
+        resource_contract = _nonempty(
+            payload.get("resource_contract"), "execution contract.resource_contract"
+        )
+        if resource_contract != lock.resource_contract:
+            raise ExecutionDocumentError(
+                "execution contract resource contract does not match project lock"
+            )
     resource_digests: dict[str, str] = {"contract.json": digest}
     for key in ("project_schema", "milestone_schema", "phase_schema"):
         filename = _safe_resource_name(payload.get(key), f"execution contract.{key}")
@@ -349,6 +412,7 @@ def load_execution_contract(
         overrideable,
         profiles,
         dict(resource_digests),
+        resource_contract,
         composite,
     )
 
@@ -438,7 +502,12 @@ def load_phase_manifest(
     phase_id = _id(phase_id, PHASE_ID_RE, "phase ID")
     path = root / "docs" / milestone_id / "phases" / f"{phase_id}.json"
     payload, digest = _load_authority_json(root, path, f"phase manifest {phase_id}")
-    _exact_fields(payload, PHASE_FIELDS, f"phase manifest {phase_id}")
+    resource_aware = lock.sagekit_contract in RESOURCE_AWARE_CONTRACTS
+    _exact_fields(
+        payload,
+        RESOURCE_PHASE_FIELDS if resource_aware else PHASE_FIELDS,
+        f"phase manifest {phase_id}",
+    )
     _schema_version(payload, f"phase manifest {phase_id}")
     _matching_contract(payload, lock, f"phase manifest {phase_id}")
     actual_id = _id(payload.get("phase_id"), PHASE_ID_RE, "phase_id")
@@ -457,6 +526,18 @@ def load_phase_manifest(
     inherit_forbidden = payload.get("inherit_forbidden")
     if type(inherit_forbidden) is not bool:
         raise ExecutionDocumentError("inherit_forbidden must be boolean")
+    resource_profile = None
+    resource_overrides: Mapping[str, Any] = {}
+    if resource_aware:
+        resource_profile = _nonempty(
+            payload.get("resource_profile"), "phase resource_profile"
+        )
+        if resource_profile != lock.resource_contract:
+            raise ExecutionDocumentError("unknown or unpinned phase resource profile")
+        raw_resource_overrides = payload.get("resource_overrides")
+        if not isinstance(raw_resource_overrides, dict):
+            raise ExecutionDocumentError("phase resource_overrides must be an object")
+        resource_overrides = dict(raw_resource_overrides)
     return PhaseManifest(
         path,
         SCHEMA_VERSION,
@@ -482,6 +563,8 @@ def load_phase_manifest(
         _string_list(payload.get("stop_conditions"), "stop_conditions", nonempty=True),
         _nonempty(payload.get("handoff_target"), "handoff_target"),
         _enum(payload.get("state"), PHASE_STATES, "phase state"),
+        resource_profile,
+        resource_overrides,
         digest,
     )
 

@@ -1,11 +1,13 @@
 {
   "schema_version": 1,
-  "sagekit_contract": "2026.7.19.3",
+  "sagekit_contract": "2026.7.20.1",
   "document_model": "thin-v1",
   "phase_id": "P1",
   "objective": "Implement strict import-header validation for the sample service.",
   "depends_on": [],
   "execution_profile": "standard-phase@v1",
+  "resource_profile": "conservative-host-v1",
+  "resource_overrides": {},
   "permission_mode": "WRITE_AUTHORIZED",
   "owner": "phase-controller",
   "writable_paths": [

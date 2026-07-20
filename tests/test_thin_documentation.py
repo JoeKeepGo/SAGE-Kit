@@ -4,9 +4,11 @@ import json
 import unittest
 from pathlib import Path
 
+from sagekit import __version__
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CONTRACT_VERSION = "2026.7.19.3"
+CONTRACT_VERSION = "2026.7.20.1"
 SOURCE_CONTRACT_ROOT = (
     REPO_ROOT / "docs/contracts/execution-documents" / CONTRACT_VERSION
 )
@@ -30,6 +32,7 @@ PROJECT_KEYS = {
     "schema_version",
     "sagekit_contract",
     "execution_document_model",
+    "resource_contract",
     "effective_from",
     "legacy_documents",
     "profiles",
@@ -60,6 +63,8 @@ PHASE_KEYS = {
     "objective",
     "depends_on",
     "execution_profile",
+    "resource_profile",
+    "resource_overrides",
     "permission_mode",
     "owner",
     "writable_paths",
@@ -88,6 +93,9 @@ def load_json(path: Path) -> object:
 
 
 class ThinExecutionContractResourceTests(unittest.TestCase):
+    def test_package_candidate_version_matches_current_execution_contract(self):
+        self.assertEqual(CONTRACT_VERSION, __version__)
+
     def test_contract_sources_runtime_resources_and_packaged_docs_are_byte_identical(self):
         for relative in CONTRACT_FILES:
             with self.subTest(relative=relative):
@@ -108,6 +116,7 @@ class ThinExecutionContractResourceTests(unittest.TestCase):
                 "schema_version",
                 "contract_id",
                 "execution_document_model",
+                "resource_contract",
                 "project_schema",
                 "milestone_schema",
                 "phase_schema",
@@ -119,6 +128,7 @@ class ThinExecutionContractResourceTests(unittest.TestCase):
         self.assertEqual(contract["schema_version"], 1)
         self.assertEqual(contract["contract_id"], CONTRACT_VERSION)
         self.assertEqual(contract["execution_document_model"], "thin-v1")
+        self.assertEqual(contract["resource_contract"], "conservative-host-v1")
         self.assertEqual(
             contract["profiles"],
             {
@@ -241,9 +251,13 @@ class ThinTemplateTests(unittest.TestCase):
 
         milestone = load_json(REPO_ROOT / "docs/templates/THIN_MILESTONE_TEMPLATE.json")
         phase = load_json(REPO_ROOT / "docs/templates/THIN_PHASE_TEMPLATE.json")
+        project = load_json(REPO_ROOT / "docs/templates/SAGE_PROJECT_TEMPLATE.json")
+        self.assertEqual(project["resource_contract"], "conservative-host-v1")
         self.assertEqual(milestone["governance_profile"], "standard-milestone@v1")
         self.assertEqual(milestone["approval_gates"][0]["applies_to"], ["P1"])
         self.assertEqual(phase["execution_profile"], "standard-phase@v1")
+        self.assertEqual(phase["resource_profile"], "conservative-host-v1")
+        self.assertEqual(phase["resource_overrides"], {})
         self.assertTrue(milestone["authority_references"])
         self.assertTrue(phase["acceptance_criteria"])
         self.assertTrue(phase["verification_commands"])
@@ -251,6 +265,46 @@ class ThinTemplateTests(unittest.TestCase):
 
 
 class ThinDocumentationTests(unittest.TestCase):
+    def test_readmes_core_and_repository_skill_route_resource_governance(self):
+        readmes = "\n".join(
+            (REPO_ROOT / filename).read_text(encoding="utf-8")
+            for filename in ("README.md", "README.zh-CN.md")
+        ).casefold()
+        core = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8").casefold()
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(
+            encoding="utf-8"
+        ).casefold()
+        for text in (readmes, core, skill):
+            self.assertIn("conservative-host-v1", text)
+            self.assertIn("sagekit resource run", text)
+            self.assertIn("sagekit workspace verify", text)
+            self.assertIn("soft", text)
+
+    def test_resource_governance_document_is_packaged_and_states_containment_levels(self):
+        source = REPO_ROOT / "docs/agent/HOST_RESOURCE_GOVERNANCE.md"
+        packaged = REPO_ROOT / "sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md"
+        self.assertTrue(source.is_file(), source)
+        self.assertTrue(packaged.is_file(), packaged)
+        self.assertEqual(source.read_bytes(), packaged.read_bytes())
+        text = " ".join(source.read_text(encoding="utf-8").casefold().split())
+        for phrase in (
+            "conservative-host-v1",
+            "sagekit resource run",
+            "sagekit workspace verify",
+            "waiting_for_resource",
+            "soft guarantee",
+            "`hard`",
+            "`managed`",
+            "containment_level",
+            "windows-job-object-gated-v1",
+            "posix-session-process-group-v1",
+            "scripts.run_tests",
+            "job object",
+            "process group",
+        ):
+            self.assertIn(phrase, text)
+        self.assertIn("does not intercept", text)
+
     def test_readmes_explain_thick_kit_thin_project_and_migration_boundary(self):
         for filename in ("README.md", "README.zh-CN.md"):
             with self.subTest(readme=filename):

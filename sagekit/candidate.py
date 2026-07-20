@@ -4,12 +4,13 @@ import hashlib
 import json
 import os
 import stat
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .change_control import RunState
+from .managed_execution import ManagedExecutionError, run_managed_git
+from .normalization import NormalizationFinding, NormalizationReport, whitespace_preflight
 from .convergence import (
     ConvergenceEvidence,
     PreauthorizedConvergenceAuthority,
@@ -323,12 +324,145 @@ class CandidateFreezeResult:
     manual_budget_relaxation_required: bool = False
     finding_trend: str | None = None
     stop_reason: str | None = None
+    normalization_findings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class WorkingTreeSnapshot:
     digest: str
     paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RepositorySnapshot:
+    repository_root: str
+    head_sha: str
+    diff_hash: str
+    snapshot_mode: str
+    worktree_changes: tuple[str, ...]
+    working_tree: WorkingTreeSnapshot | None
+    collection_errors: tuple[str, ...] = ()
+    normalization_findings: tuple[NormalizationFinding, ...] = ()
+
+
+def collect_repository_snapshot(
+    repository_root: Path,
+    *,
+    snapshot_mode: str = "clean-head",
+) -> RepositorySnapshot:
+    """Collect candidate Git state once; comparison is handled by pure functions."""
+    root = _repository_root(repository_root)
+    return _collect_repository_snapshot(
+        root,
+        snapshot_mode=_normalize_snapshot_mode(snapshot_mode),
+    )
+
+
+def _collect_repository_snapshot(
+    root: Path,
+    *,
+    snapshot_mode: str,
+) -> RepositorySnapshot:
+    try:
+        normalization = whitespace_preflight(root)
+    except ValueError as exc:
+        normalization = NormalizationReport(())
+        normalization_error = f"diff whitespace preflight unavailable: {exc}"
+    else:
+        normalization_error = None
+    head_sha = _git_text(root, "rev-parse", "HEAD")
+    diff_hash = _diff_hash(root)
+    changes: tuple[str, ...] = ()
+    working_tree: WorkingTreeSnapshot | None = None
+    errors: tuple[str, ...] = (
+        (normalization_error,) if normalization_error is not None else ()
+    )
+    if snapshot_mode == "working-tree":
+        try:
+            working_tree = _working_tree_snapshot(root)
+        except ValueError as exc:
+            errors = errors + (f"working-tree snapshot unavailable: {exc}",)
+    else:
+        changes = _worktree_changes(root)
+    return RepositorySnapshot(
+        repository_root=str(root),
+        head_sha=head_sha,
+        diff_hash=diff_hash,
+        snapshot_mode=snapshot_mode,
+        worktree_changes=changes,
+        working_tree=working_tree,
+        collection_errors=errors,
+        normalization_findings=normalization.findings,
+    )
+
+
+def candidate_fingerprint_from_snapshot(
+    snapshot: RepositorySnapshot,
+    *,
+    contract_digest: str,
+    dependency_digest: str,
+    review_closed: bool,
+    corrective_batch_closed: bool,
+    generation: int = 1,
+    predecessor_digest: str | None = None,
+    fingerprint_version: int = 1,
+    corrective_batch_id: str | None = None,
+    authority_anchor: str | None = None,
+    root_cause_id: str | None = None,
+    open_findings_count: int | None = None,
+    no_progress_rounds: int = 0,
+    convergence_authority_digest: str | None = None,
+    convergence_authority_id: str | None = None,
+    execution_scope: str | None = None,
+    root_cause_family: str | None = None,
+    convergence_allowed_paths: tuple[str, ...] = (),
+    convergence_invariant: str | None = None,
+    convergence_semantic_change_policy: str | None = None,
+    convergence_stop_conditions: tuple[str, ...] = (),
+    finding_severity: int | None = None,
+    targeted_review_closed: bool = False,
+    finding_trend: str | None = None,
+    snapshot_authority: str | None = None,
+) -> CandidateFingerprint:
+    """Create the versioned fingerprint from an immutable repository snapshot."""
+    if snapshot.collection_errors:
+        raise ValueError("; ".join(snapshot.collection_errors))
+    working_tree = snapshot.working_tree
+    if snapshot.snapshot_mode == "working-tree" and working_tree is None:
+        raise ValueError("working-tree snapshot data is missing")
+    if snapshot.snapshot_mode == "clean-head" and working_tree is not None:
+        raise ValueError("clean-head snapshot contains working-tree snapshot data")
+    return CandidateFingerprint(
+        head_sha=snapshot.head_sha,
+        diff_hash=snapshot.diff_hash,
+        contract_digest=_required_digest(contract_digest, "contract"),
+        dependency_digest=_required_digest(dependency_digest, "dependency"),
+        review_closed=review_closed,
+        corrective_batch_closed=corrective_batch_closed,
+        generation=generation,
+        predecessor_digest=predecessor_digest,
+        fingerprint_version=fingerprint_version,
+        corrective_batch_id=corrective_batch_id,
+        authority_anchor=authority_anchor,
+        root_cause_id=root_cause_id,
+        open_findings_count=open_findings_count,
+        no_progress_rounds=no_progress_rounds,
+        convergence_authority_digest=convergence_authority_digest,
+        convergence_authority_id=convergence_authority_id,
+        execution_scope=execution_scope,
+        root_cause_family=root_cause_family,
+        convergence_allowed_paths=convergence_allowed_paths,
+        convergence_invariant=convergence_invariant,
+        convergence_semantic_change_policy=convergence_semantic_change_policy,
+        convergence_stop_conditions=convergence_stop_conditions,
+        finding_severity=finding_severity,
+        targeted_review_closed=targeted_review_closed,
+        finding_trend=finding_trend,
+        snapshot_mode=snapshot.snapshot_mode,
+        working_tree_digest=(working_tree.digest if working_tree is not None else None),
+        snapshot_paths=(working_tree.paths if working_tree is not None else ()),
+        snapshot_authority=snapshot_authority,
+    )
 
 
 def freeze_candidate(
@@ -399,28 +533,56 @@ def freeze_candidate(
             "; ".join(missing),
             mismatches=tuple(missing),
         )
-    working_snapshot: WorkingTreeSnapshot | None = None
+    initial_snapshot = _collect_repository_snapshot(
+        root,
+        snapshot_mode=normalized_snapshot_mode,
+    )
+    if initial_snapshot.collection_errors:
+        reason = initial_snapshot.collection_errors[0]
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
+        )
+    normalization = NormalizationReport(initial_snapshot.normalization_findings)
+    finding_labels = tuple(
+        f"{item.kind.value}:{item.path}:{item.reason}"
+        for item in normalization.findings
+    )
+    if normalization.handoff_findings:
+        reason = (
+            "mechanical whitespace finding touches protected or byte-bound content; "
+            "HANDOFF/PM review is required without modifying the file"
+        )
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=finding_labels,
+            stop_reason=reason,
+            normalization_findings=finding_labels,
+        )
+    if normalization.auto_findings:
+        return CandidateFreezeResult(
+            False,
+            RunState.AUTO_CORRECT,
+            "AUTO_NORMALIZATION_CORRECTIVE",
+            mismatches=finding_labels,
+            normalization_findings=finding_labels,
+        )
+    working_snapshot = initial_snapshot.working_tree
     if normalized_snapshot_mode == "clean-head":
-        changes = _worktree_changes(root)
-        if changes:
-            mismatch = "unexpected worktree changes: " + ", ".join(changes)
+        if initial_snapshot.worktree_changes:
+            mismatch = "unexpected worktree changes: " + ", ".join(
+                initial_snapshot.worktree_changes
+            )
             return CandidateFreezeResult(
                 False,
                 RunState.HANDOFF_READY,
                 mismatch,
                 mismatches=(mismatch,),
-            )
-    else:
-        try:
-            working_snapshot = _working_tree_snapshot(root)
-        except ValueError as exc:
-            reason = f"working-tree snapshot unavailable: {exc}"
-            return CandidateFreezeResult(
-                False,
-                RunState.HANDOFF_READY,
-                reason,
-                mismatches=(reason,),
-                stop_reason=reason,
             )
 
     snapshot_mode_changed = (
@@ -470,8 +632,8 @@ def freeze_candidate(
     no_progress_rounds = 0
     finding_trend: str | None = None
     if previous is not None:
-        assessment = assess_candidate(
-            root,
+        assessment = assess_candidate_snapshot(
+            initial_snapshot,
             previous,
             contract_digest=contract_digest,
             dependency_digest=dependency_digest,
@@ -780,18 +942,21 @@ def freeze_candidate(
             )
         finding_trend = convergence.trend
 
+    final_snapshot = _collect_repository_snapshot(
+        root,
+        snapshot_mode=normalized_snapshot_mode,
+    )
+    if final_snapshot.collection_errors:
+        reason = "final " + final_snapshot.collection_errors[0]
+        return CandidateFreezeResult(
+            False,
+            RunState.HANDOFF_READY,
+            reason,
+            mismatches=(reason,),
+            stop_reason=reason,
+        )
     if working_snapshot is not None:
-        try:
-            final_working_snapshot = _working_tree_snapshot(root)
-        except ValueError as exc:
-            reason = f"final working-tree snapshot unavailable: {exc}"
-            return CandidateFreezeResult(
-                False,
-                RunState.HANDOFF_READY,
-                reason,
-                mismatches=(reason,),
-                stop_reason=reason,
-            )
+        final_working_snapshot = final_snapshot.working_tree
         if final_working_snapshot != working_snapshot:
             reason = "working-tree snapshot changed after authority processing"
             return CandidateFreezeResult(
@@ -803,11 +968,10 @@ def freeze_candidate(
             )
         working_snapshot = final_working_snapshot
 
-    candidate = CandidateFingerprint(
-        head_sha=_git_text(root, "rev-parse", "HEAD"),
-        diff_hash=_diff_hash(root),
-        contract_digest=_required_digest(contract_digest, "contract"),
-        dependency_digest=_required_digest(dependency_digest, "dependency"),
+    candidate = candidate_fingerprint_from_snapshot(
+        final_snapshot,
+        contract_digest=contract_digest,
+        dependency_digest=dependency_digest,
         review_closed=True,
         corrective_batch_closed=True,
         generation=generation,
@@ -885,17 +1049,10 @@ def freeze_candidate(
             else False
         ),
         finding_trend=finding_trend,
-        snapshot_mode=normalized_snapshot_mode,
-        working_tree_digest=(
-            working_snapshot.digest if working_snapshot is not None else None
-        ),
-        snapshot_paths=(
-            working_snapshot.paths if working_snapshot is not None else ()
-        ),
         snapshot_authority=normalized_snapshot_authority,
     )
-    final_assessment = assess_candidate(
-        root,
+    final_assessment = assess_candidate_snapshot(
+        final_snapshot,
         candidate,
         contract_digest=_required_digest(contract_digest, "contract"),
         dependency_digest=_required_digest(dependency_digest, "dependency"),
@@ -933,13 +1090,40 @@ def assess_candidate(
             ("candidate fingerprint is missing",),
         )
     root = _repository_root(repository_root)
+    snapshot = _collect_repository_snapshot(
+        root,
+        snapshot_mode=candidate.snapshot_mode,
+    )
+    return assess_candidate_snapshot(
+        snapshot,
+        candidate,
+        contract_digest=contract_digest,
+        dependency_digest=dependency_digest,
+    )
+
+
+def assess_candidate_snapshot(
+    snapshot: RepositorySnapshot,
+    candidate: CandidateFingerprint | None,
+    *,
+    contract_digest: str,
+    dependency_digest: str,
+) -> CandidateAssessment:
+    """Compare a candidate to already-collected repository state without I/O."""
+    if candidate is None:
+        return CandidateAssessment(
+            False,
+            RunState.HANDOFF_READY,
+            "candidate fingerprint is missing",
+            ("candidate fingerprint is missing",),
+        )
     mismatches: list[str] = []
-    current_head = _git_text(root, "rev-parse", "HEAD")
+    current_head = snapshot.head_sha
     if candidate.head_sha != current_head:
         mismatches.append(
             f"HEAD differs: candidate={candidate.head_sha} current={current_head}"
         )
-    current_diff = _diff_hash(root)
+    current_diff = snapshot.diff_hash
     if candidate.diff_hash != current_diff:
         mismatches.append(
             f"diff hash differs: candidate={candidate.diff_hash} current={current_diff}"
@@ -958,12 +1142,10 @@ def assess_candidate(
         mismatches.append("candidate review is not closed")
     if not candidate.corrective_batch_closed:
         mismatches.append("candidate corrective batch is not closed")
+    mismatches.extend(snapshot.collection_errors)
     if candidate.snapshot_mode == "working-tree":
-        try:
-            current_snapshot = _working_tree_snapshot(root)
-        except ValueError as exc:
-            mismatches.append(f"working-tree snapshot unavailable: {exc}")
-        else:
+        current_snapshot = snapshot.working_tree
+        if current_snapshot is not None:
             if candidate.working_tree_digest != current_snapshot.digest:
                 mismatches.append(
                     "working-tree snapshot differs: "
@@ -973,7 +1155,7 @@ def assess_candidate(
             if candidate.snapshot_paths != current_snapshot.paths:
                 mismatches.append("working-tree snapshot paths differ")
     else:
-        changes = _worktree_changes(root)
+        changes = snapshot.worktree_changes
         if changes:
             mismatches.append("unexpected worktree changes: " + ", ".join(changes))
     if mismatches:
@@ -1299,18 +1481,15 @@ def _git_text(root: Path, *args: str) -> str:
 
 
 def _git_bytes(root: Path, *args: str) -> bytes:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise ValueError(
-            result.stderr.decode("utf-8", errors="replace").strip()
-            or f"git {' '.join(args)} failed"
+    try:
+        result = run_managed_git(
+            root,
+            args,
+            stage=f"candidate-git-{'-'.join(args[:2]) or 'command'}",
+            timeout=30.0,
         )
+    except ManagedExecutionError as exc:
+        raise ValueError(str(exc)) from exc
     return result.stdout
 
 

@@ -3,8 +3,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from sagekit.packet import PacketError, compile_packet, write_compiled_packet
+from sagekit.resource_governor import ResourceBusy
 from tests.test_thin_execution_documents import create_project
 
 
@@ -19,6 +21,52 @@ def tree_digest(root):
 
 
 class PacketCompileTests(unittest.TestCase):
+    def test_milestone_packet_can_write_compiler_owned_runtime_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            packet = compile_packet(root, "M36", contract_root=contracts)
+
+            output = write_compiled_packet(
+                root, ".sagekit/packets/M36.json", packet
+            )
+
+        self.assertEqual("M36.json", output.name)
+
+    def test_tampered_compiled_packet_is_rejected_before_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet.payload["resolved_resource_policy"][
+                "allowed_resource_classes"
+            ].append("submit-exclusive")
+
+            with self.assertRaisesRegex(PacketError, "digest|recognized"):
+                write_compiled_packet(
+                    root, ".sagekit/packets/tampered.json", packet
+                )
+
+            self.assertFalse((root / ".sagekit/packets/tampered.json").exists())
+
+    def test_busy_output_lease_is_an_operational_packet_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+
+            with patch(
+                "sagekit.packet.ResourceManager.acquire",
+                side_effect=ResourceBusy("repo writer occupied", state="HANDOFF_READY"),
+            ), self.assertRaisesRegex(PacketError, "HANDOFF_READY"):
+                write_compiled_packet(root, ".sagekit/packets/P2.json", packet)
+
     def test_standalone_and_compact_packets_are_stable_bound_and_pure(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
@@ -59,10 +107,27 @@ class PacketCompileTests(unittest.TestCase):
             "phase_manifest_sha256",
             "contract_sha256",
             "resolved_policy_sha256",
+            "resource_contract_sha256",
+            "resolved_resource_policy_sha256",
+            "workspace_binding_sha256",
         ):
             self.assertRegex(standalone.payload["bindings"][key], r"^[0-9a-f]{64}$")
-        rendered = json.dumps(standalone.payload, sort_keys=True)
-        self.assertNotIn(str(workspace), rendered)
+        self.assertEqual(
+            "conservative-host-v1",
+            standalone.payload["resolved_resource_policy"]["profile_id"],
+        )
+        self.assertEqual(
+            "root-only",
+            standalone.payload["resolved_resource_policy"]["verification_controller"],
+        )
+        self.assertEqual(
+            str(root.resolve()),
+            standalone.payload["workspace_binding"]["project_root"],
+        )
+        self.assertEqual(
+            standalone.payload["bindings"]["workspace_binding_sha256"],
+            standalone.payload["workspace_binding"]["binding_sha256"],
+        )
 
     def test_manifest_change_changes_packet_digest(self):
         with tempfile.TemporaryDirectory() as directory:

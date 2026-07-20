@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ from sagekit.execution_documents import (
     _reject_reparse_components,
     compare_milestone_ids,
     load_execution_project,
+    load_execution_contract,
 )
 from sagekit.policy_resolution import PolicyResolutionError, resolve_policy
 
@@ -169,6 +171,155 @@ def create_project(root, contract_root):
 
 
 class ThinExecutionDocumentTests(unittest.TestCase):
+    def test_v19_contract_resources_match_base_commit_bytes(self):
+        repository = Path(__file__).resolve().parents[1]
+        roots = (
+            "docs/contracts/execution-documents",
+            "sagekit/resources/docs/contracts/execution-documents",
+            "sagekit/resources/execution_documents",
+        )
+        for root in roots:
+            for name in ("milestone.schema.json", "phase.schema.json", "project.schema.json"):
+                relative = f"{root}/2026.7.19.3/{name}"
+                with self.subTest(relative=relative):
+                    expected = subprocess.run(
+                        ["git", "rev-parse", f"6669ba279169dfc2ccf3cc202788ae709f98b772:{relative}"],
+                        cwd=repository,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        text=True,
+                    ).stdout.strip()
+                    observed = subprocess.run(
+                        ["git", "hash-object", f"--path={relative}", relative],
+                        cwd=repository,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        text=True,
+                    ).stdout.strip()
+                    self.assertEqual(expected, observed)
+
+    def test_v20_uses_urn_ids_and_has_a_distinct_contract_digest(self):
+        repository = Path(__file__).resolve().parents[1]
+        contracts = repository / "sagekit/resources/execution_documents"
+        v19_lock = SimpleNamespace(
+            sagekit_contract="2026.7.19.3",
+            execution_document_model="thin-v1",
+            profiles=("standard-milestone@v1", "standard-phase@v1"),
+            resource_contract=None,
+        )
+        v20_lock = SimpleNamespace(
+            sagekit_contract="2026.7.20.1",
+            execution_document_model="thin-v1",
+            profiles=("standard-milestone@v1", "standard-phase@v1"),
+            resource_contract="conservative-host-v1",
+        )
+        v19 = load_execution_contract(v19_lock, contract_root=contracts)
+        v20 = load_execution_contract(v20_lock, contract_root=contracts)
+        self.assertNotEqual(v19.digest, v20.digest)
+        for name in ("milestone", "phase", "project"):
+            payload = json.loads(
+                (contracts / "2026.7.20.1" / f"{name}.schema.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                f"urn:sage-kit:execution-documents:2026.7.20.1:{name}",
+                payload["$id"],
+            )
+
+    def test_project_lock_selects_exact_version_without_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            self.assertEqual(
+                "2026.7.19.3",
+                load_execution_project(root, contract_root=contracts).contract.contract_id,
+            )
+            lock = project_payload()
+            lock["sagekit_contract"] = "2026.7.20.1"
+            lock["resource_contract"] = "conservative-host-v1"
+            write_json(root / "SAGE_PROJECT.json", lock)
+            for path in (root / "docs/M36").rglob("*.json"):
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["sagekit_contract"] = "2026.7.20.1"
+                if path.parent.name == "phases":
+                    payload["resource_profile"] = "conservative-host-v1"
+                    payload["resource_overrides"] = {}
+                write_json(path, payload)
+            package_contracts = repository = (
+                Path(__file__).resolve().parents[1]
+                / "sagekit/resources/execution_documents"
+            )
+            self.assertEqual(
+                "2026.7.20.1",
+                load_execution_project(root, contract_root=package_contracts).contract.contract_id,
+            )
+            lock["sagekit_contract"] = "2026.7.20.999"
+            write_json(root / "SAGE_PROJECT.json", lock)
+            with self.assertRaises(ExecutionDocumentError):
+                load_execution_project(root, contract_root=package_contracts)
+
+    def test_resource_aware_contract_pins_profile_without_copying_policy_body(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            for relative in (
+                "SAGE_PROJECT.json",
+                "docs/M36/MILESTONE_MANIFEST.json",
+                "docs/M36/phases/P1.json",
+                "docs/M36/phases/P2.json",
+            ):
+                path = root / relative
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["sagekit_contract"] = "2026.7.20.1"
+                if relative == "SAGE_PROJECT.json":
+                    payload["resource_contract"] = "conservative-host-v1"
+                elif "/phases/" in relative:
+                    payload["resource_profile"] = "conservative-host-v1"
+                    payload["resource_overrides"] = (
+                        {"runtime_exclusive": ["database:test-state", "port:4173"]}
+                        if relative.endswith("P2.json")
+                        else {}
+                    )
+                path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+            package_contracts = (
+                Path(__file__).resolve().parents[1]
+                / "sagekit/resources/execution_documents"
+            )
+            project = load_execution_project(
+                root, "M36", contract_root=package_contracts
+            )
+
+        self.assertEqual("conservative-host-v1", project.project_lock.resource_contract)
+        self.assertEqual("conservative-host-v1", project.phases["P2"].resource_profile)
+        self.assertEqual(
+            {"runtime_exclusive": ["database:test-state", "port:4173"]},
+            project.phases["P2"].resource_overrides,
+        )
+
+    def test_resource_aware_contract_rejects_missing_or_unknown_resource_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            lock_path = root / "SAGE_PROJECT.json"
+            lock = json.loads(lock_path.read_text(encoding="utf-8"))
+            lock["sagekit_contract"] = "2026.7.20.1"
+            lock["resource_contract"] = "unknown-resource-v1"
+            lock_path.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
+            package_contracts = (
+                Path(__file__).resolve().parents[1]
+                / "sagekit/resources/execution_documents"
+            )
+            with self.assertRaisesRegex(ExecutionDocumentError, "resource contract"):
+                load_execution_project(root, "M36", contract_root=package_contracts)
+
     def test_direct_load_rejects_pre_anchor_and_ambiguous_ordering(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)

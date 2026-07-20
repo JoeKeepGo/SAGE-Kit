@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "sagekit_contract": "2026.7.19.3",
+  "sagekit_contract": "2026.7.20.1",
   "document_model": "thin-v1",
   "milestone_id": "M36",
   "objective": "Add deterministic import validation for the sample service.",

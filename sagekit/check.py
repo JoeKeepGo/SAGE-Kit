@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
+from typing import Iterable
 
 from .findings import Finding
 from .modes import LEGACY_REQUIRED_DOCS, MODES, STANDARD_DOCS, recommended_docs_for_mode, required_docs_for_mode
+from .managed_execution import ManagedExecutionError, run_managed_git
 from .pathing import is_within, relative_repo_path
 from .validation_scope_manifest import (
     LOCAL_SCOPE_MANIFEST,
@@ -59,12 +61,20 @@ SOURCE_REQUIRED_FILES = [
     "docs/contracts/execution-documents/2026.7.19.3/phase.schema.json",
     "docs/contracts/execution-documents/2026.7.19.3/profiles/standard-milestone-v1.json",
     "docs/contracts/execution-documents/2026.7.19.3/profiles/standard-phase-v1.json",
+    "docs/contracts/execution-documents/2026.7.20.1/contract.json",
+    "docs/contracts/execution-documents/2026.7.20.1/project.schema.json",
+    "docs/contracts/execution-documents/2026.7.20.1/milestone.schema.json",
+    "docs/contracts/execution-documents/2026.7.20.1/phase.schema.json",
+    "docs/contracts/execution-documents/2026.7.20.1/profiles/standard-milestone-v1.json",
+    "docs/contracts/execution-documents/2026.7.20.1/profiles/standard-phase-v1.json",
+    "docs/contracts/resource-governance/conservative-host-v1.json",
     "docs/agent/GOVERNANCE_LEVELS.md",
     "docs/agent/SESSION_ORCHESTRATION.md",
     "docs/agent/CAPABILITY_ADAPTERS.md",
     "docs/agent/EXECUTION_ECONOMY.md",
     "docs/agent/CONTINUITY_PROTOCOL.md",
     "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
+    "docs/agent/HOST_RESOURCE_GOVERNANCE.md",
     "docs/profiles/task-dispatch/schemas/task.schema.json",
     "docs/profiles/task-dispatch/schemas/evidence.schema.json",
     "scripts/validate_task_dispatch.py",
@@ -91,6 +101,14 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/execution_documents.py",
     "sagekit/policy_resolution.py",
     "sagekit/packet.py",
+    "sagekit/managed_execution.py",
+    "sagekit/process_supervisor.py",
+    "sagekit/resource_cli.py",
+    "sagekit/resource_governor.py",
+    "sagekit/resource_policy.py",
+    "sagekit/test_node.py",
+    "sagekit/test_runner.py",
+    "sagekit/workspace_binding.py",
     "sagekit/reporting.py",
     "sagekit/validation_contracts/__init__.py",
     "sagekit/validation_contracts/frozen_validator.py",
@@ -117,6 +135,14 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/resources/execution_documents/2026.7.19.3/phase.schema.json",
     "sagekit/resources/execution_documents/2026.7.19.3/profiles/standard-milestone-v1.json",
     "sagekit/resources/execution_documents/2026.7.19.3/profiles/standard-phase-v1.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/contract.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/project.schema.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/milestone.schema.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/phase.schema.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/profiles/standard-milestone-v1.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/profiles/standard-phase-v1.json",
+    "sagekit/resources/resource_governance/conservative-host-v1.json",
+    "scripts/run_tests.py",
     "scripts/wheel_smoke.py",
     "tests/test_sagekit_check.py",
     "tests/test_frozen_contracts_and_containers.py",
@@ -292,10 +318,25 @@ def run_source_repo_check(start: Path) -> list[Finding]:
     findings.extend(check_source_resource_references(root))
     findings.extend(check_source_resource_mirrors(root))
     findings.extend(check_source_execution_document_mirrors(root))
+    findings.extend(check_source_resource_governance_mirrors(root))
     findings.extend(check_source_pyproject(root))
     findings.extend(check_source_gitignore(root))
-    findings.extend(check_source_tracked_runtime(root))
-    findings.extend(check_source_forbidden_runtime_stack(root))
+    try:
+        tracked_paths = collect_source_tracked_paths(root)
+    except ManagedExecutionError as exc:
+        findings.append(
+            Finding(
+                "WARN",
+                "source-tracked-snapshot",
+                None,
+                None,
+                f"could not collect managed git ls-files snapshot: {exc}",
+                "Resolve the Git capability failure before submit verification.",
+            )
+        )
+    else:
+        findings.extend(check_source_tracked_runtime_paths(tracked_paths))
+        findings.extend(check_source_forbidden_runtime_paths(tracked_paths))
     return findings
 
 
@@ -371,6 +412,76 @@ def check_source_execution_document_mirrors(root: Path) -> list[Finding]:
                 "docs/contracts/execution-documents",
                 None,
                 "versioned execution contract resources are missing",
+            )
+        )
+    return findings
+
+
+def check_source_resource_governance_mirrors(root: Path) -> list[Finding]:
+    """Require resource contract source and runtime resources to match exactly."""
+
+    source_root = root / "docs/contracts/resource-governance"
+    package_root = root / "sagekit/resources/resource_governance"
+    source_files = (
+        {
+            path.relative_to(source_root).as_posix(): path
+            for path in source_root.rglob("*")
+            if path.is_file()
+        }
+        if source_root.is_dir()
+        else {}
+    )
+    package_files = (
+        {
+            path.relative_to(package_root).as_posix(): path
+            for path in package_root.rglob("*")
+            if path.is_file()
+        }
+        if package_root.is_dir()
+        else {}
+    )
+    findings: list[Finding] = []
+    for relative in sorted(set(source_files) | set(package_files)):
+        source = source_files.get(relative)
+        packaged = package_files.get(relative)
+        display = f"docs/contracts/resource-governance/{relative}"
+        if source is None or packaged is None:
+            message = (
+                "packaged resource contract has no source counterpart"
+                if source is None
+                else "source resource contract has no packaged counterpart"
+            )
+            findings.append(
+                Finding("FAIL", "resource-governance-mirror", display, None, message)
+            )
+        elif source.read_bytes() != packaged.read_bytes():
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "resource-governance-mirror",
+                    display,
+                    None,
+                    "source and packaged resource contracts differ byte-for-byte",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    "PASS",
+                    "resource-governance-mirror",
+                    display,
+                    None,
+                    "source and packaged resource contracts match",
+                )
+            )
+    if not source_files and not package_files:
+        findings.append(
+            Finding(
+                "FAIL",
+                "resource-governance-mirror",
+                "docs/contracts/resource-governance",
+                None,
+                "versioned resource governance contracts are missing",
             )
         )
     return findings
@@ -713,14 +824,8 @@ def is_runtime_state_path(path: str) -> bool:
 
 def check_source_tracked_runtime(root: Path) -> list[Finding]:
     try:
-        result = subprocess.run(
-            ["git", "ls-files", "-z"],
-            cwd=root,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except OSError as exc:
+        tracked = collect_source_tracked_paths(root)
+    except ManagedExecutionError as exc:
         return [
             Finding(
                 "WARN",
@@ -731,21 +836,10 @@ def check_source_tracked_runtime(root: Path) -> list[Finding]:
                 "Run git ls-files manually before committing.",
             )
         ]
-    if result.returncode != 0:
-        return [
-            Finding(
-                "FAIL",
-                "source-tracked-runtime",
-                None,
-                None,
-                result.stderr.decode("utf-8", errors="replace").strip() or "git ls-files failed",
-            )
-        ]
-    tracked = [
-        part.decode("utf-8", errors="replace")
-        for part in result.stdout.split(b"\0")
-        if part
-    ]
+    return check_source_tracked_runtime_paths(tracked)
+
+
+def check_source_tracked_runtime_paths(tracked: Iterable[str]) -> list[Finding]:
     runtime_tracked = [path for path in tracked if is_runtime_state_path(path)]
     if runtime_tracked:
         return [
@@ -772,14 +866,8 @@ def check_source_tracked_runtime(root: Path) -> list[Finding]:
 
 def check_source_forbidden_runtime_stack(root: Path) -> list[Finding]:
     try:
-        result = subprocess.run(
-            ["git", "ls-files", "-z", "--", *FORBIDDEN_RUNTIME_STACK_PATHS],
-            cwd=root,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except OSError as exc:
+        tracked = collect_source_tracked_paths(root)
+    except ManagedExecutionError as exc:
         return [
             Finding(
                 "WARN",
@@ -790,29 +878,23 @@ def check_source_forbidden_runtime_stack(root: Path) -> list[Finding]:
                 "Confirm no Node or TypeScript runtime files were introduced.",
             )
         ]
-    if result.returncode != 0:
-        return [
-            Finding(
-                "FAIL",
-                "source-runtime-stack",
-                None,
-                None,
-                result.stderr.decode("utf-8", errors="replace").strip() or "git ls-files failed",
-            )
-        ]
-    tracked = [
-        part.decode("utf-8", errors="replace")
-        for part in result.stdout.split(b"\0")
-        if part
+    return check_source_forbidden_runtime_paths(tracked)
+
+
+def check_source_forbidden_runtime_paths(tracked: Iterable[str]) -> list[Finding]:
+    forbidden = [
+        path
+        for path in tracked
+        if any(fnmatchcase(path, pattern) for pattern in FORBIDDEN_RUNTIME_STACK_PATHS)
     ]
-    if tracked:
+    if forbidden:
         return [
             Finding(
                 "FAIL",
                 "source-runtime-stack",
                 None,
                 None,
-                "Node or TypeScript runtime files are tracked: " + ", ".join(tracked),
+                "Node or TypeScript runtime files are tracked: " + ", ".join(forbidden),
                 "Keep SAGE-Kit CLI runtime Python stdlib-only.",
             )
         ]
@@ -825,6 +907,21 @@ def check_source_forbidden_runtime_stack(root: Path) -> list[Finding]:
             "no Node or TypeScript runtime files are tracked",
         )
     ]
+
+
+def collect_source_tracked_paths(root: Path) -> tuple[str, ...]:
+    result = run_managed_git(
+        root,
+        ("ls-files", "-z"),
+        stage="source-check-git-ls-files",
+        run_id="source-check-git-ls-files",
+        timeout=30.0,
+    )
+    return tuple(
+        part.decode("utf-8", errors="replace")
+        for part in result.stdout.split(b"\0")
+        if part
+    )
 
 
 def check_required_docs(root: Path, required_docs: list[str] | None = None) -> list[Finding]:
