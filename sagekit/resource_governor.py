@@ -634,6 +634,40 @@ class ResourceManager:
         paths = tuple(self._path_for_claim(claim) for claim in record.claims)
         return ResourceLease(record, paths, registry, delegation_secret)
 
+    def bind_windows_gated_delegate(
+        self,
+        lease_id: str,
+        *,
+        delegation_secret: str,
+        delegate_pid: int,
+    ) -> None:
+        """Bind the real target launched by the trusted Windows Job bootstrap."""
+        if os.name != "nt":
+            raise PermissionError("gated delegation binding is Windows-only")
+        parent = self.load_lease(
+            lease_id, delegation_secret=delegation_secret
+        ).record
+        observed_parent = self._process_probe(parent.pid)
+        if (
+            _probe_is_unknown(parent.process_creation)
+            or _probe_is_unknown(observed_parent)
+            or observed_parent != parent.process_creation
+        ):
+            raise PermissionError("parent lease process is unavailable or its PID was reused")
+        if self._wall_clock() > parent.expires_at:
+            raise PermissionError("parent lease is expired")
+        if self._parent_pid_provider() != parent.pid:
+            raise PermissionError("gated bootstrap is not the direct child of the lease owner")
+        delegate_creation = self._process_probe(delegate_pid)
+        if _probe_is_unknown(delegate_creation):
+            raise PermissionError(
+                "gated delegation requires a reliable target process creation identity"
+            )
+        self._bind_or_verify_delegate(
+            parent,
+            identity=ProcessIdentity(delegate_pid, delegate_creation),
+        )
+
     def lease_covers(self, lease: ResourceLease, request: ResourceRequest) -> bool:
         """Return whether a live inherited lease already owns every requested claim."""
         self._validate_request(request)
@@ -960,7 +994,9 @@ class ResourceManager:
             raise PermissionError("parent lease process is unavailable or its PID was reused")
         if self._wall_clock() > parent.expires_at:
             raise PermissionError("parent lease is expired")
-        if self._parent_pid_provider() != parent.pid:
+        if self._parent_pid_provider() != parent.pid and not (
+            os.name == "nt" and self._wait_for_prebound_windows_delegate(parent)
+        ):
             raise PermissionError("delegation is not being used by the direct child process")
         self._bind_or_verify_delegate(parent)
         for actual, inherited, label in (
@@ -998,20 +1034,49 @@ class ResourceManager:
     def _delegation_binding_path(self, lease_id: str) -> Path:
         return self.host_runtime / "delegations" / lease_id
 
-    def _bind_or_verify_delegate(self, parent: LeaseRecord) -> None:
-        if _probe_is_unknown(self.process_identity.creation):
+    def _wait_for_prebound_windows_delegate(self, parent: LeaseRecord) -> bool:
+        expected = self._delegation_binding_payload(parent, self.process_identity)
+        path = self._delegation_binding_path(parent.lease_id) / "binding.json"
+        deadline = self._monotonic_clock() + 2.0
+        while True:
+            try:
+                observed = json.loads(path.read_text(encoding="utf-8"))
+            except (FileNotFoundError, json.JSONDecodeError):
+                observed = None
+            except OSError:
+                return False
+            if observed == expected:
+                return True
+            if observed is not None or self._monotonic_clock() >= deadline:
+                return False
+            self._sleep(min(0.05, deadline - self._monotonic_clock()))
+
+    @staticmethod
+    def _delegation_binding_payload(
+        parent: LeaseRecord, identity: ProcessIdentity
+    ) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "parent_lease_id": parent.lease_id,
+            "parent_nonce": parent.nonce,
+            "delegate_pid": identity.pid,
+            "delegate_process_creation": identity.creation,
+        }
+
+    def _bind_or_verify_delegate(
+        self,
+        parent: LeaseRecord,
+        *,
+        identity: ProcessIdentity | None = None,
+    ) -> None:
+        selected = self.process_identity if identity is None else identity
+        if _probe_is_unknown(selected.creation):
             raise PermissionError(
                 "delegation requires a reliable child process creation identity"
             )
         directory = self._delegation_binding_path(parent.lease_id)
         path = directory / "binding.json"
-        expected = {
-            "schema_version": 1,
-            "parent_lease_id": parent.lease_id,
-            "parent_nonce": parent.nonce,
-            "delegate_pid": self.process_identity.pid,
-            "delegate_process_creation": self.process_identity.creation,
-        }
+        expected = self._delegation_binding_payload(parent, selected)
         try:
             directory.parent.mkdir(parents=True, exist_ok=True)
             directory.mkdir()

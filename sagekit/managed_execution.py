@@ -37,6 +37,8 @@ _DELEGATION_ENVIRONMENT_KEYS = (
     "SAGEKIT_AUTHORITY_DIGEST",
     "SAGEKIT_PERMISSION_MODE",
     "SAGEKIT_CONTROLLER",
+    "SAGEKIT_DELEGATION_HOST_RUNTIME",
+    "SAGEKIT_DELEGATION_PROJECT_RUNTIME",
 )
 
 
@@ -220,6 +222,8 @@ def run_managed_command(
                     item.value for item in delegated_classes
                 ),
                 "SAGEKIT_CONTROLLER": lease.record.controller,
+                "SAGEKIT_DELEGATION_HOST_RUNTIME": str(manager.host_runtime),
+                "SAGEKIT_DELEGATION_PROJECT_RUNTIME": str(manager.project_runtime),
             }
         )
 

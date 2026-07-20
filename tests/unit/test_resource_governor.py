@@ -7,6 +7,7 @@ import unittest
 import json
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from sagekit.resource_governor import (
     ProcessIdentity,
@@ -57,6 +58,90 @@ def request(
 
 
 class ResourceGovernorTests(unittest.TestCase):
+    def test_windows_gated_target_is_prebound_without_authorizing_grandchild(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            clock = FakeClock()
+            creations = {
+                101: "parent-process",
+                202: "bootstrap-process",
+                303: "target-process",
+                404: "grandchild-process",
+            }
+            parent_manager = ResourceManager(
+                host_runtime=root / "host",
+                project_runtime=root / "project",
+                process_identity=ProcessIdentity(101, creations[101]),
+                process_probe=creations.get,
+                parent_pid_provider=lambda: 0,
+                wall_clock=clock.time,
+                monotonic_clock=clock.monotonic,
+                sleep=clock.sleep,
+            )
+            parent = parent_manager.acquire(
+                request(
+                    ResourceClass.PACKAGE_BUILD,
+                    run_id="windows-parent",
+                    allowed=(ResourceClass.PACKAGE_BUILD,),
+                )
+            )
+            inherited_request = replace(
+                request(
+                    ResourceClass.PACKAGE_BUILD,
+                    run_id="windows-target",
+                    allowed=(ResourceClass.PACKAGE_BUILD,),
+                ),
+                parent_lease_id=parent.lease_id,
+                descendant=True,
+                delegation_secret=parent.delegation_secret,
+            )
+            bootstrap = ResourceManager(
+                host_runtime=root / "host",
+                project_runtime=root / "project",
+                process_identity=ProcessIdentity(202, creations[202]),
+                process_probe=creations.get,
+                parent_pid_provider=lambda: 101,
+                wall_clock=clock.time,
+                monotonic_clock=clock.monotonic,
+                sleep=clock.sleep,
+            )
+
+            with patch("sagekit.resource_governor.os.name", "nt"):
+                bootstrap.bind_windows_gated_delegate(
+                    parent.lease_id,
+                    delegation_secret=parent.delegation_secret,
+                    delegate_pid=303,
+                )
+                target = ResourceManager(
+                    host_runtime=root / "host",
+                    project_runtime=root / "project",
+                    process_identity=ProcessIdentity(303, creations[303]),
+                    process_probe=creations.get,
+                    parent_pid_provider=lambda: 202,
+                    wall_clock=clock.time,
+                    monotonic_clock=clock.monotonic,
+                    sleep=clock.sleep,
+                )
+                inherited = target.load_lease(
+                    parent.lease_id, delegation_secret=parent.delegation_secret
+                )
+                self.assertTrue(target.lease_covers(inherited, inherited_request))
+
+                grandchild = ResourceManager(
+                    host_runtime=root / "host",
+                    project_runtime=root / "project",
+                    process_identity=ProcessIdentity(404, creations[404]),
+                    process_probe=creations.get,
+                    parent_pid_provider=lambda: 303,
+                    wall_clock=clock.time,
+                    monotonic_clock=clock.monotonic,
+                    sleep=clock.sleep,
+                )
+                with self.assertRaisesRegex(PermissionError, "direct child"):
+                    grandchild.lease_covers(inherited, inherited_request)
+
+            parent_manager.release(parent)
+
     def test_delegation_secret_is_private_and_bound_to_direct_child(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -797,14 +797,43 @@ def _windows_gated_bootstrap(encoded: str) -> int:
         return 126
     if sys.stdin.buffer.readline() != b"GO\n":
         return 125
+    target_environment = dict(os.environ)
+    host_runtime = target_environment.pop("SAGEKIT_DELEGATION_HOST_RUNTIME", None)
+    project_runtime = target_environment.pop("SAGEKIT_DELEGATION_PROJECT_RUNTIME", None)
+    lease_id = target_environment.get("SAGEKIT_LEASE_ID")
+    delegation_secret = target_environment.get("SAGEKIT_DELEGATION_SECRET")
     try:
         child = subprocess.Popen(
             list(argv),
             stdin=subprocess.DEVNULL,
             stdout=None,
             stderr=None,
+            env=target_environment,
             shell=False,
         )
+        if lease_id is not None:
+            if not delegation_secret or not host_runtime or not project_runtime:
+                child.terminate()
+                child.wait()
+                return 124
+            try:
+                package_root = str(Path(__file__).resolve().parents[1])
+                if package_root not in sys.path:
+                    sys.path.insert(0, package_root)
+                from sagekit.resource_governor import ResourceManager
+
+                ResourceManager(
+                    host_runtime=Path(host_runtime),
+                    project_runtime=Path(project_runtime),
+                ).bind_windows_gated_delegate(
+                    lease_id,
+                    delegation_secret=delegation_secret,
+                    delegate_pid=child.pid,
+                )
+            except (OSError, ValueError, PermissionError):
+                child.terminate()
+                child.wait()
+                return 124
         return child.wait()
     except OSError:
         return 127

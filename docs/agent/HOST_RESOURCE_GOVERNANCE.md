@@ -41,6 +41,11 @@ delegated lease cannot delegate again, and delegation credentials are scrubbed
 before it launches a managed child. Root-managed children receive no lease ID
 or secret unless the Root explicitly names executable delegated classes.
 
+On Windows, the trusted gated Job bootstrap is the physical direct child. It
+verifies the parent lease and pre-binds the real target's PID and creation
+identity before delegated reuse is accepted. Only that exact target identity is
+accepted; its children cannot reuse or transfer the delegation capability.
+
 ## Workspace binding
 
 Execution packet schema v2 binds the canonical repository, worktree and project
