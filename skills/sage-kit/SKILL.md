@@ -25,49 +25,53 @@ routing, project-specific milestone/phase facts, ledgers, evidence, and
 closeouts. It does not need to copy generic governance prose into each
 milestone or phase.
 
-## Thin Execution Documents
+## SPEC Sources And Thin Execution Documents
 
-SAGE-Kit is a governance interpreter, not a document-copying system. Generic
-governance belongs to this repository Skill and the pinned, versioned SAGE-Kit
-contract. Project documents retain project-specific authority, scope,
-exceptions, state, acceptance, and evidence.
+SAGE-Kit governs SPEC semantics and Harness execution contracts, not a fixed
+project documentation directory. Source adapters normalize Markdown, explicit
+paths, configured mappings, and legacy `docs/<M>` into one location-free model.
+Paths and adapter names are provenance and must not affect semantic identity.
 
-Two independent version dimensions exist:
+Use these scope classes: `ACTIVE_SPEC` for current execution authority,
+`ACTIVE_CONTEXT` for the compact handoff view, `ACCEPTED_HISTORY` for immutable
+accepted records, `REFERENCE_ONLY` for background, and `RUNTIME_STATE` for
+`.sagekit` state. Resolve source authority from explicit CLI source, configured
+active source, ACTIVE_CONTEXT Current Work Pointer, then the legacy adapter for
+an explicitly selected legacy milestone. Explicit or configured sources fail
+closed without fallback; ambiguity produces one aggregated scope error.
 
-- Task Dispatch validation contract: v0, v1, or v2.
-- Execution document model: `legacy-markdown` or `thin-v1`.
+Two independent version dimensions remain: Task Dispatch v0/v1/v2 and the
+execution document model `legacy-markdown` or `thin-v1`. Never treat `thin-v1`
+as Task Dispatch v3 or retrofit accepted history. Thin documents remove generic
+prose, not project-specific planning depth, and SAGE-Kit sets no universal
+maximum for Milestones, Waves, Phases, or changed files.
 
-Never treat `thin-v1` as Task Dispatch v3. Accepted historical documents remain
-immutable. An active milestone may use its explicit legacy model or its
-explicit thin model, but mixed, missing, or conflicting model authority fails
-closed without fallback.
+Installed Skill is not project authority. Use the project package/contract
+binding and packaged versioned resources even when a local Skill is missing or
+older. Default adoption is package-bound; framework vendoring is explicit
+compatibility only.
 
-For `thin-v1`, read the project lock at `SAGE_PROJECT.json`, then the selected
-`docs/<M>/MILESTONE_MANIFEST.json` and `docs/<M>/phases/<P>.json`. Resolve
-policy in this order: explicit project approval/gate, project-local override,
-pinned SAGE-Kit contract/profile, then runtime defaults. Conflicts fail closed.
-
-Installed Skill is not project authority. Do not use an Installed Skill's
-current files or version to infer the project contract. The project lock and
-packaged versioned resources control resolution even when a local Skill is
-missing or older.
-
-Use `sagekit packet compile` only to create an ephemeral packet. A compact
-packet binds the pinned profile and source digests without repeating generic
-governance prose. A standalone compiled packet includes the resolved rules when
-the runtime cannot load the matching contract. Do not write compiled prose back
-to milestone or phase manifests, `ACTIVE_CONTEXT`, or `DOC_ROUTING`.
+Use `sagekit packet compile` only to create an ephemeral packet. Check and
+compile are read-only unless the user explicitly selects a writing option. They
+must not rewrite source documents, ACTIVE_CONTEXT, runtime state, or accepted
+history. The complete scope and authority contract is packaged as
+`docs/agent/SPEC_SOURCE_CONTRACT.md`.
 
 ## Host Resource And Workspace Boundary
 
 Resolve the independent `conservative-host-v1` Resource Policy for current or
 future execution; do not retrofit resource fields into accepted history.
-Packet schema v2 binds the canonical workspace and resolved resource policy.
-Before any local Git scan, test, build, wheel, virtual-environment, database, or
-browser command, resolve that policy. When the CLI is available, first use
-`sagekit workspace verify`, then route argv through `sagekit resource run`.
-Descendants default to reasoning-only. Reviewers do not rerun tests; they ask
-the Root verification controller for missing evidence.
+Packet schema v3 adds normalized SPEC identity to the v2 canonical workspace
+and resolved resource-policy bindings.
+CLI help/version, read-only file access, deterministic config parsing,
+in-process SPEC normalization, `git status`, `git rev-parse`, and
+`git diff --name-only` execute directly without a heavy lease, Job Object, or
+adoption self-test. Focused validators/tests and bounded short Git subprocesses
+may use light managed execution. Full suites, builds, fresh installs,
+browser/runtime smoke, services, and descendant-producing tools use strict
+resource governance through `sagekit workspace verify` and
+`sagekit resource run`. Reviewers do not rerun tests; they ask the Root
+verification controller for missing evidence.
 
 Independent verification nodes continuing means their logical results remain
 required; it does not authorize parallel CPU use. A node waiting for a lease is
@@ -106,7 +110,7 @@ supports.
 
 1. Identify the active repository boundary and change-control state.
 2. Check for SAGE-Kit project markers:
-   - `docs/ACTIVE_CONTEXT.md`
+   - the configured `ACTIVE_CONTEXT` path or legacy `docs/ACTIVE_CONTEXT.md`
    - `docs/DOC_ROUTING.md`
    - `docs/PROJECT_PROFILE.md`
    - `docs/agent/AGENT_HARNESS.md`
@@ -126,7 +130,8 @@ supports.
 
 For a SAGE-Kit governed project:
 
-1. Read `docs/ACTIVE_CONTEXT.md`.
+1. Resolve and read the configured `ACTIVE_CONTEXT`; use
+   `docs/ACTIVE_CONTEXT.md` as the legacy default.
 2. Read `docs/DOC_ROUTING.md`.
 3. If `SAGE_PROJECT.json` exists, validate its explicit document model and
    contract pin. Read only the active thin manifest or legacy milestone/phase
@@ -194,6 +199,11 @@ handoff.
 
 ## Guardrails
 
+- Give each planning candidate at most one full planning review and require one
+  batched findings report. After C0/C1 or ledger/evidence/status-only changes,
+  run targeted verification and closure only. Rerun full lanes only for changed
+  semantics, permissions, source authority, or information architecture. A
+  zero diff is not readiness or acceptance evidence.
 - Treat C0 record-only maintenance as record ownership work. Run
   targeted record consistency verification only; do not rerun implementation tests or full
   review lanes when protected implementation evidence remains valid.
@@ -286,12 +296,12 @@ handoff.
   Project Manager decision, blocker handling, or waiver. A read-only review
   that returns `NEEDS_CORRECTION` must include a corrective packet, handoff, or
   blocker.
-- Do not let parallel workers or subagents edit `docs/ACTIVE_CONTEXT.md` or
-  `docs/DOC_ROUTING.md` directly. They must return memory update proposals for
-  controller integration.
-- Direct edits to `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md` require
-  both permission mode and ownership. If either is missing, return a memory
-  update proposal or no-change note.
+- Do not let parallel workers or subagents edit the configured ACTIVE_CONTEXT
+  (legacy default `docs/ACTIVE_CONTEXT.md`) or `docs/DOC_ROUTING.md` directly.
+  They must return memory update proposals for controller integration.
+- Direct edits to the configured ACTIVE_CONTEXT or `docs/DOC_ROUTING.md`
+  require both permission mode and ownership. If either is missing, return a
+  memory update proposal or no-change note.
 - Do not let SAGE-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
@@ -403,7 +413,7 @@ handoff.
 Before final handoff, commit, or completion:
 
 1. Run the required checks or state why they cannot run.
-2. Maintain `docs/ACTIVE_CONTEXT.md` by replacement, not append-only history,
+2. Maintain the configured `ACTIVE_CONTEXT` by replacement, not append-only history,
    only when permission mode and ownership allow direct writes; otherwise
    return a memory update proposal or no-change note.
 3. Update `docs/DOC_ROUTING.md` only when routing or document topology changed

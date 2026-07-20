@@ -214,6 +214,10 @@ def load_execution_project(
     milestone_id: str | None = None,
     *,
     contract_root: Path | None = None,
+    source_root: Path | None = None,
+    source_payload: Mapping[str, Any] | None = None,
+    source_path: Path | None = None,
+    required_phase_id: str | None = None,
 ) -> ExecutionProject:
     project_root = root.resolve(strict=False)
     if not project_root.is_dir():
@@ -225,23 +229,81 @@ def load_execution_project(
         raise ExecutionDocumentError(
             f"thin-v1 milestone {selected} precedes effective_from {lock.effective_from}"
         )
-    milestone = load_milestone_manifest(project_root, selected, lock)
-    phase_root = project_root / "docs" / selected / "phases"
-    discovered = {
-        path.stem
-        for path in phase_root.glob("*.json")
-        if path.is_file() or path.is_symlink()
-    }
+    if source_payload is not None:
+        if set(source_payload) != {"milestone", "phases"}:
+            raise ExecutionDocumentError(
+                "normalized source must contain exactly milestone and phases"
+            )
+        raw_milestone = source_payload.get("milestone")
+        raw_phases = source_payload.get("phases")
+        if not isinstance(raw_milestone, Mapping) or not isinstance(raw_phases, Mapping):
+            raise ExecutionDocumentError(
+                "normalized source milestone and phases must be objects"
+            )
+        if source_path is None:
+            raise ExecutionDocumentError("normalized source path is required")
+        milestone = load_milestone_manifest(
+            project_root,
+            selected,
+            lock,
+            payload=raw_milestone,
+            source_path=source_path,
+        )
+        discovered = set(raw_phases)
+    else:
+        selected_root = (
+            project_root / "docs" / selected
+            if source_root is None
+            else source_root
+        )
+        milestone = load_milestone_manifest(
+            project_root, selected, lock, source_root=selected_root
+        )
+        phase_root = selected_root / "phases"
+        discovered = {
+            path.stem
+            for path in phase_root.glob("*.json")
+            if path.is_file() or path.is_symlink()
+        }
     declared = set(milestone.phase_ids)
     extra = discovered - declared
     if extra:
         raise ExecutionDocumentError(
             "undeclared phase manifest(s): " + ", ".join(sorted(extra))
         )
-    phases = {
-        phase_id: load_phase_manifest(project_root, selected, phase_id, lock)
-        for phase_id in milestone.phase_ids
-    }
+    selected_phase_ids = set(milestone.phase_ids)
+    if required_phase_id is not None:
+        if required_phase_id not in milestone.phase_ids:
+            raise ExecutionDocumentError(f"unknown phase ID: {required_phase_id}")
+        selected_phase_ids = _dependency_closure(
+            milestone.dependency_dag, required_phase_id
+        )
+    phases = {}
+    for phase_id in milestone.phase_ids:
+        if phase_id not in selected_phase_ids:
+            continue
+        if source_payload is not None:
+            raw_phase = raw_phases.get(phase_id)
+            if not isinstance(raw_phase, Mapping):
+                raise ExecutionDocumentError(
+                    f"phase manifest {phase_id} is missing from normalized source"
+                )
+            phases[phase_id] = load_phase_manifest(
+                project_root,
+                selected,
+                phase_id,
+                lock,
+                payload=raw_phase,
+                source_path=source_path,
+            )
+        else:
+            phases[phase_id] = load_phase_manifest(
+                project_root,
+                selected,
+                phase_id,
+                lock,
+                source_root=selected_root,
+            )
     project = ExecutionProject(project_root, lock, contract, milestone, phases)
     validate_execution_project(project)
     # Policy validity and approval contradictions are part of loading fail-closed.
@@ -272,6 +334,22 @@ def load_execution_project(
     except ResourcePolicyError as exc:
         raise ExecutionDocumentError(str(exc)) from exc
     return project
+
+
+def _dependency_closure(
+    dag: Mapping[str, tuple[str, ...]], phase_id: str
+) -> set[str]:
+    selected: set[str] = set()
+
+    def include(node: str) -> None:
+        if node in selected:
+            return
+        selected.add(node)
+        for dependency in dag[node]:
+            include(dependency)
+
+    include(phase_id)
+    return selected
 
 
 def load_project_lock(root: Path) -> ProjectLock:
@@ -417,16 +495,33 @@ def load_execution_contract(
     )
 
 
-def load_milestone_manifest(root: Path, milestone_id: str, lock: ProjectLock) -> MilestoneManifest:
+def load_milestone_manifest(
+    root: Path,
+    milestone_id: str,
+    lock: ProjectLock,
+    *,
+    source_root: Path | None = None,
+    payload: Mapping[str, Any] | None = None,
+    source_path: Path | None = None,
+) -> MilestoneManifest:
     milestone_id = _id(milestone_id, MILESTONE_ID_RE, "milestone ID")
-    path = root / "docs" / milestone_id / MILESTONE_MANIFEST_NAME
-    payload, digest = _load_authority_json(root, path, "milestone manifest")
+    path = (
+        source_path
+        if source_path is not None
+        else (source_root or root / "docs" / milestone_id) / MILESTONE_MANIFEST_NAME
+    )
+    if payload is None:
+        loaded, digest = _load_authority_json(root, path, "milestone manifest")
+        payload = loaded
+    else:
+        payload = dict(payload)
+        digest = _canonical_payload_digest(payload)
     _exact_fields(payload, MILESTONE_FIELDS, "milestone manifest")
     _schema_version(payload, "milestone manifest")
     _matching_contract(payload, lock, "milestone manifest")
     actual_id = _id(payload.get("milestone_id"), MILESTONE_ID_RE, "milestone_id")
     if actual_id != milestone_id:
-        raise ExecutionDocumentError("milestone manifest ID does not match its path")
+        raise ExecutionDocumentError("milestone manifest ID does not match requested milestone")
     phase_ids = _string_list(payload.get("phase_ids"), "phase_ids", nonempty=True)
     for phase_id in phase_ids:
         _id(phase_id, PHASE_ID_RE, "phase ID")
@@ -497,11 +592,29 @@ def load_milestone_manifest(root: Path, milestone_id: str, lock: ProjectLock) ->
 
 
 def load_phase_manifest(
-    root: Path, milestone_id: str, phase_id: str, lock: ProjectLock
+    root: Path,
+    milestone_id: str,
+    phase_id: str,
+    lock: ProjectLock,
+    *,
+    source_root: Path | None = None,
+    payload: Mapping[str, Any] | None = None,
+    source_path: Path | None = None,
 ) -> PhaseManifest:
     phase_id = _id(phase_id, PHASE_ID_RE, "phase ID")
-    path = root / "docs" / milestone_id / "phases" / f"{phase_id}.json"
-    payload, digest = _load_authority_json(root, path, f"phase manifest {phase_id}")
+    path = (
+        source_path
+        if source_path is not None
+        else (source_root or root / "docs" / milestone_id)
+        / "phases"
+        / f"{phase_id}.json"
+    )
+    if payload is None:
+        loaded, digest = _load_authority_json(root, path, f"phase manifest {phase_id}")
+        payload = loaded
+    else:
+        payload = dict(payload)
+        digest = _canonical_payload_digest(payload)
     resource_aware = lock.sagekit_contract in RESOURCE_AWARE_CONTRACTS
     _exact_fields(
         payload,
@@ -512,7 +625,7 @@ def load_phase_manifest(
     _matching_contract(payload, lock, f"phase manifest {phase_id}")
     actual_id = _id(payload.get("phase_id"), PHASE_ID_RE, "phase_id")
     if actual_id != phase_id:
-        raise ExecutionDocumentError("phase manifest ID does not match its path")
+        raise ExecutionDocumentError("phase manifest ID does not match requested phase")
     permission = _permission(payload.get("permission_mode"), "phase permission_mode")
     writable = _path_list(root, payload.get("writable_paths"), "writable_paths")
     read_only = _reference_list(root, payload.get("read_only_references"), "read_only_references")
@@ -631,8 +744,14 @@ def _load_json(path: Any, label: str) -> tuple[dict[str, Any], str]:
         raise ExecutionDocumentError(f"{label} JSON is invalid: {exc}") from exc
     if not isinstance(payload, dict):
         raise ExecutionDocumentError(f"{label} must contain one JSON object")
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return payload, hashlib.sha256(canonical).hexdigest()
+    return payload, _canonical_payload_digest(payload)
+
+
+def _canonical_payload_digest(payload: Mapping[str, Any]) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(canonical).hexdigest()
 
 
 class _DuplicateKey(ValueError):

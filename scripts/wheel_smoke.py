@@ -5,6 +5,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Mapping, Sequence
 from sagekit.managed_execution import ManagedExecutionError, run_managed_command
 from sagekit.process_supervisor import ProcessResult
 from sagekit.resource_governor import ResourceClass
+from sagekit.spec_sources import package_identity
 
 
 class SmokeFailure(RuntimeError):
@@ -79,7 +81,8 @@ def installed_smoke_commands(python: Path) -> list[list[str]]:
         "'execution_documents/2026.7.20.1/phase.schema.json',"
          "'execution_documents/2026.7.20.1/profiles/standard-phase-v1.json',"
          "'resource_governance/conservative-host-v1.json',"
-         "'docs/agent/HOST_RESOURCE_GOVERNANCE.md'); "
+         "'docs/agent/HOST_RESOURCE_GOVERNANCE.md',"
+         "'docs/agent/SPEC_SOURCE_CONTRACT.md'); "
         "missing=[item for item in required if not root.joinpath(item).is_file()]; "
         "assert not missing, f'missing packaged resources: {missing}'"
     )
@@ -125,7 +128,17 @@ def write_synthetic_thin_project(root: Path) -> None:
     required_docs = {
         "docs/PROJECT_PROFILE.md": "# Project Profile\n\nSynthetic package smoke project.\n",
         "docs/QUALITY_GATES.md": "# Quality Gates\n\nRequire successful focused verification.\n",
-        "docs/ACTIVE_CONTEXT.md": "# Active Context\n\nValidate the synthetic thin-v1 project.\n",
+        "docs/ACTIVE_CONTEXT.md": (
+            "# Active Context\n\n"
+            "Current milestone: M36\n"
+            "Current wave/phase: none / P01\n"
+            "Current state: active\n"
+            "Current authority: SAGEKIT_CONFIG.json\n"
+            "Blockers: none\n"
+            "Next action: compile the synthetic packet\n"
+            "Key decisions: package-bound runtime identity\n"
+            "Evidence/closeout pointers: none\n"
+        ),
         "docs/DOC_ROUTING.md": (
             "# Document Routing\n\nRouting policy: read the active thin manifests.\n"
         ),
@@ -134,6 +147,21 @@ def write_synthetic_thin_project(root: Path) -> None:
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+
+    _write_json(
+        root / "SAGEKIT_CONFIG.json",
+        {
+            "schema_version": 1,
+            "project_id": "synthetic-package-smoke",
+            "adoption_profile": "package-bound",
+            "execution_scope": "active-only",
+            "active_context": "docs/ACTIVE_CONTEXT.md",
+            "package": package_identity(),
+            "sources": {
+                "M36": {"adapter": "thin-v1", "path": "docs/M36"}
+            },
+        },
+    )
 
     _write_json(
         root / "SAGE_PROJECT.json",
@@ -309,6 +337,61 @@ def run(
         raise SmokeFailure(str(exc)) from exc
 
 
+def run_trivial_probe(
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    environment: Mapping[str, str],
+    timeout: float = 30.0,
+    max_output_bytes: int = 256 * 1024,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run installed help/version/resource reads without a heavy lease or Job."""
+
+    joined = tuple(command)
+    if not joined:
+        raise SmokeFailure("trivial probe admission rejected empty command")
+    allowed = {
+        tuple(candidate) for candidate in installed_smoke_commands(Path(joined[0]))
+    }
+    if joined not in allowed:
+        raise SmokeFailure("trivial probe admission rejected non-metadata command")
+    try:
+        with tempfile.TemporaryFile() as stdout_stream, tempfile.TemporaryFile() as stderr_stream:
+            process = subprocess.run(
+                joined,
+                cwd=cwd,
+                env=dict(environment),
+                stdin=subprocess.DEVNULL,
+                stdout=stdout_stream,
+                stderr=stderr_stream,
+                shell=False,
+                timeout=timeout,
+                check=False,
+            )
+            stdout_size = os.fstat(stdout_stream.fileno()).st_size
+            stderr_size = os.fstat(stderr_stream.fileno()).st_size
+            if stdout_size > max_output_bytes or stderr_size > max_output_bytes:
+                raise SmokeFailure("installed metadata probe exceeded bounded output")
+            stdout_stream.seek(0)
+            stderr_stream.seek(0)
+            completed = subprocess.CompletedProcess(
+                process.args,
+                process.returncode,
+                stdout_stream.read(),
+                stderr_stream.read(),
+            )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SmokeFailure(f"installed metadata probe failed: {exc}") from exc
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or b"").decode(
+            "utf-8", errors="replace"
+        )
+        raise SmokeFailure(
+            f"installed metadata probe returned {completed.returncode}: {detail.strip()}"
+        )
+    return completed
+
+
 def find_built_wheel(wheelhouse: Path) -> Path:
     wheels = sorted(wheelhouse.glob("sagekit-*.whl"))
     if len(wheels) != 1:
@@ -360,13 +443,10 @@ def run_wheel_smoke(repository: Path) -> None:
         )
         for command in installed_smoke_commands(python):
             try:
-                run(
+                run_trivial_probe(
                     command,
                     cwd=outside_source,
                     environment=environment,
-                    repository=repository,
-                    stage="installed-cli-smoke",
-                    temp_root=workspace,
                 )
             except SmokeFailure as exc:
                 if command[-3:] == ["packet", "compile", "--help"]:

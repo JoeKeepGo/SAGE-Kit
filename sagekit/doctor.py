@@ -19,6 +19,75 @@ def run_doctor(start: Path) -> list[Finding]:
         Finding("PASS", "python-runtime", None, None, f"Python {platform.python_version()}"),
     ]
     source_repo = is_kit_source_repo(root)
+    if not source_repo:
+        from .spec_sources import (
+            SourceConfigurationError,
+            load_source_config,
+            resolve_active_context_path,
+            validate_package_binding,
+        )
+
+        try:
+            config = load_source_config(root)
+            if config is not None:
+                validate_package_binding(config)
+        except SourceConfigurationError as exc:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "project-authority",
+                    "SAGEKIT_CONFIG.json",
+                    None,
+                    str(exc),
+                )
+            )
+            findings.extend(check_task_dispatch_runtime())
+            return findings
+        if config is not None:
+            active_context = resolve_active_context_path(root, config)
+            try:
+                active_context_valid = (
+                    active_context.is_file()
+                    and bool(active_context.read_text(encoding="utf-8-sig").strip())
+                )
+            except (OSError, UnicodeError):
+                active_context_valid = False
+            if not active_context_valid:
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "active-context",
+                        relpath(root, active_context),
+                        None,
+                        "configured ACTIVE_CONTEXT is missing, empty, or unreadable",
+                    )
+                )
+                findings.extend(check_task_dispatch_runtime())
+                return findings
+            findings.append(
+                Finding(
+                    "PASS",
+                    "adopted-project",
+                    "SAGEKIT_CONFIG.json",
+                    None,
+                    f"{config.adoption_profile} project authority detected",
+                )
+            )
+            if config.adoption_profile == "package-bound":
+                findings.append(
+                    Finding(
+                        "PASS",
+                        "adoption-required-docs",
+                        relpath(root, active_context),
+                        None,
+                        "compact ACTIVE_CONTEXT and package authority replace framework document vendoring",
+                    )
+                )
+            else:
+                findings.extend(check_project_mode(root, source_repo, machine_authority=True))
+                findings.extend(check_adoption_docs(root, source_repo))
+            findings.extend(check_task_dispatch_runtime())
+            return findings
     findings.extend(check_project_mode(root, source_repo))
     findings.extend(check_adoption_docs(root, source_repo))
     findings.extend(check_package_entrypoint(root, source_repo))
@@ -26,7 +95,9 @@ def run_doctor(start: Path) -> list[Finding]:
     return findings
 
 
-def check_project_mode(root: Path, source_repo: bool) -> list[Finding]:
+def check_project_mode(
+    root: Path, source_repo: bool, *, machine_authority: bool = False
+) -> list[Finding]:
     if source_repo:
         return [
             Finding(
@@ -40,14 +111,24 @@ def check_project_mode(root: Path, source_repo: bool) -> list[Finding]:
         ]
     missing_required = [item for item in REQUIRED_DOCS if not (root / item).exists()]
     if not missing_required:
+        if machine_authority:
+            return []
         return [
             Finding(
                 "PASS",
                 "adopted-project",
                 "docs/",
                 None,
-                "SAGE-Kit adopted project documents detected",
-            )
+                "legacy SAGE-Kit project documents detected",
+            ),
+            Finding(
+                "WARN",
+                "project-authority",
+                "docs/",
+                None,
+                "legacy documents are compatible but do not prove package-bound adoption readiness",
+                "Add a validated machine-readable project identity, package binding, and active routing when migrating to the new scope contract.",
+            ),
         ]
     return [
         Finding(

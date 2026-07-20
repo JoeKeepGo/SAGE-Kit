@@ -1,105 +1,97 @@
 # SAGE-Kit Adoption
 
-Use this reference when a project is being evaluated for SAGE-Kit or when
-SAGE-Kit docs need to be bootstrapped.
+Use this reference when a project is being evaluated for SAGE-Kit or needs a
+small SAGE-Kit bootstrap.
 
-## Choose The Execution Document Model
+## Default Profile: Package-Bound
 
-Adoption must be explicit. Keep the established `legacy-markdown` path for an
-existing project unless the project creates a valid `SAGE_PROJECT.json` that
-pins `execution_document_model: thin-v1` and a versioned SAGE-Kit contract.
+New adoption binds the installed SAGE-Kit package and its canonical
+package version and safe runtime/resource manifest digest. The project retains only:
 
-For `thin-v1`, create project-specific authority only:
+- its own SPEC sources and human documents;
+- optional source-adapter and milestone mappings;
+- the configured `ACTIVE_CONTEXT` path, when it differs from the legacy default;
+- project-specific authority, gates, exceptions, acceptance, and evidence.
 
-- `SAGE_PROJECT.json` from `docs/templates/SAGE_PROJECT_TEMPLATE.json`;
-- `docs/<M>/MILESTONE_MANIFEST.json`;
-- `docs/<M>/phases/<P>.json`.
+Do not copy the SAGE-Kit runtime, schemas, generic docs, Skill, templates, tests,
+or a framework-file allowlist into the project. Generic governance comes from
+the pinned package contract. Installing the Skill for an agent runtime is a
+separate operation and does not vendor the framework into the project.
 
-Do not copy generic governance prose into these manifests. It stays in the
-pinned contract and profiles. Accepted historical legacy documents remain
-immutable, adoption does not migrate them, and a thin artifact without valid
-lock authority fails closed. Installed Skill is not project authority.
+Framework vendoring is an explicit compatibility profile only. Use it when an
+existing legacy project intentionally depends on local Kit documents; never
+select it merely because the project contains Markdown.
 
-## Fit Check
+## Choose The SPEC Source
 
-SAGE-Kit is useful when the project needs durable planning, explicit contracts,
-AI agent execution boundaries, quality gates, and repeatable handoff.
+Milestone documents remain first-class project assets and may live at any
+authorized project path. Resolve current execution authority in this order:
 
-Do not force SAGE-Kit onto a project when the user wants a small one-off script,
-throwaway prototype, or informal exploration without retained governance.
+1. explicit CLI source;
+2. project-configured active source or milestone mapping;
+3. `ACTIVE_CONTEXT` Current Work Pointer;
+4. legacy `docs/<M>` for an explicitly selected legacy milestone;
+5. one aggregated scope error.
+
+An explicit or configured source never silently falls back. Accepted history,
+reference folders, filenames, globs, and old status fields do not become current
+authority. See `docs/agent/SPEC_SOURCE_CONTRACT.md` for scope and adapter rules.
+
+Keep an established `legacy-markdown` project working without migration.
+`thin-v1` remains an execution document model, not a Task Dispatch version. Thin
+documents remove repeated generic prose; they do not reduce the required
+project-specific design, dependency, risk, acceptance, evidence, or stop
+condition depth.
 
 ## Bootstrap Order
 
-1. Confirm the active project boundary.
-2. If the project starts from a broad or non-technical idea, create:
-   - `docs/PROJECT_OWNER_INTAKE.md`
-   - `docs/CAPABILITY_MAP.md`
-   These are planning inputs, not implementation authorization.
-3. For `legacy-markdown`, copy the reusable core rules:
-   - `docs/SAGE_CORE.md`
-4. Create or adapt the Light baseline:
-   - `docs/PROJECT_PROFILE.md`
-   - `docs/QUALITY_GATES.md`
-   - `docs/ACTIVE_CONTEXT.md`
-   - `docs/DOC_ROUTING.md`
-5. Add `docs/TECHNICAL_DESIGN.md`, `docs/ENGINEERING_SYSTEM.md`, and
-   `docs/APPROVAL_GATES.md` when Standard/Heavy adoption is selected or project
-   risk requires them.
-6. Run Milestone Granularity Gate on milestone candidates. For projects that do
-   not use a capability map, record why roadmap granularity is already clear.
-7. Create `docs/MILESTONE_ROADMAP.md` only by promoting accepted candidates into
-   `docs/MILESTONE_ROADMAP.md`.
-8. For `legacy-markdown`, copy `docs/agent/` when AI agents will execute or
-   review work. Thin projects reference the pinned contract instead of copying
-   generic agent governance into milestone and phase manifests.
-9. Use `docs/agent/CAPABILITY_ADAPTERS.md` when the project expects optional
-   external skills, plugins, MCP tools, CLIs, CI, reviewers, frontend tools,
-   OpenSpec, GitNexus, browser QA, or database tools.
-10. Copy profile templates only when the project matches that profile.
-11. Create the first milestone using exactly one document model:
-   - For `legacy-markdown`, create `docs/M<ID>/00-entry-gate.md`,
-     `docs/M<ID>/MILESTONE_LEDGER.md`, and one Markdown phase document per
-     reviewable slice.
-   - For `thin-v1`, create `SAGE_PROJECT.json`,
-     `docs/M<ID>/MILESTONE_MANIFEST.json`, and one
-     `docs/M<ID>/phases/<P>.json` manifest per reviewable slice. Do not create
-     legacy active milestone or phase documents in that container.
-12. Do not create `MILESTONE_CLOSEOUT.md` until milestone closure.
+1. Confirm the project boundary and that adoption is explicitly requested.
+2. Select package-bound adoption unless compatibility vendoring is explicitly
+   requested.
+3. Record the installed package version and safe runtime/resource manifest digest.
+4. Record one machine-readable project identity.
+5. Identify the active SPEC source and adapter. Add a mapping only when the
+   legacy adapter is insufficient.
+6. Keep or create a compact `ACTIVE_CONTEXT` at the configured path. Existing
+   `docs/ACTIVE_CONTEXT.md` remains valid.
+7. Record project-specific profile, gates, authority, acceptance, and evidence
+   without copying generic governance prose.
+8. Run a read-only check. Do not create milestones, fixtures, checkpoints,
+   package mirrors, or generated packets unless the user selected the relevant
+   writing command.
 
-## Minimum Viable Specification
+For a broad or non-technical idea, establish the capability map and architecture
+boundary before promoting an executable milestone. SAGE-Kit imposes no generic
+maximum number of Milestones, Waves, Phases, or changed files; use dependency,
+risk, authority, and reviewability to choose the shape.
 
-For a new project, both models need project profile, architecture boundaries,
-quality/approval gates, active context, and document routing. Then choose one
-model-specific minimum:
+## History And Runtime State
 
-- `legacy-markdown`: copied SAGE Core rules, the first milestone entry gate,
-  milestone ledger, and at least one Markdown phase document.
-- `thin-v1`: `SAGE_PROJECT.json`, one thin milestone manifest, and at least one
-  thin phase manifest. Generic SAGE Core and agent policy stays in the pinned
-  contract/profile rather than being copied into the active milestone.
+Default checks inspect active authority only. Accepted history remains immutable
+and uses frozen contracts only through an explicit history audit or scope
+selection. Do not rewrite history to satisfy current schemas.
 
-Add a capability map for broad, non-technical, or coarse-roadmap projects.
+Keep leases, candidates, counters, checkpoints, and transient execution data in
+`.sagekit`, normally outside Git. `ACTIVE_CONTEXT` is a compact human/agent view,
+not the Harness state machine.
 
-## Adoption Stop Conditions
+Synthetic adoption and compile fixtures belong in test temporary directories,
+not in the inspected project. Create a temporary Git repository only when the
+behavior under test needs Git/worktree binding.
 
-Stop and ask for direction when:
+## Stop Conditions
 
-- the project goal is unclear;
-- a broad idea is being turned directly into an executable roadmap without a
-  capability map;
-- the architecture boundary cannot be stated;
-- approval gates are unknown;
-- the user wants low-process work that conflicts with SAGE-Kit;
-- adopting SAGE-Kit would require changing unrelated project files.
+Stop and ask for direction when the project boundary, active source, package
+binding, approval gates, or source authority is ambiguous; when the requested
+operation would modify accepted history; or when adoption requires unrelated or
+external writes.
+
+Do not stop for a path-display, EOF, blank-line, fixture-location, or ordinary
+formatting issue that can be classified and corrected safely. A zero diff is not
+proof that the SPEC, authority, evidence, or gates are ready.
 
 ## Output
 
-When bootstrapping, summarize:
-
-- files created or updated;
-- unresolved project decisions;
-- first milestone and phase boundary;
-- capability map and any candidate milestones not promoted;
-- optional capability adapters and fallbacks;
-- required verification and approval gates;
-- next action.
+Summarize the selected adoption profile, package/contract binding, active source
+and adapter, configured handoff path, files created or updated, unresolved
+authority or approval decisions, verification, and next action.

@@ -31,7 +31,7 @@ def git(root: Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
 
 
 class ManagedExecutionIntegrationTests(unittest.TestCase):
-    def test_managed_git_binds_workspace_acquires_repo_read_and_releases(self) -> None:
+    def test_bounded_readonly_git_is_direct_and_makes_no_orphan_claim(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             git(root, "init", "--initial-branch=main")
@@ -61,7 +61,11 @@ class ManagedExecutionIntegrationTests(unittest.TestCase):
             )
 
             self.assertEqual(expected, result.stdout.strip())
-            self.assertEqual(0, result.orphan_count)
+            self.assertIsNone(result.lease_id)
+            self.assertIsNone(result.orphan_count)
+            self.assertEqual("not-performed", result.orphan_check)
+            self.assertEqual("SOFT", result.containment_level)
+            self.assertFalse(result.containment_complete)
             self.assertTrue(result.cleanup_complete)
             manager, _ = manager_for_target(root)
             self.assertEqual((), manager.status())

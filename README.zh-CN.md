@@ -4,9 +4,9 @@
 
 AI 写代码很快，难的是让一个长期项目始终保持清晰。
 
-SAGE-Kit 用一套共享记录管理范围、决策、验证证据和下一步，让人和 Agent
-不必靠聊天记录维持项目状态。它适合跨越多个 Session 的项目，也适合那些
-不能只凭一句“已经完成”就接受结果的工作。
+SAGE-Kit 用共享的 SPEC 语义和 Harness runtime 管理范围、authority、执行、
+验证证据和 handoff，让人和 Agent 不必靠聊天记录维持项目状态。它适合跨越
+多个 Session 的项目，也适合那些不能只凭一句“已经完成”就接受结果的工作。
 
 SAGE-Kit 开源、使用 Python 编写，运行时没有第三方依赖。配套的 Agent
 Skill 可在 Codex、Claude Code、OpenCode 和 Kimi Work / Kimi Code CLI
@@ -39,7 +39,7 @@ uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 ```
 
 上述真实 tag 是这些安装命令得到的稳定版本。本 README 后文的 Host Resource
-Governance、Workspace Binding、packet schema v2 与相关 CLI 示例属于当前
+Governance、Workspace Binding、packet schema v3 与相关 CLI 示例属于当前
 `2026.7.20.1` source candidate；本文不声称它们已存在于 `v2026.7.19.2`。
 只有在明确 checkout 此 branch 或 commit 时才使用这些候选功能。
 
@@ -52,7 +52,9 @@ sagekit doctor
 sagekit check --mode light
 ```
 
-`init` 只创建起步文档，不会自动创建 Milestone、worktree、commit 或 push。
+默认 adoption 绑定已安装 package，只创建请求的少量项目配置或 handoff
+skeleton；framework vendoring 是显式 compatibility profile。`init` 不会自动
+创建 Milestone、worktree、commit 或 push。
 
 在源码仓库中也可以直接运行：
 
@@ -63,45 +65,49 @@ python -m sagekit check --source-repo
 
 需要 Python 3.10 或更高版本。
 
-## Thin Execution Documents
+## SPEC Sources 与 Thin Execution Documents
 
-SAGE-Kit 是 governance interpreter，不是文档复制系统。通用治理规则属于
-versioned kit contract；项目只保留版本锁、本地 override、authority、scope、
-state、acceptance 和 evidence。也就是：**thick kit, thin project**。
+SAGE-Kit 治理 SPEC 语义和 execution contract，而不是规定项目文档必须位于
+某个目录。Milestone 文档仍是重要项目资产；adapter 可以从显式路径、项目
+mapping 或 legacy `docs/<M>` 读取它们。Harness 只消费位置无关的 normalized
+SPEC model；source path 是 provenance，不是语义身份。
 
-项目显式采用时，在 `SAGE_PROJECT.json` 固定合同，并使用轻量 manifest：
-
-```text
-SAGE_PROJECT.json
-docs/M36/MILESTONE_MANIFEST.json
-docs/M36/phases/P1.json
-```
-
-先检查项目，只在执行时临时编译 packet：
+Legacy 项目无需迁移：
 
 ```bash
-sagekit check
-sagekit packet compile --target . --milestone M36 --phase P1
-sagekit packet compile --target . --milestone M36 --phase P1 --compact --json
+sagekit packet compile --target . --milestone M1
 ```
 
-编译默认输出到 stdout，不更新 manifest、`ACTIVE_CONTEXT` 或
-`DOC_ROUTING`。compact packet 引用精确的 pinned profile 和 digest；
-standalone compiled packet 为无法加载相同 kit contract 的 runtime 展开
-resolved rules。
-只有显式提供项目相对路径 `--output` 才会写文件；已有 generated packet
-仅能通过 `--overwrite-generated` 替换，未知文件永不覆盖。
+也可以显式选择项目授权的任意 source：
 
-`thin-v1` 是 execution document model，不是 Task Dispatch v3。现有
-`legacy-markdown` milestone 继续受支持，accepted historical documents
-保持 immutable。两种模型可以存在于同一项目，但同一个 active milestone
-不得混用。采用必须显式完成；不会自动迁移历史，也不会自动 downgrade。
+```bash
+sagekit packet compile --target . --milestone M1 --source specs/current/milestone.md
+```
+
+显式或配置 source 必须 fail closed，不能静默回退。compile 默认输出到
+stdout，不更新 source 文档或 `ACTIVE_CONTEXT`。现有
+`docs/ACTIVE_CONTEXT.md` 继续兼容，新项目可以配置其他路径。它是紧凑的
+current-truth/handoff 视图；lease、candidate、counter 和完整历史应进入
+`.sagekit`、ledger 或 closeout。
+
+默认 adoption 是 package-bound：项目只保存自己的 SPEC、少量配置以及已安装
+package 的 version 和安全 runtime/resource manifest digest，不复制 runtime、schema、通用 docs、
+Skill、template 或 tests。Framework vendoring 仅作为显式 compatibility 选项。
+
+`thin-v1` 只减少重复的通用治理文字，不降低规划深度，也不对 Milestone、
+Wave、Phase 或 changed files 设置统一上限。Accepted history 保持 immutable，
+只有显式选择 history scope 时才审计。权威的 authority、scope、history、
+resource admission 和 review 规则见
+[SPEC Source Contract](docs/agent/SPEC_SOURCE_CONTRACT.md)。
+
+现有 `SAGE_PROJECT.json` 和 `legacy-markdown` contract 继续兼容；升级不会
+静默迁移其历史。
 
 Installed Skill is not project authority。即使本地 Skill 缺失或版本较旧，
-resolution 仍由项目锁和 packaged versioned contract 决定。
+resolution 仍由项目 binding 和 packaged versioned contract 决定。
 
-Packet schema v2 同时绑定 workspace 与 resolved `conservative-host-v1`
-policy。先用 `sagekit workspace verify` 验证，再通过
+Packet schema v3 在 v2 workspace 与 resolved `conservative-host-v1` binding
+上增加 normalized SPEC identity。先用 `sagekit workspace verify` 验证，再通过
 `sagekit resource run` 启动本地 argv。受管进程树结果会报告 `HARD` 或
 `MANAGED`；对绕过 runtime 的命令仍只有 soft cooperative boundary，
 无法拦截绕过该 runtime 的命令。
@@ -109,8 +115,9 @@ policy。先用 `sagekit workspace verify` 验证，再通过
 ## 安装 Skill
 
 仓库在 [`skills/sage-kit`](skills/sage-kit) 提供同一个 Skill，可在多个
-Agent 运行时中使用。安装时请复制整个目录（包含 `references/`），然后
-重启或新开 Session，让运行时重新发现它。
+Agent 运行时中使用。安装时只在该运行时的 Skill 安装目录复制整个目录
+（包含 `references/`），然后重启或新开 Session。这个操作安装 Skill，
+不会把 SAGE-Kit framework vendor 到被治理项目。
 
 | 运行时 | 安装位置 | 显式调用 |
 |---|---|---|
@@ -174,7 +181,8 @@ flowchart LR
 
 一项普通任务通常只有五步：
 
-1. 读取 `ACTIVE_CONTEXT.md` 和 `DOC_ROUTING.md`。
+1. 读取配置的 `ACTIVE_CONTEXT` 和项目 routing；未配置自定义路径时继续使用
+   legacy `docs/ACTIVE_CONTEXT.md`。
 2. 确认范围、可写文件、Gate 和停止条件。
 3. 完成最小的已授权修改。
 4. 只运行受这次修改影响的验证。
@@ -189,7 +197,7 @@ flowchart LR
 | `PROJECT_PROFILE.md` | 项目是什么，以及架构由什么决定 |
 | `QUALITY_GATES.md` | 接受工作前必须证明什么 |
 | `APPROVAL_GATES.md` | 哪些决定和操作仍然需要人批准 |
-| `ACTIVE_CONTEXT.md` | 简短、最新的项目事实 |
+| 配置的 `ACTIVE_CONTEXT` | 简短、最新的项目事实和 handoff pointer |
 | `DOC_ROUTING.md` | 不同任务应该读取哪些文档 |
 | `MILESTONE_ROADMAP.md` | 可以独立评审的能力 Milestone |
 | Milestone ledger | 当前状态、证据、决策和阻塞 |

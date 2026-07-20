@@ -4,13 +4,11 @@
 
 AI can write code quickly. Keeping a long-running project coherent is harder.
 
-SAGE-Kit gives people and AI agents a shared record of scope, decisions,
-evidence, and what happens next. It is designed for projects where work spans
-many sessions and "the agent said it was done" is not enough.
+SAGE-Kit gives people and AI agents shared SPEC semantics and a Harness runtime for
+scope, authority, execution, evidence, and handoff across long-running projects.
 
-SAGE-Kit is open source, written in Python, and has no runtime dependencies.
-The companion agent skill runs on Codex, Claude Code, OpenCode, and Kimi
-Work / Kimi Code CLI.
+SAGE-Kit is open source, stdlib-only at runtime, and its companion skill runs on
+Codex, Claude Code, OpenCode, and Kimi Work / Kimi Code CLI.
 
 ## What It Helps With
 
@@ -38,11 +36,9 @@ pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.19.2
 ```
 
-That real tag is the stable version installed by the commands above. Host
-Resource Governance, Workspace Binding, packet schema v2, and the related CLI
-examples later in this README describe the current `2026.7.20.1` source
-candidate; they are not claimed to exist in `v2026.7.19.2`. Use the source
-candidate only when you intentionally check out this branch or commit.
+That tag is the stable version above. Host Resource Governance, Workspace Binding,
+packet schema v3, and related examples describe the current `2026.7.20.1` source
+candidate; use them only from an intentional checkout of this branch or commit.
 
 From the project you want to govern:
 
@@ -53,8 +49,9 @@ sagekit doctor
 sagekit check --mode light
 ```
 
-`init` creates the starting documents. It does not create milestones,
-worktrees, commits, or pushes.
+Default adoption binds the installed package and creates only a small project
+configuration and handoff skeleton. Framework vendoring is explicit compatibility;
+`init` does not create milestones, worktrees, commits, or pushes.
 
 To run directly from a checkout:
 
@@ -65,50 +62,52 @@ python -m sagekit check --source-repo
 
 Python 3.10 or newer is required.
 
-## Thin Execution Documents
+## SPEC Sources And Thin Execution Documents
 
-SAGE-Kit is a governance interpreter, not a document-copying system. Generic
-governance belongs to the versioned kit contract; a project keeps only its
-version lock, local overrides, authority, scope, state, acceptance, and
-evidence. In short: **thick kit, thin project**.
+SAGE-Kit governs SPEC semantics and execution contracts, not a mandatory documentation
+directory. Milestone documents remain important; an adapter may read an explicit path,
+project mapping, or legacy `docs/<M>`. The Harness consumes one location-free normalized
+SPEC model; source paths are provenance, not semantic identity.
 
-Opt-in projects pin the contract in `SAGE_PROJECT.json`, then use explicit
-manifests such as:
-
-```text
-SAGE_PROJECT.json
-docs/M36/MILESTONE_MANIFEST.json
-docs/M36/phases/P1.json
-```
-
-Validate the project, then compile an execution packet only when it is needed:
+Legacy projects keep working without migration:
 
 ```bash
-sagekit check
-sagekit packet compile --target . --milestone M36 --phase P1
-sagekit packet compile --target . --milestone M36 --phase P1 --compact --json
+sagekit packet compile --target . --milestone M1
 ```
 
-Compilation writes to stdout by default and does not update the manifests,
-`ACTIVE_CONTEXT`, or `DOC_ROUTING`. A compact packet references the exact
-pinned profile and digest. A standalone compiled packet includes the resolved
-rules for a runtime that cannot load the matching kit contract.
-Writing a packet requires an explicit project-relative `--output`; an existing
-generated packet is replaced only with `--overwrite-generated`, and unknown
-files are never overwritten.
+The same command can select an arbitrary project-authorized source:
 
-`thin-v1` is an execution document model, not Task Dispatch v3. Existing
-`legacy-markdown` milestones remain supported and accepted historical
-documents remain immutable. The two models may coexist in a project, but one
-active milestone may not mix them. Adoption is explicit; there is no automatic
-historical migration or downgrade.
+```bash
+sagekit packet compile --target . --milestone M1 --source specs/current/milestone.md
+```
 
-Installed Skill is not project authority. The project lock and its packaged,
+An explicit or configured source fails closed and never silently falls back. Compilation
+writes to stdout and does not update source documents or `ACTIVE_CONTEXT`. The legacy
+path remains supported and a custom path may be configured. It is a compact handoff view;
+leases, candidates, counters, and full history belong under `.sagekit` or in closeouts.
+
+Default adoption is package-bound: the project keeps its own SPEC, small
+configuration, and the installed package version plus safe runtime/resource
+manifest digest. It does
+not copy the runtime, schemas, generic docs, Skill, templates, or tests.
+Framework vendoring remains an explicit compatibility option.
+
+`thin-v1` removes repeated generic governance prose; it does not reduce planning
+depth or impose a universal maximum on Milestones, Waves, Phases, or changed
+files. Accepted history remains immutable and is audited only when history scope
+is explicitly requested. See the
+[SPEC Source Contract](docs/agent/SPEC_SOURCE_CONTRACT.md) for the canonical
+authority, scope, history, resource-admission, and review rules.
+
+Existing `SAGE_PROJECT.json` and `legacy-markdown` contracts remain compatible;
+no upgrade silently migrates their history.
+
+Installed Skill is not project authority. The project binding and packaged,
 versioned contract determine resolution even when a local Skill is missing or
 older.
 
-Packet schema v2 also binds the workspace and resolved
-`conservative-host-v1` policy. Verify it with `sagekit workspace verify`, then
+Packet schema v3 adds normalized SPEC identity to the v2 workspace and resolved
+`conservative-host-v1` bindings. Verify with `sagekit workspace verify`, then
 route local argv through `sagekit resource run`. Managed process-tree results
 report `HARD` or `MANAGED`; bypass interception remains a soft cooperative
 boundary; it cannot intercept a command that bypasses the runtime.
@@ -117,7 +116,9 @@ boundary; it cannot intercept a command that bypasses the runtime.
 
 The repository ships one skill at [`skills/sage-kit`](skills/sage-kit) that
 runs across agent runtimes. Copy the whole directory so `references/` ships
-with it, then restart or open a new session so the runtime discovers it.
+with it inside that runtime's Skill installation area, then restart or open a
+new session so the runtime discovers it. This installs the Skill; it does not
+vendor the SAGE-Kit framework into a governed project.
 
 | Runtime | Install | Invoke explicitly |
 |---|---|---|
@@ -183,7 +184,8 @@ flowchart LR
 
 A typical task follows five steps:
 
-1. Read `ACTIVE_CONTEXT.md` and `DOC_ROUTING.md`.
+1. Read the configured `ACTIVE_CONTEXT` and project routing; use the legacy
+   `docs/ACTIVE_CONTEXT.md` path when no custom path is configured.
 2. Confirm the active scope, writable files, gates, and stop conditions.
 3. Make the smallest authorized change.
 4. Run the verification affected by that change.
@@ -199,7 +201,7 @@ current routing points to them.
 | `PROJECT_PROFILE.md` | What the project is and what shapes its architecture |
 | `QUALITY_GATES.md` | What must be proven before work is accepted |
 | `APPROVAL_GATES.md` | Decisions and operations that still require a person |
-| `ACTIVE_CONTEXT.md` | Short, current project facts |
+| Configured `ACTIVE_CONTEXT` | Short, current project facts and handoff pointers |
 | `DOC_ROUTING.md` | Which documents to read for each kind of task |
 | `MILESTONE_ROADMAP.md` | Reviewable capability milestones |
 | Milestone ledger | Current milestone state, evidence, decisions, and blockers |

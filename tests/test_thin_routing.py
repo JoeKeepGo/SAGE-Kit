@@ -371,7 +371,7 @@ class ThinExecutionRoutingTests(unittest.TestCase):
             )
 
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertIn("SAGEKIT_GENERATED_PACKET_V2", result.stdout)
+            self.assertIn("SAGEKIT_GENERATED_PACKET_V3", result.stdout)
             self.assertIn('"packet_sha256"', result.stdout)
             self.assertEqual(before, tree_digest(root))
 
@@ -455,7 +455,7 @@ class ThinExecutionRoutingTests(unittest.TestCase):
                 (1, 1), (failed_check_text.returncode, failed_check_json.returncode)
             )
             self.assertEqual(
-                (1, 1), (failed_packet_text.returncode, failed_packet_json.returncode)
+                (2, 2), (failed_packet_text.returncode, failed_packet_json.returncode)
             )
             self.assertIn("project-contract", failed_check_text.stdout)
             self.assertTrue(
@@ -464,12 +464,10 @@ class ThinExecutionRoutingTests(unittest.TestCase):
                     for item in json.loads(failed_check_json.stdout)["findings"]
                 )
             )
-            self.assertIn("packet-compile", failed_packet_text.stdout)
-            self.assertTrue(
-                any(
-                    item["rule"] == "packet-compile"
-                    for item in json.loads(failed_packet_json.stdout)["findings"]
-                )
+            self.assertIn("packet compile: error", failed_packet_text.stderr)
+            self.assertEqual(
+                "configuration",
+                json.loads(failed_packet_json.stdout)["category"],
             )
 
     def test_overwrite_generated_requires_output(self):

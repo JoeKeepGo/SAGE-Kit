@@ -4,52 +4,46 @@ SAGE Core defines the reusable rules that every project using SAGE-Kit should
 follow. Project-specific details belong in project profiles, technical designs,
 milestones, and phase documents.
 
-## Execution Document Models
+## SPEC Sources And Execution Documents
 
-SAGE-Kit is a governance interpreter, not a document-copying system. Generic
-governance belongs to the repository Skill and versioned SAGE-Kit contracts.
-Project documents retain project-specific authority, scope, exceptions, state,
-acceptance, and evidence.
+SAGE-Kit defines SPEC semantics and Harness execution contracts, not a required
+project documentation directory. A SPEC Source Adapter reads Markdown, an
+explicit or configured source, or the legacy `docs/<M>` layout. The Harness
+consumes a normalized model in which paths are provenance rather than business
+identity. See `docs/agent/SPEC_SOURCE_CONTRACT.md` for the canonical scope,
+authority, history, adoption, and resource-admission contract.
 
-The execution document model is separate from the Task Dispatch validation
-contract:
+SAGE-Kit remains a governance interpreter: generic governance belongs to the
+pinned package contract, while project documents retain project-specific facts.
+A standalone compiled packet may carry resolved rules without making project
+documents repeat them.
 
-- `legacy-markdown` keeps the established milestone and phase document flow.
-- `thin-v1` uses `SAGE_PROJECT.json`,
-  `docs/<M>/MILESTONE_MANIFEST.json`, and `docs/<M>/phases/<P>.json`.
-- Task Dispatch versions remain v0, v1, and v2. `thin-v1` is not v3.
+The scope classes are `ACTIVE_SPEC`, `ACTIVE_CONTEXT`, `ACCEPTED_HISTORY`,
+`REFERENCE_ONLY`, and `.sagekit` `RUNTIME_STATE`. Resolve current authority from
+an explicit source, configured mapping, ACTIVE_CONTEXT Current Work Pointer,
+then legacy adapter for an explicitly selected legacy milestone. Explicit and
+configured sources fail closed without fallback. Ordinary checks are
+active-only; frozen history contracts run only for explicit history audit.
 
-Adoption is explicit. Accepted historical documents remain immutable, active
-legacy milestones continue through the legacy checker, and one active milestone
-must not mix legacy and thin execution documents. Missing, mixed, or conflicting
-document-model authority fails closed without downgrade.
+The execution document model remains separate from Task Dispatch. Existing
+`legacy-markdown` projects continue without migration. `thin-v1` removes
+repeated generic governance prose but does not reduce project-specific planning
+depth, and it is not Task Dispatch v3. SAGE-Kit sets no universal maximum for
+Milestones, Waves, Phases, or changed files.
 
-For `thin-v1`, policy resolution is deterministic:
+Default adoption binds the installed package and canonical contract/resource
+version and digest. Framework vendoring is opt-in compatibility. Installed
+Skill is not project authority.
 
-1. explicit project approval or gate;
-2. project-local override;
-3. pinned SAGE-Kit contract and profile;
-4. runtime default.
-
-Only policy keys declared overrideable by the pinned contract may be changed.
-Conflicting authority fails closed. Installed Skill is not project authority;
-the project lock and packaged versioned contract remain authoritative when a
-local Skill is missing or older.
-
-Use `sagekit packet compile` to create an ephemeral execution packet. Compact
-packets bind the exact contract/profile references and digests. A standalone
-compiled packet contains the resolved rules for runtimes without the matching
-contract. Compilation does not rewrite manifests, `ACTIVE_CONTEXT`, or
-`DOC_ROUTING`.
-
-Resource Policy is an independent version dimension. Current execution may
-resolve `conservative-host-v1` without adding fields to accepted history.
-Packet schema v2 carries its resolved policy and Workspace Binding. Before a
-managed local command, verify the packet with `sagekit workspace verify` and
-route argv through `sagekit resource run`. A managed run reports its actual
-`HARD` or `MANAGED` platform containment; interception of arbitrary commands
-that bypass the runtime remains only a `SOFT` guarantee.
-The reusable contract is in `docs/agent/HOST_RESOURCE_GOVERNANCE.md`.
+Use `sagekit packet compile` to create an ephemeral packet carrying scope,
+authority, dependency DAG, boundaries, evidence, stop conditions, and resource
+policy. Check and compile do not rewrite source documents, ACTIVE_CONTEXT,
+accepted history, or runtime state. Resource Policy remains an independent
+version dimension through `conservative-host-v1`, with honest `HARD`,
+`MANAGED`, and bypassable `SOFT`
+boundaries defined in `docs/agent/HOST_RESOURCE_GOVERNANCE.md`.
+Strict managed operations verify with `sagekit workspace verify` and then route
+through `sagekit resource run`; direct read-only admission does not.
 
 ## Bootstrap Maintainer Policy
 
@@ -159,14 +153,14 @@ requires explicit approval when it writes environment or user configuration.
 
 ## Local Runtime Boundary
 
-The `sagekit` CLI is a read-only governance runtime for diagnostics and
-structure checks, plus a bounded initializer for SAGE-Kit document skeletons
-and an ignored local continuity checkpoint. It exists below project authority:
+The `sagekit` CLI is a read-only governance runtime for diagnostics, normalized
+SPEC compilation, and structure checks, plus an explicit bounded initializer
+and ignored local continuity checkpoint. It exists below project authority:
 
-- `sagekit init` creates selected governance documents and support templates for
-  Light, Standard, or Heavy adoption. It must not create executable milestones,
-  task records, worktrees, commits, pushes, external config, or approval
-  decisions.
+- `sagekit init` defaults to a small package-bound project setup. Framework
+  documents and templates are copied only by an explicit vendored compatibility
+  profile. It must not create executable milestones, task records, worktrees,
+  commits, pushes, external config, or approval decisions.
 - `sagekit doctor` diagnoses repository and runtime state.
 - `sagekit check` checks SAGE-Kit documents and task/evidence records for
   review readiness.
@@ -193,11 +187,13 @@ All other work is non-trivial and requires a retained phase/task authority:
 either the selected legacy document or an explicitly adopted thin phase
 manifest.
 
-## Project Document Baselines
+## Legacy Project Document Baselines
 
-SAGE-Kit document requirements are proportional. Light adoption does not require
-teams to backfill Standard documents unless the selected mode, project risk, or
-active gate upgrades the work.
+These fixed paths describe the legacy compatibility profile, not the source
+contract for a package-bound project. Package-bound projects may map equivalent
+project facts from authorized locations. Requirements remain proportional;
+Light adoption does not require teams to backfill Standard documents unless the
+selected mode, project risk, or active gate upgrades the work.
 
 Light baseline:
 

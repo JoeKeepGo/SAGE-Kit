@@ -19,6 +19,21 @@ control over this policy.
 Classification is explicit. A path or extension alone cannot prove C0 or C1.
 Ambiguous classification is treated as C2 until resolved.
 
+## Resource Admission Boundary
+
+| Admission | Normal operations |
+|---|---|
+| Direct read-only | CLI help/version, file reads, deterministic config parsing, in-process normalized SPEC compilation, `git status`, `git rev-parse`, and `git diff --name-only` |
+| Light managed | Focused validators, focused unit tests, and bounded short Git subprocesses |
+| Strict governance | Full suites, wheel/package builds, fresh environments and installs, browser/runtime smoke, services, high CPU or memory work, and tools likely to create descendants |
+
+Direct read-only work acquires no heavy lease, starts no Job Object, and runs no
+adoption or containment self-test. Consumer adoption performs one lightweight
+capability detection; platform containment product probes belong to SAGE-Kit CI
+and release evidence. Do not widen timeouts to hide bootstrap cost. External
+processes still require bounded timeouts and output, stage heartbeats, and
+cleanup limited to the process tree owned by the current task.
+
 ## Bounded Corrective Authority
 
 C1 is automatically authorized only when all of these predicates are true:
@@ -365,9 +380,13 @@ manual relaxation.
 
 ## Review Convergence Contract
 
-The first reviewer report for a scope must batch all findings and classify them
-P0-P3. A corrective re-review checks only closure of original findings, direct
-regressions, new P0/P1, and authority or false-green P2.
+Each planning candidate receives at most one full planning review. The first
+reviewer report for that scope must batch all findings and classify them P0-P3.
+A corrective re-review checks only closure of original findings, direct
+regressions, new P0/P1, and authority or false-green P2. Ledger-, evidence-,
+status-, and pointer-only changes run only the affected record or Lane D/E
+equivalent review. Full lanes run again only for changed semantics, permissions,
+source authority, or information architecture.
 
 New ordinary P2/P3 outside direct regression enters backlog instead of expanding
 the active scope.
@@ -382,6 +401,10 @@ the active scope.
 The same root cause with no material reduction for two consecutive rounds is
 `BLOCKED`. A fixed round count alone is not a blocker; reaching a local review
 limit is `HANDOFF_READY`.
+
+A zero diff means only that the compared tracked content did not change. It is
+not evidence of planning readiness, accepted authority, gate closure, required
+verification, or completion.
 
 ## Runtime Outcomes
 

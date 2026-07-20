@@ -53,24 +53,37 @@ class ProcessBoundaryTests(unittest.TestCase):
         candidates = sorted((REPO_ROOT / "sagekit").glob("*.py")) + [
             REPO_ROOT / "scripts/wheel_smoke.py"
         ]
+        direct_admission = {
+            ("sagekit/managed_execution.py", "_run_bounded_readonly_git", "Popen"),
+            ("scripts/wheel_smoke.py", "run_trivial_probe", "run"),
+        }
+        observed_direct: set[tuple[str, str, str]] = set()
         violations: list[str] = []
         for path in candidates:
             if path.name == "process_supervisor.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-                    continue
-                owner = node.func.value
-                if (
-                    isinstance(owner, ast.Name)
-                    and owner.id == "subprocess"
-                    and node.func.attr in {"run", "Popen", "call", "check_call", "check_output"}
-                ):
-                    violations.append(
-                        f"{path.relative_to(REPO_ROOT).as_posix()}:{node.lineno}:{node.func.attr}"
-                    )
+            relative = path.relative_to(REPO_ROOT).as_posix()
+            for function in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
+                for node in ast.walk(function):
+                    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                        continue
+                    owner = node.func.value
+                    if (
+                        isinstance(owner, ast.Name)
+                        and owner.id == "subprocess"
+                        and node.func.attr
+                        in {"run", "Popen", "call", "check_call", "check_output"}
+                    ):
+                        identity = (relative, function.name, node.func.attr)
+                        if identity in direct_admission:
+                            observed_direct.add(identity)
+                        else:
+                            violations.append(
+                                f"{relative}:{function.name}:{node.lineno}:{node.func.attr}"
+                            )
         self.assertEqual([], violations)
+        self.assertEqual(direct_admission, observed_direct)
 
 
 if __name__ == "__main__":

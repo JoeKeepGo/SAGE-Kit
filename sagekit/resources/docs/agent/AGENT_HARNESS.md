@@ -5,18 +5,23 @@ The Agent Harness defines how AI agents work inside a SAGE-Kit project.
 The harness does not replace the project spec. It tells agents how to execute
 against the spec without losing context, widening scope, or hiding risk.
 
-## Execution Document Authority
+## SPEC And Execution Authority
 
-If `SAGE_PROJECT.json` is absent, established projects continue through the
-`legacy-markdown` workflow. If it is present, validate its
-`execution_document_model` and pinned contract before reading executable
-milestone documents. `thin-v1` routes to
-`docs/<M>/MILESTONE_MANIFEST.json` and `docs/<M>/phases/<P>.json`.
+The Harness consumes the normalized model defined by
+`docs/agent/SPEC_SOURCE_CONTRACT.md`, never a directory convention directly.
+`ACTIVE_SPEC` is current execution authority; `ACTIVE_CONTEXT` is its compact
+handoff view; `ACCEPTED_HISTORY` and `REFERENCE_ONLY` are non-executable; and
+leases, candidates, counters, and checkpoints are `.sagekit` `RUNTIME_STATE`.
 
-The thin manifests contain project authority and task facts. Generic governance
-comes from the pinned profile and must not be copied into each manifest. One
-active milestone cannot mix legacy and thin documents. Missing, unknown, or
-conflicting model/profile authority must not fall back.
+Resolve the source from explicit CLI selection, configured mapping,
+ACTIVE_CONTEXT Current Work Pointer, then the legacy `docs/<M>` adapter for an
+explicitly selected legacy milestone. Explicit and configured sources fail
+closed without fallback. Paths are provenance, not semantic identity.
+
+Thin sources contain project facts while generic governance comes from the
+pinned profile. Thin reduces repeated prose, not planning depth. Established
+legacy projects remain compatible, accepted history stays immutable, and
+missing or conflicting authority produces one aggregated scope finding.
 
 ## Operating Rules
 
@@ -55,14 +60,15 @@ conflicting model/profile authority must not fall back.
 - Do not invent missing contracts.
 - Do not use placeholder success for failed runtime behavior.
 - Do not touch closed approval gates.
-- Update durable docs before handoff.
-- Treat `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot.
+- Update durable project facts before handoff when ownership allows it.
+- Treat the configured `ACTIVE_CONTEXT`, with legacy default
+  `docs/ACTIVE_CONTEXT.md`, as a compact current-state snapshot.
 - Treat `docs/DOC_ROUTING.md` as stable routing metadata, not a progress log.
-- Treat `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` as
+- Treat the configured `ACTIVE_CONTEXT` and `docs/DOC_ROUTING.md` as
   controller-owned serial files during parallel or subagent work. Workers may
   read them and return a `Memory Update Proposal`, but must not edit them
   directly.
-- Direct edits to `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md` require both
+- Direct edits to the configured `ACTIVE_CONTEXT` or `docs/DOC_ROUTING.md` require both
   permission mode and ownership from the active role, phase, lane, or packet. If
   either is missing, return a `Memory Update Proposal` or an explicit no-change
   note instead of editing.
@@ -81,7 +87,8 @@ Strict Mode.
 
 ## Agent Startup Checklist
 
-1. Read `docs/ACTIVE_CONTEXT.md`.
+1. Resolve and read the configured `ACTIVE_CONTEXT`; use
+   `docs/ACTIVE_CONTEXT.md` as the legacy default.
 2. Read `docs/DOC_ROUTING.md`.
 3. Read the active thin manifest or legacy milestone ledger and phase document
    selected by project authority.
@@ -97,6 +104,12 @@ Strict Mode.
 9. Identify likely files, applicable specialist capabilities, and required
    verification.
 10. Report blockers before editing.
+
+Ordinary check and packet compilation are read-only. Synthetic fixtures belong
+in test temporary directories and must not create checkpoints, caches, bytecode,
+generated packets, or `.sagekit` state in the inspected project. Default checks
+inspect active authority only; history validation requires an explicit history
+audit or scope selection.
 
 ## Context Budget
 
@@ -252,7 +265,7 @@ Use Session Orchestration packets for milestone-level multi-session handoff:
 
 Before claiming `DONE`, committing, or handing off:
 
-1. Update `docs/ACTIVE_CONTEXT.md` only when the current milestone, phase,
+1. Update the configured `ACTIVE_CONTEXT` only when the current milestone, phase,
    objective, blocker, accepted state, or next action changed and the active
    permission mode plus ownership allow direct writes.
 2. Remove stale active-context entries instead of appending corrections when

@@ -882,7 +882,9 @@ class ScopeManifestPackagingTests(unittest.TestCase):
         for mode in ("light", "standard", "heavy"):
             destinations = {
                 item.destination
-                for item in init_files_for_mode(mode, package_resource_root())
+                for item in init_files_for_mode(
+                    mode, package_resource_root(), profile="vendored-legacy"
+                )
             }
             self.assertNotIn(LOCAL_SCOPE_MANIFEST, destinations)
 

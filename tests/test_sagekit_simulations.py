@@ -194,7 +194,10 @@ class SagekitSimulationTests(unittest.TestCase):
             target.mkdir()
             runner.mkdir()
 
-            init_result = run_sagekit("init", "--target", str(target), "--mode", "light", cwd=runner)
+            init_result = run_sagekit(
+                "init", "--target", str(target), "--mode", "light",
+                "--profile", "vendored-legacy", cwd=runner
+            )
             doctor_result = run_sagekit("doctor", "--target", str(target), cwd=runner)
             check_result = run_sagekit("check", "--target", str(target), "--mode", "light", "--json", cwd=runner)
 
@@ -252,7 +255,10 @@ class SagekitSimulationTests(unittest.TestCase):
             target.mkdir()
             runner.mkdir()
 
-            init_result = run_sagekit("init", "--target", str(target), "--mode", "heavy", cwd=runner)
+            init_result = run_sagekit(
+                "init", "--target", str(target), "--mode", "heavy",
+                "--profile", "vendored-legacy", cwd=runner
+            )
             write_heavy_phase(target)
 
             check_result = run_sagekit("check", "--target", str(target), "--mode", "heavy", "--json", cwd=runner)

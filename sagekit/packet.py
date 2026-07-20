@@ -15,9 +15,13 @@ from .execution_documents import (
     ExecutionDocumentError,
     _ensure_within,
     _repository_path,
-    load_execution_project,
 )
 from .policy_resolution import resolve_policy
+from .spec_sources import (
+    SourceConfigurationError,
+    SourceProvenance,
+    load_normalized_spec,
+)
 from .resource_policy import ResourcePolicyError, resolve_resource_policy
 from .resource_governor import (
     ResourceBusy,
@@ -36,11 +40,16 @@ from .workspace_binding import (
 )
 
 
-GENERATED_MARKER = "sagekit-packet-compile@v2"
+GENERATED_MARKER = "sagekit-packet-compile@v3"
+V2_GENERATED_MARKER = "sagekit-packet-compile@v2"
 LEGACY_GENERATED_MARKER = "sagekit-packet-compile@v1"
 
 
 class PacketError(ValueError):
+    pass
+
+
+class PacketConfigurationError(PacketError):
     pass
 
 
@@ -49,6 +58,7 @@ class CompiledPacket:
     mode: str
     payload: Mapping[str, Any]
     digest: str
+    provenance: SourceProvenance | None = None
 
     def to_json(self) -> str:
         return json.dumps(self.payload, indent=2, sort_keys=True) + "\n"
@@ -111,13 +121,21 @@ def compile_packet(
     milestone_id: str,
     phase_id: str | None = None,
     *,
+    source: Path | None = None,
     compact: bool = False,
     contract_root: Path | None = None,
 ) -> CompiledPacket:
     try:
-        project = load_execution_project(
-            root, milestone_id, contract_root=contract_root
+        normalized = load_normalized_spec(
+            root,
+            milestone_id,
+            source=source,
+            contract_root=contract_root,
+            phase_id=phase_id,
         )
+        project = normalized.project
+    except SourceConfigurationError as exc:
+        raise PacketConfigurationError(str(exc)) from exc
     except (ExecutionDocumentError, ValueError) as exc:
         raise PacketError(str(exc)) from exc
     milestone = project.milestone
@@ -184,6 +202,13 @@ def compile_packet(
             "dependency_dag": {
                 key: list(value) for key, value in milestone.dependency_dag.items()
             },
+            "waves": {
+                wave_id: {
+                    "depends_on": list(wave.depends_on),
+                    "phase_ids": list(wave.phase_ids),
+                }
+                for wave_id, wave in sorted(normalized.waves.items())
+            },
             "approval_gates": [_gate_payload(gate) for gate in milestone.approval_gates],
             "acceptance_criteria": list(milestone.acceptance_criteria),
             "invariants": list(milestone.invariants),
@@ -206,6 +231,14 @@ def compile_packet(
             "milestone_state": milestone.state,
             "state": phase.state,
             "depends_on": list(phase.depends_on),
+            "wave_id": next(
+                (
+                    wave_id
+                    for wave_id, wave in normalized.waves.items()
+                    if phase.phase_id in wave.phase_ids
+                ),
+                None,
+            ),
             "permission_mode": phase.permission_mode,
             "owner": phase.owner,
             "writable_paths": list(phase.writable_paths),
@@ -233,11 +266,12 @@ def compile_packet(
         "resource_contract_sha256": resource_policy.contract_digest,
         "resolved_resource_policy_sha256": resource_policy.digest,
         "workspace_binding_sha256": workspace_binding.digest,
+        "normalized_spec_sha256": normalized.semantic_digest,
         "profiles": dict(sorted(profile_bindings.items())),
     }
     body: dict[str, Any] = {
         "_generated_by": GENERATED_MARKER,
-        "schema_version": 2,
+        "schema_version": 3,
         "kind": "sagekit-ephemeral-execution-packet",
         "document_model": project.project_lock.execution_document_model,
         "sagekit_contract": project.project_lock.sagekit_contract,
@@ -246,6 +280,11 @@ def compile_packet(
         "target": {
             "milestone_id": milestone.milestone_id,
             "phase_id": phase.phase_id if phase is not None else None,
+        },
+        "source_contract": {
+            "model": "normalized-spec-v1",
+            "semantic_sha256": normalized.semantic_digest,
+            "active_class": "ACTIVE_SPEC",
         },
         "bindings": bindings,
         "resolved_policy": {
@@ -284,7 +323,9 @@ def compile_packet(
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = hashlib.sha256(canonical).hexdigest()
     body["packet_sha256"] = digest
-    return CompiledPacket(body["mode"], body, digest)
+    return CompiledPacket(
+        body["mode"], body, digest, provenance=normalized.provenance
+    )
 
 
 def write_compiled_packet(
@@ -300,7 +341,7 @@ def write_compiled_packet(
         relative = _repository_path(project_root, str(relative_output), "packet output")
     except ExecutionDocumentError as exc:
         raise PacketError(str(exc)) from exc
-    if _is_protected_authority(relative):
+    if _is_protected_authority(project_root, relative, packet):
         raise PacketError(f"refusing to write protected authority file: {relative}")
     destination = project_root / Path(*PurePosixPath(relative).parts)
     try:
@@ -408,7 +449,7 @@ def _validate_packet_for_write(packet: CompiledPacket) -> None:
     payload = packet.payload
     if (
         not _is_recognized_generated_packet(payload)
-        or payload.get("schema_version") != 2
+        or payload.get("schema_version") not in {2, 3}
         or payload.get("packet_sha256") != packet.digest
         or payload.get("mode") != packet.mode
     ):
@@ -435,19 +476,72 @@ def _validate_packet_for_write(packet: CompiledPacket) -> None:
         raise PacketError("packet resource or workspace digest differs")
 
 
-def _is_protected_authority(relative: str) -> bool:
+def _is_protected_authority(
+    root: Path, relative: str, packet: CompiledPacket | None = None
+) -> bool:
     folded = relative.casefold()
     if folded in {
         "sage_project.json",
+        "sagekit_config.json",
         "docs/active_context.md",
         "docs/doc_routing.md",
         "docs/sage_validation_scope.json",
     }:
         return True
+    try:
+        from .spec_sources import load_source_config
+
+        config = load_source_config(root)
+    except ValueError:
+        config = None
+    if config is not None and folded == config.active_context.casefold():
+        return True
+    if packet is not None and packet.provenance is not None:
+        destination = (root / Path(*PurePosixPath(relative).parts)).resolve(strict=False)
+        source = Path(packet.provenance.canonical_path)
+        if _same_authority_location(root, source, destination):
+            return True
     parts = tuple(part.casefold() for part in PurePosixPath(relative).parts)
     if parts and parts[-1] == "milestone_manifest.json":
         return True
     return len(parts) >= 4 and parts[0] == "docs" and parts[-2] == "phases" and parts[-1].endswith(".json")
+
+
+def _same_authority_location(root: Path, source: Path, destination: Path) -> bool:
+    """Compare physical file identity, including hardlinks and directory aliases."""
+
+    def samefile(left: Path, right: Path) -> bool:
+        try:
+            if left.exists() and right.exists():
+                return os.path.samefile(left, right)
+        except OSError:
+            pass
+        return os.path.normcase(str(left.resolve(strict=False))) == os.path.normcase(
+            str(right.resolve(strict=False))
+        )
+
+    if samefile(source, destination):
+        return True
+    if not source.is_dir():
+        return False
+    authority_files = [
+        source / "MILESTONE_MANIFEST.json",
+        source / "WAVES.json",
+    ]
+    phases = source / "phases"
+    if phases.is_dir():
+        authority_files.extend(phases.glob("*.json"))
+    if any(samefile(path, destination) for path in authority_files if path.is_file()):
+        return True
+    probe = destination if destination.exists() else destination.parent
+    while not probe.exists() and probe != root and probe.parent != probe:
+        probe = probe.parent
+    for ancestor in (probe, *probe.parents):
+        if samefile(source, ancestor):
+            return True
+        if samefile(root, ancestor):
+            break
+    return False
 
 
 def _gate_payload(gate: Any) -> dict[str, Any]:
@@ -482,7 +576,11 @@ def _is_recognized_generated_packet(payload: Any) -> bool:
     }
     schema = payload.get("schema_version")
     marker = payload.get("_generated_by")
-    if schema == 2 and marker == GENERATED_MARKER:
+    if schema == 3 and marker == GENERATED_MARKER:
+        required.update(
+            {"resolved_resource_policy", "workspace_binding", "source_contract"}
+        )
+    elif schema == 2 and marker == V2_GENERATED_MARKER:
         required.update({"resolved_resource_policy", "workspace_binding"})
     elif schema == 1 and marker == LEGACY_GENERATED_MARKER:
         pass
@@ -510,6 +608,19 @@ def _is_recognized_generated_packet(payload: Any) -> bool:
         or not isinstance(bindings, dict)
     ):
         return False
+    if schema == 3:
+        source_contract = payload.get("source_contract")
+        if (
+            not isinstance(source_contract, dict)
+            or set(source_contract) != {"model", "semantic_sha256", "active_class"}
+            or source_contract.get("model") != "normalized-spec-v1"
+            or source_contract.get("active_class") != "ACTIVE_SPEC"
+            or not isinstance(source_contract.get("semantic_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", source_contract["semantic_sha256"]) is None
+            or bindings.get("normalized_spec_sha256")
+            != source_contract.get("semantic_sha256")
+        ):
+            return False
     stored = payload.get("packet_sha256")
     if not isinstance(stored, str) or re.fullmatch(r"[0-9a-f]{64}", stored) is None:
         return False
@@ -522,7 +633,9 @@ def _is_recognized_generated_packet(payload: Any) -> bool:
 __all__ = [
     "CompiledPacket",
     "GENERATED_MARKER",
+    "V2_GENERATED_MARKER",
     "PacketError",
+    "PacketConfigurationError",
     "compile_packet",
     "write_compiled_packet",
 ]
