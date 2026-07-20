@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "contract_id": "2026.7.20.1",
+  "execution_document_model": "thin-v1",
+  "resource_contract": "conservative-host-v1",
+  "project_schema": "project.schema.json",
+  "milestone_schema": "milestone.schema.json",
+  "phase_schema": "phase.schema.json",
+  "runtime_defaults": {
+    "verification_economy": "focused-first",
+    "worktree_policy": "explicit-authorization-only",
+    "corrective_policy": "bounded-authority-and-targeted-rereview",
+    "review_policy": "single-primary-topology-with-risk-gated-independent-review",
+    "completion_semantics": "acceptance-and-evidence-required",
+    "approval_required_for_write": true
+  },
+  "overrideable_policy_keys": [
+    "verification_economy",
+    "worktree_policy",
+    "corrective_policy",
+    "review_policy",
+    "completion_semantics"
+  ],
+  "profiles": {
+    "standard-milestone@v1": "profiles/standard-milestone-v1.json",
+    "standard-phase@v1": "profiles/standard-phase-v1.json"
+  }
+}

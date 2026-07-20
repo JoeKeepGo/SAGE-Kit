@@ -19,10 +19,75 @@ skills, plugins, MCP tools, CLIs, CI systems, reviewers, frontend builders,
 OpenSpec, GitNexus, browser tools, and database tools are optional capability
 adapters unless a project explicitly defines a narrower policy.
 
-This skill does not replace the project's own specification documents. The project
-remains responsible for maintaining its `docs/` profile, design, gates, active
-context, routing, milestones, phase docs, ledgers, completion reports, and
-closeouts.
+This skill does not replace the project's own specification authority. The
+project remains responsible for its profile, design, gates, active context,
+routing, project-specific milestone/phase facts, ledgers, evidence, and
+closeouts. It does not need to copy generic governance prose into each
+milestone or phase.
+
+## Thin Execution Documents
+
+SAGE-Kit is a governance interpreter, not a document-copying system. Generic
+governance belongs to this repository Skill and the pinned, versioned SAGE-Kit
+contract. Project documents retain project-specific authority, scope,
+exceptions, state, acceptance, and evidence.
+
+Two independent version dimensions exist:
+
+- Task Dispatch validation contract: v0, v1, or v2.
+- Execution document model: `legacy-markdown` or `thin-v1`.
+
+Never treat `thin-v1` as Task Dispatch v3. Accepted historical documents remain
+immutable. An active milestone may use its explicit legacy model or its
+explicit thin model, but mixed, missing, or conflicting model authority fails
+closed without fallback.
+
+For `thin-v1`, read the project lock at `SAGE_PROJECT.json`, then the selected
+`docs/<M>/MILESTONE_MANIFEST.json` and `docs/<M>/phases/<P>.json`. Resolve
+policy in this order: explicit project approval/gate, project-local override,
+pinned SAGE-Kit contract/profile, then runtime defaults. Conflicts fail closed.
+
+Installed Skill is not project authority. Do not use an Installed Skill's
+current files or version to infer the project contract. The project lock and
+packaged versioned resources control resolution even when a local Skill is
+missing or older.
+
+Use `sagekit packet compile` only to create an ephemeral packet. A compact
+packet binds the pinned profile and source digests without repeating generic
+governance prose. A standalone compiled packet includes the resolved rules when
+the runtime cannot load the matching contract. Do not write compiled prose back
+to milestone or phase manifests, `ACTIVE_CONTEXT`, or `DOC_ROUTING`.
+
+## Host Resource And Workspace Boundary
+
+Resolve the independent `conservative-host-v1` Resource Policy for current or
+future execution; do not retrofit resource fields into accepted history.
+Packet schema v2 binds the canonical workspace and resolved resource policy.
+Before any local Git scan, test, build, wheel, virtual-environment, database, or
+browser command, resolve that policy. When the CLI is available, first use
+`sagekit workspace verify`, then route argv through `sagekit resource run`.
+Descendants default to reasoning-only. Reviewers do not rerun tests; they ask
+the Root verification controller for missing evidence.
+
+Independent verification nodes continuing means their logical results remain
+required; it does not authorize parallel CPU use. A node waiting for a lease is
+`WAITING_FOR_RESOURCE`, not `STOP` or `BLOCKED`, and continues automatically
+after release. Wave Readiness also requires Resource Readiness. Heavy work may
+use the policy's limited writers only in independent worktrees with disjoint
+writable paths and an integration owner; host CPU-heavy and package-build
+leases remain serial. Keep the detailed Resource Policy in its versioned
+contract and host-governance document rather than copying it into every phase
+or milestone.
+
+Containment reported by a managed run may be `HARD` or `MANAGED` according to
+its platform adapter. The guarantee that arbitrary direct commands cannot
+bypass the runtime remains `SOFT`: SAGE-Kit cannot intercept an agent, plugin,
+shell, or arbitrary child that does not use `resource run`. When the project contains
+`docs/agent/HOST_RESOURCE_GOVERNANCE.md`, use it for lease, wait, process-tree,
+and serial verification behavior. Thin adoption deliberately may not copy that
+generic document; when it is absent, use the packet's resolved resource policy
+and the installed CLI's packaged versioned contract instead of inventing a
+project-local file or rule.
 
 ## Core Rule
 
@@ -63,8 +128,9 @@ For a SAGE-Kit governed project:
 
 1. Read `docs/ACTIVE_CONTEXT.md`.
 2. Read `docs/DOC_ROUTING.md`.
-3. Read only the active milestone ledger, phase doc, contract docs, or gates
-   named by routing and task scope.
+3. If `SAGE_PROJECT.json` exists, validate its explicit document model and
+   contract pin. Read only the active thin manifest or legacy milestone/phase
+   authority selected by routing and task scope.
 4. Select the governance level and permission mode for the current control
    scope using `docs/agent/GOVERNANCE_LEVELS.md` when the task is non-trivial,
    delegated, controller-level, review, corrective, environment-writing, or
@@ -163,6 +229,16 @@ handoff.
   retained regression, wheel/install, outside-source/package smoke, and full
   integration re-review; a non-consuming legacy preliminary counter is not
   authority to run them.
+- Before candidate freeze, run the diff-whitespace preflight. Safe extra EOF
+  blank lines, missing final newline, and trailing spaces/tabs route to
+  `AUTO_NORMALIZATION_CORRECTIVE` through an exact-file whitespace-only fixer;
+  Review/Closeout remains read-only. Do not request new user authority or return
+  `STOP_FOR_PM` for those ordinary findings. Never auto-normalize broad line
+  endings or generated, vendored, signed, frozen, accepted, historical,
+  deployed-migration, or byte/checksum-bound files. Candidate migrations are
+  eligible only when unaccepted and already writable. After a normalization
+  successor, run only diff-check, non-whitespace digest, related focused tests,
+  and targeted re-review; invalidate only affected or byte-sensitive evidence.
 - For one finding, run only the minimum reproduction and directly affected
   focused tests. At a lane gate, run only the affected-lane suite. After a
   corrective, run only targeted verification and targeted re-review. Reduce

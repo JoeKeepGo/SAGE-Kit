@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sage-kit:execution-documents:2026.7.20.1:project",
+  "title": "SAGE-Kit Project Contract Lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sagekit_contract",
+    "execution_document_model",
+    "resource_contract",
+    "effective_from",
+    "legacy_documents",
+    "profiles",
+    "overrides"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "sagekit_contract": {
+      "const": "2026.7.20.1"
+    },
+    "execution_document_model": {
+      "const": "thin-v1"
+    },
+    "resource_contract": {
+      "const": "conservative-host-v1"
+    },
+    "effective_from": {
+      "type": "string",
+      "pattern": "^M[0-9]+(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "legacy_documents": {
+      "const": "immutable"
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "standard-milestone@v1",
+          "standard-phase@v1"
+        ]
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "standard-milestone@v1": {
+          "$ref": "#/$defs/policy_override"
+        },
+        "standard-phase@v1": {
+          "$ref": "#/$defs/policy_override"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "policy_override": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "verification_economy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worktree_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "corrective_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "completion_semantics": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

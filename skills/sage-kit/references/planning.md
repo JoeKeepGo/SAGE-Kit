@@ -3,6 +3,24 @@
 Use this reference for roadmap, milestone, entry gate, phase, wave, session
 orchestration, and worktree isolation planning.
 
+## Execution Document Routing
+
+Before planning an executable milestone, select its document model from project
+authority. `legacy-markdown` continues to use the retained Markdown entry gate
+and phase documents. `thin-v1` requires `SAGE_PROJECT.json`,
+`docs/<M>/MILESTONE_MANIFEST.json`, and one `docs/<M>/phases/<P>.json` per phase.
+
+The thin milestone manifest retains the objective, capability outcome,
+authority references, dependency DAG, approval gates, phase IDs, acceptance,
+milestone-specific invariants, state, and evidence references. The thin phase
+manifest retains its objective, dependencies, profile, permission, owner, path
+boundaries, acceptance, focused verification, evidence, phase-specific stop
+conditions, handoff target, and state. Generic governance is inherited from the
+pinned profiles rather than repeated.
+
+An active milestone must not mix the two models. Missing or conflicting
+`execution_document_model` authority fails closed and must not fall back.
+
 ## Project Owner Entry
 
 For broad or non-technical ideas, use Project Owner Entry before roadmap

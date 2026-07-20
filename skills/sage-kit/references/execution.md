@@ -11,6 +11,21 @@ control.
 Use this reference for implementation, debugging, refactoring, subagent work,
 Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 
+## Thin Packet Compilation
+
+For an explicitly adopted `thin-v1` milestone, validate `SAGE_PROJECT.json`,
+`MILESTONE_MANIFEST.json`, and the selected phase manifest before execution.
+Resolve explicit project approval/gates before project overrides, pinned
+contract/profile policy, and runtime defaults. Unknown profiles, invalid
+overrides, conflicting authority, and missing digests must not fall back.
+
+Use `sagekit packet compile` to produce the temporary execution packet. The
+packet binds the project lock, milestone, phase, resolved policy, and source
+digests. Compact output is suitable only when the runtime can load the exact
+pinned profile. A standalone compiled packet includes the resolved generic
+rules. Both forms retain exact project scope, verification, and stop conditions;
+neither changes source manifests, `ACTIVE_CONTEXT`, or `DOC_ROUTING`.
+
 ## Pre-Edit Gate
 
 Before editing files:

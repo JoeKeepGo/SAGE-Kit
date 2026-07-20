@@ -7,6 +7,20 @@ The goal is not to create more paperwork. The goal is to expose missing
 contracts, missing verification, cross-file conflicts, and approval gates before
 implementation starts.
 
+## Thin Milestone Manifest
+
+An explicitly adopted `thin-v1` project pins its contract in
+`SAGE_PROJECT.json`. Plan each new thin milestone in
+`docs/<M>/MILESTONE_MANIFEST.json` and its phases in
+`docs/<M>/phases/<P>.json`. Keep the manifest limited to project-specific
+objective, capability outcome, authority references, profile, dependency DAG,
+approval gates, phase IDs, acceptance, invariants, state, and evidence.
+
+Do not restate generic governance. The pinned `standard-milestone@v1` and
+`standard-phase@v1` profiles supply it. Existing `legacy-markdown` planning
+remains valid, accepted historical documents stay immutable, and an active
+milestone with mixed or missing document-model authority must not fall back.
+
 ## Milestone Ready Rule
 
 A milestone is ready for implementation only when it can be decomposed into

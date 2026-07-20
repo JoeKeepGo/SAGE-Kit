@@ -1,5 +1,19 @@
 # Validation Contract Compatibility
 
+Task Dispatch contract version and execution document model are independent:
+
+| Dimension | Values |
+|---|---|
+| Task Dispatch validation contract | v0, v1, v2 |
+| Execution document model | `legacy-markdown`, `thin-v1` |
+
+`thin-v1` is not Task Dispatch v3. Accepted historical Task Dispatch records
+and legacy phase documents retain their frozen routing. Active legacy
+milestones use the legacy phase checker. Active thin milestones require a valid
+`SAGE_PROJECT.json`, `MILESTONE_MANIFEST.json`, and phase manifests. Mixed,
+missing, or conflicting document-model authority must not fall back, and an
+explicit v2 record failure still remains a v2 failure.
+
 Task Dispatch contract selection happens before record validation:
 
 ```text

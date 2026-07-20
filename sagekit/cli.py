@@ -21,6 +21,7 @@ from .findings import Finding, has_fail
 from .init import run_init
 from .modes import MODES
 from .reporting import DEFAULT_MAX_FINDINGS, build_finding_report, finding_report_payload
+from .resource_governor import DEFAULT_MAX_WAIT
 
 
 class TargetError(ValueError):
@@ -114,6 +115,126 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--mode", choices=MODES, default="light", help="Adoption depth to initialize.")
     init.add_argument("--dry-run", action="store_true", help="Show planned writes without changing files.")
     init.add_argument("--force", action="store_true", help="Overwrite existing SAGE-Kit documents.")
+
+    packet = subparsers.add_parser(
+        "packet",
+        help="Compile ephemeral execution packets from pinned thin documents.",
+    )
+    packet_commands = packet.add_subparsers(dest="packet_command", required=True)
+    packet_compile = packet_commands.add_parser(
+        "compile",
+        help="Compile a standalone packet by default, or an explicit compact packet.",
+    )
+    add_target_argument(packet_compile)
+    packet_compile.add_argument("--milestone", required=True, help="Exact milestone ID, such as M36.")
+    packet_compile.add_argument("--phase", help="Exact phase ID; omit for a milestone packet.")
+    packet_compile.add_argument(
+        "--compact",
+        action="store_true",
+        help="Emit a compact packet bound to exact contract/profile digests.",
+    )
+
+    workspace = subparsers.add_parser(
+        "workspace", help="Verify execution authority against the current workspace."
+    )
+    workspace_commands = workspace.add_subparsers(
+        dest="workspace_command", required=True
+    )
+    workspace_verify = workspace_commands.add_parser(
+        "verify", help="Verify an immutable packet workspace binding."
+    )
+    add_target_argument(workspace_verify)
+    workspace_verify.add_argument("--packet", type=Path, required=True)
+    workspace_verify.add_argument("--json", action="store_true")
+
+    resource = subparsers.add_parser(
+        "resource", help="Inspect and manage cross-session host resource leases."
+    )
+    resource_commands = resource.add_subparsers(dest="resource_command", required=True)
+    resource_status = resource_commands.add_parser("status", help="Show active managed leases.")
+    add_target_argument(resource_status)
+    resource_status.add_argument("--json", action="store_true")
+
+    def add_resource_authority_arguments(selected: argparse.ArgumentParser) -> None:
+        add_target_argument(selected)
+        selected.add_argument("--packet", type=Path)
+        selected.add_argument(
+            "--permission-mode",
+            choices=(
+                "READ_ONLY_REVIEW",
+                "WRITE_AUTHORIZED",
+                "CORRECTIVE_AUTHORIZED",
+                "ENVIRONMENT_WRITE_AUTHORIZED",
+                "SUBMIT_AUTHORIZED",
+            ),
+            default="READ_ONLY_REVIEW",
+            help="Required explicit authority for legacy/no-packet execution.",
+        )
+        selected.add_argument("--owner", default="local-controller")
+        selected.add_argument(
+            "--class",
+            dest="resource_class",
+            choices=(
+                "reasoning-only",
+                "repo-read",
+                "repo-write",
+                "cpu-heavy",
+                "io-heavy",
+                "package-build",
+                "runtime-exclusive",
+                "submit-exclusive",
+            ),
+            required=True,
+        )
+        selected.add_argument("--run-id", required=True)
+        selected.add_argument("--stage", default="managed-command")
+        selected.add_argument("--wait-seconds", type=float, default=DEFAULT_MAX_WAIT)
+        selected.add_argument("--exclusive", action="append", default=[])
+        selected.add_argument("--json", action="store_true")
+
+    resource_acquire = resource_commands.add_parser(
+        "acquire", help="Atomically acquire a bounded resource lease."
+    )
+    add_resource_authority_arguments(resource_acquire)
+    resource_acquire.add_argument("--lease-ttl", type=float, default=30.0)
+
+    resource_heartbeat = resource_commands.add_parser(
+        "heartbeat", help="Refresh an owned resource lease."
+    )
+    add_target_argument(resource_heartbeat)
+    resource_heartbeat.add_argument("--lease", required=True)
+    resource_heartbeat.add_argument("--stage")
+    resource_heartbeat.add_argument("--lease-ttl", type=float, default=30.0)
+    resource_heartbeat.add_argument("--json", action="store_true")
+
+    resource_release = resource_commands.add_parser(
+        "release", help="Release an owned resource lease."
+    )
+    add_target_argument(resource_release)
+    resource_release.add_argument("--lease", required=True)
+    resource_release.add_argument("--json", action="store_true")
+
+    resource_run = resource_commands.add_parser(
+        "run", help="Acquire, supervise one argv command tree, and release."
+    )
+    add_resource_authority_arguments(resource_run)
+    resource_run.add_argument("--timeout", type=float, required=True)
+    resource_run.add_argument(
+        "--require-containment",
+        choices=("MANAGED", "HARD"),
+        help="Reject before target launch when the platform cannot meet this level.",
+    )
+    resource_run.add_argument("argv", nargs=argparse.REMAINDER)
+    packet_compile.add_argument("--json", action="store_true", help="Print structured packet output.")
+    packet_compile.add_argument(
+        "--output",
+        help="Explicit project-relative output file; omitted output is stdout-only.",
+    )
+    packet_compile.add_argument(
+        "--overwrite-generated",
+        action="store_true",
+        help="Replace only a recognized previously generated packet.",
+    )
 
     checkpoint = subparsers.add_parser("checkpoint", help="Manage local resumable run state.")
     checkpoint_commands = checkpoint.add_subparsers(dest="checkpoint_command", required=True)
@@ -505,6 +626,7 @@ def emit_candidate_result(
         "message": result.message,
         "manual_budget_relaxation_required": result.manual_budget_relaxation_required,
         "mismatches": list(result.mismatches),
+        "normalization_findings": list(result.normalization_findings),
         "candidate": result.candidate.to_dict() if result.candidate is not None else None,
         "convergence": convergence,
     }
@@ -609,6 +731,175 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
                 exact_root=target_argument is not None,
             )
+        elif args.command == "packet":
+            from .packet import PacketError, compile_packet, write_compiled_packet
+
+            if not target.exists() or not target.is_dir():
+                findings = [
+                    Finding(
+                        "FAIL",
+                        "packet-target",
+                        str(target),
+                        None,
+                        "packet compilation requires an existing project directory",
+                    )
+                ]
+                emit_findings(findings, args.json)
+                return 2
+            if args.overwrite_generated and args.output is None:
+                findings = [
+                    Finding(
+                        "FAIL",
+                        "packet-output-usage",
+                        None,
+                        None,
+                        "--overwrite-generated requires --output",
+                    )
+                ]
+                emit_findings(findings, args.json)
+                return 2
+            try:
+                compiled = compile_packet(
+                    target,
+                    args.milestone,
+                    args.phase,
+                    compact=args.compact,
+                )
+                output_path = None
+                if args.output is not None:
+                    output_path = write_compiled_packet(
+                        target,
+                        args.output,
+                        compiled,
+                        overwrite_generated=args.overwrite_generated,
+                    )
+            except PacketError as exc:
+                finding = Finding("FAIL", "packet-compile", None, None, str(exc))
+                emit_findings([finding], args.json)
+                return 1
+
+            packet_payload = compiled.payload
+            output_display = (
+                output_path.relative_to(target).as_posix()
+                if output_path is not None
+                else None
+            )
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "packet_sha256": compiled.digest,
+                            "packet": packet_payload,
+                            "output": output_display,
+                        },
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+            else:
+                print("SAGEKIT_GENERATED_PACKET_V2")
+                print(json.dumps(packet_payload, indent=2, sort_keys=True))
+            return 0
+        elif args.command == "workspace":
+            from .resource_cli import ResourceCliError, workspace_verify_payload
+
+            try:
+                code, payload = workspace_verify_payload(target, args.packet)
+            except ResourceCliError as exc:
+                payload = {"ok": False, "state": "HANDOFF_READY", "errors": [str(exc)]}
+                code = 2
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print("WORKSPACE_VERIFIED" if code == 0 else "HANDOFF_READY")
+                for error in payload.get("errors", []):
+                    print(error, file=sys.stderr)
+            return code
+        elif args.command == "resource":
+            from .resource_cli import (
+                ResourceCliError,
+                ResourceOperationalError,
+                resource_acquire_payload,
+                resource_heartbeat_payload,
+                resource_release_payload,
+                resource_run_payload,
+                resource_status_payload,
+            )
+            from .resource_governor import ResourceClass
+
+            def wait_notice(state: str) -> None:
+                stage = getattr(args, "stage", "resource-wait")
+                print(f"{state} stage={stage}", file=sys.stderr, flush=True)
+
+            try:
+                if args.resource_command == "status":
+                    code, payload = 0, resource_status_payload(target)
+                elif args.resource_command == "acquire":
+                    code, payload = resource_acquire_payload(
+                        target,
+                        resource_class=ResourceClass(args.resource_class),
+                        run_id=args.run_id,
+                        stage=args.stage,
+                        packet_path=args.packet,
+                        permission_mode=args.permission_mode,
+                        controller=args.owner,
+                        wait_timeout=args.wait_seconds,
+                        lease_ttl=args.lease_ttl,
+                        exclusive=args.exclusive,
+                        on_wait=wait_notice,
+                    )
+                elif args.resource_command == "heartbeat":
+                    code, payload = 0, resource_heartbeat_payload(
+                        target,
+                        lease_id=args.lease,
+                        stage=args.stage,
+                        lease_ttl=args.lease_ttl,
+                    )
+                elif args.resource_command == "release":
+                    code, payload = 0, resource_release_payload(
+                        target, lease_id=args.lease
+                    )
+                else:
+                    command = list(args.argv)
+                    if command and command[0] == "--":
+                        command.pop(0)
+                    if not command:
+                        raise ResourceCliError("resource run requires argv after --")
+                    code, payload = resource_run_payload(
+                        target,
+                        resource_class=ResourceClass(args.resource_class),
+                        run_id=args.run_id,
+                        stage=args.stage,
+                        packet_path=args.packet,
+                        permission_mode=args.permission_mode,
+                        controller=args.owner,
+                        wait_timeout=args.wait_seconds,
+                        timeout=args.timeout,
+                        exclusive=args.exclusive,
+                        command=command,
+                        required_containment=args.require_containment,
+                        on_wait=wait_notice,
+                    )
+            except ResourceOperationalError as exc:
+                code = 1
+                payload = {"ok": False, "state": "HANDOFF_READY", "message": str(exc)}
+            except ResourceCliError as exc:
+                code = 2
+                payload = {"ok": False, "state": "HANDOFF_READY", "message": str(exc)}
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(payload.get("state", "UNKNOWN"))
+                process_payload = payload.get("process")
+                if isinstance(process_payload, dict):
+                    if process_payload.get("stdout_tail"):
+                        print(process_payload["stdout_tail"], end="")
+                    if process_payload.get("stderr_tail"):
+                        print(process_payload["stderr_tail"], file=sys.stderr, end="")
+                if payload.get("message"):
+                    print(payload["message"], file=sys.stderr)
+            return code
         elif args.command == "candidate":
             convergence_authority = _load_authority_argument(
                 args.convergence_authority

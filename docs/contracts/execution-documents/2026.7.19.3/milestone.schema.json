@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sage-kit.dev/contracts/execution-documents/2026.7.19.3/milestone.schema.json",
+  "title": "SAGE-Kit Thin Milestone Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sagekit_contract",
+    "document_model",
+    "milestone_id",
+    "objective",
+    "capability_outcome",
+    "authority_references",
+    "governance_profile",
+    "dependency_dag",
+    "approval_gates",
+    "phase_ids",
+    "acceptance_criteria",
+    "invariants",
+    "state",
+    "evidence_references"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "sagekit_contract": {
+      "const": "2026.7.19.3"
+    },
+    "document_model": {
+      "const": "thin-v1"
+    },
+    "milestone_id": {
+      "type": "string",
+      "pattern": "^M[0-9]+(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "capability_outcome": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "authority_references": {
+      "$ref": "#/$defs/non_empty_unique_references"
+    },
+    "governance_profile": {
+      "const": "standard-milestone@v1"
+    },
+    "dependency_dag": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/phase_id"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/$defs/phase_id"
+        }
+      }
+    },
+    "approval_gates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/approval_gate"
+      }
+    },
+    "phase_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/phase_id"
+      }
+    },
+    "acceptance_criteria": {
+      "$ref": "#/$defs/non_empty_unique_strings"
+    },
+    "invariants": {
+      "$ref": "#/$defs/non_empty_unique_strings"
+    },
+    "state": {
+      "enum": [
+        "planned",
+        "active",
+        "blocked",
+        "accepted",
+        "closed"
+      ]
+    },
+    "evidence_references": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repository_reference"
+      }
+    }
+  },
+  "$defs": {
+    "phase_id": {
+      "type": "string",
+      "pattern": "^P[0-9]+(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "non_empty_unique_strings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "non_empty_unique_references": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repository_reference"
+      }
+    },
+    "repository_reference": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*#.*#)(?!.*\\.\\.?/)(?!\\.\\.?(?:#|$))(?!.*[*?\\[\\]:])(?!.*[ .](?:/|#|$))[^#]+(?:#[A-Za-z0-9_.-]+)?$"
+    },
+    "approval_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "applies_to",
+        "status",
+        "permission_mode",
+        "authority_reference"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/phase_id"
+          }
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
+        },
+        "permission_mode": {
+          "$ref": "#/$defs/permission_mode"
+        },
+        "authority_reference": {
+          "$ref": "#/$defs/repository_reference"
+        }
+      }
+    },
+    "permission_mode": {
+      "enum": [
+        "READ_ONLY_REVIEW",
+        "WRITE_AUTHORIZED",
+        "CORRECTIVE_AUTHORIZED",
+        "ENVIRONMENT_WRITE_AUTHORIZED",
+        "SUBMIT_AUTHORIZED"
+      ]
+    }
+  }
+}

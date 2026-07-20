@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -47,12 +48,36 @@ from sagekit.review import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+_BASELINE_TEMP = None
+_BASELINE_REPOSITORY = None
 
 
 def git(root, *args):
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_PAGER": "cat",
+            "GIT_EDITOR": "true",
+        }
+    )
     return subprocess.run(
-        ["git", *args],
+        [
+            "git",
+            "-c",
+            "core.hooksPath=" + os.devnull,
+            "-c",
+            "commit.gpgSign=false",
+            "-c",
+            "tag.gpgSign=false",
+            "-c",
+            "credential.helper=",
+            *args,
+        ],
         cwd=root,
+        env=environment,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -74,12 +99,25 @@ def run_sagekit(*args, cwd):
 
 
 def init_repository(root):
-    git(root, "init")
-    git(root, "config", "user.name", "SAGE-Kit Tests")
-    git(root, "config", "user.email", "sagekit-tests@example.invalid")
-    (root / "tracked.txt").write_text("base\n", encoding="utf-8")
-    git(root, "add", "tracked.txt")
-    git(root, "commit", "-m", "test baseline")
+    baseline = _baseline_repository()
+    shutil.copytree(baseline, root, dirs_exist_ok=True, symlinks=True)
+
+
+def _baseline_repository():
+    global _BASELINE_TEMP, _BASELINE_REPOSITORY
+    if _BASELINE_REPOSITORY is not None:
+        return _BASELINE_REPOSITORY
+    _BASELINE_TEMP = tempfile.TemporaryDirectory(prefix="sagekit-git-baseline-")
+    baseline = Path(_BASELINE_TEMP.name) / "repository"
+    baseline.mkdir()
+    git(baseline, "init")
+    git(baseline, "config", "user.name", "SAGE-Kit Tests")
+    git(baseline, "config", "user.email", "sagekit-tests@example.invalid")
+    (baseline / "tracked.txt").write_text("base\n", encoding="utf-8")
+    git(baseline, "add", "tracked.txt")
+    git(baseline, "commit", "-m", "test baseline")
+    _BASELINE_REPOSITORY = baseline
+    return baseline
 
 
 def commit_change(root, content):
