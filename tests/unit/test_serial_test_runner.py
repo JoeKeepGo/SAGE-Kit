@@ -12,6 +12,15 @@ from scripts.run_tests import main as runner_main
 
 
 class SerialTestRunnerUnitTests(unittest.TestCase):
+    def test_package_ci_installs_declared_build_backend_capability(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        workflow = (repository / ".github/workflows/sagekit-self-check.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Install package build capability", workflow)
+        self.assertIn('python -m pip install "setuptools>=68"', workflow)
+
     def test_final_plan_has_one_fixed_serial_order(self) -> None:
         plan = build_plan("final", waive_high_load=False)
 

@@ -66,6 +66,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Install package build capability
+        run: python -m pip install "setuptools>=68"
       - name: Run source-repository check once
         if: matrix.os == 'ubuntu-latest'
         run: python -B -m sagekit check --source-repo --json

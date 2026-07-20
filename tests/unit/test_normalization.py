@@ -3,16 +3,43 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from sagekit.normalization import (
     NormalizationKind,
     apply_auto_normalization,
     classify_bytes,
     non_whitespace_digest,
+    whitespace_preflight,
 )
 
 
 class MechanicalNormalizationTests(unittest.TestCase):
+    def test_preflight_excludes_runtime_control_plane_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / ".sagekit/runtime/convergence-authority.json"
+            target = root / "src/example.txt"
+            runtime.parent.mkdir(parents=True)
+            target.parent.mkdir(parents=True)
+            runtime.write_bytes(b'{"authority":"local"}')
+            target.write_bytes(b"value")
+
+            def git_bytes(_root: Path, *arguments: str) -> bytes:
+                if arguments[:2] == ("diff", "--name-only"):
+                    return b""
+                if arguments[:2] == ("ls-files", "--others"):
+                    return b".sagekit/runtime/convergence-authority.json\0src/example.txt\0"
+                if arguments == ("show", "HEAD:src/example.txt"):
+                    return b"value\n"
+                raise AssertionError(f"unexpected Git call: {arguments}")
+
+            with patch("sagekit.normalization._git_bytes", side_effect=git_bytes):
+                report = whitespace_preflight(root)
+
+        self.assertTrue(report.findings)
+        self.assertEqual({"src/example.txt"}, {item.path for item in report.findings})
+
     def test_safe_eof_and_trailing_whitespace_findings_are_auto_corrective(self) -> None:
         cases = (
             (b"value\n", b"value\n\n", NormalizationKind.EXTRA_BLANK_LINE_AT_EOF),

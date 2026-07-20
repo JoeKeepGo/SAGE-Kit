@@ -277,9 +277,13 @@ def _changed_paths(root: Path) -> tuple[str, ...]:
     return tuple(
         sorted(
             {
-                _safe_relative(item.decode("utf-8", errors="strict"))
+                relative
                 for item in tracked.split(b"\0") + untracked.split(b"\0")
                 if item
+                for relative in (
+                    _safe_relative(item.decode("utf-8", errors="strict")),
+                )
+                if not relative.startswith(".sagekit/runtime/")
             }
         )
     )
