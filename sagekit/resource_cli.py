@@ -82,8 +82,13 @@ def load_packet_authority(path: Path) -> PacketAuthority:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ResourceCliError(f"could not load execution packet: {exc}") from exc
-    if not _is_recognized_generated_packet(payload) or payload.get("schema_version") != 2:
-        raise ResourceCliError("execution packet is not a recognized schema-v2 generated packet")
+    if (
+        not _is_recognized_generated_packet(payload)
+        or payload.get("schema_version") not in {2, 3}
+    ):
+        raise ResourceCliError(
+            "execution packet is not a recognized schema-v2 or schema-v3 generated packet"
+        )
     binding = WorkspaceBinding.from_dict(payload.get("workspace_binding"))
     resource = payload.get("resolved_resource_policy")
     if not isinstance(resource, dict):

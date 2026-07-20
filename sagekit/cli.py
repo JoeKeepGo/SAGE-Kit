@@ -113,6 +113,14 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_argument(init)
     init.add_argument("--json", action="store_true", help="Print machine-readable findings.")
     init.add_argument("--mode", choices=MODES, default="light", help="Adoption depth to initialize.")
+    init.add_argument(
+        "--profile",
+        choices=("package-bound", "vendored-legacy"),
+        default="package-bound",
+        help=(
+            "Use the small installed-package authority by default, or explicitly vendor the legacy document set."
+        ),
+    )
     init.add_argument("--dry-run", action="store_true", help="Show planned writes without changing files.")
     init.add_argument("--force", action="store_true", help="Overwrite existing SAGE-Kit documents.")
 
@@ -128,6 +136,22 @@ def build_parser() -> argparse.ArgumentParser:
     add_target_argument(packet_compile)
     packet_compile.add_argument("--milestone", required=True, help="Exact milestone ID, such as M36.")
     packet_compile.add_argument("--phase", help="Exact phase ID; omit for a milestone packet.")
+    packet_compile.add_argument(
+        "--source",
+        type=Path,
+        help=(
+            "Use an authorized target-relative SPEC source file or directory; "
+            "explicit source failures never fall back to docs/<milestone>."
+        ),
+    )
+    check.add_argument(
+        "--scope",
+        choices=("active", "history", "all"),
+        help=(
+            "Select current ACTIVE_SPEC, accepted history audit, or the explicit full audit. "
+            "New package-bound projects default to active."
+        ),
+    )
     packet_compile.add_argument(
         "--compact",
         action="store_true",
@@ -305,12 +329,17 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_freeze.add_argument("--dependency-digest", required=True)
     candidate_freeze.add_argument(
         "--snapshot-mode",
-        choices=("clean-head", "working-tree"),
+        choices=("clean-head", "working-tree", "active-spec"),
         default="clean-head",
         help=(
             "Freeze a clean HEAD by default, or explicitly bind staged, "
-            "unstaged, and untracked Git state."
+            "unstaged, and untracked Git state. Active-spec binds only the "
+            "normalized current SPEC semantic identity."
         ),
+    )
+    candidate_freeze.add_argument(
+        "--milestone",
+        help="Required exact milestone ID for an active-spec candidate snapshot.",
     )
     candidate_freeze.add_argument(
         "--snapshot-authority",
@@ -720,6 +749,7 @@ def main(argv: list[str] | None = None) -> int:
                     gate_ready=args.gate_ready,
                     mode=args.mode,
                     scope_manifest_path=scope_manifest_path,
+                    scope=args.scope,
                 )
         elif args.command == "doctor":
             findings = run_doctor(target)
@@ -730,9 +760,15 @@ def main(argv: list[str] | None = None) -> int:
                 dry_run=args.dry_run,
                 force=args.force,
                 exact_root=target_argument is not None,
+                profile=args.profile,
             )
         elif args.command == "packet":
-            from .packet import PacketError, compile_packet, write_compiled_packet
+            from .packet import (
+                PacketConfigurationError,
+                PacketError,
+                compile_packet,
+                write_compiled_packet,
+            )
 
             if not target.exists() or not target.is_dir():
                 findings = [
@@ -763,6 +799,7 @@ def main(argv: list[str] | None = None) -> int:
                     target,
                     args.milestone,
                     args.phase,
+                    source=args.source,
                     compact=args.compact,
                 )
                 output_path = None
@@ -773,6 +810,22 @@ def main(argv: list[str] | None = None) -> int:
                         compiled,
                         overwrite_generated=args.overwrite_generated,
                     )
+            except PacketConfigurationError as exc:
+                if args.json:
+                    print(
+                        json.dumps(
+                            {
+                                "ok": False,
+                                "category": "configuration",
+                                "error": str(exc),
+                            },
+                            indent=2,
+                            sort_keys=True,
+                        )
+                    )
+                else:
+                    print(f"sagekit packet compile: error: {exc}", file=sys.stderr)
+                return 2
             except PacketError as exc:
                 finding = Finding("FAIL", "packet-compile", None, None, str(exc))
                 emit_findings([finding], args.json)
@@ -791,6 +844,11 @@ def main(argv: list[str] | None = None) -> int:
                             "ok": True,
                             "packet_sha256": compiled.digest,
                             "packet": packet_payload,
+                            "source_provenance": (
+                                compiled.provenance.to_dict()
+                                if compiled.provenance is not None
+                                else None
+                            ),
                             "output": output_display,
                         },
                         indent=2,
@@ -798,7 +856,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 )
             else:
-                print("SAGEKIT_GENERATED_PACKET_V2")
+                print("SAGEKIT_GENERATED_PACKET_V3")
                 print(json.dumps(packet_payload, indent=2, sort_keys=True))
             return 0
         elif args.command == "workspace":
@@ -901,6 +959,14 @@ def main(argv: list[str] | None = None) -> int:
                     print(payload["message"], file=sys.stderr)
             return code
         elif args.command == "candidate":
+            if args.snapshot_mode == "active-spec" and not args.milestone:
+                raise ConfigurationError(
+                    "candidate --snapshot-mode active-spec requires --milestone"
+                )
+            if args.snapshot_mode != "active-spec" and args.milestone:
+                raise ConfigurationError(
+                    "candidate --milestone is valid only with --snapshot-mode active-spec"
+                )
             convergence_authority = _load_authority_argument(
                 args.convergence_authority
             )
@@ -927,6 +993,7 @@ def main(argv: list[str] | None = None) -> int:
                 convergence_evidence=convergence_evidence,
                 snapshot_mode=args.snapshot_mode,
                 snapshot_authority=args.snapshot_authority,
+                active_milestone_id=args.milestone,
             )
             emit_candidate_result(
                 result,

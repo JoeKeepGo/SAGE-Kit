@@ -1,11 +1,13 @@
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from sagekit.packet import PacketError, compile_packet, write_compiled_packet
+from sagekit.resource_cli import ResourceCliError, authority_for, load_packet_authority
 from sagekit.resource_governor import ResourceBusy
 from tests.test_thin_execution_documents import create_project
 
@@ -21,6 +23,36 @@ def tree_digest(root):
 
 
 class PacketCompileTests(unittest.TestCase):
+    def test_compiled_v3_packet_is_strict_resource_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            output = write_compiled_packet(root, ".sagekit/packets/P2.json", packet)
+
+            authority = load_packet_authority(output)
+            verified = authority_for(
+                root,
+                packet_path=output,
+                permission_mode="READ_ONLY_REVIEW",
+                controller="ignored-for-packet-authority",
+            )
+            tampered = json.loads(output.read_text(encoding="utf-8"))
+            tampered["source_contract"]["semantic_sha256"] = "0" * 64
+            unsigned = dict(tampered)
+            unsigned.pop("packet_sha256")
+            tampered["packet_sha256"] = hashlib.sha256(
+                json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            output.write_text(json.dumps(tampered), encoding="utf-8")
+            with self.assertRaisesRegex(ResourceCliError, "recognized|source"):
+                load_packet_authority(output)
+
+        self.assertEqual(packet.digest, authority.packet_digest)
+        self.assertEqual(packet.digest, verified.packet_digest)
+
     def test_milestone_packet_can_write_compiler_owned_runtime_output(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
@@ -209,6 +241,60 @@ class PacketCompileTests(unittest.TestCase):
                 self.skipTest("symlink creation is unavailable on this platform")
             with self.assertRaisesRegex(PacketError, "symlink or reparse"):
                 write_compiled_packet(root, "linked/packet.json", packet)
+
+    def test_output_hardlink_alias_of_explicit_source_is_protected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            source = root / "docs/M36/MILESTONE_MANIFEST.json"
+            packet = compile_packet(
+                root,
+                "M36",
+                "P2",
+                source=source,
+                contract_root=contracts,
+            )
+            alias = root / "manifest-alias.json"
+            try:
+                os.link(source, alias)
+            except OSError:
+                self.skipTest("hardlink creation is unavailable on this platform")
+
+            with self.assertRaisesRegex(PacketError, "protected authority"):
+                write_compiled_packet(
+                    root, "manifest-alias.json", packet, overwrite_generated=True
+                )
+
+    def test_output_hardlink_alias_of_file_inside_source_directory_is_protected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            source = root / "docs/M36"
+            packet = compile_packet(
+                root,
+                "M36",
+                "P2",
+                source=source,
+                contract_root=contracts,
+            )
+            manifest = source / "MILESTONE_MANIFEST.json"
+            alias = root / "manifest-from-directory-alias.json"
+            try:
+                os.link(manifest, alias)
+            except OSError:
+                self.skipTest("hardlink creation is unavailable on this platform")
+
+            with self.assertRaisesRegex(PacketError, "protected authority"):
+                write_compiled_packet(
+                    root,
+                    "manifest-from-directory-alias.json",
+                    packet,
+                    overwrite_generated=True,
+                )
 
     def test_blocked_targets_and_incomplete_dependencies_do_not_compile(self):
         with tempfile.TemporaryDirectory() as directory:

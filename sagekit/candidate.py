@@ -51,6 +51,8 @@ class CandidateFingerprint:
     working_tree_digest: str | None = None
     snapshot_paths: tuple[str, ...] = ()
     snapshot_authority: str | None = None
+    active_milestone_id: str | None = None
+    active_spec_digest: str | None = None
 
     @property
     def digest(self) -> str:
@@ -103,6 +105,13 @@ class CandidateFingerprint:
                     "snapshot_authority": self.snapshot_authority,
                 }
             )
+        if self.fingerprint_version >= 5:
+            payload.update(
+                {
+                    "active_milestone_id": self.active_milestone_id,
+                    "active_spec_digest": self.active_spec_digest,
+                }
+            )
         return payload
 
     def to_dict(self) -> dict[str, object]:
@@ -148,12 +157,16 @@ class CandidateFingerprint:
             "snapshot_paths",
             "snapshot_authority",
         }
+        version_5_fields = version_4_fields | {
+            "active_milestone_id",
+            "active_spec_digest",
+        }
         fields = set(value)
         fingerprint_version = value.get("fingerprint_version", 1)
         if (
             not isinstance(fingerprint_version, int)
             or isinstance(fingerprint_version, bool)
-            or fingerprint_version not in {1, 2, 3, 4}
+            or fingerprint_version not in {1, 2, 3, 4, 5}
         ):
             raise ValueError("candidate fingerprint version is invalid")
         expected_fields = {
@@ -161,6 +174,7 @@ class CandidateFingerprint:
             2: version_2_fields,
             3: version_3_fields,
             4: version_4_fields,
+            5: version_5_fields,
         }[fingerprint_version]
         if fields != expected_fields:
             raise ValueError(
@@ -266,6 +280,21 @@ class CandidateFingerprint:
             ):
                 raise ValueError("working-tree candidate paths are not canonical")
             _required_snapshot_authority(value.get("snapshot_authority"))
+        elif fingerprint_version == 5:
+            if value.get("snapshot_mode") != "active-spec":
+                raise ValueError("version 5 candidate snapshot mode is invalid")
+            milestone_id = value.get("active_milestone_id")
+            spec_digest = value.get("active_spec_digest")
+            if not isinstance(milestone_id, str) or not milestone_id.strip():
+                raise ValueError("active-spec candidate milestone is invalid")
+            if not isinstance(spec_digest, str) or not spec_digest.strip():
+                raise ValueError("active-spec candidate digest is invalid")
+            if (
+                value.get("working_tree_digest") is not None
+                or value.get("snapshot_paths") != []
+                or value.get("snapshot_authority") is not None
+            ):
+                raise ValueError("active-spec candidate cannot contain working-tree state")
         candidate = cls(
             head_sha=value["head_sha"],
             diff_hash=value["diff_hash"],
@@ -300,6 +329,8 @@ class CandidateFingerprint:
             working_tree_digest=value.get("working_tree_digest"),
             snapshot_paths=tuple(value.get("snapshot_paths", ())),
             snapshot_authority=value.get("snapshot_authority"),
+            active_milestone_id=value.get("active_milestone_id"),
+            active_spec_digest=value.get("active_spec_digest"),
         )
         if value["fingerprint"] != candidate.digest:
             raise ValueError("candidate fingerprint digest differs")
@@ -343,18 +374,22 @@ class RepositorySnapshot:
     working_tree: WorkingTreeSnapshot | None
     collection_errors: tuple[str, ...] = ()
     normalization_findings: tuple[NormalizationFinding, ...] = ()
+    active_milestone_id: str | None = None
+    active_spec_digest: str | None = None
 
 
 def collect_repository_snapshot(
     repository_root: Path,
     *,
     snapshot_mode: str = "clean-head",
+    active_milestone_id: str | None = None,
 ) -> RepositorySnapshot:
     """Collect candidate Git state once; comparison is handled by pure functions."""
     root = _repository_root(repository_root)
     return _collect_repository_snapshot(
         root,
         snapshot_mode=_normalize_snapshot_mode(snapshot_mode),
+        active_milestone_id=active_milestone_id,
     )
 
 
@@ -362,21 +397,45 @@ def _collect_repository_snapshot(
     root: Path,
     *,
     snapshot_mode: str,
+    active_milestone_id: str | None = None,
 ) -> RepositorySnapshot:
-    try:
-        normalization = whitespace_preflight(root)
-    except ValueError as exc:
+    active_spec_digest: str | None = None
+    if snapshot_mode == "active-spec":
         normalization = NormalizationReport(())
-        normalization_error = f"diff whitespace preflight unavailable: {exc}"
-    else:
         normalization_error = None
-    head_sha = _git_text(root, "rev-parse", "HEAD")
-    diff_hash = _diff_hash(root)
+        if not isinstance(active_milestone_id, str) or not active_milestone_id.strip():
+            active_error = "active-spec snapshot requires one milestone ID"
+        else:
+            try:
+                from .spec_sources import load_normalized_spec
+
+                active_spec_digest = load_normalized_spec(
+                    root, active_milestone_id.strip()
+                ).semantic_digest
+            except (ValueError, OSError) as exc:
+                active_error = f"active-spec snapshot unavailable: {exc}"
+            else:
+                active_error = None
+        head_sha = active_spec_digest or "active-spec-unavailable"
+        diff_hash = active_spec_digest or "active-spec-unavailable"
+    else:
+        active_error = None
+        try:
+            normalization = whitespace_preflight(root)
+        except ValueError as exc:
+            normalization = NormalizationReport(())
+            normalization_error = f"diff whitespace preflight unavailable: {exc}"
+        else:
+            normalization_error = None
+        head_sha = _git_text(root, "rev-parse", "HEAD")
+        diff_hash = _diff_hash(root)
     changes: tuple[str, ...] = ()
     working_tree: WorkingTreeSnapshot | None = None
     errors: tuple[str, ...] = (
         (normalization_error,) if normalization_error is not None else ()
     )
+    if active_error is not None:
+        errors += (active_error,)
     if snapshot_mode == "working-tree":
         try:
             working_tree = _working_tree_snapshot(root)
@@ -393,6 +452,12 @@ def _collect_repository_snapshot(
         working_tree=working_tree,
         collection_errors=errors,
         normalization_findings=normalization.findings,
+        active_milestone_id=(
+            active_milestone_id.strip()
+            if isinstance(active_milestone_id, str) and active_milestone_id.strip()
+            else None
+        ),
+        active_spec_digest=active_spec_digest,
     )
 
 
@@ -432,6 +497,12 @@ def candidate_fingerprint_from_snapshot(
         raise ValueError("working-tree snapshot data is missing")
     if snapshot.snapshot_mode == "clean-head" and working_tree is not None:
         raise ValueError("clean-head snapshot contains working-tree snapshot data")
+    if snapshot.snapshot_mode == "active-spec" and (
+        snapshot.active_milestone_id is None or snapshot.active_spec_digest is None
+    ):
+        raise ValueError("active-spec snapshot data is missing")
+    if snapshot.snapshot_mode == "active-spec" and fingerprint_version != 5:
+        raise ValueError("active-spec snapshot requires candidate fingerprint version 5")
     return CandidateFingerprint(
         head_sha=snapshot.head_sha,
         diff_hash=snapshot.diff_hash,
@@ -462,6 +533,8 @@ def candidate_fingerprint_from_snapshot(
         working_tree_digest=(working_tree.digest if working_tree is not None else None),
         snapshot_paths=(working_tree.paths if working_tree is not None else ()),
         snapshot_authority=snapshot_authority,
+        active_milestone_id=snapshot.active_milestone_id,
+        active_spec_digest=snapshot.active_spec_digest,
     )
 
 
@@ -484,6 +557,7 @@ def freeze_candidate(
     convergence_evidence: ConvergenceEvidence | None = None,
     snapshot_mode: str = "clean-head",
     snapshot_authority: str | None = None,
+    active_milestone_id: str | None = None,
 ) -> CandidateFreezeResult:
     root = _repository_root(repository_root)
     try:
@@ -512,7 +586,7 @@ def freeze_candidate(
             mismatches=(reason,),
             stop_reason=reason,
         )
-    if normalized_snapshot_mode == "clean-head" and snapshot_authority is not None:
+    if normalized_snapshot_mode != "working-tree" and snapshot_authority is not None:
         reason = "snapshot authority is valid only for working-tree mode"
         return CandidateFreezeResult(
             False,
@@ -536,6 +610,7 @@ def freeze_candidate(
     initial_snapshot = _collect_repository_snapshot(
         root,
         snapshot_mode=normalized_snapshot_mode,
+        active_milestone_id=active_milestone_id,
     )
     if initial_snapshot.collection_errors:
         reason = initial_snapshot.collection_errors[0]
@@ -945,6 +1020,7 @@ def freeze_candidate(
     final_snapshot = _collect_repository_snapshot(
         root,
         snapshot_mode=normalized_snapshot_mode,
+        active_milestone_id=active_milestone_id,
     )
     if final_snapshot.collection_errors:
         reason = "final " + final_snapshot.collection_errors[0]
@@ -977,7 +1053,9 @@ def freeze_candidate(
         generation=generation,
         predecessor_digest=predecessor,
         fingerprint_version=(
-            4
+            5
+            if normalized_snapshot_mode == "active-spec"
+            else 4
             if normalized_snapshot_mode == "working-tree"
             else (3 if convergence_authority is not None else 2)
         ),
@@ -1093,6 +1171,7 @@ def assess_candidate(
     snapshot = _collect_repository_snapshot(
         root,
         snapshot_mode=candidate.snapshot_mode,
+        active_milestone_id=candidate.active_milestone_id,
     )
     return assess_candidate_snapshot(
         snapshot,
@@ -1119,15 +1198,25 @@ def assess_candidate_snapshot(
         )
     mismatches: list[str] = []
     current_head = snapshot.head_sha
-    if candidate.head_sha != current_head:
-        mismatches.append(
-            f"HEAD differs: candidate={candidate.head_sha} current={current_head}"
-        )
     current_diff = snapshot.diff_hash
-    if candidate.diff_hash != current_diff:
-        mismatches.append(
-            f"diff hash differs: candidate={candidate.diff_hash} current={current_diff}"
-        )
+    if candidate.snapshot_mode == "active-spec":
+        if candidate.active_milestone_id != snapshot.active_milestone_id:
+            mismatches.append("active milestone differs")
+        if candidate.active_spec_digest != snapshot.active_spec_digest:
+            mismatches.append(
+                "active SPEC digest differs: "
+                f"candidate={candidate.active_spec_digest} "
+                f"current={snapshot.active_spec_digest}"
+            )
+    else:
+        if candidate.head_sha != current_head:
+            mismatches.append(
+                f"HEAD differs: candidate={candidate.head_sha} current={current_head}"
+            )
+        if candidate.diff_hash != current_diff:
+            mismatches.append(
+                f"diff hash differs: candidate={candidate.diff_hash} current={current_diff}"
+            )
     if candidate.contract_digest != contract_digest:
         mismatches.append(
             "contract digest differs: "
@@ -1154,7 +1243,7 @@ def assess_candidate_snapshot(
                 )
             if candidate.snapshot_paths != current_snapshot.paths:
                 mismatches.append("working-tree snapshot paths differ")
-    else:
+    elif candidate.snapshot_mode == "clean-head":
         changes = snapshot.worktree_changes
         if changes:
             mismatches.append("unexpected worktree changes: " + ", ".join(changes))
@@ -1168,7 +1257,7 @@ def assess_candidate_snapshot(
     return CandidateAssessment(
         True,
         RunState.CONTINUE,
-        "candidate fingerprint matches current worktree",
+        "candidate fingerprint matches current scope",
     )
 
 
@@ -1201,9 +1290,9 @@ def _worktree_changes(root: Path) -> tuple[str, ...]:
 
 def _normalize_snapshot_mode(value: str) -> str:
     normalized = str(value).strip().lower()
-    if normalized not in {"clean-head", "working-tree"}:
+    if normalized not in {"clean-head", "working-tree", "active-spec"}:
         raise ValueError(
-            "snapshot mode must be clean-head or working-tree; no fallback is allowed"
+            "snapshot mode must be clean-head, working-tree, or active-spec; no fallback is allowed"
         )
     return normalized
 

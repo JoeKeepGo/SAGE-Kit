@@ -27,11 +27,13 @@ FOCUSED_TESTS = (
 
 TEST_MODULE_LANES = {
     "test_ci_workflow": "unit",
+    "test_active_scope": "unit",
     "test_convergence_authority": "integration",
     "test_execution_economy": "integration",
     "test_frozen_contracts_and_containers": "unit",
     "test_package_smoke": "unit",
     "test_packet_compile": "unit",
+    "test_spec_sources": "unit",
     "test_pathing": "unit",
     "test_sagekit_check": "integration",
     "test_sagekit_simulations": "integration",

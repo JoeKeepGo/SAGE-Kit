@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -22,6 +23,33 @@ def load_wheel_smoke():
 
 
 class WheelSmokeScriptTests(unittest.TestCase):
+    def test_trivial_installed_probe_does_not_enter_package_build_governor(self):
+        wheel_smoke = load_wheel_smoke()
+        command = wheel_smoke.installed_smoke_commands(Path("python"))[1]
+        completed = subprocess.CompletedProcess(
+            args=command, returncode=0, stdout=b"ok", stderr=b""
+        )
+        with patch.object(wheel_smoke, "run_managed_command") as managed, patch.object(
+            wheel_smoke.subprocess, "run", return_value=completed
+        ) as direct:
+            wheel_smoke.run_trivial_probe(
+                command, cwd=Path.cwd(), environment={}
+            )
+
+        managed.assert_not_called()
+        self.assertFalse(direct.call_args.kwargs["shell"])
+        self.assertEqual(30.0, direct.call_args.kwargs["timeout"])
+
+    def test_trivial_probe_rejects_lookalike_side_effect_commands(self):
+        wheel_smoke = load_wheel_smoke()
+
+        with self.assertRaises(wheel_smoke.SmokeFailure):
+            wheel_smoke.run_trivial_probe(
+                ["python", "-I", "-B", "-c", "import importlib.resources; print('side effect')"],
+                cwd=Path.cwd(),
+                environment={},
+            )
+
     def test_build_and_install_commands_are_offline_and_dependency_free(self):
         wheel_smoke = load_wheel_smoke()
         python = Path("python")
@@ -68,6 +96,10 @@ class WheelSmokeScriptTests(unittest.TestCase):
         self.assertIn("execution_documents/2026.7.20.1/phase.schema.json", flattened)
         self.assertIn("resource_governance/conservative-host-v1.json", flattened)
         self.assertIn("docs/agent/HOST_RESOURCE_GOVERNANCE.md", flattened)
+        self.assertIn("docs/agent/SPEC_SOURCE_CONTRACT.md", flattened)
+        self.assertNotIn("sleep", flattened.casefold())
+        self.assertNotIn("containment", flattened.casefold())
+        self.assertNotIn("job object", flattened.casefold())
 
     def test_subprocess_environment_removes_source_import_overrides(self):
         wheel_smoke = load_wheel_smoke()
@@ -108,6 +140,9 @@ class WheelSmokeScriptTests(unittest.TestCase):
                 root = Path(tmp) / "synthetic-project"
                 wheel_smoke.write_synthetic_thin_project(root)
                 lock = json.loads((root / "SAGE_PROJECT.json").read_text(encoding="utf-8"))
+                authority = json.loads(
+                    (root / "SAGEKIT_CONFIG.json").read_text(encoding="utf-8")
+                )
                 milestone = json.loads(
                     (root / "docs/M36/MILESTONE_MANIFEST.json").read_text(
                         encoding="utf-8"
@@ -117,10 +152,16 @@ class WheelSmokeScriptTests(unittest.TestCase):
                     (root / "docs/M36/phases/P01.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual("thin-v1", lock["execution_document_model"])
+                self.assertEqual("synthetic-package-smoke", authority["project_id"])
+                self.assertEqual("package-bound", authority["adoption_profile"])
+                self.assertEqual(
+                    authority["package"], wheel_smoke.package_identity()
+                )
                 self.assertEqual("conservative-host-v1", lock["resource_contract"])
                 self.assertEqual("M36", milestone["milestone_id"])
                 self.assertEqual("P01", phase["phase_id"])
                 self.assertEqual("conservative-host-v1", phase["resource_profile"])
+            self.assertFalse(root.exists(), "temporary synthetic fixture was not cleaned")
 
         commands = wheel_smoke.thin_smoke_commands(python, project)
         flattened = "\n".join(" ".join(command) for command in commands)

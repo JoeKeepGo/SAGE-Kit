@@ -1069,7 +1069,10 @@ class SagekitCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            result = run_sagekit("init", "--mode", "light", "--dry-run", "--json", cwd=root)
+            result = run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy",
+                "--dry-run", "--json", cwd=root
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((root / "docs").exists())
@@ -1083,7 +1086,9 @@ class SagekitCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            init_result = run_sagekit("init", "--mode", "light", "--json", cwd=root)
+            init_result = run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy", "--json", cwd=root
+            )
             check_result = run_sagekit("check", "--mode", "light", "--json", cwd=root)
 
             self.assertEqual(init_result.returncode, 0, init_result.stderr)
@@ -1114,7 +1119,10 @@ class SagekitCheckTests(unittest.TestCase):
             target.mkdir()
             runner_cwd.mkdir()
 
-            init_result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=runner_cwd)
+            init_result = run_sagekit(
+                "init", "--target", str(target), "--mode", "light",
+                "--profile", "vendored-legacy", "--json", cwd=runner_cwd
+            )
             check_result = run_sagekit("check", "--target", str(target), "--mode", "light", "--json", cwd=runner_cwd)
             doctor_result = run_sagekit("doctor", "--target", str(target), "--json", cwd=runner_cwd)
 
@@ -1130,7 +1138,10 @@ class SagekitCheckTests(unittest.TestCase):
             target = workspace / "target.txt"
             target.write_text("not a project directory\n", encoding="utf-8")
 
-            result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=workspace)
+            result = run_sagekit(
+                "init", "--target", str(target), "--mode", "light",
+                "--profile", "vendored-legacy", "--json", cwd=workspace
+            )
 
             self.assertEqual(result.returncode, 2, result.stdout)
             self.assertFalse((workspace / "docs").exists())
@@ -1165,7 +1176,10 @@ class SagekitCheckTests(unittest.TestCase):
             write_required_docs(parent)
             before = sorted(path.relative_to(parent) for path in parent.rglob("*") if path.is_file())
 
-            result = run_sagekit("init", "--target", str(target), "--mode", "light", "--json", cwd=parent)
+            result = run_sagekit(
+                "init", "--target", str(target), "--mode", "light",
+                "--profile", "vendored-legacy", "--json", cwd=parent
+            )
 
             after_parent = sorted(
                 path.relative_to(parent)
@@ -1179,7 +1193,9 @@ class SagekitCheckTests(unittest.TestCase):
     def test_standard_check_requires_standard_docs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            run_sagekit("init", "--mode", "light", cwd=root)
+            run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy", cwd=root
+            )
 
             result = run_sagekit("check", "--mode", "standard", "--json", cwd=root)
 
@@ -1199,7 +1215,9 @@ class SagekitCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            init_result = run_sagekit("init", "--mode", "standard", "--json", cwd=root)
+            init_result = run_sagekit(
+                "init", "--mode", "standard", "--profile", "vendored-legacy", "--json", cwd=root
+            )
             check_result = run_sagekit("check", "--mode", "standard", "--json", cwd=root)
 
             self.assertEqual(init_result.returncode, 0, init_result.stderr)
@@ -1216,7 +1234,9 @@ class SagekitCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            init_result = run_sagekit("init", "--mode", "heavy", "--json", cwd=root)
+            init_result = run_sagekit(
+                "init", "--mode", "heavy", "--profile", "vendored-legacy", "--json", cwd=root
+            )
             check_result = run_sagekit("check", "--mode", "heavy", "--json", cwd=root)
 
             self.assertEqual(init_result.returncode, 0, init_result.stderr)
@@ -1228,7 +1248,9 @@ class SagekitCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            result = run_sagekit("init", "--mode", "heavy", "--json", cwd=root)
+            result = run_sagekit(
+                "init", "--mode", "heavy", "--profile", "vendored-legacy", "--json", cwd=root
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             for path in [
@@ -1245,7 +1267,9 @@ class SagekitCheckTests(unittest.TestCase):
             root = Path(tmp)
             profile = write_file(root, "docs/PROJECT_PROFILE.md", "# Custom Profile\n\nKeep me.")
 
-            result = run_sagekit("init", "--mode", "light", "--json", cwd=root)
+            result = run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy", "--json", cwd=root
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(profile.read_text(encoding="utf-8"), "# Custom Profile\n\nKeep me.\n")
@@ -1260,7 +1284,10 @@ class SagekitCheckTests(unittest.TestCase):
             root = Path(tmp)
             profile = write_file(root, "docs/PROJECT_PROFILE.md", "# Custom Profile\n\nReplace me.")
 
-            result = run_sagekit("init", "--mode", "light", "--force", "--json", cwd=root)
+            result = run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy",
+                "--force", "--json", cwd=root
+            )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertNotEqual(profile.read_text(encoding="utf-8"), "# Custom Profile\n\nReplace me.\n")
@@ -1275,7 +1302,10 @@ class SagekitCheckTests(unittest.TestCase):
             root = Path(tmp)
             (root / "docs/PROJECT_PROFILE.md").mkdir(parents=True)
 
-            result = run_sagekit("init", "--mode", "light", "--force", "--json", cwd=root)
+            result = run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy",
+                "--force", "--json", cwd=root
+            )
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -1296,7 +1326,10 @@ class SagekitCheckTests(unittest.TestCase):
             except (OSError, NotImplementedError) as exc:
                 self.skipTest(f"symlink unavailable: {exc}")
 
-            result = run_sagekit("init", "--mode", "light", "--force", "--json", cwd=root)
+            result = run_sagekit(
+                "init", "--mode", "light", "--profile", "vendored-legacy",
+                "--force", "--json", cwd=root
+            )
 
             self.assertEqual(result.returncode, 1, result.stdout)
             self.assertEqual(outside.read_text(encoding="utf-8"), "# Outside\n")
@@ -1307,7 +1340,9 @@ class SagekitCheckTests(unittest.TestCase):
             )
 
     def test_init_refuses_source_repository(self):
-        result = run_sagekit("init", "--mode", "light", "--json", cwd=REPO_ROOT)
+        result = run_sagekit(
+            "init", "--mode", "light", "--profile", "vendored-legacy", "--json", cwd=REPO_ROOT
+        )
 
         self.assertEqual(result.returncode, 1, result.stdout)
         payload = json.loads(result.stdout)
@@ -1322,7 +1357,10 @@ class SagekitCheckTests(unittest.TestCase):
             "docs/DOC_ROUTING.md": (REPO_ROOT / "docs/DOC_ROUTING.md").exists(),
         }
         with tempfile.TemporaryDirectory() as tmp:
-            result = run_sagekit("init", "--target", str(REPO_ROOT), "--mode", "light", "--json", cwd=Path(tmp))
+            result = run_sagekit(
+                "init", "--target", str(REPO_ROOT), "--mode", "light",
+                "--profile", "vendored-legacy", "--json", cwd=Path(tmp)
+            )
 
         self.assertEqual(result.returncode, 1, result.stdout)
         payload = json.loads(result.stdout)
@@ -1482,7 +1520,9 @@ class SagekitCheckTests(unittest.TestCase):
         text = fallback_content("docs/DOC_ROUTING.md")
 
         self.assertIn("Routing policy", text)
-        self.assertIn("Implementation tasks", text)
+        self.assertIn("Current execution", text)
+        self.assertIn("ACCEPTED_HISTORY", text)
+        self.assertIn(".sagekit", text)
 
     def test_packaged_resources_include_canonical_heavy_docs(self):
         from sagekit.init import package_resource_root

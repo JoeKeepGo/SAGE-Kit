@@ -1,93 +1,36 @@
 # Active Context Template
 
-This file is the short startup context for the active repository.
+This is a compact current-truth and handoff view. Its configured path may differ;
+`docs/ACTIVE_CONTEXT.md` remains the legacy default. Harness runtime state and
+full history do not belong here.
 
-It should be concise enough to read at the start of every future session.
+## Current Work
 
-Maintain this file as a current-state snapshot, not an execution log. At the
-end of any agent run that changes durable state, replace stale facts, remove
-closed or irrelevant items, and keep only information needed to restart work
-safely.
-
-## Active Repository Boundary
-
-- Active local repository: `<absolute path>`
-- Active remote: `<remote URL or n/a>`
-- Active branch or baseline: `<branch, commit, changelist, release, or n/a>`
 - Current milestone: `<milestone ID or none>`
-- Current phase: `<phase path or none>`
-
-## Current Accepted State
-
-- `<accepted fact>`
-- `<accepted fact>`
-
-## Current Work Pointer
-
-- Active objective: `<objective or none>`
+- Current phase: `<phase ID or none>`
+- Current status: `<planned, active, blocked, review, complete, or none>`
+- Current authority: `<explicit source, configured source, current-work pointer, or legacy adapter>`
+- Active SPEC source: `<project-relative path or none>`
+- Current blockers: `<concise blockers or none>`
 - Next action: `<single next action or none>`
-- Current blocker: `<blocker or none>`
 
-## Current Source Of Truth
+## Key Decisions
 
-| Role | File |
-|---|---|
-| Product profile | `docs/PROJECT_PROFILE.md` |
-| Technical design | `docs/TECHNICAL_DESIGN.md` if Standard/Heavy or risk-enabled; otherwise `n/a` |
-| Quality gates | `docs/QUALITY_GATES.md` |
-| Capability map | `docs/CAPABILITY_MAP.md` or `n/a` |
-| Roadmap | `docs/MILESTONE_ROADMAP.md` if present; otherwise `n/a` |
-| Active milestone ledger | `<path>` |
+- `<decision that current work must preserve>`
+- `<decision or none>`
 
-## Closed Gates
+## Evidence And Closeout
 
-These gates remain closed unless the user explicitly opens one with scope,
-inputs, and objective:
+- Evidence pointer: `<path or digest reference or none>`
+- Closeout pointer: `<path or none>`
 
-- production credentials;
-- production data access;
-- destructive actions;
-- release or publish;
-- merge to protected branches;
-- protected branch or release-target changes, when change control uses them;
-- external service mutation;
-- billing or payment operations.
+## Maintenance
 
-## Startup Read Shortcut
+Replace stale current facts; do not append a session diary. Put leases,
+candidate counters, command logs, detailed evidence, and accepted history under
+`.sagekit`, an evidence store, ledger, or closeout as appropriate.
 
-For most future work:
-
-1. Read this file.
-2. Read `docs/DOC_ROUTING.md`.
-3. Read the active milestone ledger and phase doc only when relevant.
-4. Read exact contract docs only for touched surfaces.
-
-## End-Of-Run Maintenance
-
-Before handoff, commit, or completion, update this file only when the active
-permission mode and ownership allow direct writes. Otherwise return a
-`Memory Update Proposal` or explicit no-change note.
-
-When direct writes are allowed:
-
-1. Update repository, branch, milestone, phase, objective, next action, and
-   blocker fields when they changed.
-2. Replace obsolete accepted facts with the current fact.
-3. Delete facts that are no longer needed for startup.
-4. Move evidence, command output, review notes, and historical detail to the
-   milestone ledger, phase doc, completion report, or milestone closeout for
-   closed milestones.
-5. Record `No active context change needed` in the handoff or completion report
-   when this file does not require an edit.
-
-Target size: keep this file under 120 lines unless the project profile
-explicitly raises the startup-context budget.
-
-## Non-Goals For This Context Layer
-
-- No broad historical summary.
-- No raw logs.
-- No secrets.
-- No implementation instructions that belong in phase docs.
-- No completed milestone diary.
-- No evidence tables that belong in ledgers or completion reports.
+Ordinary status, next-action, evidence-pointer, path-display, blank-line, and
+wording synchronization is C0/C1 and needs targeted consistency verification
+only. Authority, scope, approval, safety boundary, or source-of-truth changes
+require semantic review. Check and compile never rewrite this file.

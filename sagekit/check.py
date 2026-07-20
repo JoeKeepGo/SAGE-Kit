@@ -75,6 +75,7 @@ SOURCE_REQUIRED_FILES = [
     "docs/agent/CONTINUITY_PROTOCOL.md",
     "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
     "docs/agent/HOST_RESOURCE_GOVERNANCE.md",
+    "docs/agent/SPEC_SOURCE_CONTRACT.md",
     "docs/profiles/task-dispatch/schemas/task.schema.json",
     "docs/profiles/task-dispatch/schemas/evidence.schema.json",
     "scripts/validate_task_dispatch.py",
@@ -101,6 +102,7 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/execution_documents.py",
     "sagekit/policy_resolution.py",
     "sagekit/packet.py",
+    "sagekit/spec_sources.py",
     "sagekit/managed_execution.py",
     "sagekit/process_supervisor.py",
     "sagekit/resource_cli.py",
@@ -155,6 +157,8 @@ SOURCE_REQUIRED_FILES = [
     "tests/test_thin_documentation.py",
     "tests/test_thin_routing.py",
     "tests/test_package_smoke.py",
+    "tests/test_spec_sources.py",
+    "tests/test_active_scope.py",
 ]
 
 GITIGNORE_RUNTIME_PATTERNS = [
@@ -192,10 +196,51 @@ def run_check(
     gate_ready: bool = False,
     mode: str | None = None,
     scope_manifest_path: Path | None = None,
+    scope: str | None = None,
 ) -> list[Finding]:
     if mode is not None and mode not in MODES:
         raise ValueError(f"unknown SAGE-Kit mode: {mode}")
     root = detect_root(start)
+    if scope not in {None, "active", "history", "all"}:
+        raise ValueError(f"unknown check scope: {scope}")
+    from .spec_sources import SourceConfigurationError, load_source_config
+
+    try:
+        source_config = load_source_config(root)
+    except SourceConfigurationError as exc:
+        return [
+            Finding("PASS", "project-root", relpath(root, root), None, f"using {root}"),
+            Finding(
+                "FAIL",
+                "project-authority",
+                "SAGEKIT_CONFIG.json",
+                None,
+                str(exc),
+                "Correct the machine-readable project authority before current execution.",
+            ),
+        ]
+    active_default = (
+        source_config is not None and source_config.execution_scope == "active-only"
+    )
+    if scope == "active" or (scope is None and active_default):
+        if source_config is None:
+            return [
+                Finding("PASS", "project-root", relpath(root, root), None, f"using {root}"),
+                Finding(
+                    "FAIL",
+                    "active-authority",
+                    None,
+                    None,
+                    "active-only check requires equivalent machine-readable project authority",
+                ),
+            ]
+        return _run_active_check(root, source_config)
+    if scope == "history":
+        return _run_history_check(
+            root,
+            scope_manifest_path=scope_manifest_path,
+            gate_ready=gate_ready,
+        )
     findings: list[Finding] = [
         Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
     ]
@@ -257,6 +302,213 @@ def run_check(
             manifest_error=manifest_error,
         )
     )
+    return findings
+
+
+def _run_active_check(root: Path, config) -> list[Finding]:
+    """Validate only current authority and normalized ACTIVE_SPEC."""
+
+    from .spec_sources import (
+        SourceConfigurationError,
+        load_normalized_spec,
+        resolve_active_context_path,
+        validate_package_binding,
+    )
+
+    findings: list[Finding] = [
+        Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
+    ]
+    try:
+        validate_package_binding(config)
+    except SourceConfigurationError as exc:
+        findings.append(
+            Finding(
+                "FAIL",
+                "package-authority",
+                relpath(root, config.path),
+                None,
+                str(exc),
+                "Use the package version and canonical resource digest pinned by project authority.",
+            )
+        )
+        return findings
+    findings.append(
+        Finding(
+            "PASS",
+            "package-authority",
+            relpath(root, config.path),
+            None,
+            "installed package version and canonical resource digest match project authority",
+        )
+    )
+    active_context = resolve_active_context_path(root, config)
+    findings.extend(check_active_context(root, path=active_context))
+    if not active_context.is_file():
+        findings.append(
+            Finding(
+                "FAIL",
+                "active-authority",
+                relpath(root, active_context),
+                None,
+                "configured ACTIVE_CONTEXT is missing",
+            )
+        )
+        return findings
+    text = read_text(active_context)
+    match = re.search(
+        r"^\s*(?:[-*]\s*)?Current\s+milestone\s*:\s*`?([^`\r\n]+?)`?\s*$",
+        text,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if match is None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "active-authority",
+                relpath(root, active_context),
+                None,
+                "ACTIVE_CONTEXT does not identify one current milestone or explicit none",
+            )
+        )
+        return findings
+    milestone_id = match.group(1).strip()
+    if milestone_id.casefold() in {"none", "n/a", "idle"}:
+        if config.sources:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "active-authority",
+                    relpath(root, active_context),
+                    None,
+                    "empty-active state conflicts with configured milestone sources",
+                )
+            )
+        else:
+            findings.append(
+                Finding(
+                    "PASS",
+                    "active-authority",
+                    relpath(root, active_context),
+                    None,
+                    "equivalent project authority declares a legal empty-active state",
+                )
+            )
+        return findings
+    if re.fullmatch(r"M[0-9]+(?:[._-][A-Za-z0-9]+)*", milestone_id) is None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "active-authority",
+                relpath(root, active_context),
+                None,
+                f"invalid current milestone authority: {milestone_id}",
+            )
+        )
+        return findings
+    try:
+        normalized = load_normalized_spec(root, milestone_id)
+    except (SourceConfigurationError, ValueError) as exc:
+        findings.append(
+            Finding(
+                "FAIL",
+                "active-spec",
+                None,
+                None,
+                str(exc),
+                "Correct the selected ACTIVE_SPEC; accepted history is not a fallback.",
+            )
+        )
+        return findings
+    findings.append(
+        Finding(
+            "PASS",
+            "active-spec",
+            None,
+            None,
+            f"normalized ACTIVE_SPEC {milestone_id}; semantic=sha256:{normalized.semantic_digest}",
+        )
+    )
+    return findings
+
+
+def _run_history_check(
+    root: Path,
+    *,
+    scope_manifest_path: Path | None,
+    gate_ready: bool,
+) -> list[Finding]:
+    """Run the frozen compatibility path only when history is explicit."""
+
+    findings: list[Finding] = [
+        Finding("PASS", "project-root", relpath(root, root), None, f"using {root}"),
+        Finding(
+            "PASS",
+            "check-scope",
+            None,
+            None,
+            "explicit ACCEPTED_HISTORY audit; this path is not current execution authority",
+        ),
+    ]
+    manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+        root, scope_manifest_path
+    )
+    if manifest_error is not None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "history-scope",
+                None,
+                None,
+                manifest_error,
+            )
+        )
+        return findings
+    if manifest is None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "history-scope",
+                None,
+                None,
+                "history audit requires an explicit Validation Scope Manifest",
+                "Name accepted immutable containers and their frozen v0/v1 contract versions.",
+            )
+        )
+        return findings
+    accepted = tuple(item.path.rstrip("/") for item in manifest.accepted_legacy_containers)
+    findings.append(
+        Finding(
+            "PASS",
+            "history-scope",
+            relpath(root, manifest.path),
+            None,
+            f"loaded {len(accepted)} accepted immutable container(s)",
+        )
+    )
+    if not accepted:
+        return findings
+    audited = [
+        *check_phase_docs(
+            root,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=None,
+        ),
+        *check_task_dispatch(
+            root,
+            gate_ready=gate_ready,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=None,
+        ),
+    ]
+    for finding in audited:
+        normalized = (finding.path or "").replace("\\", "/").rstrip("/")
+        if any(
+            normalized == prefix or normalized.startswith(prefix + "/")
+            for prefix in accepted
+        ):
+            findings.append(finding)
     return findings
 
 
@@ -563,7 +815,7 @@ def check_source_init_resources(root: Path) -> list[Finding]:
         Finding("PASS", "source-resource-map", relpath(root, source_root), None, "resource root exists")
     ]
     seen: set[str] = set()
-    for item in init_files_for_mode("heavy", source_root):
+    for item in init_files_for_mode("heavy", source_root, profile="vendored-legacy"):
         if not item.source or item.source in seen:
             continue
         seen.add(item.source)
@@ -975,8 +1227,8 @@ def check_recommended_docs(root: Path, recommended_docs: list[str] | None = None
     return findings
 
 
-def check_active_context(root: Path) -> list[Finding]:
-    path = root / "docs/ACTIVE_CONTEXT.md"
+def check_active_context(root: Path, *, path: Path | None = None) -> list[Finding]:
+    path = root / "docs/ACTIVE_CONTEXT.md" if path is None else path
     if not path.exists():
         return []
     text = read_text(path)

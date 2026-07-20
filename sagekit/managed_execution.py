@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import os
+import subprocess
+import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
-from .process_supervisor import ProcessResult, run_process
+from .process_supervisor import (
+    ContainmentLevel,
+    ProcessClassification,
+    ProcessResult,
+    run_process,
+)
 from .resource_governor import (
     DEFAULT_LEASE_TTL,
     ResourceClass,
@@ -54,6 +62,15 @@ def run_managed_git(
     if not arguments:
         raise ValueError("managed Git arguments are required")
     selected_run = run_id or f"git-{os.getpid()}-{uuid.uuid4().hex[:12]}"
+    if _is_bounded_readonly_git(arguments):
+        return _run_bounded_readonly_git(
+            root,
+            arguments,
+            stage=stage,
+            run_id=selected_run,
+            timeout=timeout,
+            max_output_bytes=max_output_bytes,
+        )
     return run_managed_command(
         root,
         ("git", *arguments),
@@ -65,6 +82,179 @@ def run_managed_git(
         timeout=timeout,
         max_output_bytes=max_output_bytes,
     )
+
+
+def _is_bounded_readonly_git(arguments: Sequence[str]) -> bool:
+    command = arguments[0]
+    options = {
+        value.split("=", 1)[0]
+        for value in arguments[1:]
+        if value.startswith("-")
+    }
+    if command == "status":
+        allowed = {
+            "--short", "-s", "--porcelain", "-z", "--branch", "-b",
+            "--show-stash", "--ahead-behind", "--no-ahead-behind",
+            "--untracked-files", "-u", "--ignore-submodules", "--column",
+            "--no-column", "--renames", "--no-renames", "--find-renames", "--",
+        }
+        return options.issubset(allowed)
+    if command == "rev-parse":
+        allowed = {
+            "--verify", "--quiet", "-q", "--short", "--abbrev-ref",
+            "--symbolic", "--symbolic-full-name", "--show-toplevel",
+            "--show-prefix", "--show-cdup", "--show-superproject-working-tree",
+            "--show-object-format", "--is-inside-work-tree", "--is-bare-repository",
+            "--git-dir", "--git-common-dir", "--absolute-git-dir", "--path-format",
+            "--sq", "--revs-only", "--no-revs", "--flags", "--no-flags",
+            "--default", "--end-of-options", "--",
+        }
+        return bool(arguments[1:]) and options.issubset(allowed)
+    if command == "diff":
+        allowed = {
+            "--name-only", "--cached", "--staged", "-z", "--no-renames",
+            "--relative", "--diff-filter", "--ignore-submodules",
+            "--no-ext-diff", "--no-textconv", "--",
+        }
+        return "--name-only" in options and options.issubset(allowed)
+    if command == "ls-files":
+        return "--recurse-submodules" not in options
+    return False
+
+
+def _run_bounded_readonly_git(
+    root: Path,
+    arguments: Sequence[str],
+    *,
+    stage: str,
+    run_id: str,
+    timeout: float,
+    max_output_bytes: int,
+) -> ProcessResult:
+    """Run an exact read-only Git shape without leases or containment bootstrap.
+
+    This path deliberately reports SOFT containment and no orphan proof. It is
+    restricted to short Git metadata operations; every other argv stays on the
+    managed path.
+    """
+
+    if timeout <= 0:
+        raise ValueError("bounded Git timeout must be positive")
+    repository = root.resolve(strict=True)
+    safe_arguments = tuple(arguments)
+    if safe_arguments[0] == "diff":
+        safe_arguments = ("diff", "--no-ext-diff", "--no-textconv", *safe_arguments[1:])
+    command = (
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.pager=cat",
+        "-c",
+        "interactive.diffFilter=",
+        *safe_arguments,
+    )
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_PAGER": "cat",
+            "PAGER": "cat",
+        }
+    )
+    started = time.monotonic()
+    deadline = started + timeout
+    try:
+        with tempfile.TemporaryFile() as stdout_stream, tempfile.TemporaryFile() as stderr_stream:
+            process = subprocess.Popen(
+                command,
+                cwd=repository,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout_stream,
+                stderr=stderr_stream,
+                shell=False,
+            )
+            while process.poll() is None:
+                stdout_size = os.fstat(stdout_stream.fileno()).st_size
+                stderr_size = os.fstat(stderr_stream.fileno()).st_size
+                if stdout_size > max_output_bytes or stderr_size > max_output_bytes:
+                    process.kill()
+                    process.wait()
+                    raise ManagedExecutionError(
+                        f"bounded read-only Git output exceeded {max_output_bytes} bytes during {stage}"
+                    )
+                if time.monotonic() >= deadline:
+                    process.kill()
+                    process.wait()
+                    raise ManagedExecutionError(
+                        f"bounded read-only Git timed out during {stage} after {timeout:g}s"
+                    )
+                time.sleep(0.02)
+            stdout_size = os.fstat(stdout_stream.fileno()).st_size
+            stderr_size = os.fstat(stderr_stream.fileno()).st_size
+            if stdout_size > max_output_bytes or stderr_size > max_output_bytes:
+                raise ManagedExecutionError(
+                    f"bounded read-only Git output exceeded {max_output_bytes} bytes during {stage}"
+                )
+            stdout_stream.seek(0)
+            stderr_stream.seek(0)
+            stdout = stdout_stream.read()
+            stderr = stderr_stream.read()
+            returncode = process.returncode
+    except OSError as exc:
+        raise ManagedExecutionError(f"bounded read-only Git failed to start: {exc}") from exc
+    classification = (
+        ProcessClassification.SUCCESS
+        if returncode == 0
+        else ProcessClassification.NONZERO
+    )
+    result = ProcessResult(
+        stage=stage,
+        run_id=run_id,
+        lease_id=None,
+        command=tuple(command),
+        cwd=str(repository),
+        environment_hints={"admission": "bounded-read-only"},
+        classification=classification,
+        exit_code=returncode,
+        termination_reason=("completed" if returncode == 0 else "nonzero-exit"),
+        elapsed=time.monotonic() - started,
+        stdout_tail=stdout.decode("utf-8", errors="replace"),
+        stderr_tail=stderr.decode("utf-8", errors="replace"),
+        stdout_tail_bytes=stdout,
+        stderr_tail_bytes=stderr,
+        stdout_bytes=len(stdout),
+        stderr_bytes=len(stderr),
+        stdout_dropped_bytes=0,
+        stderr_dropped_bytes=0,
+        peak_owned_processes=1,
+        child_cpu_seconds=None,
+        peak_rss_bytes=None,
+        temp_root=None,
+        heartbeat_count=0,
+        cleanup_complete=True,
+        containment_complete=False,
+        sampling_degraded=True,
+        cleanup_error=None,
+        termination_escalated=False,
+        orphan_count=None,
+        containment_level=ContainmentLevel.SOFT.value,
+        orphan_check="not-performed",
+        platform_adapter="bounded-direct-readonly-v1",
+        limitations=(
+            "direct read-only Git is not process-tree containment",
+            "orphan state is not claimed",
+        ),
+    )
+    if not result.ok:
+        detail = result.stderr_tail.strip() or result.stdout_tail.strip()
+        raise ManagedExecutionError(
+            f"bounded read-only Git failed ({returncode}): "
+            + (detail or "no diagnostic output")
+        )
+    return result
 
 
 def run_managed_command(
