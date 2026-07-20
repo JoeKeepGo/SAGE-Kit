@@ -5,10 +5,13 @@ orchestration, and worktree isolation planning.
 
 ## Execution Document Routing
 
-Before planning an executable milestone, select its document model from project
-authority. `legacy-markdown` continues to use the retained Markdown entry gate
-and phase documents. `thin-v1` requires `SAGE_PROJECT.json`,
-`docs/<M>/MILESTONE_MANIFEST.json`, and one `docs/<M>/phases/<P>.json` per phase.
+Before planning an executable milestone, select its document model and SPEC
+sources from project authority. `legacy-markdown` continues to use the retained
+Markdown entry gate and phase documents. `thin-v1` requires
+`SAGE_PROJECT.json` plus explicit or configured milestone and phase sources. The
+legacy adapter keeps `docs/<M>/MILESTONE_MANIFEST.json` and
+`docs/<M>/phases/<P>.json` as compatible defaults; paths are provenance, not
+authority.
 
 The thin milestone manifest retains the objective, capability outcome,
 authority references, dependency DAG, approval gates, phase IDs, acceptance,

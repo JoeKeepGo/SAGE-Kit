@@ -6,6 +6,8 @@ archive by default.
 ## Default Rule
 
 Read narrow first, then expand only when the task requires it.
+Configured or explicit SPEC sources are valid; their paths are provenance, not
+authority. Legacy `docs/<M>` routing remains a compatible default.
 
 Maintain this file as a stable routing table, not a session log. Do not update
 it for ordinary task progress.
@@ -17,7 +19,7 @@ context is needed and what decision it supports.
 
 Default startup read set:
 
-1. `docs/ACTIVE_CONTEXT.md`
+1. Configured `ACTIVE_CONTEXT` (legacy default `docs/ACTIVE_CONTEXT.md`)
 2. `docs/DOC_ROUTING.md`
 3. `SAGE_PROJECT.json`, when present, to select `execution_document_model` and
    its pinned contract
@@ -31,7 +33,7 @@ Default startup read set:
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` if present |
-| Thin document validation | `SAGE_PROJECT.json`, active `docs/<M>/MILESTONE_MANIFEST.json`, selected `docs/<M>/phases/<P>.json` | Referenced project gates and evidence only |
+| Thin document validation | `SAGE_PROJECT.json`, configured or explicit active SPEC sources; legacy default `docs/<M>` | Referenced project gates and evidence only |
 | Thin packet compilation | Project lock, active milestone manifest, selected phase manifest | Exact pinned contract/profile resources; standalone output only when the runtime cannot load them |
 | Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
