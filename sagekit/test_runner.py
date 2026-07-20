@@ -104,7 +104,7 @@ def command_for(node: TestNode, repository: Path) -> tuple[str, ...]:
     if node.name == "source-repo":
         return (python, "-B", "-m", "sagekit", "check", "--source-repo", "--json")
     if node.name == "package":
-        return (python, "-B", str(repository / "scripts" / "wheel_smoke.py"))
+        return (python, "-B", "-m", "scripts.wheel_smoke")
     raise ValueError(f"unknown test node: {node.name}")
 
 

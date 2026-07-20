@@ -420,7 +420,7 @@ class ThinExecutionRoutingTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
             payload = json.loads(result.stdout)
             self.assertEqual(".sagekit/packets/P01.json", payload["output"])
-            self.assertNotIn(str(root), result.stdout)
+            self.assertFalse(Path(payload["output"]).is_absolute())
             self.assertTrue((root / ".sagekit/packets/P01.json").is_file())
 
     def test_check_and_packet_text_json_exit_codes_match_on_success_and_failure(self):

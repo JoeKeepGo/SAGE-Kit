@@ -106,6 +106,17 @@ class WorkspaceBindingTests(unittest.TestCase):
                 self.assertFalse(decision.ok)
                 self.assertIn("mutation", decision.reason)
 
+    def test_branch_show_current_is_a_repo_read_not_an_index_mutation(self) -> None:
+        decision = authorize_command(
+            ("git", "branch", "--show-current"),
+            resource_class=ResourceClass.REPO_READ,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.REPO_READ,),
+            descendant=False,
+        )
+
+        self.assertTrue(decision.ok, decision.reason)
+
     def test_descendant_cannot_escalate_resource_class_or_permission(self) -> None:
         decision = authorize_command(
             ("git", "status", "--short"),

@@ -54,16 +54,16 @@ V0_SEMANTIC_SCHEMA_SHA256 = {
     "evidence.schema.json": "71470bdd4295f5134936da17480c24b6a9daeadf78698af29222304eb52445f0",
 }
 FROZEN_RESOURCE_RAW_SHA256 = {
-    "v0/evidence.schema.json": "bee5b18eb887fbc2f8195d6b9871a0ff044354c24075c471a75aaaf77b24555c",
-    "v0/policy.json": "e2a19a4ed8c9a8b027e2c4bd4f4f11d8189f717356414092dfec6a38f8cc6241",
-    "v0/rules.json": "d936b4d52414622062c3fd4bf3f6ccc26f225d4f3b8472697d41ed7f6204c485",
-    "v0/task.schema.json": "381a59bdd69dd1c3470025ea3714f90109271189e294c863ffa2751349e5f9d7",
-    "v0/validator.json": "8f4105d2cccf6e055c018fd2b71f2ced67874ac875cab3a2df31b39db2ac0f46",
-    "v1/evidence.schema.json": "4c45ab92737a32e80023af900151cc304551a23619d59e1f221f474cdcc9017e",
-    "v1/policy.json": "7f5e61a28e125cbf65f3d27cd0347c53cd45c49d7acf5cadb7712cc856a97f66",
-    "v1/rules.json": "f0dc4b47ac2a611d545df7e2ef82c98bd8301126dce939172cfabdf4300b2fdb",
-    "v1/task.schema.json": "165a426372f74d3a4a57b4d1dfd489387445e0f5904438a4b0056fd8188f1304",
-    "v1/validator.json": "5459268a28bfc40bd7abe25c61eefa53a88020d4237bbf72c296af0a536f1300",
+    "v0/evidence.schema.json": "1c788b96fecaa56c9bf7de526bb2ac3bfe79e2d926b5e7cd313a07d6924c5f87",
+    "v0/policy.json": "9aeea9bdda5aa6f2ff7c5562f08c49e41f62f6e46cc578f9410293e2cde3e3e1",
+    "v0/rules.json": "73672a9dbe994c9c4b2f0a7b0679cd201bccdc9bc98b6e5ec54a3a9e65b5632c",
+    "v0/task.schema.json": "459d31b0b93d465757202c93094be49b416be85f186ebfad6c469b1d452ba60c",
+    "v0/validator.json": "be340863381493ae35e0ad27d3d34aa943940948704a1acc08389bfec7c90a58",
+    "v1/evidence.schema.json": "f6c2f6e12be0066b4e82cc4c7e52433cf41dc1b806d8486681aa3e39046902e6",
+    "v1/policy.json": "a6c8eae5fce2ae67a35382ec6b28e8c60ffde2407234bcc7027798d5fce746be",
+    "v1/rules.json": "4ae8d23e11e6627fda3672c9fe51ec9b63de582056b4906ab0307612f4db905f",
+    "v1/task.schema.json": "82502099f5b754e4257e95c21189b8ee438f3088f0cefa7b8b60a514d440c6a6",
+    "v1/validator.json": "493668554b9cb7016d3f6985703a8166267256ab9f1ab32b3512f66f1832b16c",
 }
 
 

@@ -330,6 +330,8 @@ def _known_mutation(command: Sequence[str]) -> str | None:
     args = [str(item).casefold() for item in command[1:]]
     if executable in {"git", "git.exe"} and args:
         subcommand = _git_subcommand(args)
+        if subcommand == "branch" and args[-2:] == ["branch", "--show-current"]:
+            return None
         if subcommand in _KNOWN_GIT_MUTATIONS:
             return f"git {subcommand}"
     if executable.startswith("python") or executable in {"py", "py.exe"}:

@@ -39,6 +39,11 @@ class SelfCheckWorkflowTests(unittest.TestCase):
         self.assertIn('python-version: ["3.10", "3.11", "3.12"]', unit)
         self.assertIn("python -B -m scripts.run_tests unit --json", unit)
 
+    def test_each_job_fetches_history_for_frozen_base_comparison(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+
+        self.assertEqual(3, text.count("fetch-depth: 0"))
+
     def test_integration_and_package_use_one_python_per_platform(self):
         text = WORKFLOW.read_text(encoding="utf-8")
 

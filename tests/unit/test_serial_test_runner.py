@@ -5,7 +5,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from unittest.mock import patch
 
-from sagekit.test_runner import build_plan
+from pathlib import Path
+
+from sagekit.test_runner import build_plan, command_for
 from scripts.run_tests import main as runner_main
 
 
@@ -42,6 +44,14 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
             with self.subTest(lane=lane):
                 plan = build_plan(lane, waive_high_load=False)
                 self.assertEqual((lane,), tuple(node.name for node in plan))
+
+    def test_package_lane_uses_importable_module_entrypoint(self) -> None:
+        node = build_plan("package", waive_high_load=False)[0]
+
+        self.assertEqual(
+            ("-B", "-m", "scripts.wheel_smoke"),
+            command_for(node, Path.cwd())[1:],
+        )
 
     def test_json_mode_keeps_progress_on_stderr_and_final_json_on_stdout(self) -> None:
         stdout = StringIO()

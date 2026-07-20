@@ -179,24 +179,17 @@ class ThinExecutionDocumentTests(unittest.TestCase):
             "sagekit/resources/execution_documents",
         )
         for root in roots:
-            for name in ("milestone.schema.json", "phase.schema.json", "project.schema.json"):
-                relative = f"{root}/2026.7.19.3/{name}"
+            frozen_root = repository / root / "2026.7.19.3"
+            for path in sorted(frozen_root.rglob("*.json")):
+                relative = path.relative_to(repository).as_posix()
                 with self.subTest(relative=relative):
                     expected = subprocess.run(
-                        ["git", "rev-parse", f"6669ba279169dfc2ccf3cc202788ae709f98b772:{relative}"],
+                        ["git", "show", f"6669ba279169dfc2ccf3cc202788ae709f98b772:{relative}"],
                         cwd=repository,
                         check=True,
                         stdout=subprocess.PIPE,
-                        text=True,
-                    ).stdout.strip()
-                    observed = subprocess.run(
-                        ["git", "hash-object", f"--path={relative}", relative],
-                        cwd=repository,
-                        check=True,
-                        stdout=subprocess.PIPE,
-                        text=True,
-                    ).stdout.strip()
-                    self.assertEqual(expected, observed)
+                    ).stdout
+                    self.assertEqual(expected, path.read_bytes())
 
     def test_v20_uses_urn_ids_and_has_a_distinct_contract_digest(self):
         repository = Path(__file__).resolve().parents[1]

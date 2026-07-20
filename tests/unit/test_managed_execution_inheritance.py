@@ -62,7 +62,8 @@ class ManagedExecutionInheritanceTests(unittest.TestCase):
                         project_identity="project-A",
                         worktree_identity="worktree-A",
                     )
-                self.assertIsNone(inherited)
+                self.assertIsNotNone(inherited)
+                self.assertEqual(parent.lease_id, inherited.lease_id)
             finally:
                 parent_manager.release(parent)
 
