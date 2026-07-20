@@ -99,6 +99,12 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
                 plan = build_plan(lane, waive_high_load=False)
                 self.assertEqual((lane,), tuple(node.name for node in plan))
 
+    def test_integration_timeout_has_bounded_windows_runtime_margin(self) -> None:
+        integration = build_plan("integration", waive_high_load=False)[0]
+
+        self.assertEqual(900.0, integration.timeout)
+        self.assertLess(integration.timeout, 20 * 60)
+
     def test_package_lane_uses_importable_module_entrypoint(self) -> None:
         node = build_plan("package", waive_high_load=False)[0]
 

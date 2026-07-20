@@ -69,7 +69,11 @@ def build_plan(lane: str, *, waive_high_load: bool) -> tuple[TestNode, ...]:
     timeouts = {
         "focused": 600.0,
         "unit": 600.0,
-        "integration": 600.0,
+        # The serial Windows integration lane is consistently slower than the
+        # unit lane and has crossed the old ten-minute process deadline while
+        # continuing to emit healthy heartbeats. Keep the node bounded, but
+        # leave enough margin below the CI job's twenty-minute ceiling.
+        "integration": 900.0,
         "source-repo": 300.0,
         "package": 900.0,
     }
