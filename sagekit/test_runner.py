@@ -140,10 +140,16 @@ def execute_plan(
                 "TMP": str(temp_root),
                 "TEMP": str(temp_root),
                 "TMPDIR": str(temp_root),
-                "LOCALAPPDATA": str(temp_root / "localappdata"),
-                "XDG_RUNTIME_DIR": str(temp_root / "xdg-runtime"),
-                "XDG_CACHE_HOME": str(temp_root / "xdg-cache"),
             }
+            delegates_managed_children = node.resource_class is ResourceClass.PACKAGE_BUILD
+            if not delegates_managed_children:
+                environment.update(
+                    {
+                        "LOCALAPPDATA": str(temp_root / "localappdata"),
+                        "XDG_RUNTIME_DIR": str(temp_root / "xdg-runtime"),
+                        "XDG_CACHE_HOME": str(temp_root / "xdg-cache"),
+                    }
+                )
             last_test: str | None = None
 
             def heartbeat(event: object) -> None:
@@ -189,7 +195,10 @@ def execute_plan(
                     if progress is not None
                     else None
                 ),
-                isolated_test_harness=True,
+                delegated_classes=(
+                    (node.resource_class,) if delegates_managed_children else ()
+                ),
+                isolated_test_harness=not delegates_managed_children,
             )
             state = "PASS" if result.ok else "FAIL"
             wall_elapsed = time.monotonic() - started
