@@ -11,7 +11,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  focused:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run serial focused lane
+        run: python -B scripts/run_tests.py focused --repository .
+
   unit:
+    needs: focused
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -29,9 +50,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run serial unit lane
-        run: python -B -m scripts.run_tests unit --json
+        run: python -B scripts/run_tests.py unit --repository .
 
   integration:
+    needs: unit
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -48,9 +70,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run serial integration lane
-        run: python -B -m scripts.run_tests integration --json
+        run: python -B scripts/run_tests.py integration --repository .
 
   package-process-resource-smoke:
+    needs: integration
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -70,9 +93,9 @@ jobs:
         run: python -m pip install "setuptools>=68"
       - name: Run source-repository check once
         if: matrix.os == 'ubuntu-latest'
-        run: python -B -m sagekit check --source-repo --json
-      - name: Run serial package and governed-process smoke
-        run: python -B -m scripts.run_tests package --json
+        run: python -B scripts/run_tests.py source-repo --repository .
+      - name: Run package and outside-source smoke
+        run: python -B scripts/run_tests.py package --repository .
       - name: Run Claude Code hook tests
         if: matrix.os == 'ubuntu-latest'
         run: bash tests/test_claude_hooks.sh

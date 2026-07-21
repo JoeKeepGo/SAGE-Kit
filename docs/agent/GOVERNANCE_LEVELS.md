@@ -143,7 +143,8 @@ silently upgrading the run.
 
 ## Optional Controls
 
-Heavy does not automatically enable every control.
+Heavy does not automatically enable every control. Controls are optional unless
+the active packet, owner authorization, or explicit SPEC entry marks them required.
 
 - Use Session Orchestration for milestone-level multi-controller handoff.
 - Use Wave Execution for safe parallel lanes inside a phase.
@@ -158,7 +159,7 @@ Heavy does not automatically enable every control.
 - Use external skills, plugins, tools, CI, or reviewers only under
   `docs/SAGE_CORE.md#external-capability-boundary` and
   `docs/agent/CAPABILITY_ADAPTERS.md`. Superpowers is a reference integration
-  for execution discipline when available, but it does not change the selected
+  for execution discipline when runtime policy allows, but it does not change the
   governance level or override SAGE-Kit authority.
 
 ## Packet Requirement

@@ -19,7 +19,7 @@ Resolve explicit project approval/gates before project overrides, pinned
 contract/profile policy, and runtime defaults. Unknown profiles, invalid
 overrides, conflicting authority, and missing digests must not fall back.
 
-Use `sagekit packet compile` to produce the temporary execution packet. The
+Build the temporary execution packet through the harness packet builder. The
 packet binds the project lock, milestone, phase, resolved policy, and source
 digests. Compact output is suitable only when the runtime can load the exact
 pinned profile. A standalone compiled packet includes the resolved generic
@@ -235,7 +235,7 @@ When active:
   released states;
 - record L0-L4 evidence in `evidence.yaml` instead of copying long logs into
   startup docs;
-- run `scripts/validate_task_dispatch.py --gate-ready` before returning a task,
+- run the active Task Dispatch validator check before returning a task,
   phase, or milestone as gate-ready when the packet requires validator
   closeout;
 - return `HANDOFF` or `BLOCKED` when validator failure reflects missing scope,

@@ -31,7 +31,49 @@ AUTO_KINDS = frozenset(
 PROTECTED_PARTS = frozenset(
     {"generated", "vendor", "vendored", "signed", "frozen", "accepted", "historical"}
 )
+KNOWN_AUTO_FIX_EXTENSIONS = frozenset(
+    {
+        ".bash",
+        ".cfg",
+        ".conf",
+        ".config",
+        ".cpp",
+        ".cs",
+        ".css",
+        ".go",
+        ".h",
+        ".hpp",
+        ".html",
+        ".ini",
+        ".java",
+        ".js",
+        ".json",
+        ".jsx",
+        ".kt",
+        ".php",
+        ".properties",
+        ".py",
+        ".pyi",
+        ".rb",
+        ".rs",
+        ".sh",
+        ".scss",
+        ".sql",
+        ".swift",
+        ".toml",
+        ".ts",
+        ".tsx",
+        ".xml",
+        ".yaml",
+        ".yml",
+    }
+)
+KNOWN_AUTO_FIX_BASENAMES = frozenset({"dockerfile", "makefile", "rakefile"})
 PROTECTED_MIGRATION_STATES = frozenset({"accepted", "applied", "hash-bound"})
+MARKDOWN_SUFFIXES = frozenset({".md", ".mdx", ".markdown"})
+PROTECTED_FORMAT_PARTS = frozenset(
+    {"fixtures", "templates", "history", "migration", "migrations"}
+)
 
 
 @dataclass(frozen=True)
@@ -95,8 +137,9 @@ def classify_bytes(
     relative = _safe_relative(path)
     if before == after:
         return ()
-    reason = protected_reason or _automatic_protection_reason(relative, migration_state)
-    auto_allowed = reason is None
+    reason = protected_reason or _automatic_protection_reason(
+        relative, migration_state, content=after
+    )
     original = _sha256(after)
     non_whitespace = non_whitespace_digest(after)
     findings: list[NormalizationFinding] = []
@@ -112,7 +155,23 @@ def classify_bytes(
             )
         )
         return tuple(findings)
-    if non_whitespace_digest(before) != non_whitespace:
+    candidate_kinds: set[NormalizationKind] = set()
+    if after and not after.endswith(b"\n"):
+        candidate_kinds.add(NormalizationKind.MISSING_FINAL_NEWLINE)
+    if after.endswith(b"\n\n") and not before.endswith(b"\n\n"):
+        candidate_kinds.add(NormalizationKind.EXTRA_BLANK_LINE_AT_EOF)
+    if _has_trailing_spaces_or_tabs(after):
+        candidate_kinds.add(NormalizationKind.TRAILING_WHITESPACE)
+
+    # Findings describe defects in the observed content, so reverse the selected
+    # repairs and require an exact match with the baseline bytes. This prevents a
+    # token-space edit from being mistaken for a mechanical whitespace change.
+    has_non_whitespace_change = (
+        not candidate_kinds
+        or _normalize_selected(after, candidate_kinds) != before
+    )
+    auto_allowed = reason is None and not has_non_whitespace_change
+    if has_non_whitespace_change:
         findings.append(
             NormalizationFinding(
                 relative,
@@ -120,11 +179,11 @@ def classify_bytes(
                 original,
                 non_whitespace,
                 False,
-                "non-whitespace candidate content is outside mechanical normalization",
+                "candidate content is outside the selected mechanical normalization",
             )
         )
     mechanical_reason = reason or "safe whitespace-only correction inside writable scope"
-    if after and not after.endswith(b"\n"):
+    if NormalizationKind.MISSING_FINAL_NEWLINE in candidate_kinds:
         findings.append(
             NormalizationFinding(
                 relative,
@@ -135,7 +194,7 @@ def classify_bytes(
                 mechanical_reason,
             )
         )
-    if after.endswith(b"\n\n") and not before.endswith(b"\n\n"):
+    if NormalizationKind.EXTRA_BLANK_LINE_AT_EOF in candidate_kinds:
         findings.append(
             NormalizationFinding(
                 relative,
@@ -146,7 +205,7 @@ def classify_bytes(
                 mechanical_reason,
             )
         )
-    if _has_trailing_spaces_or_tabs(after):
+    if NormalizationKind.TRAILING_WHITESPACE in candidate_kinds:
         findings.append(
             NormalizationFinding(
                 relative,
@@ -157,6 +216,7 @@ def classify_bytes(
                 mechanical_reason,
             )
         )
+
     return tuple(findings)
 
 
@@ -209,9 +269,7 @@ def apply_auto_normalization(
         protection = (
             "explicitly protected byte-bound file"
             if finding.path in protected
-            else _automatic_protection_reason(
-                finding.path, states.get(finding.path)
-            )
+            else _automatic_protection_reason(finding.path, states.get(finding.path))
         )
         if protection is not None:
             raise PermissionError(
@@ -225,15 +283,25 @@ def apply_auto_normalization(
         path = root.joinpath(*PurePosixPath(relative).parts)
         _reject_unsafe_target(root, path)
         content = path.read_bytes()
+        protection = (
+            "explicitly protected byte-bound file"
+            if relative in protected
+            else _automatic_protection_reason(relative, states.get(relative), content=content)
+        )
+        if protection is not None:
+            raise PermissionError(
+                f"normalization target is protected: {relative}: {protection}"
+            )
         expected = {item.original_sha256 for item in selected}
         if expected != {_sha256(content)}:
             raise RuntimeError(f"normalization finding is stale: {relative}")
-        before_semantic = non_whitespace_digest(content)
         updated = _normalize_selected(content, {item.kind for item in selected})
-        if non_whitespace_digest(updated) != before_semantic:
-            raise RuntimeError(f"normalization changed non-whitespace content: {relative}")
         before_digests[relative] = _sha256(content)
-        semantic_digests[relative] = before_semantic
+        semantic_digests[relative] = non_whitespace_digest(content)
+        if non_whitespace_digest(updated) != semantic_digests[relative]:
+            raise RuntimeError(
+                f"normalization would alter non-whitespace content: {relative}"
+            )
         if updated != content:
             path.write_bytes(updated)
         after_digests[relative] = _sha256(updated)
@@ -250,7 +318,19 @@ def apply_auto_normalization(
 
 
 def non_whitespace_digest(content: bytes) -> str:
-    return _sha256(b"".join(content.split()))
+    # Canonicalize only the three supported mechanical repairs. Do not collapse
+    # arbitrary whitespace, because inline whitespace can separate content tokens.
+    updated = content
+    lines = updated.splitlines(keepends=True)
+    cleaned: list[bytes] = []
+    for line in lines:
+        ending = b"\r\n" if line.endswith(b"\r\n") else b"\n" if line.endswith(b"\n") else b""
+        body = line[: -len(ending)] if ending else line
+        cleaned.append(body.rstrip(b" \t") + ending)
+    updated = b"".join(cleaned)
+    ending = b"\r\n" if b"\r\n" in updated and b"\n" not in updated.replace(b"\r\n", b"") else b"\n"
+    updated = updated.rstrip(b"\r\n") + ending
+    return _sha256(updated)
 
 
 def _normalize_selected(content: bytes, kinds: set[NormalizationKind]) -> bytes:
@@ -308,23 +388,47 @@ def _git_bytes(root: Path, *arguments: str) -> bytes:
         raise ValueError(str(exc)) from exc
 
 
-def _automatic_protection_reason(path: str, migration_state: str | None) -> str | None:
+def _automatic_protection_reason(
+    path: str, migration_state: str | None, content: bytes | None = None
+) -> str | None:
     parts = {item.casefold() for item in PurePosixPath(path).parts}
     if parts & PROTECTED_PARTS:
         return "generated, vendored, signed, frozen, accepted, or historical files are protected"
+    is_migration = bool(parts & {"migration", "migrations"})
+    if is_migration:
+        state = (migration_state or "unknown").casefold()
+        if state in PROTECTED_MIGRATION_STATES:
+            return f"migration is {state} and byte-protected"
+        if state != "candidate":
+            return "migration acceptance/application/hash state is not proven candidate"
+    if parts & (PROTECTED_FORMAT_PARTS - {"migration", "migrations"}):
+        return "fixtures/templates/history/migrations artifacts are format-sensitive"
+    suffix = PurePosixPath(path).suffix.casefold()
+    if suffix in MARKDOWN_SUFFIXES:
+        return "markdown hard-break-sensitive formatting requires manual repair"
+    if _is_unknown_format(path):
+        return "unknown file format is excluded from automatic whitespace repair"
+    if content is not None and _has_multiline_literal_marks(content):
+        return "multiline-literal-sensitive formatting requires manual repair"
     folded = path.casefold()
     if (
         "docs/contracts/execution-documents/2026.7.19.3/" in folded
         or "resources/execution_documents/2026.7.19.3/" in folded
     ):
         return "frozen byte-checksum-bound execution contract is protected"
-    if "migration" in parts or "migrations" in parts:
-        state = (migration_state or "unknown").casefold()
-        if state in PROTECTED_MIGRATION_STATES:
-            return f"migration is {state} and byte-protected"
-        if state != "candidate":
-            return "migration acceptance/application/hash state is not proven candidate"
     return None
+
+
+def _has_multiline_literal_marks(content: bytes) -> bool:
+    return b'"""' in content or b"'''" in content
+
+
+def _is_unknown_format(path: str) -> bool:
+    name = PurePosixPath(path).name.casefold()
+    suffix = PurePosixPath(path).suffix.casefold()
+    if suffix and suffix in KNOWN_AUTO_FIX_EXTENSIONS:
+        return False
+    return suffix not in KNOWN_AUTO_FIX_EXTENSIONS and name not in KNOWN_AUTO_FIX_BASENAMES
 
 
 def _reject_unsafe_target(root: Path, path: Path) -> None:

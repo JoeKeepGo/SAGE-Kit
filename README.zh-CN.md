@@ -2,323 +2,135 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-AI 写代码很快，难的是让一个长期项目始终保持清晰。
+AI 写代码很快，但让长期项目长期保持一致更难。
 
-SAGE-Kit 用共享的 SPEC 语义和 Harness runtime 管理范围、authority、执行、
-验证证据和 handoff，让人和 Agent 不必靠聊天记录维持项目状态。它适合跨越
-多个 Session 的项目，也适合那些不能只凭一句“已经完成”就接受结果的工作。
+SAGE-Kit 用项目自有 SPEC 合同和可嵌入的 Harness 核心，让项目继续在自己掌握的
+合同中前进。
 
-SAGE-Kit 开源、使用 Python 编写，运行时没有第三方依赖。配套的 Agent
-Skill 可在 Codex、Claude Code、OpenCode 和 Kimi Work / Kimi Code CLI
-中使用。
+本仓库不再依赖公开 CLI 作为产品入口。项目的范围、授权、门禁和验收标准仍由项
+目文档决定；SAGE-Kit 提供可嵌入的共享执行模型，供本地工具与 Agent 在其边界
+内协作。
 
-## 它解决什么问题
+SAGE-Kit 运行时只用标准库，开源；配套 Skill 可在 Codex、Claude Code、OpenCode
+和 Kimi Work 及兼容的运行时配置中使用。
 
-- 把产品想法整理成可以评审的 Milestone 和 Phase。
-- 把项目事实留在仓库里，而不是留在聊天记录里。
-- 明确 Agent 能改什么、谁有权批准、什么操作必须停下来。
-- 要求用测试和证据证明结果。
-- 中断后继续工作，不必复制整段对话。
-- 只在风险需要时使用更重的治理。
+## 去掉公开 CLI 后的定位
 
-它不替代工程判断、测试、代码评审或专业工具。它的作用是让这些工作遵循
-同一份项目合同。
+- 项目自有的 SPEC 与配置是权威来源；Markdown 文档只是可选的 source 格式，
+  不是 authority 模型本身。
+- Harness 以嵌入方式绑定到项目，但不拥有或替代项目策略。
+- 项目绑定配置决定项目如何解析 authority、ACTIVE_CONTEXT 与可执行范围。
+- 完成状态由项目 SPEC、配置、门禁与审批决定，而不是某条工具命令。
+- `ACTIVE_CONTEXT` 仍有价值，但保持可配置、可替换，不再强绑定固定拓扑。
+- 外部工具和插件仍是执行手段，不能成为项目决策来源。
 
-## 快速开始
+## 典型接入流程
 
-安装 CLI：
+1. 在项目运行时引入 SAGE-Kit 作为依赖。
+2. 在项目配置中明确 SPEC source 来源路径（本地文档、可选适配器、legacy 布局）。
+3. 初始化并绑定项目级 Harness 配置。
+4. 所有执行与验收都走项目合同与审批门禁，而不是把外部运行结果当作完成判定。
 
-```bash
-pipx install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.20.2
-```
+要求 Python 3.10+。
 
-也可以使用 `uv`：
+## SPEC 来源与运行模型
 
-```bash
-uv tool install git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.20.2
-```
+SAGE-Kit 规范 SPEC 语义与执行合同，但不要求固定文档目录。
 
-此版本包含 Host Resource Governance、Workspace Binding、packet schema v3
-和位置无关的 SPEC source。
+兼容的旧项目在不迁移下可继续使用，只要保留可授权的 source 路径即可。
 
-进入需要采用 SAGE-Kit 的项目：
+项目可选择：
 
-```bash
-sagekit init --mode light --dry-run
-sagekit init --mode light
-sagekit doctor
-sagekit check --mode light
-```
+- 本项目原生 SPEC 文档；
+- 显式配置的 legacy `docs/<M>`；
+- 外部适配器提供的显式 source。
 
-默认 adoption 绑定已安装 package，只创建请求的少量项目配置或 handoff
-skeleton；framework vendoring 是显式 compatibility profile。`init` 不会自动
-创建 Milestone、worktree、commit 或 push。
+source path 是 provenance，项目 authority、history 与 acceptance 规则仍在项目自有
+SPEC 和配置里。
 
-在源码仓库中也可以直接运行：
+## 可选传统布局与连续性
 
-```bash
-python -m sagekit --version
-python -m sagekit check --source-repo
-```
+为兼容旧项目和便于人工阅读，项目可以保留以下传统 Markdown 布局，但这不是
+Harness 的强制目录；配置化 SPEC source 或 adapter 可以提供同一 normalized facts：
 
-需要 Python 3.10 或更高版本。
+- `docs/PROJECT_PROFILE.md`
+- `docs/QUALITY_GATES.md`
+- `docs/APPROVAL_GATES.md`
+- 可配置 `ACTIVE_CONTEXT`
+- `docs/DOC_ROUTING.md`
+- `docs/MILESTONE_ROADMAP.md`
+- milestone ledger、phase 文档、closeout 文档
 
-## SPEC Sources 与 Thin Execution Documents
+模板仍放在 [`docs`](docs) 和 [`docs/templates`](docs/templates)。
 
-SAGE-Kit 治理 SPEC 语义和 execution contract，而不是规定项目文档必须位于
-某个目录。Milestone 文档仍是重要项目资产；adapter 可以从显式路径、项目
-mapping 或 legacy `docs/<M>` 读取它们。Harness 只消费位置无关的 normalized
-SPEC model；source path 是 provenance，不是语义身份。
+## 集成方式
 
-Legacy 项目无需迁移：
+项目可启用以下能力：
 
-```bash
-sagekit packet compile --target . --milestone M1
-```
+- 本地 Harness 执行；
+- 连续性/检查点；
+- 可选插件：skill、CI、MCP、Reviewer（带授权与回退策略）。
 
-也可以显式选择项目授权的任意 source：
+外部能力只产出执行证据，不替换项目自身通过门禁决定的完成判断。
 
-```bash
-sagekit packet compile --target . --milestone M1 --source specs/current/milestone.md
-```
+## 兼容性
 
-显式或配置 source 必须 fail closed，不能静默回退。compile 默认输出到
-stdout，不更新 source 文档或 `ACTIVE_CONTEXT`。现有
-`docs/ACTIVE_CONTEXT.md` 继续兼容，新项目可以配置其他路径。它是紧凑的
-current-truth/handoff 视图；lease、candidate、counter 和完整历史应进入
-`.sagekit`、ledger 或 closeout。
+- `thin-v1` execution-document 与 `legacy-markdown` 保持兼容；
+- `legacy-markdown` 与既有 `SAGE_PROJECT.json` 流程兼容；
+- 已接受历史不做静默迁移；
+- 兼容性例外仅适用于项目本地策略，不得用于弱化目标项目门禁。
 
-默认 adoption 是 package-bound：项目只保存自己的 SPEC、少量配置以及已安装
-package 的 version 和安全 runtime/resource manifest digest，不复制 runtime、schema、通用 docs、
-Skill、template 或 tests。Framework vendoring 仅作为显式 compatibility 选项。
+Installed Skill 是可选执行辅助，不是项目权威。
 
-`thin-v1` 只减少重复的通用治理文字，不降低规划深度，也不对 Milestone、
-Wave、Phase 或 changed files 设置统一上限。采用新 scope contract 的项目会
-保持 Accepted history immutable，并且只在显式选择 history scope 时审计；
-legacy 和 unversioned 项目继续保持既有行为。权威的 authority、scope、history、
-resource admission 和 review 规则见
-[SPEC Source Contract](docs/agent/SPEC_SOURCE_CONTRACT.md)。
-
-现有 `SAGE_PROJECT.json` 和 `legacy-markdown` contract 继续兼容；升级不会
-静默迁移其历史。
-
-Installed Skill is not project authority。即使本地 Skill 缺失或版本较旧，
-resolution 仍由项目 binding 和 packaged versioned contract 决定。
-
-Packet schema v3 在 v2 workspace 与 resolved `conservative-host-v1` binding
-上增加 normalized SPEC identity。先用 `sagekit workspace verify` 验证，再通过
-`sagekit resource run` 启动本地 argv。受管进程树结果会报告 `HARD` 或
-`MANAGED`；对绕过 runtime 的命令仍只有 soft cooperative boundary，
-无法拦截绕过该 runtime 的命令。
-
-## 安装 Skill
-
-仓库在 [`skills/sage-kit`](skills/sage-kit) 提供同一个 Skill，可在多个
-Agent 运行时中使用。安装时只在该运行时的 Skill 安装目录复制整个目录
-（包含 `references/`），然后重启或新开 Session。这个操作安装 Skill，
-不会把 SAGE-Kit framework vendor 到被治理项目。
-
-| 运行时 | 安装位置 | 显式调用 |
-|---|---|---|
-| **Codex** | Codex skill installer | `Use $sage-kit for this task.` |
-| **Claude Code** | `.claude/skills/sage-kit/` 或 `~/.claude/skills/sage-kit/` | `/sage-kit` |
-| **OpenCode** | `.opencode/skills/sage-kit/` 或 `~/.config/opencode/skills/sage-kit/` | 按名称请求 `sage-kit` Skill |
-| **Kimi Code CLI** | 运行时的 skills 目录 | `/skill:sage-kit` |
-| **Kimi Work** | 运行时的 skills 目录 | 按名称请求 `sage-kit` Skill |
-
-显式调用在 Codex、Claude Code 和 Kimi Code CLI 上有原生强制；在
-OpenCode 上需要配置 `permission.skill.sage-kit: ask` 才能达到同等保证；
-在 Kimi Work 上则是由 Skill 描述中的显式触发措辞提供的软保证。
-
-每个运行时的环境档案位于
-[`skills/sage-kit/references/`](skills/sage-kit/references)，分别描述
-调用方式、权限、编排和续接在该运行时中的映射：
-
-- **Codex** 是原生环境；`agents/openai.yaml` 存放展示元数据。
-- **Claude Code**
-  （[`references/claude.md`](skills/sage-kit/references/claude.md)）
-  在 `references/claude/` 附带可直接复制的子代理和 Hook，把串行文件
-  归属和完成检查变成确定性执行。
-- **OpenCode**
-  （[`references/opencode.md`](skills/sage-kit/references/opencode.md)）
-  附带权限基线和子代理模板。
-- **Kimi Work / Kimi Code CLI**
-  （[`references/kimi-runtime.md`](skills/sage-kit/references/kimi-runtime.md)）
-  把 Skill 映射到 Kimi 的 skills 索引和子代理模型。
-
-Skill 是入口，不替代项目自己的 SAGE 文档。它会先读取当前状态和文档路由，
-然后只加载这次任务真正需要的内容。
-
-## 选择起步模式
-
-从足够安全的最轻模式开始。
-
-| 模式 | 适合的项目 |
-|---|---|
-| **Light** | 小项目、低风险、工作基本串行 |
-| **Standard** | 持续开发的软件项目，有多个功能和评审 |
-| **Heavy** | 多 Agent、共享状态、发布、迁移或审批风险较高的大型工作 |
-
-Heavy 不是默认选项。即使采用 Heavy，worktree、并行 Wave、Session
-Orchestration 和结构化 Task Dispatch 仍然是按需启用的能力。
-
-```bash
-sagekit init --mode standard
-sagekit check --mode standard
-```
-
-## 一次工作如何推进
+## 工作流程
 
 ```mermaid
 flowchart LR
-  A["当前项目事实"] --> B["一个明确的小范围"]
+  A["当前项目事实"] --> B["已批准范围"]
   B --> C["人或 Agent 执行"]
-  C --> D["测试和证据"]
-  D --> E["评审或修正"]
+  C --> D["验证与证据"]
+  D --> E["评审或修订"]
   E --> F["接受、交接或继续"]
 ```
 
-一项普通任务通常只有五步：
+建议先读 `ACTIVE_CONTEXT`（或项目配置的当前上下文入口），确认范围和授权，再做最小
+授权变更，最后补齐证据并更新 handoff。
 
-1. 读取配置的 `ACTIVE_CONTEXT` 和项目 routing；未配置自定义路径时继续使用
-   legacy `docs/ACTIVE_CONTEXT.md`。
-2. 确认范围、可写文件、Gate 和停止条件。
-3. 完成最小的已授权修改。
-4. 只运行受这次修改影响的验证。
-5. 更新项目事实，或留下紧凑的 Handoff。
+## 可选 Skill 使用方式
 
-历史 Milestone 默认不会进入上下文。只有当前路由明确指向它们时才读取。
+仓库提供的 Skill 在 [`skills/sage-kit`](skills/sage-kit)。如果你希望让 Assistant
+拥有固定的工作流提示入口，可在你的运行时按需安装。
 
-## 最常用的文件
+Skill 只是入口，不能替代项目合同与治理决定。
 
-| 文件 | 记录什么 |
-|---|---|
-| `PROJECT_PROFILE.md` | 项目是什么，以及架构由什么决定 |
-| `QUALITY_GATES.md` | 接受工作前必须证明什么 |
-| `APPROVAL_GATES.md` | 哪些决定和操作仍然需要人批准 |
-| 配置的 `ACTIVE_CONTEXT` | 简短、最新的项目事实和 handoff pointer |
-| `DOC_ROUTING.md` | 不同任务应该读取哪些文档 |
-| `MILESTONE_ROADMAP.md` | 可以独立评审的能力 Milestone |
-| Milestone ledger | 当前状态、证据、决策和阻塞 |
-| Phase 文档 | 范围、文件边界、合同、测试和完成证据 |
-| Milestone closeout | 已完成 Milestone 的紧凑结果索引 |
+## 其他技能与工具关系
 
-模板位于 [`docs/`](docs) 和 [`docs/templates/`](docs/templates)。
+Coding skill、插件、MCP、CI、浏览器自动化、Reviewer 都是执行输入。它们可在批准边界内工
+作，但不能：
 
-## CLI 常用命令
-
-| 命令 | 作用 |
-|---|---|
-| `sagekit init --mode light` | 创建起步文档 |
-| `sagekit doctor` | 诊断当前仓库 |
-| `sagekit check` | 检查已经采用 SAGE-Kit 的项目 |
-| `sagekit check --mode heavy` | 使用 Heavy 文档要求 |
-| `sagekit check --json` | 输出机器可读结果 |
-| `sagekit check --source-repo` | 检查 SAGE-Kit 源码仓库 |
-| `sagekit packet compile --milestone M36 --phase P1` | 把临时 thin execution packet 输出到 stdout |
-| `sagekit checkpoint status` | 检查本地续接状态 |
-| `sagekit resume` | 验证并输出下一步任务包 |
-| `sagekit candidate freeze` | 冻结 clean 或明确授权的 working-tree 验证候选 |
-
-所有项目命令都支持 `--target <path>`。`check` 输出 `PASS`、`WARN` 和
-`FAIL`；存在阻塞问题时返回非零退出码。
-
-本地续接文件位于 `.sagekit/runtime/CURRENT_RUN.json`。它默认不进入 Git，
-内容紧凑，并绑定创建时的仓库、分支、HEAD、Authority 和 Evidence。
-
-### 冻结未提交工作
-
-Candidate freeze 默认要求 clean worktree。如果 Controller 没有 commit 权限，
-但当前 Packet 明确允许验证工作树，可以显式绑定完整的非 ignored 状态：
-
-```bash
-sagekit candidate freeze --snapshot-mode working-tree \
-  --snapshot-authority <authority-id> \
-  --contract-digest <digest> --dependency-digest <digest> \
-  --review-closed --corrective-batch-closed
-```
-
-快照覆盖 staged、unstaged、untracked、删除、文件模式和 symlink 状态。
-它不授予 commit、submit 或 acceptance 权限；后续任何漂移都会使 Candidate
-失效，dirty submodule 和无法可靠表达的路径会 fail closed。
-
-## 为长期 Agent 开发设计
-
-SAGE-Kit 不会把每项工作都变成 Heavy：
-
-- **Change Class** 区分状态文字、代码、合同和破坏性修改。
-- **Evidence Invalidation** 只重跑受新 Diff 影响的检查。
-- **Verification Lifecycle** 不会把缺少工具等 Preflight 问题计为真实测试。
-- **Review Convergence** 防止修正评审无限扩大范围。
-- **Continuity Checkpoint** 让新 Session 从可信状态继续。
-- **Versioned Validation** 让关闭历史沿用冻结合同，当前工作使用新合同。
-
-这些规则只依赖可以观察的工作事件，不需要知道用户的 Token 额度或平台余量。
-
-## 高级能力
-
-只在项目确实需要时使用：
-
-| 需要解决的问题 | 阅读 |
-|---|---|
-| 治理档位和权限选择 | [`GOVERNANCE_LEVELS.md`](docs/agent/GOVERNANCE_LEVELS.md) |
-| 安全的并行 Lane | [`WAVE_EXECUTION.md`](docs/agent/WAVE_EXECUTION.md) |
-| PM、Coder 和 Final Review Session | [`SESSION_ORCHESTRATION.md`](docs/agent/SESSION_ORCHESTRATION.md) |
-| 隔离 Git 工作区 | [`WORKTREE_ISOLATION.md`](docs/agent/WORKTREE_ISOLATION.md) |
-| 可选工具和 Skills | [`CAPABILITY_ADAPTERS.md`](docs/agent/CAPABILITY_ADAPTERS.md) |
-| 执行限制和证据复用 | [`EXECUTION_ECONOMY.md`](docs/agent/EXECUTION_ECONOMY.md) |
-| Host 资源与 Workspace Binding | [`HOST_RESOURCE_GOVERNANCE.md`](docs/agent/HOST_RESOURCE_GOVERNANCE.md) |
-| Session 续接 | [`CONTINUITY_PROTOCOL.md`](docs/agent/CONTINUITY_PROTOCOL.md) |
-| 历史验证合同 | [`VALIDATION_CONTRACT_COMPATIBILITY.md`](docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md) |
-| 结构化 Task/Evidence | [`Task Dispatch Profile`](docs/profiles/task-dispatch/README.md) |
-
-纯状态收尾有一个范围很窄的 `Deterministic Closure` 例外。它的 Receipt
-规则和 `VERDICT_FINALIZED_FROM_RECEIPT` 定义在 Session Orchestration 中，
-不能替代 Project Manager 的正式 Acceptance。
-
-## 和其他 Skills、工具的关系
-
-SAGE-Kit 是治理层。编码 Skills、Superpowers、插件、MCP 工具、CI、浏览器自动化
-和 Reviewer 仍然负责具体执行。
-
-它们可以在批准的 SAGE 边界内工作，但不能擅自扩大范围、绕过资源锁和审批 Gate，
-也不能替 SAGE-Kit 宣告 Gate 完成。Superpowers 是很适合搭配的参考能力，但不是依赖。
-
-在 Codex 中运行 GPT-5.6 系列模型时，Controller 和所有后代 Agent 都会按运行时
-策略禁用 Superpowers 及 `using-superpowers`。模型仍然使用自身原生的 brainstorming、
-planning、TDD、debug、subagent、review 和 verification 能力。
+- 扩大范围；
+- 绕过锁与审批；
+- 由它们单独判定完成。
 
 ## 仓库结构
 
 ```text
-docs/                 规范、模板和可选 Profile
-sagekit/              Python CLI 和打包资源
-skills/sage-kit/      Agent Skill 和各运行时环境档案
-scripts/              独立验证工具
-tests/                单元、模拟、打包和兼容性测试
+docs/                 框架规则、模板与可选 Profile
+sagekit/              Harness 核心与打包资源
+skills/sage-kit/      runtime 技能入口与环境画像
+scripts/              独立验证脚本
+tests/                单元与兼容测试
 ```
 
-需要了解完整合同，可以从 [`docs/SAGE_CORE.md`](docs/SAGE_CORE.md) 开始。
-如果项目还只是一个宽泛或非工程化的想法，先使用
-[`PROJECT_OWNER_ENTRY.md`](docs/agent/PROJECT_OWNER_ENTRY.md)，再创建 Roadmap。
+完整契约先看：
 
-## 适不适合你的项目
+- [`docs/SAGE_CORE.md`](docs/SAGE_CORE.md)
+- [`docs/design/EXECUTION_ECONOMY_REDESIGN.md`](docs/design/EXECUTION_ECONOMY_REDESIGN.md)
 
-以下情况比较适合：
+## 适用性
 
-- AI Agent 会承担相当一部分实现或评审工作。
-- 项目会跨越很多 Session。
-- 范围、审批或证据错误的代价比较高。
-- 需要长期保留“做了什么、为什么接受”的记录。
+- 多会话、多人协作、AI 与人混合执行的项目。
+- 范围/授权/证据错位代价高的项目。
+- 需要跨会话持久事实与可审计 handoff 的项目。
 
-如果只是短脚本、一次性原型，或者一个人可以轻松记住全部状态，SAGE-Kit
-可能反而太重。
-
-采用前请先阅读内容，只使用与你的项目匹配的部分。
-
-## 项目状态
-
-SAGE-Kit 目前处于 Alpha 阶段。CLI 可以检查治理结构和 Evidence Records，
-但不能证明产品本身一定正确。
-
-项目使用 [MIT License](LICENSE)。
+短脚本、一次性原型、或一人可完整记忆状态的项目通常不需要这一整套治理。

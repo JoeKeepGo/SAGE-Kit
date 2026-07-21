@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import json
-import io
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from contextlib import redirect_stderr, redirect_stdout
+from unittest.mock import patch
 
-from sagekit.cli import main
-from sagekit.packet import PacketError, compile_packet
+from sagekit.check import run_check
+from sagekit.packet import PacketError, _compile_packet
 from sagekit.spec_sources import (
     DocumentClass,
+    PUBLIC_CONTRACT_MANIFEST_VERSION,
+    PUBLIC_HARNESS_API_VERSION,
     SourceConfigurationError,
     load_normalized_spec,
     package_identity,
+    current_source_pointer,
+    public_contract_manifest,
     resolve_active_context_path,
+    resolve_doc_routing_path,
 )
 from tests.test_thin_execution_documents import (
     create_project,
@@ -30,7 +34,321 @@ def write_json(path: Path, payload: object) -> None:
 
 
 class SpecSourceTests(unittest.TestCase):
-    def test_cli_explicit_source_and_configuration_exit_code(self):
+    def test_doc_routing_uses_configured_path_with_legacy_schema_v1_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_json(
+                root / "SAGEKIT_CONFIG.json",
+                {
+                    "schema_version": 1,
+                    "project_id": "routing-authority-project",
+                    "adoption_profile": "package-bound",
+                    "execution_scope": "active-only",
+                    "active_context": "handoff/NOW.md",
+                    "doc_routing": "routing/PROJECT.md",
+                    "package": package_identity(),
+                    "sources": {},
+                },
+            )
+            configured = resolve_doc_routing_path(root)
+            payload = json.loads((root / "SAGEKIT_CONFIG.json").read_text(encoding="utf-8"))
+            del payload["doc_routing"]
+            write_json(root / "SAGEKIT_CONFIG.json", payload)
+            legacy = resolve_doc_routing_path(root)
+
+        self.assertEqual(root / "routing/PROJECT.md", configured)
+        self.assertEqual(root / "docs/DOC_ROUTING.md", legacy)
+
+    def test_active_task_dispatch_requires_explicit_profile_and_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            write_json(
+                root / "SAGEKIT_CONFIG.json",
+                {
+                    "schema_version": 1,
+                    "project_id": "profile-authority-project",
+                    "adoption_profile": "package-bound",
+                    "execution_scope": "active-only",
+                    "active_context": "docs/ACTIVE_CONTEXT.md",
+                    "package": package_identity(),
+                    "profiles": ["task-dispatch-v2"],
+                    "sources": {
+                        "M36": {"adapter": "thin-v1", "path": "docs/M36"}
+                    },
+                },
+            )
+            (root / "docs/ACTIVE_CONTEXT.md").write_text(
+                "# Active Context\n\n- Current milestone: `M36`\n",
+                encoding="utf-8",
+            )
+            findings = run_check(root)
+
+        self.assertTrue(
+            any(
+                item.level == "FAIL" and item.rule == "active-task-dispatch"
+                for item in findings
+            )
+        )
+
+    def test_active_only_file_mapping_uses_normalized_container_and_flags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            write_json(
+                root / "SAGEKIT_CONFIG.json",
+                {
+                    "schema_version": 1,
+                    "project_id": "file-mapped-profile",
+                    "adoption_profile": "package-bound",
+                    "execution_scope": "active-only",
+                    "active_context": "docs/ACTIVE_CONTEXT.md",
+                    "package": package_identity(),
+                    "profiles": ["task-dispatch-v2"],
+                    "sources": {
+                        "M36": {
+                            "adapter": "thin-v1",
+                            "path": "docs/M36/MILESTONE_MANIFEST.json",
+                        }
+                    },
+                },
+            )
+            (root / "docs/ACTIVE_CONTEXT.md").write_text(
+                "# Active Context\n\n- Current milestone: `M36`\n",
+                encoding="utf-8",
+            )
+
+            with patch("sagekit.check.check_active_task_dispatch", return_value=[]) as dispatch:
+                findings = run_check(root, gate_ready=True, mode="heavy")
+
+        self.assertTrue(any(item.rule == "check-mode" for item in findings))
+        self.assertFalse(any(item.rule == "required-docs" for item in findings))
+        self.assertEqual(root / "docs/M36", dispatch.call_args.args[2])
+        self.assertTrue(dispatch.call_args.kwargs["gate_ready"])
+
+    def test_active_check_uses_explicit_manifest_for_history_source_rejection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            history = root / "docs/history/M36"
+            history.parent.mkdir(parents=True)
+            shutil.move(str(root / "docs/M36"), history)
+            write_json(
+                root / "SAGEKIT_CONFIG.json",
+                {
+                    "schema_version": 1,
+                    "project_id": "external-history-authority",
+                    "adoption_profile": "package-bound",
+                    "execution_scope": "active-only",
+                    "active_context": "docs/ACTIVE_CONTEXT.md",
+                    "package": package_identity(),
+                    "sources": {
+                        "M36": {"adapter": "thin-v1", "path": "docs/history/M36"}
+                    },
+                },
+            )
+            (root / "docs/ACTIVE_CONTEXT.md").write_text(
+                "# Active Context\n\n- Current milestone: `M36`\n",
+                encoding="utf-8",
+            )
+            manifest = workspace / "scope.json"
+            write_json(
+                manifest,
+                {
+                    "schema_version": 1,
+                    "active_containers": [],
+                    "accepted_legacy_containers": [
+                        {
+                            "id": "M36",
+                            "path": "docs/history/M36",
+                            "contract_version": 1,
+                            "supersedes": [],
+                        }
+                    ],
+                    "authority": {
+                        "source": "project-owner migration acceptance",
+                        "approved_by": "project-owner",
+                        "approved_at": "2026-01-01T00:00:00Z",
+                        "baseline_head": "0" * 40,
+                    },
+                },
+            )
+
+            findings = run_check(root, scope_manifest_path=manifest)
+
+        active_spec = [item for item in findings if item.rule == "active-spec"]
+        self.assertEqual("FAIL", active_spec[0].level)
+        self.assertIn("accepted history is non-executable", active_spec[0].message)
+    def test_active_context_source_pointer_accepts_canonical_and_legacy_labels(self):
+        for label in ("Current SPEC source", "Current source", "Active SPEC source"):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                workspace = Path(directory)
+                root = workspace / "project"
+                contracts = workspace / "contracts"
+                create_project(root, contracts)
+                source = root / "specs/current"
+                source.parent.mkdir(parents=True)
+                shutil.move(str(root / "docs/M36"), source)
+                write_json(
+                    root / "SAGEKIT_CONFIG.json",
+                    {
+                        "schema_version": 1,
+                        "project_id": "source-pointer-project",
+                        "adoption_profile": "package-bound",
+                        "execution_scope": "active-only",
+                        "active_context": "docs/ACTIVE_CONTEXT.md",
+                        "package": package_identity(),
+                        "sources": {},
+                    },
+                )
+                (root / "docs/ACTIVE_CONTEXT.md").write_text(
+                    f"# Active Context\n\nCurrent milestone: M36\n{label}: specs/current\n",
+                    encoding="utf-8",
+                )
+
+                normalized = load_normalized_spec(
+                    root, "M36"
+                )
+
+            self.assertEqual("active-context", normalized.provenance.authority)
+            self.assertEqual("M36", normalized.project.milestone.milestone_id)
+
+    def test_active_context_source_pointer_ignores_examples_and_rejects_conflicts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = root / "docs/ACTIVE_CONTEXT.md"
+            context.parent.mkdir(parents=True)
+            context.write_text(
+                "# Active Context\n\n"
+                "<!-- Current source: docs/commented -->\n"
+                "```markdown\nCurrent source: docs/example\n```\n"
+                "Current source: specs/current\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual("specs/current", current_source_pointer(root))
+
+            context.write_text(
+                "Current source: specs/one\nCurrent source: specs/two\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(SourceConfigurationError, "conflicting"):
+                current_source_pointer(root)
+
+    def test_configured_source_mapping_reconciles_active_context_declaration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            write_json(
+                root / "SAGEKIT_CONFIG.json",
+                {
+                    "schema_version": 1,
+                    "project_id": "source-reconciliation-project",
+                    "adoption_profile": "package-bound",
+                    "execution_scope": "active-only",
+                    "active_context": "docs/ACTIVE_CONTEXT.md",
+                    "package": package_identity(),
+                    "sources": {
+                        "M36": {"adapter": "thin-v1", "path": "docs/M36"}
+                    },
+                },
+            )
+            context = root / "docs/ACTIVE_CONTEXT.md"
+            context.write_text(
+                "Current milestone: M36\nCurrent source: docs/M36\n",
+                encoding="utf-8",
+            )
+
+            normalized = load_normalized_spec(root, "M36")
+
+            self.assertEqual("project-config", normalized.provenance.authority)
+            context.write_text(
+                "Current milestone: M36\nCurrent source: docs/other\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(SourceConfigurationError, "conflicts"):
+                load_normalized_spec(root, "M36")
+
+    def test_explicitly_classified_accepted_history_is_not_executable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            history = root / "docs/history/M36"
+            history.parent.mkdir(parents=True)
+            shutil.move(str(root / "docs/M36"), history)
+            write_json(
+                root / "docs/SAGE_VALIDATION_SCOPE.json",
+                {
+                    "schema_version": 1,
+                    "active_containers": [],
+                    "accepted_legacy_containers": [
+                        {
+                            "id": "M36",
+                            "path": "docs/history/M36",
+                            "contract_version": 1,
+                        }
+                    ],
+                    "authority": {
+                        "source": "accepted closeout",
+                        "approved_by": "project owner",
+                        "approved_at": "2026-07-21T00:00:00Z",
+                        "baseline_head": "a" * 40,
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(
+                SourceConfigurationError, "accepted history is non-executable"
+            ):
+                load_normalized_spec(
+                    root,
+                    "M36",
+                    source=Path("docs/history/M36"),
+                )
+
+    def test_public_contract_binding_ignores_unrelated_files_but_tracks_contracts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            package_root = Path(directory) / "sagekit"
+            for relative in (
+                "resources/contracts/v2/policy.json",
+                "resources/execution_documents/v1/contract.json",
+                "resources/resource_governance/conservative.json",
+            ):
+                path = package_root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('{"contract": 1}\n', encoding="utf-8")
+
+            first = package_identity(package_root)
+            manifest = public_contract_manifest(package_root)
+            unrelated_doc = package_root / "resources/docs/README.md"
+            unrelated_doc.parent.mkdir(parents=True)
+            unrelated_doc.write_text("ordinary documentation\n", encoding="utf-8")
+            (package_root / "unrelated_implementation.py").write_text(
+                "VALUE = 1\n", encoding="utf-8"
+            )
+            after_unrelated_change = package_identity(package_root)
+            contract = package_root / "resources/execution_documents/v1/contract.json"
+            contract.write_text('{"contract": 2}\n', encoding="utf-8")
+            after_contract_change = package_identity(package_root)
+
+        self.assertEqual(PUBLIC_CONTRACT_MANIFEST_VERSION, first["version"])
+        self.assertEqual(
+            PUBLIC_HARNESS_API_VERSION, manifest["public_api_version"]
+        )
+        self.assertEqual(first, after_unrelated_change)
+        self.assertNotEqual(first["digest"], after_contract_change["digest"])
+
+    def test_explicit_source_and_configuration_no_legacy_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             root = workspace / "project"
@@ -39,44 +357,35 @@ class SpecSourceTests(unittest.TestCase):
             source = root / "specs/current"
             source.parent.mkdir(parents=True)
             shutil.move(str(root / "docs/M36"), source)
-            output = io.StringIO()
-            with redirect_stdout(output):
-                success = main(
-                    [
-                        "packet",
-                        "compile",
-                        "--target",
-                        str(root),
-                        "--milestone",
-                        "M36",
-                        "--phase",
-                        "P2",
-                        "--source",
-                        "specs/current",
-                        "--json",
-                    ]
-                )
-            payload = json.loads(output.getvalue())
-            error = io.StringIO()
-            with redirect_stderr(error):
-                missing = main(
-                    [
-                        "packet",
-                        "compile",
-                        "--target",
-                        str(root),
-                        "--milestone",
-                        "M36",
-                        "--source",
-                        "missing",
-                    ]
+
+            packet = _compile_packet(
+                root,
+                "M36",
+                "P2",
+                source=Path("specs/current"),
+            )
+            normalized = load_normalized_spec(
+                root,
+                "M36",
+                source=Path("specs/current"),
+            )
+
+            with self.assertRaises(PacketError) as caught:
+                _compile_packet(
+                    root,
+                    "M36",
+                    "P2",
+                    source=Path("missing"),
                 )
 
-        self.assertEqual(0, success)
-        self.assertTrue(payload["ok"])
-        self.assertEqual("explicit-source", payload["source_provenance"]["authority"])
-        self.assertEqual(2, missing)
-        self.assertIn("legacy fallback enabled: false", error.getvalue())
+        self.assertFalse(normalized.provenance.legacy_fallback)
+        for expected in (
+            "target root:",
+            "selected adapter:",
+            "configured source:",
+            "legacy fallback enabled: false",
+        ):
+            self.assertIn(expected, str(caught.exception))
 
     def test_arbitrary_thin_source_compiles_and_relocation_is_semantically_stable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -88,39 +397,41 @@ class SpecSourceTests(unittest.TestCase):
             first_source.parent.mkdir(parents=True)
             shutil.move(str(root / "docs/M36"), first_source)
 
-            first = compile_packet(
+            first = _compile_packet(
                 root,
                 "M36",
                 "P2",
                 source=Path("product/specs/current"),
-                contract_root=contracts,
             )
             normalized_first = load_normalized_spec(
                 root,
                 "M36",
                 source=Path("product/specs/current"),
-                contract_root=contracts,
             )
             second_source = root / "decisions/active-spec"
             second_source.parent.mkdir(parents=True)
             shutil.move(str(first_source), second_source)
-            second = compile_packet(
+            second = _compile_packet(
                 root,
                 "M36",
                 "P2",
                 source=Path("decisions/active-spec"),
-                contract_root=contracts,
             )
             normalized_second = load_normalized_spec(
                 root,
                 "M36",
                 source=Path("decisions/active-spec"),
-                contract_root=contracts,
             )
 
         self.assertEqual(normalized_first.semantic_digest, normalized_second.semantic_digest)
         self.assertEqual(first.digest, second.digest)
-        self.assertEqual(first.payload, second.payload)
+        first_identity = dict(first.payload)
+        second_identity = dict(second.payload)
+        first_provenance = first_identity.pop("source_provenance")
+        second_provenance = second_identity.pop("source_provenance")
+        self.assertEqual(first_identity, second_identity)
+        self.assertEqual(first.payload["source_authority"], second.payload["source_authority"])
+        self.assertNotEqual(first_provenance, second_provenance)
         self.assertNotEqual(
             normalized_first.provenance.canonical_path,
             normalized_second.provenance.canonical_path,
@@ -138,7 +449,6 @@ class SpecSourceTests(unittest.TestCase):
                     root,
                     "M36",
                     source=Path("missing/spec"),
-                    contract_root=contracts,
                 )
 
         message = str(caught.exception)
@@ -171,11 +481,11 @@ class SpecSourceTests(unittest.TestCase):
             }
             write_json(root / "SAGEKIT_CONFIG.json", base)
             with self.assertRaisesRegex(SourceConfigurationError, "normalized target-relative"):
-                load_normalized_spec(root, "M36", contract_root=contracts)
+                load_normalized_spec(root, "M36")
             base["sources"]["M36"]["path"] = "C:/project/spec"
             write_json(root / "SAGEKIT_CONFIG.json", base)
             with self.assertRaisesRegex(SourceConfigurationError, "normalized target-relative"):
-                load_normalized_spec(root, "M36", contract_root=contracts)
+                load_normalized_spec(root, "M36")
 
     def test_legacy_docs_milestone_remains_supported(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -185,9 +495,9 @@ class SpecSourceTests(unittest.TestCase):
             create_project(root, contracts)
 
             normalized = load_normalized_spec(
-                root, "M36", contract_root=contracts
+                root, "M36"
             )
-            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet = _compile_packet(root, "M36", "P2")
 
         self.assertEqual("legacy-thin-v1", normalized.provenance.adapter)
         self.assertTrue(normalized.provenance.legacy_fallback)
@@ -219,14 +529,12 @@ class SpecSourceTests(unittest.TestCase):
                 root,
                 "M36",
                 source=Path("product/M36-spec.md"),
-                contract_root=contracts,
             )
-            packet = compile_packet(
+            packet = _compile_packet(
                 root,
                 "M36",
                 "P2",
                 source=Path("product/M36-spec.md"),
-                contract_root=contracts,
             )
 
         self.assertEqual("markdown-v1", normalized.provenance.adapter)
@@ -262,7 +570,7 @@ class SpecSourceTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            normalized = load_normalized_spec(root, "M36", contract_root=contracts)
+            normalized = load_normalized_spec(root, "M36")
             resolved_active_context = resolve_active_context_path(root)
             before_digest = normalized.semantic_digest
             active_context.write_text(
@@ -273,7 +581,7 @@ class SpecSourceTests(unittest.TestCase):
                 encoding="utf-8",
             )
             after_status_update = load_normalized_spec(
-                root, "M36", contract_root=contracts
+                root, "M36"
             )
             authority = json.loads(
                 (root / "SAGEKIT_CONFIG.json").read_text(encoding="utf-8")
@@ -281,7 +589,7 @@ class SpecSourceTests(unittest.TestCase):
             authority["project_id"] = "renamed-synthetic-project"
             write_json(root / "SAGEKIT_CONFIG.json", authority)
             after_authority_update = load_normalized_spec(
-                root, "M36", contract_root=contracts
+                root, "M36"
             )
 
         self.assertEqual(active_context.resolve(), resolved_active_context)
@@ -308,7 +616,7 @@ class SpecSourceTests(unittest.TestCase):
             before = source.read_bytes()
 
             with self.assertRaisesRegex(PacketError, "sagekit-spec|semantic"):
-                compile_packet(root, "M36", source=source, contract_root=contracts)
+                _compile_packet(root, "M36", source=source)
 
             self.assertEqual(before, source.read_bytes())
             self.assertFalse((root / ".sagekit").exists())
@@ -344,10 +652,10 @@ class SpecSourceTests(unittest.TestCase):
             )
 
             normalized = load_normalized_spec(
-                root, "M36", source=source, contract_root=contracts
+                root, "M36", source=source
             )
-            packet = compile_packet(
-                root, "M36", source=source, contract_root=contracts
+            packet = _compile_packet(
+                root, "M36", source=source
             )
 
         self.assertEqual(12, len(normalized.waves))
@@ -368,11 +676,11 @@ class SpecSourceTests(unittest.TestCase):
             unrelated = root / "docs/M36/phases/P9.json"
             unrelated.write_text("{ invalid unrelated phase }\n", encoding="utf-8")
 
-            packet = compile_packet(
-                root, "M36", "P2", contract_root=contracts
+            packet = _compile_packet(
+                root, "M36", "P2"
             )
             with self.assertRaises(PacketError):
-                compile_packet(root, "M36", contract_root=contracts)
+                _compile_packet(root, "M36")
 
         self.assertEqual("P2", packet.payload["target"]["phase_id"])
 

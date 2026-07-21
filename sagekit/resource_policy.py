@@ -17,6 +17,7 @@ RESOURCE_POLICY_SCHEMA_VERSION = 1
 _OVERRIDE_FIELDS = frozenset(
     {"runtime_exclusive", "active_agent_limit", "allowed_resource_classes"}
 )
+_NEUTRAL_RESOURCE_PROFILE = frozenset({"n/a", "na", "neutral"})
 
 
 class ResourcePolicyError(ValueError):
@@ -95,8 +96,6 @@ def load_resource_contract(
     *,
     resource_root: Path | None = None,
 ) -> ResourceContract:
-    if profile_id != RESOURCE_PROFILE_ID:
-        raise ResourcePolicyError(f"unknown resource contract: {profile_id}")
     base: Any = (
         resources.files("sagekit").joinpath("resources", "resource_governance")
         if resource_root is None
@@ -177,8 +176,11 @@ def load_resource_contract(
         "thread_limit",
     }:
         raise ResourcePolicyError("process_policy fields are invalid")
-    if type(process.get("max_direct_managed_children")) is not int or process["max_direct_managed_children"] != 1:
-        raise ResourcePolicyError("max_direct_managed_children must be 1")
+    if (
+        type(process.get("max_direct_managed_children")) is not int
+        or process["max_direct_managed_children"] < 1
+    ):
+        raise ResourcePolicyError("max_direct_managed_children must be a positive integer")
     if (
         type(process.get("max_owned_processes")) is not int
         or not 2 <= process["max_owned_processes"] <= 256
@@ -186,8 +188,10 @@ def load_resource_contract(
         raise ResourcePolicyError("max_owned_processes must be between 2 and 256")
     if type(process.get("max_output_bytes")) is not int or process["max_output_bytes"] <= 0:
         raise ResourcePolicyError("max_output_bytes must be positive")
-    if process.get("priority") != "below-normal" or process.get("thread_limit") != 1:
-        raise ResourcePolicyError("process priority/thread limit are not conservative")
+    if type(process.get("thread_limit")) is not int or process["thread_limit"] <= 0:
+        raise ResourcePolicyError("thread_limit must be a positive integer")
+    if not isinstance(process.get("priority"), str) or not process.get("priority").strip():
+        raise ResourcePolicyError("priority is not a non-empty string")
     containment = payload.get("containment_policy")
     if (
         not isinstance(containment, dict)
@@ -201,13 +205,6 @@ def load_resource_contract(
     writer = _nonempty(payload.get("writer_ownership"), "writer_ownership")
     verification = _nonempty(payload.get("verification_controller"), "verification_controller")
     descendant = _nonempty(payload.get("descendant_default"), "descendant_default")
-    if (
-        writer != "worktree-scoped-heavy-guarded"
-        or verification != "root-only"
-        or descendant != "reasoning-only"
-        or writer_limits != {"light": 1, "standard": 1, "heavy": 2}
-    ):
-        raise ResourcePolicyError("resource authority defaults are not conservative")
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return ResourceContract(
         profile_id,
@@ -240,15 +237,26 @@ def resolve_resource_policy(
 ) -> ResolvedResourcePolicy:
     compatibility_defaulted = resource_contract_id is None and resource_profile is None
     contract_id = resource_contract_id or RESOURCE_PROFILE_ID
-    profile_id = resource_profile or contract_id
-    if contract_id != RESOURCE_PROFILE_ID:
-        raise ResourcePolicyError(f"unknown resource contract: {contract_id}")
-    if profile_id != contract_id:
+    profile_input = _normalize_resource_profile(resource_profile)
+    profile_was_explicit = resource_profile is not None
+    if profile_input is not None and profile_input != contract_id:
         raise ResourcePolicyError(
-            f"unknown or unpinned resource profile: {profile_id}"
+            f"unknown or unpinned resource profile: {profile_input}"
         )
+    profile_id = (
+        contract_id
+        if compatibility_defaulted
+        else ("N/A" if profile_input is None else profile_input)
+    )
+    if profile_was_explicit and profile_input is not None:
+        profile_id = profile_input
     contract = load_resource_contract(contract_id, resource_root=resource_root)
-    level = _execution_level(execution_profile)
+    if profile_input is None:
+        level = "light"
+    else:
+        level = _execution_level(execution_profile)
+    if permission_mode == "READ_ONLY_REVIEW":
+        level = "light"
     active_limit = contract.active_agent_limits[level]
     writer_limit = contract.writer_limits[level]
     allowed = _permission_ceiling(permission_mode, contract.allowed_resource_classes)
@@ -278,7 +286,7 @@ def resolve_resource_policy(
         active_limit = 1
         exclusive = ()
     unsigned = {
-        "profile_id": contract.profile_id,
+        "profile_id": profile_id,
         "contract_digest": contract.digest,
         "active_agent_limit": active_limit,
         "writer_limit": writer_limit,
@@ -302,7 +310,7 @@ def resolve_resource_policy(
         json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     return ResolvedResourcePolicy(
-        contract.profile_id,
+        profile_id,
         contract.digest,
         active_limit,
         writer_limit,
@@ -332,6 +340,17 @@ def _execution_level(execution_profile: str | None) -> str:
     if folded.startswith("light"):
         return "light"
     return "standard"
+
+
+def _normalize_resource_profile(profile: str | None) -> str | None:
+    if profile is None:
+        return None
+    if not isinstance(profile, str) or not profile.strip():
+        raise ResourcePolicyError("resource_profile must be a non-empty string")
+    normalized = profile.strip().casefold()
+    if normalized in _NEUTRAL_RESOURCE_PROFILE:
+        return None
+    return profile.strip()
 
 
 def _permission_ceiling(permission_mode: str, configured: Sequence[str]) -> tuple[str, ...]:

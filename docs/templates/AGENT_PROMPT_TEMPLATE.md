@@ -110,9 +110,10 @@ Strict Mode:
   commands, and stop on ambiguity or failed verification.
 
 Read first:
-- docs/ACTIVE_CONTEXT.md
-- docs/DOC_ROUTING.md
-- Then follow `docs/DOC_ROUTING.md` for the narrow task read set.
+- Resolve `active_context` and optional `doc_routing` in `SAGEKIT_CONFIG.json`.
+- Read the configured paths; use `docs/ACTIVE_CONTEXT.md` and
+  `docs/DOC_ROUTING.md` only as legacy defaults.
+- Then follow the configured routing authority for the narrow task read set.
 - Read `docs/QUALITY_GATES.md` when gates, review, completion, or
   verification are in scope.
 - Read `docs/agent/GOVERNANCE_LEVELS.md` when selecting or reviewing the
@@ -232,6 +233,6 @@ Continuous execution:
 Return format:
 - Use `docs/templates/LANE_PACKET_TEMPLATE.md` for lane work.
 - Use `docs/agent/HANDOFF_TEMPLATE.md` for phase or session handoff.
-- Report memory maintenance for `docs/ACTIVE_CONTEXT.md` and
-  `docs/DOC_ROUTING.md`.
+- Report memory maintenance for the configured `ACTIVE_CONTEXT` and configured
+  document-routing authority.
 ```

@@ -22,12 +22,11 @@ class SourceInventoryUnitTests(unittest.TestCase):
     def test_resource_workspace_process_and_runner_files_are_source_required(self) -> None:
         repository = Path(__file__).resolve().parents[2]
         required = {
+            "sagekit/harness.py",
             "sagekit/managed_execution.py",
             "sagekit/process_supervisor.py",
-            "sagekit/resource_cli.py",
             "sagekit/resource_governor.py",
             "sagekit/resource_policy.py",
-            "sagekit/test_node.py",
             "sagekit/test_runner.py",
             "sagekit/workspace_binding.py",
             "sagekit/resources/resource_governance/conservative-host-v1.json",

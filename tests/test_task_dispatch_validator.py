@@ -759,6 +759,78 @@ class EvidenceValidationTests(unittest.TestCase):
 
         self.assertFalse(any("verified evidence for surface" in error for error in errors), errors)
 
+    def test_verified_required_levels_may_all_be_not_applicable_or_waived(self):
+        cases = [
+            {"status": "N/A", "reason": "not applicable to this task"},
+            {
+                "status": "WAIVED",
+                "reason": "risk accepted for this task",
+                "waived_by": "project-owner",
+                "waiver_scope": "TASK-001 L0 evidence",
+            },
+        ]
+        for level_record in cases:
+            with self.subTest(status=level_record["status"]):
+                task, evidence = verified_records()
+                evidence["levels"]["L0"].update(
+                    evidence=[], commands=[], reason=None, waived_by=None, waiver_scope=None
+                )
+                evidence["levels"]["L0"].update(level_record)
+
+                errors = validate_records(task, evidence, None)
+
+                self.assertEqual(errors, [])
+
+    def test_verified_pass_level_may_use_artifact_command_evidence(self):
+        task, evidence = verified_records()
+        evidence["levels"]["L0"].update(evidence=[], commands=[])
+        evidence["artifacts"]["commands"] = [self.command_evidence()]
+
+        errors = validate_records(task, evidence, None)
+
+        self.assertFalse(any("L0 is PASS but has no evidence or commands" in error for error in errors), errors)
+
+
+class TaskDispatchProfileArchitectureTests(unittest.TestCase):
+    def test_profile_uses_authority_activation_and_embedded_harness(self):
+        root = Path(__file__).resolve().parents[1]
+        profile = (root / "docs/profiles/task-dispatch/DISPATCH_PROFILE.md").read_text(
+            encoding="utf-8-sig"
+        )
+        readme = (root / "docs/profiles/task-dispatch/README.md").read_text(
+            encoding="utf-8-sig"
+        )
+
+        self.assertIn("Activation must come from project-owned authority", profile)
+        self.assertIn("never activates this profile", profile)
+        self.assertIn("compatibility-aware Task Dispatch validation operation", profile)
+        self.assertNotIn("python scripts/validate_task_dispatch.py", profile)
+        self.assertIn("Discovery does not activate", readme)
+        self.assertIn("the profile", readme)
+        self.assertNotIn("python scripts/validate_task_dispatch.py", readme)
+        self.assertFalse((root / "scripts/validate_task_dispatch.py").exists())
+
+    def test_validator_has_no_standalone_command_entrypoint(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "sagekit/task_dispatch_validator.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("import argparse", source)
+        self.assertNotIn("def main()", source)
+        self.assertNotIn('if __name__ == "__main__"', source)
+
+    def test_base_phase_template_only_references_optional_profiles(self):
+        root = Path(__file__).resolve().parents[1]
+        source = (root / "docs/templates/PHASE_TEMPLATE.md").read_text(encoding="utf-8-sig")
+        packaged = (
+            root / "sagekit/resources/docs/templates/PHASE_TEMPLATE.md"
+        ).read_text(encoding="utf-8-sig")
+
+        self.assertIn("## Optional Profiles", source)
+        self.assertNotIn("## Task Dispatch Evidence", source)
+        self.assertNotIn("## State Truth Reconciliation Gate", source)
+        self.assertNotIn("Task Dispatch Status:", source)
+        self.assertEqual(source, packaged)
+
 
 if __name__ == "__main__":
     unittest.main()

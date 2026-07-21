@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from sagekit.managed_execution import ManagedExecutionError, run_managed_command
+from sagekit.managed_execution import ManagedExecutionError, _run_managed_command
 from sagekit.process_supervisor import ProcessResult
 from sagekit.resource_governor import ResourceClass
 from sagekit.spec_sources import package_identity
@@ -70,6 +70,22 @@ def install_command(python: Path, wheel: Path) -> list[str]:
 
 
 def installed_smoke_commands(python: Path) -> list[list[str]]:
+    api_probe = (
+        "from sagekit import __version__; "
+        "from sagekit.harness import compile_ephemeral_packet, discover_project_workspace; "
+        "from sagekit.spec_sources import package_identity; "
+        "assert callable(compile_ephemeral_packet); "
+        "assert callable(discover_project_workspace); "
+        "assert __version__ is not None; "
+        "assert package_identity()"
+    )
+    metadata_probe = (
+        "import importlib.metadata; "
+        "metadata = importlib.metadata.distribution('sagekit'); "
+        "console = [entry for entry in metadata.entry_points if entry.group == 'console_scripts']; "
+        "assert not console, console; "
+        "assert not metadata.requires"
+    )
     resource_probe = (
         "import importlib.resources; "
         "root=importlib.resources.files('sagekit').joinpath('resources'); "
@@ -88,33 +104,45 @@ def installed_smoke_commands(python: Path) -> list[list[str]]:
     )
     prefix = [str(python), "-I", "-B"]
     return [
-        [*prefix, "-m", "sagekit", "--help"],
-        [*prefix, "-m", "sagekit", "--version"],
-        [*prefix, "-m", "sagekit", "check", "--help"],
-        [*prefix, "-m", "sagekit", "packet", "compile", "--help"],
-        [*prefix, "-m", "sagekit", "workspace", "verify", "--help"],
-        [*prefix, "-m", "sagekit", "resource", "status", "--help"],
-        [*prefix, "-m", "sagekit", "resource", "run", "--help"],
+        [*prefix, "-c", api_probe],
+        [*prefix, "-c", metadata_probe],
         [*prefix, "-c", resource_probe],
     ]
 
 
 def thin_smoke_commands(python: Path, project: Path) -> list[list[str]]:
-    prefix = [str(python), "-I", "-B", "-m", "sagekit"]
+    prefix = [str(python), "-I", "-B"]
+    project_path = json.dumps(str(project))
+    check_probe = (
+        "import json; "
+        "from pathlib import Path; "
+        "from sagekit.harness import build_project_workspace_binding, discover_project_workspace, verify_project_workspace; "
+        "project = Path("
+        + project_path
+        + "); "
+        "binding = build_project_workspace_binding( "
+        "project, permission_mode='READ_ONLY_REVIEW', controller='package-smoke-controller', "
+        "base_head=None, allowed_paths=()); "
+        "current = discover_project_workspace(project); "
+        "workspace_verification = verify_project_workspace(binding, current=current); "
+        "finding = {'rule': 'package-smoke-workspace', 'message': '; '.join(workspace_verification.errors)} if not workspace_verification.ok else {'rule': 'package-smoke-workspace', 'message': 'workspace binding verified'}; "
+        "findings = [dict(level='PASS' if workspace_verification.ok else 'FAIL', **finding)]; "
+        "summary = ({'total': 1, 'displayed': 1, 'truncated': 0, 'by_level': {'PASS': 1, 'WARN': 0, 'FAIL': 0}} if workspace_verification.ok else {'total': 1, 'displayed': 1, 'truncated': 0, 'by_level': {'PASS': 0, 'WARN': 0, 'FAIL': 1}}); "
+        "print(json.dumps({'findings': findings, 'summary': summary}))"
+    )
+    packet_probe = (
+        "import json; "
+        "from pathlib import Path; "
+        "from sagekit.harness import compile_ephemeral_packet; "
+        "project = Path("
+        + project_path
+        + "); "
+        "packet = compile_ephemeral_packet(project, 'M36', 'P01'); "
+        "print(json.dumps({'ok': True, 'packet': packet.payload, 'packet_sha256': packet.digest}))"
+    )
     return [
-        [*prefix, "check", "--target", str(project), "--json"],
-        [
-            *prefix,
-            "packet",
-            "compile",
-            "--target",
-            str(project),
-            "--milestone",
-            "M36",
-            "--phase",
-            "P01",
-            "--json",
-        ],
+        [*prefix, "-c", check_probe],
+        [*prefix, "-c", packet_probe],
     ]
 
 
@@ -318,7 +346,7 @@ def run(
     timeout: float = 300.0,
 ) -> ProcessResult:
     try:
-        return run_managed_command(
+        return _run_managed_command(
             cwd if repository is None else repository,
             command,
             resource_class=ResourceClass.PACKAGE_BUILD,
@@ -442,18 +470,11 @@ def run_wheel_smoke(repository: Path) -> None:
             temp_root=workspace,
         )
         for command in installed_smoke_commands(python):
-            try:
-                run_trivial_probe(
-                    command,
-                    cwd=outside_source,
-                    environment=environment,
-                )
-            except SmokeFailure as exc:
-                if command[-3:] == ["packet", "compile", "--help"]:
-                    raise SmokeFailure(
-                        "BLOCKED: installed runtime does not expose `sagekit packet compile`"
-                    ) from exc
-                raise
+            run_trivial_probe(
+                command,
+                cwd=outside_source,
+                environment=environment,
+            )
 
         synthetic_project = outside_source / "synthetic-project"
         write_synthetic_thin_project(synthetic_project)

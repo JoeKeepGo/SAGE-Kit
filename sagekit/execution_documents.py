@@ -84,7 +84,11 @@ PHASE_FIELDS = frozenset(
         "state",
     }
 )
-RESOURCE_PHASE_FIELDS = PHASE_FIELDS | {"resource_profile", "resource_overrides"}
+RESOURCE_PHASE_FIELDS = PHASE_FIELDS | {
+    "resource_profile",
+    "resource_overrides",
+}
+RESOURCE_PHASE_FIELDS_WITH_REASON = RESOURCE_PHASE_FIELDS | {"resource_profile_reason"}
 GATE_FIELDS = frozenset(
     {"id", "applies_to", "status", "permission_mode", "authority_reference"}
 )
@@ -176,6 +180,7 @@ class PhaseManifest:
     handoff_target: str
     state: str
     resource_profile: str | None
+    resource_profile_reason: str | None
     resource_overrides: Mapping[str, Any]
     digest: str
 
@@ -616,11 +621,18 @@ def load_phase_manifest(
         payload = dict(payload)
         digest = _canonical_payload_digest(payload)
     resource_aware = lock.sagekit_contract in RESOURCE_AWARE_CONTRACTS
-    _exact_fields(
-        payload,
-        RESOURCE_PHASE_FIELDS if resource_aware else PHASE_FIELDS,
-        f"phase manifest {phase_id}",
-    )
+    if resource_aware:
+        raw_profile = payload.get("resource_profile")
+        if _is_neutral_profile(_nonempty(raw_profile, "phase resource_profile")):
+            _exact_fields(
+                payload,
+                RESOURCE_PHASE_FIELDS_WITH_REASON,
+                f"phase manifest {phase_id}",
+            )
+        else:
+            _exact_fields(payload, RESOURCE_PHASE_FIELDS, f"phase manifest {phase_id}")
+    else:
+        _exact_fields(payload, PHASE_FIELDS, f"phase manifest {phase_id}")
     _schema_version(payload, f"phase manifest {phase_id}")
     _matching_contract(payload, lock, f"phase manifest {phase_id}")
     actual_id = _id(payload.get("phase_id"), PHASE_ID_RE, "phase_id")
@@ -640,13 +652,22 @@ def load_phase_manifest(
     if type(inherit_forbidden) is not bool:
         raise ExecutionDocumentError("inherit_forbidden must be boolean")
     resource_profile = None
+    resource_profile_reason: str | None = None
     resource_overrides: Mapping[str, Any] = {}
     if resource_aware:
-        resource_profile = _nonempty(
-            payload.get("resource_profile"), "phase resource_profile"
-        )
-        if resource_profile != lock.resource_contract:
-            raise ExecutionDocumentError("unknown or unpinned phase resource profile")
+        raw_profile = _nonempty(payload.get("resource_profile"), "phase resource_profile")
+        if _is_neutral_profile(raw_profile):
+            resource_profile = None
+            resource_profile_reason = _nonempty(
+                payload.get("resource_profile_reason"), "phase resource_profile_reason"
+            )
+        else:
+            resource_profile = raw_profile
+            resource_profile_reason = _optional_nonempty(
+                payload.get("resource_profile_reason"), "phase resource_profile_reason"
+            )
+            if resource_profile != lock.resource_contract:
+                raise ExecutionDocumentError("unknown or unpinned phase resource profile")
         raw_resource_overrides = payload.get("resource_overrides")
         if not isinstance(raw_resource_overrides, dict):
             raise ExecutionDocumentError("phase resource_overrides must be an object")
@@ -677,6 +698,7 @@ def load_phase_manifest(
         _nonempty(payload.get("handoff_target"), "handoff_target"),
         _enum(payload.get("state"), PHASE_STATES, "phase state"),
         resource_profile,
+        resource_profile_reason,
         resource_overrides,
         digest,
     )
@@ -816,6 +838,16 @@ def _required_profile(value: Any, expected: str, label: str) -> str:
     if selected != expected:
         raise ExecutionDocumentError(f"{label} must be {expected}")
     return selected
+
+
+def _is_neutral_profile(value: str) -> bool:
+    return value.casefold() in {"n/a", "na", "neutral"}
+
+
+def _optional_nonempty(value: Any, label: str) -> str | None:
+    if value is None:
+        return None
+    return _nonempty(value, label)
 
 
 def _string_list(value: Any, label: str, *, nonempty: bool = False) -> tuple[str, ...]:

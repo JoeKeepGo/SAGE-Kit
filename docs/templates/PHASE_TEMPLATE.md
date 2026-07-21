@@ -143,37 +143,11 @@ Change Control Evidence:
 - dirty files before work:
 ```
 
-## Task Dispatch Evidence
+## Optional Profiles
 
-Use only when Task Dispatch Profile is active for this phase.
-
-```text
-Task Dispatch Evidence:
-- task record:
-- evidence record:
-- authority source / grant / scope:
-- phase / next action:
-- required L0-L4 levels:
-- resource locks:
-- active run / lease:
-- changed surfaces / artifacts:
-- skipped checks:
-- validator command:
-- validator result:
-- acceptance gate covered: `<task/phase/not an acceptance gate>`
-- gate-ready validator evidence: `<command/result, or n/a only when not an acceptance gate>`
-```
-
-## State Truth Reconciliation Gate
-
-```text
-State Truth Reconciliation:
-- applicable / N/A reason:
-- profile ref: docs/profiles/task-dispatch/DISPATCH_PROFILE.md
-- owners and mutation authority checked:
-- mismatches or corrective/handoff ref:
-- result: PASS, BLOCKED, or N/A
-```
+- Active profiles: `<none, or project-authorized profile references>`
+- Activation authority: `<project authority ref, or N/A>`
+- Profile-owned evidence: `<links only; do not copy the profile template here>`
 
 ## Completion Gate
 
@@ -251,9 +225,7 @@ Memory Maintenance:
 
 Change Control Status:
 
-Task Dispatch Status:
-
-State Truth Reconciliation:
+Optional Profile Evidence:
 
 Gate Status:
 

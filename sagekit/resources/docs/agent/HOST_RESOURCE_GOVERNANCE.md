@@ -58,7 +58,7 @@ from `base_head`.
 Check the binding before execution:
 
 ```text
-sagekit workspace verify --target <project> --packet <packet.json>
+sagekit.verify_project_workspace(binding, ...)
 ```
 
 A different repository, worktree, branch, HEAD, Git common directory, or an
@@ -86,17 +86,15 @@ duplicate readers, duplicate tests, or unbounded descendant trees.
 
 ## Managed commands
 
-The CLI exposes the lease lifecycle and one supervised command boundary:
+The Harness owns lease lifecycle and exposes one supervised command boundary:
 
 ```text
-sagekit resource status --target <project>
-sagekit resource acquire --target <project> --packet <packet.json> --class <class> --run-id <id>
-sagekit resource heartbeat --target <project> --lease <lease-id>
-sagekit resource release --target <project> --lease <lease-id>
-sagekit resource run --target <project> --packet <packet.json> --class <class> --run-id <id> --timeout <seconds> -- <argv>
+sagekit.verify_project_workspace(binding, ...)
+sagekit.run_managed_command(project_root, packet, command, ...)
 ```
 
-When a claim is occupied, the default bounded wait is 300 seconds. The runtime
+When a claim is occupied, the default bounded wait is 30 seconds unless the
+packet policy sets a lower ceiling. The runtime
 emits `WAITING_FOR_RESOURCE` immediately and every 30 seconds, polls once per
 second, continues automatically after release, and returns `HANDOFF_READY`
 when the wait bound expires. Waiting is recorded separately from verification
@@ -112,7 +110,7 @@ Containment levels are explicit. `HARD` means the OS constrains the complete
 launched process tree, including intentional or accidental descendants.
 `MANAGED` means SAGE-Kit manages the normal process group/job and descendants
 but cannot prove malicious escape impossible. `SOFT` means only command/agent
-cooperation with `resource run` supplies the boundary. The conservative
+cooperation with `sagekit.run_managed_command(...)` supplies the boundary. The conservative
 profile requires at least `MANAGED`; a request for `HARD` is rejected before
 target launch when the selected adapter cannot supply it.
 
@@ -131,26 +129,20 @@ Linux cgroup v2 and stronger macOS sandbox adapters are optional future `HARD`
 adapters, not missing v1 gates. The current implementation does not impose
 cgroup memory/PID limits or an FD hard limit.
 
-Every `resource run` process result reports `containment_level`,
+Every `sagekit.run_managed_command(...)` process result reports `containment_level`,
 `containment_complete`, `cleanup_complete`, `orphan_check`, `platform_adapter`,
 and `limitations`.
 
 ## Serial verification
 
 The root verification controller is the only launcher for expensive local
-nodes:
-
-```text
-python -B -m scripts.run_tests unit
-python -B -m scripts.run_tests integration
-python -B -m scripts.run_tests package
-python -B -m scripts.run_tests final
-```
+nodes. It validates project and gate state with `sagekit.check_project(...)`
+and launches approved commands with `sagekit.run_managed_command(...)`.
 
 `final` plans `focused -> unit -> integration -> source-repo -> package`.
 Each node has one lease, one temp root, a stage, current-test heartbeat, timeout,
 bounded output, metrics, process-tree cleanup, and release. The
-`--waive-high-load` option records source-repo and package nodes as
+`waive_high_load=True` records source-repo and package nodes as
 `WAIVED`; it does not record them as passing.
 
 ## Enforcement boundary
@@ -158,7 +150,7 @@ bounded output, metrics, process-tree cleanup, and release. The
 Commands routed through the Windows gated adapter may receive `HARD` process
 tree containment and POSIX process-group runs receive `MANAGED`. The broader
 runtime interception guarantee remains `SOFT`: SAGE-Kit checks commands routed
-through packet/workspace verification and `sagekit resource run`. It does not
+through packet/workspace verification and `sagekit.run_managed_command(...)`. It does not
 intercept an agent, plugin, shell, or arbitrary child that bypasses that
 boundary. Known mutation argv is rejected for read-only authority, but
 arbitrary program behavior remains a soft guarantee and must also be controlled

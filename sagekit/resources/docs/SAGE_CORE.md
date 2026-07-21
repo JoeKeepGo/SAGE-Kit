@@ -4,6 +4,9 @@ SAGE Core defines the reusable rules that every project using SAGE-Kit should
 follow. Project-specific details belong in project profiles, technical designs,
 milestones, and phase documents.
 
+SAGE-Kit no longer uses a public CLI as the governance authority. The product
+surface is now project-owned SPEC contracts plus an embeddable Harness core.
+
 ## SPEC Sources And Execution Documents
 
 SAGE-Kit defines SPEC semantics and Harness execution contracts, not a required
@@ -21,8 +24,9 @@ documents repeat them.
 The scope classes are `ACTIVE_SPEC`, `ACTIVE_CONTEXT`, `ACCEPTED_HISTORY`,
 `REFERENCE_ONLY`, and `.sagekit` `RUNTIME_STATE`. Resolve current authority from
 an explicit source, configured mapping, ACTIVE_CONTEXT Current Work Pointer,
-then legacy adapter for an explicitly selected legacy milestone. Explicit and
-configured sources fail closed without fallback. Ordinary checks are
+then legacy adapter for an explicitly selected legacy milestone. `ACTIVE_CONTEXT`
+remains a compact handoff helper and can be configured as a local project input.
+Explicit and configured sources fail closed without fallback. Ordinary checks are
 active-only; frozen history contracts run only for explicit history audit.
 
 The execution document model remains separate from Task Dispatch. Existing
@@ -35,15 +39,15 @@ Default adoption binds the installed package and canonical contract/resource
 version and digest. Framework vendoring is opt-in compatibility. Installed
 Skill is not project authority.
 
-Use `sagekit packet compile` to create an ephemeral packet carrying scope,
+Use the embedded harness packet API to create an ephemeral packet carrying scope,
 authority, dependency DAG, boundaries, evidence, stop conditions, and resource
 policy. Check and compile do not rewrite source documents, ACTIVE_CONTEXT,
 accepted history, or runtime state. Resource Policy remains an independent
 version dimension through `conservative-host-v1`, with honest `HARD`,
 `MANAGED`, and bypassable `SOFT`
 boundaries defined in `docs/agent/HOST_RESOURCE_GOVERNANCE.md`.
-Strict managed operations verify with `sagekit workspace verify` and then route
-through `sagekit resource run`; direct read-only admission does not.
+Strict managed operations verify with a scoped runtime check and then route through
+local host execution boundaries; direct read-only admission does not.
 
 ## Bootstrap Maintainer Policy
 
@@ -74,7 +78,7 @@ mixed records fail closed.
 - State the product goal before implementation starts.
 - Keep architecture boundaries explicit.
 - Define contracts before consumers depend on them.
-- Use retained phase documents for non-trivial work.
+- Use retained active SPEC, phase, or task authority for non-trivial work.
 - Keep implementation scope small enough to review.
 - Verify behavior with fresh evidence before claiming completion.
 - Record durable state in docs instead of relying on chat memory.
@@ -100,7 +104,8 @@ mixed records fail closed.
   execution and evidence inputs inside SAGE-Kit governance, not as replacements
   for SAGE-Kit gates.
 - Use Capability Adapters for optional external skills, plugins, MCP tools,
-  CLIs, CI systems, or reviewers so SAGE-Kit can detect, authorize, invoke,
+  runtime adapters, CI systems, or reviewers so SAGE-Kit can detect,
+  authorize, invoke,
   capture evidence, map outputs, and fall back without making them core
   dependencies.
 - Keep secrets, local data, credentials, and production artifacts out of
@@ -148,34 +153,31 @@ SAGE-Kit does not require it and does not copy it.
 Use `docs/agent/CAPABILITY_ADAPTERS.md` for the adapter lifecycle,
 authorization levels, evidence contract, frontend adapter rules, and
 installation policy. Adapters default to metadata-only or read-only. Installing
-external skills, plugins, CLIs, MCP servers, hooks, or global configuration
+  external skills, plugins, runtime adapters, MCP servers, hooks, or global
+  configuration
 requires explicit approval when it writes environment or user configuration.
 
-## Local Runtime Boundary
+## Embedded Runtime Boundary
 
-The `sagekit` CLI is a read-only governance runtime for diagnostics, normalized
-SPEC compilation, and structure checks, plus an explicit bounded initializer
-and ignored local continuity checkpoint. It exists below project authority:
+SAGE-Kit provides an embedded harness interface for diagnostics, normalized
+SPEC packets, and bounded continuity persistence. It exists below project
+authority:
 
-- `sagekit init` defaults to a small package-bound project setup. Framework
-  documents and templates are copied only by an explicit vendored compatibility
-  profile. It must not create executable milestones, task records, worktrees,
-  commits, pushes, external config, or approval decisions.
-- `sagekit doctor` diagnoses repository and runtime state.
-- `sagekit check` checks SAGE-Kit documents and task/evidence records for
-  review readiness.
-- `sagekit checkpoint` and `sagekit resume` write or read only
-  `.sagekit/runtime/CURRENT_RUN.json`; the file is local, bounded, gitignored,
-  and never a project acceptance record.
+- Project setup and bootstrap behavior is explicit and package-bound.
+- Diagnostics include governance and structure checks.
+- Packet compilation is a bounded local operation for host workflows.
+- Continuity state is stored at `.sagekit/runtime/CURRENT_RUN.json`; it is local,
+  bounded, gitignored, and never a project acceptance record.
 
-CLI output is evidence. It does not replace tests, runtime smoke, human review,
-Project Manager acceptance, approval gates, or milestone closeout decisions.
+Harness output is evidence only. It does not replace tests, runtime smoke, human
+review, Project Manager acceptance, approval gates, or milestone closeout
+decisions.
 
-Mode-aware checks are proportional. Light checks only the Light document
-baseline. Standard makes Standard project documents blocking. Heavy makes the
-minimal controller-governance baseline blocking, but optional controls such as
-Task Dispatch, Wave Execution, Worktree Isolation, profiles, and adapters remain
-opt-in and artifact-triggered.
+Mode-aware checks are proportional. Light checks only the Light authority
+baseline. Standard makes the Standard project-authority baseline blocking.
+Heavy makes the minimal controller-governance baseline blocking, but optional
+controls such as Task Dispatch, Wave Execution, Worktree Isolation, profiles,
+and adapters remain opt-in and artifact-triggered.
 
 ## Trivial And Non-Trivial Work
 
@@ -183,9 +185,10 @@ Trivial work is limited to typo fixes, formatting-only documentation edits, or
 metadata changes that do not affect behavior, contracts, verification, security,
 runtime operation, release process, or agent execution.
 
-All other work is non-trivial and requires a retained phase/task authority:
-either the selected legacy document or an explicitly adopted thin phase
-manifest.
+All other work is non-trivial and requires retained active SPEC, phase, or task
+authority. That authority may be a configured project SPEC, normalized manifest,
+execution packet, selected legacy document, or explicitly adopted thin phase
+manifest. Markdown location is provenance, not authority by itself.
 
 ## Legacy Project Document Baselines
 
@@ -201,8 +204,8 @@ Light baseline:
 |---|---|
 | `docs/PROJECT_PROFILE.md` | Product identity, goals, users, constraints, and non-goals. |
 | `docs/QUALITY_GATES.md` | Evidence required before work can be called complete. |
-| `docs/ACTIVE_CONTEXT.md` | Short current-state summary for future sessions. |
-| `docs/DOC_ROUTING.md` | Smallest safe read set by task type. |
+| Configured active-context path (legacy default: `docs/ACTIVE_CONTEXT.md`) | Short current-state summary for future sessions. |
+| Configured document-routing path (legacy default: `docs/DOC_ROUTING.md`) | Smallest safe read set by task type. |
 | `docs/M<ID>/MILESTONE_LEDGER.md` | Current milestone state when executable work starts. |
 | `docs/M<ID>/<NN>-<phase-name>.md` | One retained phase doc for the active executable slice. |
 
@@ -259,13 +262,14 @@ Plan:
   `docs/agent/GOVERNANCE_LEVELS.md`.
 - For broad, non-technical, or coarse-roadmap projects, create project owner intake and a
   capability map before an executable roadmap.
-- Write or update the retained phase document.
+- Write or update the retained active SPEC, phase, or task authority in the
+  project's selected representation.
 - Name requirement IDs and contracts.
 - Define allowed files, read-only files, and forbidden files.
 - Select specialist external capabilities from available metadata when they are
   relevant.
 - Apply the Capability Adapter lifecycle for selected external skills, plugins,
-  MCP tools, CLIs, CI systems, or reviewers.
+  MCP tools, runtime adapters, CI systems, or reviewers.
 - Define tests, runtime smoke, and completion gate.
 
 Implement:
@@ -288,18 +292,35 @@ Submit:
 - Use planning package closeout only when changes are limited to planning
   artifacts, ledgers, evidence or status records, and closeouts, and role
   separation plus submit authority are explicit.
-- Maintain `docs/ACTIVE_CONTEXT.md` as a current-state snapshot only when the
+- Maintain the configured active-context path (legacy default:
+  `docs/ACTIVE_CONTEXT.md`) as a current-state snapshot only when the role or
+  packet has both write permission and ownership; otherwise return a memory
+  update proposal or no-change note.
+- Update the configured document-routing path (legacy default:
+  `docs/DOC_ROUTING.md`) only when routing or document topology changed and the
   role or packet has both write permission and ownership; otherwise return a
   memory update proposal or no-change note.
-- Update `docs/DOC_ROUTING.md` only when routing or document topology changed
-  and the role or packet has both write permission and ownership; otherwise
-  return a memory update proposal or no-change note.
 - Update completion reports and ledgers with memory maintenance status.
 - Update task/evidence records and run the dispatch validator when the project
   adopted Task Dispatch Profile for the active task or gate.
 - Commit or hand off only the intended scope.
 
 ## Universal Completion Rule
+
+## Embedded Harness Contract
+
+Use `sagekit.check_project(...)` for read-only project or gate validation; its
+result has an unambiguous `ok` property and complete findings. It supports the
+configured active scope, explicit history scope, mode, gate-ready validation,
+and an external scope manifest. Use
+`sagekit.validate_task_and_evidence_records(...)` only for one task/evidence
+pair. Candidate operations are public through `sagekit.freeze_candidate(...)`
+and `sagekit.assess_candidate(...)`; do not import private candidate modules.
+
+Project bootstrap is host-owned creation of the minimal versioned
+`SAGEKIT_CONFIG.json`; SAGE-Kit does not expose bootstrap/init as a public API.
+Resolve `ACTIVE_CONTEXT` and document routing from `SAGEKIT_CONFIG.json`.
+`docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` are legacy defaults only.
 
 No work is complete until the completion report names:
 
@@ -353,5 +374,6 @@ verification summary, known gaps, follow-up milestones, and links to evidence.
 It must not duplicate raw logs, full evidence tables, or phase reports.
 
 Historical closeouts are not default startup context. Future agents read them
-only through `docs/DOC_ROUTING.md` when prior milestone outcomes, decisions,
-gaps, or provenance are relevant.
+only through the configured document-routing path (legacy default:
+`docs/DOC_ROUTING.md`) when prior milestone outcomes, decisions, gaps, or
+provenance are relevant.

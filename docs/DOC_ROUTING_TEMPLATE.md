@@ -21,11 +21,13 @@ Default startup read set:
 
 1. Configured `ACTIVE_CONTEXT` (legacy default `docs/ACTIVE_CONTEXT.md`)
 2. `docs/DOC_ROUTING.md`
-3. `SAGE_PROJECT.json`, when present, to select `execution_document_model` and
-   its pinned contract
-4. Active `MILESTONE_MANIFEST.json` or legacy entry gate and ledger, if the task
+3. `SAGEKIT_CONFIG.json`, when present, for source mapping, configured context,
+   project identity, and stable public contract binding
+4. `SAGE_PROJECT.json`, when present, to select `execution_document_model` and
+   its pinned execution-policy contract after source resolution
+5. Active `MILESTONE_MANIFEST.json` or legacy entry gate and ledger, if the task
    belongs to a milestone
-5. Active thin phase manifest or legacy phase document, if implementation or
+6. Active thin phase manifest or legacy phase document, if implementation or
    review is requested
 
 ## Read Policy By Task
@@ -33,7 +35,7 @@ Default startup read set:
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` if present |
-| Thin document validation | `SAGE_PROJECT.json`, configured or explicit active SPEC sources; legacy default `docs/<M>` | Referenced project gates and evidence only |
+| Thin document validation | `SAGEKIT_CONFIG.json` when present, `SAGE_PROJECT.json`, configured or explicit active SPEC sources; legacy default `docs/<M>` | Referenced project gates and evidence only |
 | Thin packet compilation | Project lock, active milestone manifest, selected phase manifest | Exact pinned contract/profile resources; standalone output only when the runtime cannot load them |
 | Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
@@ -44,9 +46,9 @@ Default startup read set:
 | Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
 | Task dispatch | Active context, this file, active milestone ledger, active task `task.yaml`, active task `evidence.yaml`, `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` | Dispatch board, schemas, validator output, related dependency task records |
 | External capability routing | Active context, this file, `docs/SAGE_CORE.md#external-capability-boundary`, `docs/agent/AGENT_HARNESS.md`, `docs/agent/GOVERNANCE_LEVELS.md`, `docs/agent/CAPABILITY_ADAPTERS.md` | Selected skill, plugin, connector, MCP tool, CLI, CI, or review instructions only when the task will use that execution method |
-| Frontend or browser adapter | Active phase doc, UI contract, quality gates, `docs/agent/CAPABILITY_ADAPTERS.md` | Design system, product profile sections, frontend skill instructions, browser QA tools |
+| Frontend or browser adapter | Active phase doc, UI contract, quality gates, `docs/agent/CAPABILITY_ADAPTERS.md` | Design system, frontend skill instructions, browser QA tools |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
-| UI work | Active phase doc, UI contract, quality gates | Design system or product profile sections |
+| UI work | Active phase doc, UI contract, quality gates | Design system |
 | Contract change | Contract owner doc and consumer docs | Relevant closeout decision summary, then historical decision records |
 | Review | Active phase doc, quality gates, changed files | Active task/evidence records when Task Dispatch is used, prior closeout summary, then ledger evidence |
 | Historical outcome lookup | Named `MILESTONE_CLOSEOUT.md` | Ledger, phase docs, and completion reports only for provenance |

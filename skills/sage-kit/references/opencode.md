@@ -45,8 +45,11 @@ until it selects the skill, which matches this skill's narrow-read design.
 ## Permission Mapping
 
 OpenCode permissions (`allow` / `ask` / `deny`, glob resources, per-agent
-overrides, last match wins) can enforce SAGE-Kit authority modes natively.
-Map them as follows:
+overrides, last match wins) can enforce SAGE-Kit authority modes when the
+installed runtime dynamically applies the configured restriction. The
+allowed-file edit boundary is otherwise a soft instruction: `edit: allow` or
+`edit: deny` alone does not constrain a writable agent to packet paths. Map
+them as follows:
 
 | SAGE adapter level | OpenCode enforcement |
 |---|---|
@@ -73,16 +76,19 @@ Example `opencode.json` baseline for a governed project:
 }
 ```
 
-Treat these rules as enforcement of the SAGE-Kit boundary, not as the
-boundary itself: allowed files, gates, and stop conditions still live in the
-phase doc and execution packets.
+Treat dynamically enforced rules as enforcement of the SAGE-Kit boundary, not
+as the boundary itself. Without a detected runtime enforcement of the named
+edit resources, the edit boundary remains soft: allowed files, gates, and stop
+conditions come from the normalized active SPEC and its ephemeral execution
+packet. Persist a packet only when project-owned SPEC/configuration requires
+it.
 
 ## Orchestration Mapping
 
 | SAGE-Kit construct | OpenCode mapping |
 |---|---|
 | Project Manager session | Primary agent (`build`) running the sage-kit skill; owns routing, serial files, gates, submit authority |
-| Coder Controller and workers | Custom `sage-coder` subagent (template below), dispatched via the Task tool with a bounded prompt naming SAGE docs, allowed files, gates, and stop conditions |
+| Coder Controller and workers | Custom `sage-coder` subagent (template below), dispatched via the Task tool with a bounded prompt referencing the normalized active SPEC or ephemeral packet, allowed files, gates, and stop conditions |
 | Final Review session | Custom `sage-final-review` subagent with `edit: deny`; returns a verdict packet to the primary agent |
 | Read-only exploration lanes | Built-in `explore` subagent (read-only) — reuse it instead of defining a new one |
 | Wave Execution | Parallel Task calls only when Wave Readiness is proven (disjoint writable files, serial shared files, frozen contracts) — unchanged rule |
@@ -102,7 +108,7 @@ permission:
 ---
 
 You are a SAGE-Kit Coder worker. Execute only the dispatched packet:
-1. Read the SAGE-Kit docs named in the dispatch prompt before editing.
+1. Read only the normalized active SPEC or source references named in the dispatch prompt before editing.
 2. Edit only the allowed files named there; never touch serial files
    (docs/ACTIVE_CONTEXT.md, docs/DOC_ROUTING.md).
 3. Run only the verification commands named in the packet.
@@ -122,8 +128,8 @@ permission:
   bash: ask
 ---
 
-You are a SAGE-Kit Final Reviewer. Review against the phase doc, contracts,
-and quality gates named in the dispatch prompt.
+You are a SAGE-Kit Final Reviewer. Review against the normalized active SPEC,
+contracts, and quality gates named in the dispatch prompt.
 1. Classify findings by severity (P0-P3) with file and line references.
 2. Classify required corrections as AUTO_CORRECTIVE, PM_DECISION, BLOCKED,
    or DEFER.
@@ -141,9 +147,9 @@ agent frontmatter makes the executor choice explicit and reviewable.
 
 ## Continuity Mapping
 
-- `.sagekit/runtime/CURRENT_RUN.json` and the `sagekit checkpoint` /
-  `sagekit resume` commands work unchanged through OpenCode's bash tool; no
-  install is required beyond the CLI itself.
+- `.sagekit/runtime/CURRENT_RUN.json` remains the checkpoint contract. An
+  OpenCode host integration must call the exported SAGE-Kit Harness checkpoint
+  functions; the bash tool alone does not provide checkpoint/resume behavior.
 - OpenCode has no cross-session memory or scheduled jobs; the on-disk
   checkpoint is the only continuity mechanism. Keep it current before any
   handoff.

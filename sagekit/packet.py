@@ -123,16 +123,44 @@ def compile_packet(
     *,
     source: Path | None = None,
     compact: bool = False,
-    contract_root: Path | None = None,
+) -> CompiledPacket:
+    return _compile_packet(
+        root,
+        milestone_id,
+        phase_id,
+        source=source,
+        compact=compact,
+    )
+
+
+def _compile_packet(
+    root: Path,
+    milestone_id: str,
+    phase_id: str | None = None,
+    *,
+    source: Path | None = None,
+    compact: bool = False,
+    _contract_root: Path | None = None,
 ) -> CompiledPacket:
     try:
         normalized = load_normalized_spec(
             root,
             milestone_id,
             source=source,
-            contract_root=contract_root,
+            contract_root=_contract_root,
             phase_id=phase_id,
         )
+        if _contract_root is not None:
+            package_bound = load_normalized_spec(
+                root,
+                milestone_id,
+                source=source,
+                phase_id=phase_id,
+            )
+            if normalized.semantic_digest != package_bound.semantic_digest:
+                raise PacketConfigurationError(
+                    "test contract injection differs from package-bound SPEC authority"
+                )
         project = normalized.project
     except SourceConfigurationError as exc:
         raise PacketConfigurationError(str(exc)) from exc
@@ -308,6 +336,16 @@ def compile_packet(
             ],
         },
     }
+    if normalized.provenance.authority == "explicit-source":
+        body["source_authority"] = {
+            "model": "normalized-source-authority-v1",
+            "semantic_sha256": normalized.semantic_digest,
+            "adapter": normalized.provenance.adapter,
+            "document_class": normalized.document_class.value,
+        }
+        # Location is needed after JSON loading, but does not define execution
+        # identity. Recompilation binds it to source_authority before use.
+        body["source_provenance"] = normalized.provenance.to_dict()
     if compact:
         body["profile_references"] = [
             {"id": profile_id, "digest": digest}
@@ -320,8 +358,7 @@ def compile_packet(
                 if rule not in rules:
                     rules.append(rule)
         body["generic_rules"] = rules
-    canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    digest = hashlib.sha256(canonical).hexdigest()
+    digest = _packet_payload_digest(body)
     body["packet_sha256"] = digest
     return CompiledPacket(
         body["mode"], body, digest, provenance=normalized.provenance
@@ -335,8 +372,8 @@ def write_compiled_packet(
     *,
     overwrite_generated: bool = False,
 ) -> Path:
-    _validate_packet_for_write(packet)
     project_root = root.resolve(strict=False)
+    packet = _current_packet_authority(project_root, packet)
     try:
         relative = _repository_path(project_root, str(relative_output), "packet output")
     except ExecutionDocumentError as exc:
@@ -379,6 +416,143 @@ def write_compiled_packet(
         except FileExistsError as exc:
             raise PacketError(f"packet output already exists: {relative}") from exc
     return destination
+
+
+def _current_packet_authority(root: Path, packet: CompiledPacket) -> CompiledPacket:
+    """Recompile a packet against its current, project-contained SPEC source."""
+
+    if not isinstance(packet, CompiledPacket):
+        raise TypeError("packet operations require a CompiledPacket")
+    _validate_packet_for_write(packet)
+    target = packet.payload.get("target")
+    if not isinstance(target, dict):
+        raise PacketError("packet target authority is invalid")
+    canonical = _compile_packet(
+        root,
+        str(target.get("milestone_id") or ""),
+        (str(target["phase_id"]) if target.get("phase_id") else None),
+        source=_packet_revalidation_source(root, packet),
+        compact=packet.mode == "compact",
+    )
+    if canonical.digest != packet.digest:
+        raise PacketError("packet differs from current project-owned SPEC authority")
+    return canonical
+
+
+def _packet_revalidation_source(
+    root: Path, packet: CompiledPacket, source: Path | None = None
+) -> Path | None:
+    """Select the packet-bound explicit source and reject conflicting caller input."""
+
+    provenance = _packet_explicit_source_provenance(packet)
+    if provenance is None or provenance.authority != "explicit-source":
+        return source
+    source_authority = packet.payload.get("source_authority")
+    if (
+        isinstance(source_authority, dict)
+        and provenance.adapter != source_authority.get("adapter")
+    ):
+        raise PacketError(
+            "packet explicit source provenance differs from signed source authority"
+        )
+    project_root = root.resolve(strict=False)
+    provenance_root = Path(provenance.target_root).resolve(strict=False)
+    if os.path.normcase(str(provenance_root)) != os.path.normcase(str(project_root)):
+        raise PacketError("packet explicit source provenance is not for this project")
+    explicit_source = Path(provenance.canonical_path)
+    if source is not None:
+        requested_source = Path(source)
+        if not requested_source.is_absolute():
+            requested_source = project_root / requested_source
+        if os.path.normcase(str(requested_source.resolve(strict=False))) != os.path.normcase(
+            str(explicit_source.resolve(strict=False))
+        ):
+            raise PacketError("provided source differs from packet explicit-source provenance")
+    return explicit_source
+
+
+def _packet_explicit_source_provenance(
+    packet: CompiledPacket,
+) -> SourceProvenance | None:
+    """Read explicit-source location, retaining pre-serialization packets."""
+
+    raw = packet.payload.get("source_provenance")
+    if raw is None:
+        # Older in-memory packets carried this only beside the payload. Their
+        # JSON form intentionally remains a legacy packet without this authority.
+        provenance = packet.provenance
+        return (
+            provenance
+            if provenance is not None and provenance.authority == "explicit-source"
+            else None
+        )
+    try:
+        return _explicit_source_provenance_from_dict(raw)
+    except ValueError as exc:
+        raise PacketError(f"packet explicit source provenance is invalid: {exc}") from exc
+
+
+def _explicit_source_provenance_from_dict(raw: Any) -> SourceProvenance:
+    fields = {
+        "target_root",
+        "selected_adapter",
+        "configured_source",
+        "resolved_canonical_path",
+        "legacy_fallback_enabled",
+        "authority",
+    }
+    if not isinstance(raw, dict) or set(raw) != fields:
+        raise ValueError("structure is invalid")
+    target_root = raw.get("target_root")
+    adapter = raw.get("selected_adapter")
+    configured_source = raw.get("configured_source")
+    canonical_path = raw.get("resolved_canonical_path")
+    if (
+        not all(
+            isinstance(value, str) and value
+            for value in (target_root, adapter, configured_source, canonical_path)
+        )
+        or not Path(target_root).is_absolute()
+        or not Path(canonical_path).is_absolute()
+        or raw.get("legacy_fallback_enabled") is not False
+        or raw.get("authority") != "explicit-source"
+    ):
+        raise ValueError("values are invalid")
+    return SourceProvenance(
+        target_root=target_root,
+        adapter=adapter,
+        configured_source=configured_source,
+        canonical_path=canonical_path,
+        legacy_fallback=False,
+        authority="explicit-source",
+    )
+
+
+def _valid_source_authority(raw: Any, source_contract: Any, bindings: Any) -> bool:
+    return (
+        isinstance(raw, dict)
+        and set(raw)
+        == {"model", "semantic_sha256", "adapter", "document_class"}
+        and raw.get("model") == "normalized-source-authority-v1"
+        and raw.get("adapter") in {"thin-v1", "markdown-v1"}
+        and raw.get("document_class") == "ACTIVE_SPEC"
+        and isinstance(source_contract, dict)
+        and raw.get("semantic_sha256") == source_contract.get("semantic_sha256")
+        and raw.get("document_class") == source_contract.get("active_class")
+        and isinstance(bindings, dict)
+        and raw.get("semantic_sha256") == bindings.get("normalized_spec_sha256")
+    )
+
+
+def _packet_payload_digest(payload: Mapping[str, Any]) -> str:
+    unsigned = dict(payload)
+    unsigned.pop("packet_sha256", None)
+    if "source_authority" in unsigned:
+        unsigned.pop("source_provenance", None)
+    canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    return hashlib.sha256(canonical).hexdigest()
 
 
 @contextmanager
@@ -594,6 +768,10 @@ def _is_recognized_generated_packet(payload: Any) -> bool:
     ):
         return False
     expected = set(required)
+    if schema == 3 and "source_provenance" in payload:
+        expected.add("source_provenance")
+    if schema == 3 and "source_authority" in payload:
+        expected.add("source_authority")
     if payload["mode"] == "standalone":
         expected.add("generic_rules")
     else:
@@ -621,13 +799,21 @@ def _is_recognized_generated_packet(payload: Any) -> bool:
             != source_contract.get("semantic_sha256")
         ):
             return False
+        if "source_provenance" in payload:
+            try:
+                _explicit_source_provenance_from_dict(payload["source_provenance"])
+            except ValueError:
+                return False
+        source_authority = payload.get("source_authority")
+        if source_authority is not None:
+            if "source_provenance" not in payload or not _valid_source_authority(
+                source_authority, source_contract, bindings
+            ):
+                return False
     stored = payload.get("packet_sha256")
     if not isinstance(stored, str) or re.fullmatch(r"[0-9a-f]{64}", stored) is None:
         return False
-    unsigned = dict(payload)
-    unsigned.pop("packet_sha256", None)
-    canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(canonical).hexdigest() == stored
+    return _packet_payload_digest(payload) == stored
 
 
 __all__ = [

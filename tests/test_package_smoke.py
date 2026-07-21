@@ -29,7 +29,7 @@ class WheelSmokeScriptTests(unittest.TestCase):
         completed = subprocess.CompletedProcess(
             args=command, returncode=0, stdout=b"ok", stderr=b""
         )
-        with patch.object(wheel_smoke, "run_managed_command") as managed, patch.object(
+        with patch.object(wheel_smoke, "_run_managed_command") as managed, patch.object(
             wheel_smoke.subprocess, "run", return_value=completed
         ) as direct:
             wheel_smoke.run_trivial_probe(
@@ -87,16 +87,15 @@ class WheelSmokeScriptTests(unittest.TestCase):
         for command in commands:
             self.assertEqual([str(python), "-I", "-B"], command[:3])
         flattened = "\n".join(" ".join(command) for command in commands)
-        self.assertIn("-m sagekit --help", flattened)
-        self.assertIn("-m sagekit packet compile --help", flattened)
-        self.assertIn("-m sagekit workspace verify --help", flattened)
-        self.assertIn("-m sagekit resource status --help", flattened)
-        self.assertIn("-m sagekit resource run --help", flattened)
+        self.assertIn("from sagekit.harness", flattened)
+        self.assertIn("from sagekit.harness", flattened)
+        self.assertIn("import importlib.metadata", flattened)
         self.assertIn("importlib.resources", flattened)
         self.assertIn("execution_documents/2026.7.20.1/phase.schema.json", flattened)
         self.assertIn("resource_governance/conservative-host-v1.json", flattened)
         self.assertIn("docs/agent/HOST_RESOURCE_GOVERNANCE.md", flattened)
         self.assertIn("docs/agent/SPEC_SOURCE_CONTRACT.md", flattened)
+        self.assertNotIn("-m sagekit", flattened)
         self.assertNotIn("sleep", flattened.casefold())
         self.assertNotIn("containment", flattened.casefold())
         self.assertNotIn("job object", flattened.casefold())
@@ -165,9 +164,10 @@ class WheelSmokeScriptTests(unittest.TestCase):
 
         commands = wheel_smoke.thin_smoke_commands(python, project)
         flattened = "\n".join(" ".join(command) for command in commands)
-        self.assertIn("sagekit check --target", flattened)
-        self.assertIn("sagekit packet compile --target", flattened)
-        self.assertIn("--milestone M36 --phase P01 --json", flattened)
+        self.assertIn("compile_ephemeral_packet", flattened)
+        self.assertIn("verify_project_workspace", flattened)
+        self.assertNotIn("sagekit check --target", flattened)
+        self.assertNotIn("sagekit packet compile --help", flattened)
         for command in commands:
             self.assertEqual([str(python), "-I", "-B"], command[:3])
 

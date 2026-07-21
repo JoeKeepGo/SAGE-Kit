@@ -10,7 +10,7 @@ provenance, not authority. The selected source records only the phase objective,
 dependencies, execution profile, permission, owner, paths, acceptance,
 verification, evidence, phase-specific stop conditions, handoff target, and
 state. Resolve generic rules from the pinned profile and compile them
-ephemerally with `sagekit packet compile`; do not write expanded rules back to
+ephemerally with `sagekit.compile_ephemeral_packet(...)`; do not write expanded rules back to
 the project.
 
 An active `legacy-markdown` milestone continues to use the requirements below.

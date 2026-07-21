@@ -1,5 +1,13 @@
 # SPEC Source Contract
 
+`SAGEKIT_CONFIG.json` schema v1 may set `active_context` and optional
+`doc_routing`. Resolve both configured in-project paths before reading startup
+authority. When `doc_routing` is absent, use legacy `docs/DOC_ROUTING.md`; when
+`active_context` is absent there is no schema-v1 project authority. Fixed
+`docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` references are legacy
+defaults, not mandatory topology. Machine-enforced profiles are activated only
+by project configuration, never by prose or agent selection.
+
 This contract defines how SAGE-Kit finds project facts, assigns execution
 authority, and presents them to the Harness. SAGE-Kit governs SPEC semantics
 and execution contracts; it does not require project documents to live in one
@@ -39,10 +47,12 @@ rules already supplied by the pinned package contract.
   execution state under `.sagekit`.
 
 Directory location, filename pattern, glob membership, or an old status field
-does not promote a document into `ACTIVE_SPEC`. Accepted history and reference
-material never participate in current duplicate, lock, lease, board, gate,
-candidate, or fingerprint reconciliation unless the active SPEC contains an
-exact content-digest reference to that material.
+does not promote a document into `ACTIVE_SPEC`. A container explicitly
+classified as `ACCEPTED_HISTORY` is non-executable and may be opened only by an
+explicit history audit. Accepted history and reference material never
+participate in current duplicate, lock, lease, board, gate, candidate, or
+fingerprint reconciliation. An exact content-digest reference may use history
+as evidence, but never promotes it into execution authority.
 
 When candidate lifecycle must remain independent of unrelated repository
 history, use the versioned `active-spec` candidate snapshot. It binds the
@@ -54,7 +64,7 @@ semantics.
 
 Resolve one current source in this order:
 
-1. an explicit CLI source selected by the user;
+1. an explicit source selected by the user;
 2. the active source or milestone mapping in project configuration;
 3. the `ACTIVE_CONTEXT` Current Work Pointer;
 4. the legacy `docs/<M>` adapter for a legacy project and an explicitly selected
@@ -91,10 +101,11 @@ and must not rewrite this view.
 
 ## Active And Historical Validation
 
-For projects adopting this scope contract, ordinary `check` and packet compile
-operate on `ACTIVE_SPEC` only. `doctor` performs shallow capability and
-configuration diagnostics. Frozen contracts are invoked for history only by an
-explicit history audit, `--scope history`, or `--scope all`.
+For projects adopting this scope contract, embedded source loading, normalized
+SPEC validation, and ephemeral packet compilation operate on `ACTIVE_SPEC`
+only. Frozen contracts are invoked only by a separately authorized history
+audit host workflow. SAGE-Kit does not expose accepted history as an executable
+source and this contract does not invent a public history-audit API.
 
 Required semantic input inside the selected active source fails closed when it
 is missing or malformed. An EOF, obsolete field, or old schema in an
@@ -113,28 +124,43 @@ gate closure.
 
 ## Adoption And Synthetic Fixtures
 
-Default adoption is package-bound. A project records its SAGE-Kit package and
-package version/safe runtime-resource manifest digest, a machine-readable project identity, its own SPEC
-sources, and a small amount of project configuration. It does not copy the
-framework runtime, schemas, generic docs,
+Default adoption is package-bound. `SAGEKIT_CONFIG.json` records the stable
+public contract manifest version and digest, a machine-readable project
+identity, source mappings, and the configured ACTIVE_CONTEXT path.
+Its optional `profiles` array is the only project-config activation source for
+machine-enforced optional profiles such as `task-dispatch-v2`; artifact presence
+or prose does not activate a profile.
+`SAGE_PROJECT.json` remains the compatible execution-document lock for
+`thin-v1`: it selects the execution document model and pinned policy contracts
+after source resolution. Source authority resolves first, then the selected
+content is validated by the execution-document lock. Neither file silently
+overrides the other. A future contract version may unify them; current projects
+must not duplicate facts beyond these separate ownership boundaries.
+
+The public contract digest includes the explicit Harness API version and
+versioned executable contract resources only. Package release metadata, generic
+docs, Skill text, and unrelated implementation files do not change this
+identity. Projects created with the former whole-package digest require one
+explicit authority migration; accepted history is never rewritten for it. A
+project does not copy the framework runtime, schemas, generic docs,
 Skill, templates, or tests, and it does not maintain a consumer-side allowlist
-for package files. Package integrity is checked through the installed package
-version and canonical safe runtime/resource manifest digest.
+for package files. Public-contract compatibility is checked through the
+manifest version and canonical executable-contract digest.
 
 Framework vendoring remains an explicit compatibility profile. It is never the
 default and does not authorize rewriting existing project or historical files.
 
 Synthetic compile, adoption, and package-smoke fixtures live in test temporary
 directories. They create a temporary Git repository only when a Git/worktree
-binding is part of the behavior under test. Check and compile must not create a
+binding is part of the behavior under test. Embedded validation and compile must not create a
 fixture, checkpoint, output file, cache, bytecode, or `.sagekit` runtime state in
-the inspected project unless the user explicitly selected a writing command.
+the inspected project unless the user explicitly selected a write operation.
 
 ## Resource Admission
 
 | Admission | Normal operations |
 |---|---|
-| Direct read-only | `--help`, `--version`, file reads, deterministic config parsing, in-process normalized SPEC compilation, `git status`, `git rev-parse`, and `git diff --name-only` |
+| Direct read-only | file reads, deterministic config parsing, in-process normalized SPEC compilation, and repository snapshot reads |
 | Light managed | Focused validators, focused unit tests, and bounded short Git subprocesses |
 | Strict governance | Full suites, wheel/package builds, fresh environments and installs, browser/runtime smoke, long-lived services, high CPU or memory work, and tools likely to create descendants |
 

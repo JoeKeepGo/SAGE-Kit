@@ -140,6 +140,16 @@ def select_validation_contract(
                 f"frozen v{task_version} requires immutable accepted historical "
                 "container scope"
             )
+        if container_scope.contract_version != task_version:
+            pinned = (
+                f"v{container_scope.contract_version}"
+                if container_scope.contract_version in {0, 1}
+                else "no frozen contract version"
+            )
+            raise ContractSelectionError(
+                f"explicit v{task_version} validation contract metadata does not match "
+                f"the manifest-pinned contract_version ({pinned})"
+            )
         if not _is_terminal_pair(task, evidence):
             raise ContractSelectionError(
                 f"frozen v{task_version} requires a terminal task/evidence record pair"
@@ -191,9 +201,17 @@ def validate_compatible_records(
         errors = v1.validate_records(task, evidence, gate_ready=gate_ready)
     else:
         errors = v2.validate_records(task, evidence, gate_ready=gate_ready)
+    if (
+        selection.version == 2
+        and container_scope is not None
+        and container_scope.kind == MilestoneScopeKind.AMBIGUOUS
+    ):
+        errors = [*errors, container_scope.detail]
     active_reconciliation = not (
         selection.version in {0, 1}
-        and selection.scope == ContractScope.CLOSED_LEGACY
+        and
+        container_scope is not None
+        and container_scope.kind == MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY
         and _is_terminal_pair(task, evidence)
     )
     return CompatibilityResult(selection, tuple(errors), active_reconciliation)

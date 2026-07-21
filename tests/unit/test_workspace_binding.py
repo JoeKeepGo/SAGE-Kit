@@ -9,6 +9,7 @@ from sagekit.resource_governor import ResourceClass
 from sagekit.workspace_binding import (
     WorkspaceIdentity,
     authorize_command,
+    required_resource_class,
     build_workspace_binding,
     discover_workspace,
     verify_workspace,
@@ -87,6 +88,17 @@ class WorkspaceBindingTests(unittest.TestCase):
         self.assertFalse(decision.ok)
         self.assertIn("mutation", decision.reason)
 
+    def test_authorize_command_rejects_non_argv_input(self) -> None:
+        decision = authorize_command(
+            "git commit -m no",
+            resource_class=ResourceClass.REPO_READ,
+            permission_mode="WRITE_AUTHORIZED",
+            allowed_classes=(ResourceClass.REPO_READ,),
+            descendant=False,
+        )
+        self.assertFalse(decision.ok)
+        self.assertIn("command argv is invalid", decision.reason)
+
     def test_interpreter_and_git_global_options_cannot_hide_mutation(self) -> None:
         commands = (
             ("git", "-C", "repository", "commit", "-m", "no"),
@@ -105,6 +117,9 @@ class WorkspaceBindingTests(unittest.TestCase):
                 )
                 self.assertFalse(decision.ok)
                 self.assertIn("mutation", decision.reason)
+
+    def test_required_resource_class_rejects_non_argv_input(self) -> None:
+        self.assertIsNone(required_resource_class("git status"))
 
     def test_branch_show_current_is_a_repo_read_not_an_index_mutation(self) -> None:
         decision = authorize_command(

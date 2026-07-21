@@ -9,10 +9,8 @@ quoted strings, scalars, booleans, and nulls.
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -1212,45 +1210,3 @@ def validate_records(
     validate_surface_evidence(changed_surface, artifacts, verified, errors)
 
     return errors
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate SAGE-Kit Task Dispatch records.")
-    parser.add_argument("--task", required=True, type=Path, help="Path to task.yaml")
-    parser.add_argument("--evidence", required=True, type=Path, help="Path to evidence.yaml")
-    parser.add_argument("--schema-dir", type=Path, help="Optional directory containing profile schemas")
-    parser.add_argument(
-        "--gate-ready",
-        action="store_true",
-        help="Require verified task/evidence status, passlike required levels, and no blockers.",
-    )
-    args = parser.parse_args()
-
-    try:
-        if not args.task.exists():
-            raise ValidationError(f"task file missing: {args.task}")
-        if not args.evidence.exists():
-            raise ValidationError(f"evidence file missing: {args.evidence}")
-
-        task = load_record(args.task)
-        evidence = load_record(args.evidence)
-        if not isinstance(task, dict):
-            raise ValidationError(f"task record must be a mapping: {args.task}")
-        if not isinstance(evidence, dict):
-            raise ValidationError(f"evidence record must be a mapping: {args.evidence}")
-
-        errors = validate_records(task, evidence, args.schema_dir, args.gate_ready)
-        if errors:
-            print("Task Dispatch validation failed:", file=sys.stderr)
-            for error in errors:
-                print(f"- {error}", file=sys.stderr)
-            return 1
-        print("Task Dispatch validation passed.")
-        return 0
-    except ValidationError as exc:
-        print(f"Task Dispatch validation failed: {exc}", file=sys.stderr)
-        return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

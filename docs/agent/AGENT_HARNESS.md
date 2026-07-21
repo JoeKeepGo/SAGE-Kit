@@ -13,7 +13,7 @@ The Harness consumes the normalized model defined by
 handoff view; `ACCEPTED_HISTORY` and `REFERENCE_ONLY` are non-executable; and
 leases, candidates, counters, and checkpoints are `.sagekit` `RUNTIME_STATE`.
 
-Resolve the source from explicit CLI selection, configured mapping,
+Resolve the source from an explicit embedded API source, configured mapping,
 ACTIVE_CONTEXT Current Work Pointer, then the legacy `docs/<M>` adapter for an
 explicitly selected legacy milestone. Explicit and configured sources fail
 closed without fallback. Paths are provenance, not semantic identity.
@@ -63,15 +63,18 @@ missing or conflicting authority produces one aggregated scope finding.
 - Update durable project facts before handoff when ownership allows it.
 - Treat the configured `ACTIVE_CONTEXT`, with legacy default
   `docs/ACTIVE_CONTEXT.md`, as a compact current-state snapshot.
-- Treat `docs/DOC_ROUTING.md` as stable routing metadata, not a progress log.
-- Treat the configured `ACTIVE_CONTEXT` and `docs/DOC_ROUTING.md` as
+- Treat the configured document-routing authority as stable routing metadata,
+  not a progress log; `docs/DOC_ROUTING.md` is the legacy default.
+- Treat the configured `ACTIVE_CONTEXT` and configured document-routing authority as
   controller-owned serial files during parallel or subagent work. Workers may
   read them and return a `Memory Update Proposal`, but must not edit them
   directly.
-- Direct edits to the configured `ACTIVE_CONTEXT` or `docs/DOC_ROUTING.md` require both
-  permission mode and ownership from the active role, phase, lane, or packet. If
-  either is missing, return a `Memory Update Proposal` or an explicit no-change
-  note instead of editing.
+- Direct edits to the configured `ACTIVE_CONTEXT` path or configured
+  document-routing path require both permission mode and ownership from the
+  active role, phase, lane, or packet. Their legacy defaults are
+  `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`. If either permission or
+  ownership is missing, return a `Memory Update Proposal` or an explicit
+  no-change note instead of editing.
 
 ## Strict Mode Trigger
 
@@ -89,7 +92,8 @@ Strict Mode.
 
 1. Resolve and read the configured `ACTIVE_CONTEXT`; use
    `docs/ACTIVE_CONTEXT.md` as the legacy default.
-2. Read `docs/DOC_ROUTING.md`.
+2. Resolve and read the configured document-routing authority; use
+   `docs/DOC_ROUTING.md` only as the legacy default.
 3. Read the active thin manifest or legacy milestone ledger and phase document
    selected by project authority.
 4. Check change-control state, such as branch, changelist, revision, and dirty
@@ -270,7 +274,7 @@ Before claiming `DONE`, committing, or handing off:
    permission mode plus ownership allow direct writes.
 2. Remove stale active-context entries instead of appending corrections when
    direct writes are allowed; otherwise return a `Memory Update Proposal`.
-3. Update `docs/DOC_ROUTING.md` only when document paths, task routing,
+3. Update the configured document-routing authority only when document paths, task routing,
    ownership boundaries, or archive policy changed and the active permission
    mode plus ownership allow direct writes.
 4. Put evidence and historical detail in the milestone ledger, phase document,

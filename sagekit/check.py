@@ -78,13 +78,10 @@ SOURCE_REQUIRED_FILES = [
     "docs/agent/SPEC_SOURCE_CONTRACT.md",
     "docs/profiles/task-dispatch/schemas/task.schema.json",
     "docs/profiles/task-dispatch/schemas/evidence.schema.json",
-    "scripts/validate_task_dispatch.py",
     "skills/sage-kit/SKILL.md",
     "sagekit/__init__.py",
-    "sagekit/__main__.py",
-    "sagekit/cli.py",
+    "sagekit/harness.py",
     "sagekit/check.py",
-    "sagekit/doctor.py",
     "sagekit/init.py",
     "sagekit/modes.py",
     "sagekit/findings.py",
@@ -105,10 +102,8 @@ SOURCE_REQUIRED_FILES = [
     "sagekit/spec_sources.py",
     "sagekit/managed_execution.py",
     "sagekit/process_supervisor.py",
-    "sagekit/resource_cli.py",
     "sagekit/resource_governor.py",
     "sagekit/resource_policy.py",
-    "sagekit/test_node.py",
     "sagekit/test_runner.py",
     "sagekit/workspace_binding.py",
     "sagekit/reporting.py",
@@ -203,7 +198,12 @@ def run_check(
     root = detect_root(start)
     if scope not in {None, "active", "history", "all"}:
         raise ValueError(f"unknown check scope: {scope}")
-    from .spec_sources import SourceConfigurationError, load_source_config
+    from .spec_sources import (
+        SourceConfigurationError,
+        load_source_config,
+        resolve_active_context_path,
+        resolve_doc_routing_path,
+    )
 
     try:
         source_config = load_source_config(root)
@@ -223,6 +223,27 @@ def run_check(
         source_config is not None and source_config.execution_scope == "active-only"
     )
     if scope == "active" or (scope is None and active_default):
+        manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+            root,
+            scope_manifest_path,
+        )
+        if manifest_error is not None:
+            return [
+                Finding("PASS", "project-root", relpath(root, root), None, f"using {root}"),
+                Finding(
+                    "FAIL",
+                    "validation-scope-manifest",
+                    relpath(
+                        root,
+                        scope_manifest_path
+                        if scope_manifest_path is not None
+                        else root / LOCAL_SCOPE_MANIFEST,
+                    ),
+                    None,
+                    manifest_error,
+                    "Correct the manifest authority; invalid manifests never authorize legacy scope.",
+                ),
+            ]
         if source_config is None:
             return [
                 Finding("PASS", "project-root", relpath(root, root), None, f"using {root}"),
@@ -234,7 +255,13 @@ def run_check(
                     "active-only check requires equivalent machine-readable project authority",
                 ),
             ]
-        return _run_active_check(root, source_config)
+        return _run_active_check(
+            root,
+            source_config,
+            gate_ready=gate_ready,
+            mode=mode,
+            scope_manifest=manifest,
+        )
     if scope == "history":
         return _run_history_check(
             root,
@@ -282,8 +309,12 @@ def run_check(
         findings.append(Finding("PASS", "check-mode", None, None, f"mode: {mode}"))
     findings.extend(check_required_docs(root, required_docs_for_mode(mode)))
     findings.extend(check_recommended_docs(root, recommended_docs_for_mode(mode)))
-    findings.extend(check_active_context(root))
-    findings.extend(check_doc_routing(root))
+    findings.extend(
+        check_active_context(root, path=resolve_active_context_path(root, source_config))
+    )
+    findings.extend(
+        check_doc_routing(root, path=resolve_doc_routing_path(root, source_config))
+    )
     findings.extend(
         check_execution_documents(
             root,
@@ -305,7 +336,14 @@ def run_check(
     return findings
 
 
-def _run_active_check(root: Path, config) -> list[Finding]:
+def _run_active_check(
+    root: Path,
+    config,
+    *,
+    gate_ready: bool,
+    mode: str | None,
+    scope_manifest: ValidationScopeManifest | None,
+) -> list[Finding]:
     """Validate only current authority and normalized ACTIVE_SPEC."""
 
     from .spec_sources import (
@@ -314,10 +352,13 @@ def _run_active_check(root: Path, config) -> list[Finding]:
         resolve_active_context_path,
         validate_package_binding,
     )
+    from .milestone_scope import read_active_milestones
 
     findings: list[Finding] = [
         Finding("PASS", "project-root", relpath(root, root), None, f"using {root}")
     ]
+    if mode is not None:
+        findings.append(Finding("PASS", "check-mode", None, None, f"mode: {mode}"))
     try:
         validate_package_binding(config)
     except SourceConfigurationError as exc:
@@ -354,13 +395,21 @@ def _run_active_check(root: Path, config) -> list[Finding]:
             )
         )
         return findings
-    text = read_text(active_context)
-    match = re.search(
-        r"^\s*(?:[-*]\s*)?Current\s+milestone\s*:\s*`?([^`\r\n]+?)`?\s*$",
-        text,
-        re.IGNORECASE | re.MULTILINE,
+    active_milestones, _authorities, active_error, active_available = read_active_milestones(
+        root, active_context
     )
-    if match is None:
+    if active_error is not None:
+        findings.append(
+            Finding(
+                "FAIL",
+                "active-authority",
+                relpath(root, active_context),
+                None,
+                active_error,
+            )
+        )
+        return findings
+    if not active_available:
         findings.append(
             Finding(
                 "FAIL",
@@ -371,8 +420,7 @@ def _run_active_check(root: Path, config) -> list[Finding]:
             )
         )
         return findings
-    milestone_id = match.group(1).strip()
-    if milestone_id.casefold() in {"none", "n/a", "idle"}:
+    if not active_milestones:
         if config.sources:
             findings.append(
                 Finding(
@@ -394,19 +442,32 @@ def _run_active_check(root: Path, config) -> list[Finding]:
                 )
             )
         return findings
-    if re.fullmatch(r"M[0-9]+(?:[._-][A-Za-z0-9]+)*", milestone_id) is None:
+    if len(active_milestones) != 1:
         findings.append(
             Finding(
                 "FAIL",
                 "active-authority",
                 relpath(root, active_context),
                 None,
-                f"invalid current milestone authority: {milestone_id}",
+                "ACTIVE_CONTEXT must identify exactly one current milestone",
             )
         )
         return findings
+    parsed_milestone_id = next(iter(active_milestones))
+    milestone_id = next(
+        (
+            configured_id
+            for configured_id in config.sources
+            if configured_id.casefold() == parsed_milestone_id
+        ),
+        "M" + parsed_milestone_id[1:],
+    )
     try:
-        normalized = load_normalized_spec(root, milestone_id)
+        normalized = load_normalized_spec(
+            root,
+            milestone_id,
+            scope_manifest=scope_manifest,
+        )
     except (SourceConfigurationError, ValueError) as exc:
         findings.append(
             Finding(
@@ -428,6 +489,93 @@ def _run_active_check(root: Path, config) -> list[Finding]:
             f"normalized ACTIVE_SPEC {milestone_id}; semantic=sha256:{normalized.semantic_digest}",
         )
     )
+    if "task-dispatch-v2" in config.profiles:
+        mapping = config.sources.get(milestone_id)
+        if mapping is None:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    "active-task-dispatch-authority",
+                    relpath(root, config.path),
+                    None,
+                    "task-dispatch-v2 requires an explicit current source mapping",
+                )
+            )
+        else:
+            source_root = Path(normalized.provenance.canonical_path)
+            if source_root.is_file():
+                source_root = source_root.parent
+            if not source_root.is_dir():
+                findings.append(
+                    Finding(
+                        "FAIL",
+                        "active-task-dispatch-authority",
+                        relpath(root, source_root),
+                        None,
+                        "task-dispatch-v2 requires a directory-backed current SPEC container",
+                    )
+                )
+            else:
+                findings.extend(
+                    check_active_task_dispatch(
+                        root,
+                        milestone_id,
+                        source_root,
+                        gate_ready=gate_ready,
+                    )
+                )
+    return findings
+
+
+def check_active_task_dispatch(
+    root: Path,
+    milestone_id: str,
+    source_root: Path,
+    *,
+    gate_ready: bool,
+) -> list[Finding]:
+    """Validate only explicitly adopted Task Dispatch records in ACTIVE_SPEC."""
+
+    from .milestone_scope import MilestoneScope, MilestoneScopeKind
+
+    discovery = discover_task_dispatch_records(root, scan_root=source_root)
+    findings = list(discovery.findings)
+    if not discovery.records:
+        findings.append(
+            Finding(
+                "FAIL",
+                "active-task-dispatch",
+                relpath(root, source_root),
+                None,
+                "task-dispatch-v2 is enabled but the current SPEC has no record pairs",
+            )
+        )
+        return findings
+    scope = MilestoneScope(
+        milestone_id,
+        MilestoneScopeKind.CURRENT,
+        ("SAGEKIT_CONFIG.json profiles: task-dispatch-v2",),
+        "explicit active milestone authority requires the current contract",
+        container_path=relative_repo_path(root, source_root),
+    )
+    active_tasks: dict[Path, Path] = {}
+    active_evidence: dict[Path, Path] = {}
+    for record in discovery.records:
+        pair_findings, active_reconciliation = validate_task_dispatch_pair_with_scope(
+            root,
+            record.task_path,
+            record.evidence_path,
+            gate_ready,
+            scope,
+        )
+        findings.extend(pair_findings)
+        if active_reconciliation:
+            active_tasks[record.directory] = record.task_path
+            active_evidence[record.directory] = record.evidence_path
+    findings.extend(check_duplicate_task_ids(root, list(active_tasks.values())))
+    findings.extend(check_conflicting_exclusive_locks(root, list(active_tasks.values())))
+    findings.extend(check_conflicting_exclusive_leases(root, list(active_tasks.values())))
+    findings.extend(check_dispatch_boards(root, active_tasks, active_evidence))
     return findings
 
 
@@ -488,6 +636,12 @@ def _run_history_check(
     if not accepted:
         return findings
     audited = [
+        *check_execution_documents(
+            root,
+            scope_manifest=manifest,
+            manifest_source=manifest_source,
+            manifest_error=None,
+        ),
         *check_phase_docs(
             root,
             scope_manifest=manifest,
@@ -517,7 +671,7 @@ def resolve_check_scope_manifest(
     explicit_path: Path | None,
 ) -> tuple[ValidationScopeManifest | None, str, str | None]:
     path = explicit_path if explicit_path is not None else root / LOCAL_SCOPE_MANIFEST
-    source = "CLI" if explicit_path is not None else "project-local"
+    source = "explicit-harness" if explicit_path is not None else "project-local"
     if explicit_path is None and not path.exists():
         return None, source, None
     try:
@@ -560,7 +714,7 @@ def run_source_repo_check(start: Path) -> list[Finding]:
                 relpath(root, root),
                 None,
                 "target does not look like the SAGE-Kit source repository",
-                "Use plain sagekit check for adopted projects, or run --source-repo from the SAGE-Kit repository.",
+                "Use the source-repository check API only for source-authority projects.",
             )
         )
         return findings
@@ -996,13 +1150,7 @@ def check_source_pyproject(root: Path) -> list[Finding]:
             "dependencies = []",
             "source-runtime-dependencies",
             "runtime dependency list is empty",
-            "Keep the CLI runtime stdlib-only.",
-        ),
-        (
-            'sagekit = "sagekit.cli:main"',
-            "source-console-script",
-            "console script maps sagekit to sagekit.cli:main",
-            'Add [project.scripts] sagekit = "sagekit.cli:main".',
+            "Keep the Harness runtime stdlib-only.",
         ),
         (
             'version = {attr = "sagekit.__version__"}',
@@ -1014,7 +1162,7 @@ def check_source_pyproject(root: Path) -> list[Finding]:
             'sagekit = ["resources/**/*"]',
             "source-package-data",
             "packaged resources are included",
-            "Package sagekit/resources so init can copy bundled templates after installation.",
+            "Package sagekit/resources so an adoption helper can copy bundled templates.",
         ),
     ]
     findings: list[Finding] = []
@@ -1147,7 +1295,7 @@ def check_source_forbidden_runtime_paths(tracked: Iterable[str]) -> list[Finding
                 None,
                 None,
                 "Node or TypeScript runtime files are tracked: " + ", ".join(forbidden),
-                "Keep SAGE-Kit CLI runtime Python stdlib-only.",
+                "Keep the SAGE-Kit Harness runtime Python stdlib-only.",
             )
         ]
     return [
@@ -1278,8 +1426,8 @@ def check_active_context(root: Path, *, path: Path | None = None) -> list[Findin
     return findings
 
 
-def check_doc_routing(root: Path) -> list[Finding]:
-    path = root / "docs/DOC_ROUTING.md"
+def check_doc_routing(root: Path, *, path: Path | None = None) -> list[Finding]:
+    path = root / "docs/DOC_ROUTING.md" if path is None else path
     if not path.exists():
         return []
     text = read_text(path)
@@ -1326,6 +1474,19 @@ def check_phase_docs(
     for path in sorted((root / "docs").glob("M*/[0-9][0-9]-*.md")):
         if "_TEMPLATE" not in path.name:
             phase_paths.setdefault(path.parent, []).append(path)
+    if scope_manifest is not None:
+        for container in (
+            *scope_manifest.active_containers,
+            *scope_manifest.accepted_legacy_containers,
+        ):
+            container_dir = root / container.path
+            if not container_dir.is_dir():
+                continue
+            for path in sorted(container_dir.glob("[0-9][0-9]-*.md")):
+                if "_TEMPLATE" not in path.name and path not in phase_paths.get(
+                    container_dir, []
+                ):
+                    phase_paths.setdefault(container_dir, []).append(path)
     resolver = RepositoryScopeResolver(
         root,
         manifest=scope_manifest,
@@ -1404,6 +1565,14 @@ def check_execution_documents(
         thin_by_milestone.setdefault(path.parent, []).append(path)
     for path in sorted(docs.glob("M*/phases/*.json")):
         thin_by_milestone.setdefault(path.parent.parent, []).append(path)
+    if scope_manifest is not None:
+        for container in scope_manifest.accepted_legacy_containers:
+            milestone_dir = root / Path(container.path)
+            manifest_path = milestone_dir / "MILESTONE_MANIFEST.json"
+            if manifest_path.is_file():
+                thin_by_milestone.setdefault(milestone_dir, []).append(manifest_path)
+            for path in sorted(milestone_dir.glob("phases/*.json")):
+                thin_by_milestone.setdefault(milestone_dir, []).append(path)
 
     lock_path = root / "SAGE_PROJECT.json"
     alias_findings = check_reserved_execution_document_aliases(root)
@@ -1495,6 +1664,52 @@ def check_execution_documents(
                     f"immutable accepted history using {'; '.join(scope.authorities)}",
                 )
             )
+            if thin_paths:
+                listed_history = (
+                    scope_manifest.legacy_for_path(scope.container_path)
+                    if scope_manifest is not None
+                    else None
+                )
+                if lock is None or listed_history is None:
+                    findings.append(
+                        Finding(
+                            "FAIL",
+                            "unsupported-history",
+                            display,
+                            None,
+                            "accepted thin-v1 history cannot be structurally audited without usable thin-v1 project authority",
+                            "Retain the project lock and manifest-selected container authority, or audit this history with a supported frozen adapter.",
+                        )
+                    )
+                else:
+                    try:
+                        project = load_execution_project(
+                            root,
+                            listed_history.id,
+                            source_root=milestone_dir,
+                        )
+                    except (ExecutionDocumentError, PolicyResolutionError) as exc:
+                        findings.append(
+                            Finding(
+                                "FAIL",
+                                "unsupported-history",
+                                display,
+                                None,
+                                "accepted thin-v1 history structural audit is unsupported or invalid: "
+                                + str(exc),
+                                "Provide compatible thin-v1 authority for this immutable container; current markdown governance prose is not required for history.",
+                            )
+                        )
+                    else:
+                        findings.append(
+                            Finding(
+                                "PASS",
+                                "execution-document-history",
+                                display,
+                                None,
+                                f"structurally audited immutable thin-v1 history; milestone=sha256:{project.milestone.digest}; phases={len(project.phases)}",
+                            )
+                        )
             for path in legacy_paths + thin_paths:
                 if not read_text(path).strip():
                     findings.append(
@@ -1874,7 +2089,13 @@ def check_one_completion_report(root: Path, path: Path, text: str) -> list[Findi
 
 def check_adapter_evidence(root: Path, path: Path, text: str) -> list[Finding]:
     lower = text.lower()
-    if "adapter" not in lower and "capability" not in lower:
+    declares_adapter = re.search(
+        r"^\s*(?:#{1,6}\s+|[-*]\s*)?(?:capability\s+)?adapter"
+        r"(?:\s+evidence)?\s*(?::|$)",
+        text,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if declares_adapter is None:
         return []
     if "_template" in path.name.lower():
         return []
@@ -1905,6 +2126,11 @@ def check_task_dispatch(
     from .milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
 
     findings: list[Finding] = []
+    if scope_manifest is None and manifest_error is None:
+        scope_manifest, manifest_source, manifest_error = resolve_check_scope_manifest(
+            root,
+            None,
+        )
     docs = root / "docs"
     if not docs.exists():
         return findings
@@ -1985,21 +2211,25 @@ class TaskDispatchDiscovery:
     findings: tuple[Finding, ...]
 
 
-def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
+def discover_task_dispatch_records(
+    root: Path, *, scan_root: Path | None = None
+) -> TaskDispatchDiscovery:
     docs = root / "docs"
-    if not docs.is_dir():
+    selected_root = scan_root if scan_root is not None else docs
+    if not selected_root.is_dir():
         return TaskDispatchDiscovery((), ())
     candidates: dict[Path, dict[str, Path]] = {}
     findings: list[Finding] = []
     invalid_directories: set[Path] = set()
-    for path in sorted(docs.rglob("*.yaml")):
+    for path in sorted(selected_root.rglob("*.yaml")):
         if path.name not in {"task.yaml", "evidence.yaml"}:
             continue
         try:
-            relative = path.relative_to(docs)
+            relative_to_scan = path.relative_to(selected_root)
+            relative = path.relative_to(root)
         except ValueError:
             continue
-        folded = tuple(part.casefold() for part in relative.parts)
+        folded = tuple(part.casefold() for part in relative_to_scan.parts)
         if (
             not folded
             or folded[0] in {"templates", "profiles"}
@@ -2058,13 +2288,13 @@ def discover_task_dispatch_records(root: Path) -> TaskDispatchDiscovery:
                 )
             )
             continue
-        relative = task_path.relative_to(docs)
+        relative = task_path.relative_to(root)
         dispatch_index = next(
             index
             for index, part in enumerate(relative.parts)
             if part.casefold() == "dispatch"
         )
-        container_dir = docs.joinpath(*relative.parts[:dispatch_index])
+        container_dir = root.joinpath(*relative.parts[:dispatch_index])
         if not is_within(root, container_dir):
             findings.append(
                 Finding(

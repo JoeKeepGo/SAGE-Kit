@@ -1,15 +1,16 @@
 # Kimi Runtime Profile
 
-Environment profile for running sage-kit inside the Kimi runtime, which
-covers both Kimi Work (desktop agent) and Kimi Code CLI. Both share the same
-skill system — `SKILL.md` format, a skills index as the source of truth, and
-a plugin/MCP surface — so one profile covers both. The few feature deltas
-are called out in Runtime Deltas below.
+Environment profile for running sage-kit in the explicitly supported Kimi Work
+and Kimi Code runtimes. Other clients that describe themselves as compatible
+are not covered by these guarantees: detect their skill invocation,
+permissions, delegation, persistence, and resume capabilities before use, and
+treat unknown behavior as a soft capability.
 
-This profile is platform-neutral. The SAGE-Kit Python package contains no
-OS-specific assumptions (`sagekit.cmd` is a Windows shim; POSIX shells use
-`python -m sagekit`), and nothing in this profile depends on a particular
-operating system.
+The governance model is platform-neutral, but process containment is not
+identical across operating systems. The embedded Harness reports its selected
+platform adapter, containment level, and limitations; do not infer equal
+Windows, macOS, and Linux guarantees. No public SAGE-Kit command entrypoint is
+required.
 
 This file is additive environment guidance. It does not modify the skill's
 governance rules, and no Codex-facing file is changed by its presence.
@@ -26,18 +27,22 @@ hard-coded from one machine's setup.
 
 - Python ≥ 3.10 available to the agent shell; a runtime-managed Python is
   fine.
-- The CLI works directly from a checkout (`python -m sagekit ...`). A
-  persistent install (`pipx install ...`) is an `environment-write` and
-  requires approval first.
+- This environment does not require a public command entrypoint install. A local package
+  checkout is sufficient for standard operation. A toolchain install is an
+  `environment-write` and requires approval first.
 - No other runtime dependencies.
 
 ## Invocation Mapping
 
-| Codex | Kimi runtime (Work and Code CLI) |
-|---|---|
-| `$sage-kit` mention invokes the skill | The runtime invokes skills through its Skill tool by exact name; the skills index is the source of truth. In Kimi Code CLI, manual invocation is `/skill:sage-kit` |
-| `agents/openai.yaml` (`display_name`, `default_prompt`) | Ignored; display metadata only, no behavior loss |
-| `allow_implicit_invocation: false` (hard config) | Kimi Code CLI: native hard equivalent — it honors `disable-model-invocation: true` (kebab-case alias accepted), which the shared SKILL.md already sets. Kimi Work desktop: no hard equivalent; the description's explicit trigger and negative-trigger wording carries the policy as a soft guarantee |
+| Codex | Kimi Work | Kimi Code |
+|---|---|---|
+| `$sage-kit` mention invokes the skill | Invoke the skill by exact name through the runtime Skill surface; explicit-only behavior is a soft guarantee | Invoke explicitly with `/skill:sage-kit` |
+| `agents/openai.yaml` (`display_name`, `default_prompt`) | Ignored; display metadata only | Ignored; display metadata only |
+| `allow_implicit_invocation: false` (hard config) | No hard equivalent; the description carries a soft explicit-trigger policy | `disable-model-invocation: true` is the supported hard equivalent |
+
+For any other client, probe these capabilities instead of inheriting the Kimi
+Code column. Missing or unverifiable controls remain soft and must not be
+recorded as enforced.
 
 ## Runtime Capability Mapping
 
@@ -73,7 +78,7 @@ present.
 
 Notes:
 
-- The Codex-targeted `ui-ux-pro-max` install path (`uipro init --ai codex`)
+- The Codex-targeted `ui-ux-pro-max` adapter install path
   is not applicable here. Prefer the Kimi-native frontend skills at
   `read-only` default; request approval before any install.
 - Kimi runtime skills and plugins live under runtime-managed directories.
@@ -86,28 +91,28 @@ Notes:
 | SAGE-Kit construct | Kimi runtime mapping |
 |---|---|
 | Project Manager session | Main session; owns routing, serial files, gates, and submit authority |
-| Coder Controller and workers | `coder` subagents dispatched by the main session with bounded prompts that name SAGE docs, allowed files, gates, and stop conditions |
-| Final Review session | Read-only `explore` review lane returning a verdict packet to the controller; the controller records it |
+| Coder Controller and workers | `coder` subagents dispatched by the main session with bounded prompts that reference the normalized active SPEC or ephemeral packet, allowed files, gates, and stop conditions |
+| Final Review session | Read-only `explore` review lane returning an ephemeral verdict packet to the controller; persistence occurs only when project-owned SPEC/configuration requires it |
 | Wave Execution | Parallel subagent calls only when Wave Readiness is proven (disjoint writable files, serial shared files, frozen contracts) — unchanged rule |
 | Worktree Isolation | Pure git; unchanged |
 | Serial files (`ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`) | Controller-owned; workers return Memory Update Proposals — unchanged rule |
 
 Subagent constraints to record in execution packets:
 
-- Subagents run as bounded same-process loops with a fixed timeout; on
-  timeout, resume the same subagent by id rather than starting fresh.
-- Subagent results are visible only to the controller. The controller must
-  write lane packets, result packets, and evidence into the repository.
-- Subagents have no independent cross-process persistence. Long milestone
-  work must checkpoint through `.sagekit/runtime/CURRENT_RUN.json`.
-- Nested delegation is denied by default. In Kimi Code CLI a `coder`
-  subagent can dispatch its own nested subagents, the `Agent` tool is
-  allowed by default, and permissions inherit from the parent; dispatch
-  prompts must therefore state: maximum delegation depth is 1 (the worker
-  itself), no further subagent dispatch, and any exception requires named
-  controller authority. Kimi Work desktop subagents currently do not expose
-  a delegation tool, but the same rule applies wherever the capability
-  exists.
+- Detect timeout, resume-by-id, result visibility, persistence, and delegation
+  support before relying on them. Do not infer those properties from a generic
+  compatibility label.
+- Subagents return an ephemeral structured result to the controller. Persist a
+  lane packet, result packet, or evidence record only when project-owned
+  SPEC/configuration requires repository persistence.
+- When a supported runtime exposes no durable subagent state, long work may use
+  `.sagekit/runtime/CURRENT_RUN.json` as runtime state without turning it into
+  project authority.
+- Nested delegation is reasoning-only. A subagent may delegate bounded
+  analysis when a named, detected runtime supports it, but it may not assign
+  executable work to that child. Any executable grandchild must be launched
+  by the root/main session with its own bounded packet. Unknown permission
+  inheritance is a soft limitation, not a hard guarantee.
 
 ## Authorization Level Mapping
 
@@ -116,24 +121,24 @@ Subagent constraints to record in execution packets:
 | `metadata-only` | Skills index and tool-list inspection (default) |
 | `read-only` | `explore` subagent, Read/Grep, plugin queries |
 | `write-inside-boundary` | `coder` subagent or main-session Edit/Write within named allowed files |
-| `environment-write` | Installing skills, plugins, CLIs, MCP servers, or config; requires explicit owner approval |
+| `environment-write` | Installing skills, plugins, runtime adapters, MCP servers, or config; requires explicit owner approval |
 | `destructive-or-submit` | Push, merge, publish, delete, deploy; closed approval gate, confirm before calling |
 
 ## Continuity Mapping
 
-- `.sagekit/runtime/CURRENT_RUN.json` and the `sagekit checkpoint create`,
-  `checkpoint status`, and `resume` commands work unchanged from a checkout;
-  no install is required.
-- The on-disk checkpoint is the canonical source of truth in both Kimi Work
-  and Kimi Code CLI.
+- `.sagekit/runtime/CURRENT_RUN.json` and checkpoint/resume contracts are
+  available when the named runtime exposes the required filesystem and embedded
+  package APIs.
+- The on-disk checkpoint is runtime state, not project authority. Capability
+  detection must confirm that a client can read and resume it.
 - Kimi Work only: long-term memory may mirror `next_action` and checkpoint
-  pointers across process restarts, and a scheduled Blueprint job may run
-  `sagekit checkpoint status` and report drift. Both are optional
-  enhancements; their output is evidence input, not gate completion.
+  pointers across process restarts, and a scheduled Blueprint job may report
+  checkpoint drift. Both are optional enhancements; their output is evidence
+  input, not gate completion.
 
 ## Runtime Deltas
 
-| Feature | Kimi Work | Kimi Code CLI |
+| Feature | Kimi Work | Kimi Code |
 |---|---|---|
 | Skill invocation (Skill tool, skills index) | yes | yes |
 | Subagent orchestration (`coder` / `explore` / `plan`) | yes | yes |
@@ -145,12 +150,11 @@ Subagent constraints to record in execution packets:
 
 1. `agents/openai.yaml` is ignored by the Kimi runtime (display metadata
    only).
-2. Explicit-only invocation is split: Kimi Code CLI has a hard equivalent
-   (it natively honors `disable-model-invocation: true`); Kimi Work desktop
-   has none, so it remains a soft guarantee carried by the skill description
-   wording there.
+2. Explicit-only invocation is split: Kimi Code honors
+   `disable-model-invocation: true`; Kimi Work has no hard equivalent, so the
+   skill description carries a soft explicit-trigger policy.
 3. Codex-targeted adapter install commands are not applicable; use the
    Kimi-native capability table above.
-4. Subagents differ from Codex sessions (bounded runs, controller-visible
-   results, no independent persistence); mitigated by checkpoint/resume and
-   packet-on-disk conventions.
+4. Subagent timeout, result visibility, persistence, and nested delegation are
+   runtime capabilities that must be detected. Unknown clients receive no hard
+   guarantee from this profile.

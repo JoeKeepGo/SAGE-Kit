@@ -2,7 +2,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -83,19 +82,6 @@ def git(root, *args):
         stderr=subprocess.PIPE,
         check=True,
     ).stdout.strip()
-
-
-def run_sagekit(*args, cwd):
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
-    return subprocess.run(
-        [sys.executable, "-m", "sagekit", *args],
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
 
 
 def init_repository(root):
@@ -537,39 +523,6 @@ class CandidateVerificationTests(unittest.TestCase):
         self.assertTrue(frozen.ok)
         self.assertTrue(assessment.ok)
 
-    def test_candidate_cli_requires_explicit_working_tree_snapshot_mode(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
-            common = (
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v2",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-                "--json",
-            )
-
-            default = run_sagekit(*common, cwd=root)
-            explicit = run_sagekit(
-                *common,
-                "--snapshot-mode",
-                "working-tree",
-                "--snapshot-authority",
-                "AUTH-SNAPSHOT-1",
-                cwd=root,
-            )
-
-        self.assertEqual(1, default.returncode)
-        self.assertEqual(0, explicit.returncode, explicit.stderr)
-        self.assertEqual("working-tree", json.loads(explicit.stdout)["candidate"]["snapshot_mode"])
-
     def test_legacy_candidate_serialization_keeps_clean_head_semantics(self):
         from sagekit.candidate import CandidateFingerprint
 
@@ -651,31 +604,6 @@ class CandidateVerificationTests(unittest.TestCase):
         self.assertFalse(clean_with_authority.ok)
         with self.assertRaisesRegex(ValueError, "fingerprint digest differs"):
             CandidateFingerprint.from_dict(tampered)
-
-    def test_candidate_cli_rejects_working_tree_without_snapshot_authority(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            (root / "tracked.txt").write_text("dirty\n", encoding="utf-8")
-            result = run_sagekit(
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v2",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-                "--snapshot-mode",
-                "working-tree",
-                "--json",
-                cwd=root,
-            )
-
-        self.assertEqual(1, result.returncode)
-        self.assertIn("snapshot authority is required", result.stdout)
 
     def test_snapshot_mode_switch_requires_explicit_handoff_successor(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1208,31 +1136,6 @@ class CandidateVerificationTests(unittest.TestCase):
             restored.final_full_suite_runs[frozen.candidate.digest],
         )
 
-    def test_candidate_cli_text_and_json_report_same_state(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            common = (
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v2",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-            )
-            text = run_sagekit(*common, cwd=root)
-            machine = run_sagekit(*common, "--json", cwd=root)
-
-        self.assertEqual(0, text.returncode, text.stderr)
-        self.assertEqual(0, machine.returncode, machine.stderr)
-        self.assertIn("STATE CONTINUE", text.stdout)
-        self.assertEqual("CONTINUE", json.loads(machine.stdout)["state"])
-
-
 class ExecutionLimitAndReviewTests(unittest.TestCase):
     def test_limit_exhaustion_returns_handoff_ready(self):
         counters = ExecutionCounters(implementation_workers=1)
@@ -1300,8 +1203,8 @@ class ExecutionLimitAndReviewTests(unittest.TestCase):
         self.assertTrue(
             shared_file_density(
                 (
-                    ("sagekit/cli.py", "sagekit/check.py"),
-                    ("sagekit/cli.py", "tests/test_cli.py"),
+                    ("sagekit/review.py", "sagekit/check.py"),
+                    ("sagekit/review.py", "tests/test_review.py"),
                 )
             )
         )
@@ -1618,103 +1521,6 @@ class ContinuityTests(unittest.TestCase):
             self.assertIn(".sagekit/runtime content is tracked by Git", findings[0].message)
 
 
-class ContinuityCliTests(unittest.TestCase):
-    def test_checkpoint_cli_create_status_resume_and_clear(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-
-            created = run_sagekit(
-                "checkpoint",
-                "create",
-                "--target",
-                str(root),
-                "--run-id",
-                "cli-run",
-                "--goal",
-                "Resume without copied chat",
-                "--authority-id",
-                "maintainer-request",
-                "--authority-version",
-                "1",
-                "--authority-summary",
-                "Direct maintainer request",
-                "--change-class",
-                "C1",
-                "--completed-work",
-                "baseline verified",
-                "--next-action",
-                "continue focused implementation",
-                "--allowed-path",
-                "sagekit/",
-                "--stop-condition",
-                "authority expands",
-                "--counter",
-                "preliminary_full_suite_runs=1",
-                cwd=root,
-            )
-            status = run_sagekit(
-                "checkpoint",
-                "status",
-                "--target",
-                str(root),
-                "--json",
-                "--expect-authority-id",
-                "maintainer-request",
-                "--expect-authority-version",
-                "1",
-                cwd=root,
-            )
-            resumed = run_sagekit(
-                "resume",
-                "--target",
-                str(root),
-                "--json",
-                "--expect-authority-id",
-                "maintainer-request",
-                "--expect-authority-version",
-                "1",
-                cwd=root,
-            )
-            cleared = run_sagekit(
-                "checkpoint",
-                "clear",
-                "--target",
-                str(root),
-                cwd=root,
-            )
-
-            self.assertEqual(0, created.returncode, created.stderr)
-            self.assertEqual(0, status.returncode, status.stderr)
-            self.assertEqual("checkpoint-resumable", json.loads(status.stdout)["findings"][0]["rule"])
-            self.assertEqual(0, resumed.returncode, resumed.stderr)
-            resume_payload = json.loads(resumed.stdout)
-            self.assertEqual(
-                "continue focused implementation",
-                resume_payload["resume"]["next_action"],
-            )
-            self.assertEqual(
-                1,
-                resume_payload["resume"]["execution_counters"][
-                    "preliminary_full_suite_runs"
-                ],
-            )
-            self.assertNotIn("authority_summary", resume_payload)
-            self.assertEqual(0, cleared.returncode, cleared.stderr)
-            self.assertFalse(checkpoint_path(root).exists())
-
-    def test_checkpoint_cli_reports_missing_checkpoint_without_traceback(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-
-            result = run_sagekit("resume", "--target", str(root), cwd=root)
-
-            self.assertEqual(1, result.returncode)
-            self.assertIn("checkpoint-missing", result.stdout)
-            self.assertNotIn("Traceback", result.stderr)
-
-
 class DocumentationPolicyTests(unittest.TestCase):
     def test_execution_economy_and_continuity_docs_are_packaged_mirrors(self):
         for relative in (
@@ -1756,10 +1562,6 @@ class DocumentationPolicyTests(unittest.TestCase):
     def test_continuity_doc_defines_checkpoint_and_commands(self):
         text = (REPO_ROOT / "docs/agent/CONTINUITY_PROTOCOL.md").read_text(encoding="utf-8")
         self.assertIn(".sagekit/runtime/CURRENT_RUN.json", text)
-        self.assertIn("sagekit checkpoint create", text)
-        self.assertIn("sagekit checkpoint status", text)
-        self.assertIn("sagekit resume", text)
-        self.assertIn("sagekit checkpoint clear", text)
         self.assertIn("fail closed", text)
         self.assertIn("checkpoint schema v4", text)
         self.assertIn("A v3 checkpoint", text)
@@ -1773,7 +1575,6 @@ class DocumentationPolicyTests(unittest.TestCase):
 
     def test_skill_routes_resume_and_record_only_changes_economically(self):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("sagekit resume", text)
         self.assertIn("C0 record-only", text)
         self.assertIn("targeted record consistency verification", text)
         self.assertIn("one primary review topology", text)

@@ -21,9 +21,17 @@ Ambiguous classification is treated as C2 until resolved.
 
 ## Resource Admission Boundary
 
+Candidate freeze and assessment use the public Harness entrypoints
+`sagekit.freeze_candidate(...)` and `sagekit.assess_candidate(...)`. They
+preserve existing candidate semantics; callers must not import private
+candidate helpers.
+
+The managed-command wait default is 30 seconds. A packet may impose a lower
+maximum wait; callers cannot raise it above packet authority.
+
 | Admission | Normal operations |
 |---|---|
-| Direct read-only | CLI help/version, file reads, deterministic config parsing, in-process normalized SPEC compilation, `git status`, `git rev-parse`, and `git diff --name-only` |
+| Direct read-only | In-process package metadata, file reads, deterministic config parsing, in-process normalized SPEC compilation, `git status`, `git rev-parse`, and `git diff --name-only` |
 | Light managed | Focused validators, focused unit tests, and bounded short Git subprocesses |
 | Strict governance | Full suites, wheel/package builds, fresh environments and installs, browser/runtime smoke, services, high CPU or memory work, and tools likely to create descendants |
 
@@ -193,8 +201,9 @@ Candidate snapshot modes are explicit:
   committed branch diff and rejects staged, unstaged, or untracked worktree
   changes.
 - `working-tree` is opt-in and must be authorized by the active execution
-  packet. The CLI requires a non-empty `--snapshot-authority` identifier and
-  binds it into the versioned candidate fingerprint. It binds `HEAD`,
+  packet. The embedded candidate API requires a non-empty
+  `snapshot_authority` field and binds it into the versioned candidate
+  fingerprint. It binds `HEAD`,
   committed branch diff, index/staged state,
   unstaged state, non-ignored untracked paths and content, deletion and file
   mode state, and symlink identity without following an external target.
@@ -206,7 +215,7 @@ or symlink drift invalidates the candidate. Git-ignored outputs are not candidat
 inputs and cannot be claimed as frozen evidence. Dirty submodules or another
 repository state that cannot be bound deterministically fail closed.
 
-The CLI must not provide an unbound `--allow-dirty` bypass or automatically
+The Harness must not accept an unbound dirty-worktree bypass or automatically
 fall back between modes. Older candidate fingerprints retain their original
 clean-worktree semantics; only a versioned working-tree candidate receives the
 new snapshot fields. Convergence path checks include committed, staged,

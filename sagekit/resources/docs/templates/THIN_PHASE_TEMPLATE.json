@@ -19,8 +19,8 @@
     "docs/M36/MILESTONE_MANIFEST.json"
   ],
   "forbidden_paths": [
-    "docs/ACTIVE_CONTEXT.md",
-    "docs/DOC_ROUTING.md"
+    "<configured ACTIVE_CONTEXT path or legacy docs/ACTIVE_CONTEXT.md>",
+    "<configured document-routing path or legacy docs/DOC_ROUTING.md>"
   ],
   "inherit_forbidden": true,
   "acceptance_criteria": [

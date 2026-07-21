@@ -295,6 +295,72 @@ class ThinExecutionDocumentTests(unittest.TestCase):
             project.phases["P2"].resource_overrides,
         )
 
+    def test_resource_aware_contract_accepts_neutral_profile_with_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            for relative in (
+                "SAGE_PROJECT.json",
+                "docs/M36/MILESTONE_MANIFEST.json",
+                "docs/M36/phases/P1.json",
+                "docs/M36/phases/P2.json",
+            ):
+                path = root / relative
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["sagekit_contract"] = "2026.7.20.1"
+                if relative == "SAGE_PROJECT.json":
+                    payload["resource_contract"] = "conservative-host-v1"
+                elif "/phases/" in relative:
+                    payload["resource_profile"] = "conservative-host-v1"
+                    payload["resource_overrides"] = {}
+                    payload.pop("resource_profile_reason", None)
+                if relative == "docs/M36/phases/P2.json":
+                    payload["resource_profile"] = "N/A"
+                    payload["resource_profile_reason"] = "planning-only phase"
+                path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+            package_contracts = (
+                Path(__file__).resolve().parents[1]
+                / "sagekit/resources/execution_documents"
+            )
+            project = load_execution_project(root, "M36", contract_root=package_contracts)
+
+        self.assertIsNone(project.phases["P2"].resource_profile)
+        self.assertEqual("planning-only phase", project.phases["P2"].resource_profile_reason)
+
+    def test_resource_aware_contract_rejects_neutral_profile_without_reason(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            for relative in (
+                "SAGE_PROJECT.json",
+                "docs/M36/MILESTONE_MANIFEST.json",
+                "docs/M36/phases/P1.json",
+                "docs/M36/phases/P2.json",
+            ):
+                path = root / relative
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["sagekit_contract"] = "2026.7.20.1"
+                if relative == "SAGE_PROJECT.json":
+                    payload["resource_contract"] = "conservative-host-v1"
+                elif "/phases/" in relative:
+                    payload["resource_profile"] = "conservative-host-v1"
+                    payload["resource_overrides"] = {}
+                    payload.pop("resource_profile_reason", None)
+                if relative == "docs/M36/phases/P2.json":
+                    payload["resource_profile"] = "N/A"
+                path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            package_contracts = (
+                Path(__file__).resolve().parents[1]
+                / "sagekit/resources/execution_documents"
+            )
+            with self.assertRaisesRegex(ExecutionDocumentError, "resource_profile_reason"):
+                load_execution_project(root, "M36", contract_root=package_contracts)
+
     def test_resource_aware_contract_rejects_missing_or_unknown_resource_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)

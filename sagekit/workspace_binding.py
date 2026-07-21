@@ -280,6 +280,11 @@ def authorize_command(
     descendant: bool,
     delegated: bool = False,
 ) -> CommandAuthorization:
+    try:
+        argv = _coerce_argv(command)
+    except TypeError as error:
+        return CommandAuthorization(False, str(error))
+    command = argv
     if not command or not str(command[0]).strip():
         return CommandAuthorization(False, "command argv is empty")
     if resource_class is ResourceClass.REASONING_ONLY:
@@ -287,6 +292,14 @@ def authorize_command(
     if resource_class not in allowed_classes:
         return CommandAuthorization(False, "requested resource class exceeds inherited authority")
     required = required_resource_class(command)
+    if required is None and not _known_readonly_command(command) and (
+        resource_class is ResourceClass.REPO_READ
+        or permission_mode == "READ_ONLY_REVIEW"
+    ):
+        return CommandAuthorization(
+            False,
+            "unclassified command is forbidden for read-only authority",
+        )
     if required is not None and resource_class is not required:
         return CommandAuthorization(
             False,
@@ -315,7 +328,11 @@ def authorize_command(
 def required_resource_class(command: Sequence[str]) -> ResourceClass | None:
     """Return the non-negotiable class for commands whose effects are known."""
 
-    mutation = _known_mutation(command)
+    try:
+        argv = _coerce_argv(command)
+    except TypeError:
+        return None
+    mutation = _known_mutation(argv)
     if mutation is None:
         return None
     if mutation.startswith("python -m ") or mutation.startswith("pip"):
@@ -326,6 +343,8 @@ def required_resource_class(command: Sequence[str]) -> ResourceClass | None:
 
 
 def _known_mutation(command: Sequence[str]) -> str | None:
+    if not command:
+        return None
     executable = Path(str(command[0])).name.casefold()
     args = [str(item).casefold() for item in command[1:]]
     if executable in {"git", "git.exe"} and args:
@@ -366,6 +385,18 @@ def _known_mutation(command: Sequence[str]) -> str | None:
     return None
 
 
+def _known_readonly_command(command: Sequence[str]) -> bool:
+    if not command:
+        return False
+    executable = Path(str(command[0])).name.casefold()
+    args = [str(item).casefold() for item in command[1:]]
+    return (
+        executable in {"git", "git.exe"}
+        and _git_subcommand(args) == "branch"
+        and args[-2:] == ["branch", "--show-current"]
+    )
+
+
 def _git_subcommand(args: Sequence[str]) -> str:
     options_with_value = {
         "-c",
@@ -396,6 +427,20 @@ def _git_subcommand(args: Sequence[str]) -> str:
             continue
         return argument
     return ""
+
+
+def _coerce_argv(command: Sequence[str]) -> tuple[str, ...]:
+    if isinstance(command, str):
+        raise TypeError("command argv is invalid: expected a sequence of arguments")
+    try:
+        argv = tuple(command)
+    except TypeError as error:
+        raise TypeError("command argv is invalid: expected a sequence of arguments") from error
+    if not argv:
+        raise TypeError("command argv is invalid: empty argv is not allowed")
+    if any(not isinstance(argument, str) for argument in argv):
+        raise TypeError("command argv is invalid: each argv item must be a string")
+    return argv
 
 
 def _canonical_directory(path: Path) -> Path:

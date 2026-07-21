@@ -3,8 +3,6 @@ import hashlib
 import ast
 import tempfile
 import unittest
-from contextlib import redirect_stdout
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +11,6 @@ from sagekit.check import (
     check_task_dispatch,
     validate_task_dispatch_pair,
 )
-from sagekit.cli import build_parser, emit_findings
 from sagekit.compatibility import (
     ContractScope,
     select_validation_contract,
@@ -30,6 +27,7 @@ from sagekit.task_dispatch_validator import load_record
 from sagekit.validation_contracts import contract_resource
 from sagekit.validation_contracts.v1 import contract_metadata as v1_metadata
 from sagekit.validation_contracts.v2 import contract_metadata as v2_metadata
+from sagekit.validation_scope_manifest import load_validation_scope_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -133,6 +131,36 @@ def write_dispatch_records(root, milestone, directory, task, evidence):
     return pair
 
 
+def write_validation_scope_manifest(root, *, active=(), accepted=("M1",)):
+    for item in (*active, *accepted):
+        (root / f"docs/{item}").mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "active_containers": [
+            {"id": item, "path": f"docs/{item}"} for item in active
+        ],
+        "accepted_legacy_containers": [
+            {
+                "id": item,
+                "path": f"docs/{item}",
+                "contract_version": 1,
+                "supersedes": [],
+            }
+            for item in accepted
+        ],
+        "authority": {
+            "source": "project-owner compatibility authority",
+            "approved_by": "project-owner",
+            "approved_at": "2026-01-01T00:00:00Z",
+            "baseline_head": "0123456789abcdef0123456789abcdef01234567",
+        },
+    }
+    path = root / "docs/SAGE_VALIDATION_SCOPE.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
 ACCEPTED_CLOSEOUT = """\
 # Milestone Closeout
 
@@ -148,6 +176,7 @@ def accepted_history_scope():
         MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
         ("docs/M1/MILESTONE_CLOSEOUT.md accepted outcome: ACCEPTED",),
         "trusted accepted closeout authority and no active milestone authority",
+        contract_version=1,
     )
 
 
@@ -292,6 +321,23 @@ class ContractSelectionTests(unittest.TestCase):
         self.assertEqual(1, result.selection.version)
         self.assertTrue(any("policy snapshot" in error for error in result.errors))
 
+    def test_explicit_frozen_metadata_must_match_manifest_pinned_version(self):
+        task, evidence = closed_legacy_records()
+        task["validation_contract"] = v1_metadata()
+        evidence["validation_contract"] = v1_metadata()
+        scope = MilestoneScope(
+            "M1",
+            MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
+            ("scope manifest",),
+            "manifest-selected history",
+            contract_version=0,
+        )
+
+        result = validate_compatible_records(task, evidence, container_scope=scope)
+
+        self.assertIsNone(result.selection)
+        self.assertTrue(any("manifest-pinned" in error for error in result.errors))
+
     def test_closed_history_is_not_returned_for_active_reconciliation(self):
         task, evidence = closed_legacy_records()
 
@@ -303,9 +349,37 @@ class ContractSelectionTests(unittest.TestCase):
 
         self.assertFalse(result.active_reconciliation)
 
+    def test_terminal_v2_in_accepted_history_remains_in_active_reconciliation(self):
+        task, evidence = closed_legacy_records()
+        task["validation_contract"] = v2_metadata()
+        evidence["validation_contract"] = v2_metadata()
+
+        result = validate_compatible_records(
+            task,
+            evidence,
+            container_scope=accepted_history_scope(),
+        )
+        self.assertEqual(2, result.selection.version)
+        self.assertTrue(result.active_reconciliation)
+
+    def test_explicit_v2_in_ambiguous_scope_remains_v2_and_blocks_authority(self):
+        task, evidence = active_records()
+        scope = MilestoneScope(
+            "M1",
+            MilestoneScopeKind.AMBIGUOUS,
+            (),
+            "active and accepted authority conflict",
+        )
+
+        result = validate_compatible_records(task, evidence, container_scope=scope)
+
+        self.assertEqual(2, result.selection.version)
+        self.assertIn("active and accepted authority conflict", result.errors)
+        self.assertTrue(result.active_reconciliation)
+
 
 class MilestoneScopeResolverTests(unittest.TestCase):
-    def test_supported_structured_accepted_outcomes_are_historical(self):
+    def test_supported_structured_accepted_outcomes_require_manifest_authority(self):
         statuses = (
             "ACCEPTED",
             "ACCEPTED_WITH_CONCERNS",
@@ -329,10 +403,8 @@ class MilestoneScopeResolverTests(unittest.TestCase):
 
                 scope = RepositoryScopeResolver(root).resolve(root / "docs/M1")
 
-                self.assertEqual(
-                    MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
-                    scope.kind,
-                )
+                self.assertEqual(MilestoneScopeKind.CURRENT, scope.kind)
+                self.assertIn("Validation Scope Manifest", scope.detail)
 
     def test_table_status_is_structured_closeout_authority(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -351,7 +423,51 @@ class MilestoneScopeResolverTests(unittest.TestCase):
 
             scope = RepositoryScopeResolver(root).resolve(root / "docs/M1")
 
+        self.assertEqual(MilestoneScopeKind.CURRENT, scope.kind)
+        self.assertIn("Validation Scope Manifest", scope.detail)
+
+    def test_configured_active_context_drives_scope_authority_and_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_scope_authority(root, active_milestones=("M1",))
+            write_validation_scope_manifest(root, active=("M2",))
+            (root / "SAGEKIT_CONFIG.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "project_id": "configured-context",
+                        "adoption_profile": "package-bound",
+                        "execution_scope": "active-only",
+                        "active_context": "handoff/NOW.md",
+                        "package": {
+                            "name": "sagekit",
+                            "version": "public-contract-v1",
+                            "digest": "0" * 64,
+                        },
+                        "sources": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            configured = root / "handoff/NOW.md"
+            configured.parent.mkdir(parents=True)
+            configured.write_text(
+                "# Active Context\n\n- Current milestone: `M2`\n",
+                encoding="utf-8",
+            )
+            manifest = load_validation_scope_manifest(
+                root / "docs/SAGE_VALIDATION_SCOPE.json"
+            )
+
+            scope = RepositoryScopeResolver(root, manifest=manifest).resolve(
+                root / "docs/M1"
+            )
+
         self.assertEqual(MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY, scope.kind)
+        self.assertTrue(
+            any("handoff/NOW.md" in authority for authority in scope.authorities),
+            scope,
+        )
 
     def test_unknown_or_conflicting_structured_outcomes_are_ambiguous(self):
         closeouts = (
@@ -456,7 +572,7 @@ class MilestoneScopeResolverTests(unittest.TestCase):
 
             scope = RepositoryScopeResolver(root).resolve(root / "docs/M1")
 
-        self.assertEqual(MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY, scope.kind)
+        self.assertEqual(MilestoneScopeKind.CURRENT, scope.kind)
         self.assertTrue(
             any("ACTIVE_CONTEXT.md" in authority for authority in scope.authorities),
             scope,
@@ -501,9 +617,10 @@ class MilestoneScopeResolverTests(unittest.TestCase):
             active_scope = RepositoryScopeResolver(root).resolve(root / "docs/M1")
 
         self.assertEqual(
-            MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
+            MilestoneScopeKind.CURRENT,
             active_scope.kind,
         )
+        self.assertIn("Validation Scope Manifest", active_scope.detail)
 
     def test_active_milestone_separator_alias_is_ambiguous(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -745,6 +862,7 @@ class ProjectCheckCompatibilityTests(unittest.TestCase):
                 active_milestones=("M2",),
                 closeouts={"M1": ACCEPTED_CLOSEOUT},
             )
+            write_validation_scope_manifest(root, active=("M2",))
             pair = write_dispatch_records(root, "M1", "TASK-LEGACY", task, evidence)
 
             findings = validate_task_dispatch_pair(
@@ -803,6 +921,7 @@ class ProjectCheckCompatibilityTests(unittest.TestCase):
                 active_milestones=("M2",),
                 closeouts={"M1": ACCEPTED_CLOSEOUT},
             )
+            write_validation_scope_manifest(root, active=("M2",))
             write_dispatch_records(root, "M1", "TASK-LEGACY", task, evidence)
             (root / "docs/M1/dispatch/DISPATCH_BOARD.md").write_text(
                 "## Active Tasks\n\n| Task |\n|---|\n",
@@ -1017,6 +1136,7 @@ class ProjectCheckCompatibilityTests(unittest.TestCase):
                 active_milestones=("M2",),
                 closeouts={"M1": ACCEPTED_CLOSEOUT},
             )
+            write_validation_scope_manifest(root, active=("M2",))
             active_dir = root / "docs/M2/dispatch/TASK-ACTIVE"
             legacy_dir = root / "docs/M1/dispatch/TASK-LEGACY-HISTORY"
             active_dir.mkdir(parents=True)
@@ -1138,18 +1258,12 @@ class BoundedReportingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "between 1 and 500"):
             build_finding_report([], max_findings=0)
 
-    def test_cli_parser_and_emitter_expose_bounded_summary(self):
-        args = build_parser().parse_args(["check", "--max-findings", "2", "--json"])
+    def test_bounded_finding_report_observes_max_findings_limit(self):
         findings = [
             Finding("WARN", f"rule-{index}", f"{index}.md", None, f"message {index}")
             for index in range(4)
         ]
-        output = StringIO()
-
-        with redirect_stdout(output):
-            emit_findings(findings, True, max_findings=args.max_findings)
-
-        payload = json.loads(output.getvalue())
+        payload = finding_report_payload(build_finding_report(findings, max_findings=2))
         self.assertEqual(2, payload["summary"]["displayed"])
         self.assertEqual(4, payload["summary"]["total"])
 
@@ -1178,14 +1292,14 @@ class CompatibilityDocumentationTests(unittest.TestCase):
         self.assertIn("`VERIFIED` alone", text)
         self.assertIn("trusted accepted closeout", text)
         self.assertIn("immutable accepted historical phases", normalized)
-        self.assertIn("CLI/validator", text)
+        self.assertIn("harness validator", lower)
         self.assertIn("must not rewrite", normalized)
         self.assertNotIn("specific external project", text.lower())
 
-    def test_skill_defers_scope_selection_to_cli_and_protects_history(self):
+    def test_skill_defers_scope_selection_to_runtime_and_protects_history(self):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
 
-        self.assertIn("CLI/validator owns contract and milestone scope selection", text)
+        self.assertIn("Runtime validator owns contract and milestone scope selection", text)
         self.assertIn("Do not rewrite accepted historical documents", text)
 
     def test_task_dispatch_summaries_name_container_scope_requirement(self):

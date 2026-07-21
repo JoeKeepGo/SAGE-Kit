@@ -36,10 +36,20 @@ Use this lifecycle for every optional capability:
    review findings.
 6. Map: write or link useful outputs into the active SAGE-Kit artifact.
 7. Fallback: if the capability is missing, fails, or is unsafe, use the
-   SAGE-Kit-native path or return `HANDOFF` or `BLOCKED`.
+   SAGE-Kit-native path or return `HANDOFF`. `BLOCKED` is only valid when the
+   active SPEC or packet explicitly marks that adapter as required for
+   authority, safety, or gate completion.
 
 Missing optional capability is not project failure. Record it as unavailable
 and continue when a safe fallback exists.
+Missing required capability must be explicit in the active authority and
+handled as an authority gap.
+
+Detected adapter categories and capabilities are advisory routing inputs, not
+product requirements. Discovery must not create a product threat model,
+security or safety requirement, approval gate, deployment target, or milestone.
+Only the active project SPEC or its named owner may place those concerns in
+scope.
 
 ## Authorization Levels
 
@@ -129,17 +139,22 @@ resume, or a newly spawned descendant does not clear the policy. A one-time
 message to an already running worker is not a substitute for launch-time
 propagation.
 
+The Harness does not automatically intercept descendant delegation or inject
+this policy into child packets. If a controller or delegated worker cannot
+propagate the prohibition at a delegation boundary, it must return `HANDOFF`
+instead of launching that descendant.
+
 This override disables only the adapter. It does not disable engineering
 discipline. Controllers and workers must use model-native brainstorming,
 planning, test-driven implementation, systematic debugging, subagent
 orchestration, review, and verification inside the active SAGE-Kit boundary.
 These are required native behaviors, not similarly named skill invocations.
 
-Capability discovery records Superpowers as disabled and must not treat
-disabled Superpowers as a capability gap, fallback trigger, blocker, or reason
-to stop. Existing packets that selected Superpowers route to equivalent
-model-native execution without reopening scope or gates. Claude, Kimi,
-OpenCode, and non-GPT-5.6 runtime mappings remain unchanged.
+Capability discovery records Superpowers as disabled and must not treat a model-
+family ban as a capability gap, fallback trigger, blocker, or reason to stop.
+Existing packets that selected Superpowers route to equivalent model-native
+execution without reopening scope or gates. Claude, Kimi, OpenCode, and non-GPT-5.6
+runtime mappings remain unchanged.
 
 Precedence is:
 

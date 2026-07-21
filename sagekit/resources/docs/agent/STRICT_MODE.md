@@ -17,7 +17,7 @@ ownership, fixed commands, mechanical checks, and hard stop conditions.
 The controller or human must prepare the task card before a
 Strict Mode agent begins writable work.
 
-The Strict Mode agent should not design the phase, widen scope, choose new
+The Strict Mode agent should not design the phase, widen scope, choose or change
 architecture, invent contracts, or decide that an approval gate can be opened.
 
 A Strict Mode agent must not convert a phase into its own task card.
@@ -64,7 +64,8 @@ Return format:
 - Modify only files listed under `Allowed to modify`.
 - Do not edit shared files unless the task card names them.
 - Do not infer missing requirements.
-- Do not add fallback behavior.
+- Do not add fallback behavior unless the task card or active SPEC explicitly
+  authorizes it.
 - Do not open approval gates.
 - Do not continue after a failed required command.
 - Do not claim completion without the required evidence.

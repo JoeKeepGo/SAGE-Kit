@@ -97,12 +97,22 @@ class RepositoryScopeResolver:
             if manifest is not None
             else ()
         )
+        try:
+            from .spec_sources import resolve_active_context_path
+
+            active_context_path = resolve_active_context_path(root)
+        except ValueError as exc:
+            self._active_milestones = frozenset()
+            self._active_authorities = ()
+            self._active_error = f"configured active context cannot be resolved: {exc}"
+            self._active_authority_available = False
+            return
         (
             self._active_milestones,
             self._active_authorities,
             self._active_error,
             self._active_authority_available,
-        ) = _read_active_milestones(root)
+        ) = read_active_milestones(root, active_context_path)
 
     def resolve(self, milestone_dir: Path) -> MilestoneScope:
         container_id = milestone_dir.name
@@ -238,10 +248,10 @@ class RepositoryScopeResolver:
         if accepted:
             return MilestoneScope(
                 container_id,
-                MilestoneScopeKind.IMMUTABLE_ACCEPTED_HISTORY,
+                MilestoneScopeKind.CURRENT,
                 tuple(authorities),
-                "trusted accepted closeout authority and no active milestone authority",
-                contract_version=1,
+                "accepted closeout is audit evidence only; an explicit Validation "
+                "Scope Manifest is required to authorize immutable history",
                 container_path=container_path,
             )
         if self._active_error:
@@ -456,10 +466,10 @@ def validate_manifest_repository_authority(
     return tuple(errors)
 
 
-def _read_active_milestones(
+def read_active_milestones(
     root: Path,
+    path: Path,
 ) -> tuple[frozenset[str], tuple[str, ...], str | None, bool]:
-    path = root / "docs/ACTIVE_CONTEXT.md"
     if not path.is_file():
         return frozenset(), (), None, False
     values: list[set[str]] = []
@@ -471,7 +481,9 @@ def _read_active_milestones(
         if match is None:
             continue
         raw_value = _strip_markdown_value(match.group("value"))
-        authorities.append(f"docs/ACTIVE_CONTEXT.md active milestone field: {raw_value}")
+        authorities.append(
+            f"{relative_repo_path(root, path)} active milestone field: {raw_value}"
+        )
         if raw_value.casefold() in {"none", "n/a", "na", "no active milestone"}:
             values.append(set())
             continue
@@ -492,11 +504,15 @@ def _read_active_milestones(
     if not values:
         return frozenset(), (), None, False
     first = values[0]
-    if any(value != first for value in values[1:]):
+    if len(values) > 1:
+        if any(value != first for value in values[1:]):
+            detail = "active milestone authority is conflicting across structured fields"
+        else:
+            detail = "active milestone authority has duplicate structured declarations"
         return (
             declared,
             tuple(authorities),
-            "active milestone authority is conflicting across structured fields",
+            detail,
             True,
         )
     return frozenset(first), tuple(authorities), None, True

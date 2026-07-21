@@ -10,7 +10,7 @@ full history do not belong here.
 - Current phase: `<phase ID or none>`
 - Current status: `<planned, active, blocked, review, complete, or none>`
 - Current authority: `<explicit source, configured source, current-work pointer, or legacy adapter>`
-- Active SPEC source: `<project-relative path or none>`
+- Current SPEC source: `<project-relative path or none>`
 - Current blockers: `<concise blockers or none>`
 - Next action: `<single next action or none>`
 

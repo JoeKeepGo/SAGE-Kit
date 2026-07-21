@@ -70,6 +70,32 @@ class ResourcePolicyTests(unittest.TestCase):
         self.assertEqual(("reasoning-only",), resolved.allowed_resource_classes)
         self.assertEqual(1, resolved.active_agent_limit)
 
+    def test_read_only_review_neutralizes_heavy_execution_profile(self) -> None:
+        resolved = resolve_resource_policy(
+            resource_contract_id="conservative-host-v1",
+            resource_profile="conservative-host-v1",
+            overrides=None,
+            permission_mode="READ_ONLY_REVIEW",
+            execution_profile="heavy-phase@v1",
+            milestone_packet=False,
+        )
+        self.assertEqual(("reasoning-only",), resolved.allowed_resource_classes)
+        self.assertEqual(1, resolved.active_agent_limit)
+        self.assertEqual(1, resolved.writer_limit)
+
+    def test_neutral_resource_profile_uses_light_defaults(self) -> None:
+        resolved = resolve_resource_policy(
+            resource_contract_id="conservative-host-v1",
+            resource_profile="N/A",
+            overrides=None,
+            permission_mode="WRITE_AUTHORIZED",
+            execution_profile="heavy-phase@v1",
+            milestone_packet=False,
+        )
+        self.assertEqual("N/A", resolved.profile_id)
+        self.assertEqual(1, resolved.active_agent_limit)
+        self.assertEqual(1, resolved.writer_limit)
+
     def test_light_standard_and_heavy_limits_preserve_development_parallelism(self) -> None:
         expectations = {
             "light-phase@v1": (1, 1),

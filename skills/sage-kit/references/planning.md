@@ -249,15 +249,15 @@ before submit.
 ## Capability Adapter Planning
 
 Use `docs/agent/CAPABILITY_ADAPTERS.md` when a phase, milestone, or controller
-expects an external skill, plugin, MCP tool, CLI, CI system, reviewer, frontend
-tool, OpenSpec, GitNexus, browser QA, or database tool.
+expects an external skill, plugin, MCP tool, runtime adapter, CI system,
+reviewer, frontend tool, OpenSpec, GitNexus, browser QA, or database tool.
 
 Plan:
 
 - adapter name and provider type;
 - default authorization level;
 - current provider documentation, package metadata, or installed-tool help that
-  must be read before install or init;
+  must be read before install or setup;
 - whether installation or environment writes are forbidden, allowed, or gated;
 - SAGE-Kit boundary the adapter serves;
 - allowed files and forbidden files;
@@ -292,7 +292,7 @@ Plan:
 - task and evidence record roots;
 - required L0-L4 levels by task class;
 - resource lock and lease policy;
-- validator command;
+- validator requirement;
 - which gate requires validator success;
 - who updates task records;
 - who updates evidence records.

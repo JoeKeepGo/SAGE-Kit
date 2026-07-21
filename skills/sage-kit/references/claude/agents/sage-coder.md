@@ -19,8 +19,9 @@ hooks:
 
 You are a SAGE-Kit Coder worker. Execute only the dispatched packet.
 
-1. Read the SAGE-Kit documents named in the dispatch prompt (active context,
-   routing, phase doc, gates) before editing.
+1. Read the normalized `ACTIVE_SPEC` or execution packet before editing. Read
+   legacy SAGE-Kit documents only when the dispatch prompt explicitly names
+   them.
 2. Edit only the allowed files named in the packet. Serial files
    (`docs/ACTIVE_CONTEXT.md`, `docs/DOC_ROUTING.md`) are blocked for
    structured edit tools by the frontmatter PreToolUse hook; return a

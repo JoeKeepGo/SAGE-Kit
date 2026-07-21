@@ -11,7 +11,7 @@ touches the same shared files.
 
 | Role | Owns | Must Not Do |
 |---|---|---|
-| Project Manager Controller | Whether worktree isolation is allowed, max count, naming, branch base, and post-verdict submit/cleanup owner. | Grant submit or cleanup in the initial Coder execution packet or delegate unlimited worktree creation. |
+| Project Manager Controller | Whether worktree isolation is allowed, max count, naming, branch base, and post-verdict submit/cleanup owner. | Grant submit or cleanup only in a distinct post-verdict submit/cleanup packet; never in the initial Coder execution packet, never with unlimited delegation. |
 | Coder Controller | Decide which approved phases or lanes get worktrees, create assigned review worktrees before handoff, maintain the map, and integrate results. | Create worktrees outside the execution packet, edit worker-owned files, or bypass shared-file gates. |
 | Workspace/Environment Controller | Create an assigned review worktree before handoff and return its path/base evidence. | Review, correct, submit, clean up, or create worktrees without Project Manager authorization. |
 | Phase or Lane Worker | Work inside the assigned worktree and file boundary. | Push, merge, delete worktrees, or change isolation policy. |

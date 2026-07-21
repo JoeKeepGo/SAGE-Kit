@@ -1,14 +1,21 @@
 import hashlib
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from sagekit.packet import PacketError, compile_packet, write_compiled_packet
-from sagekit.resource_cli import ResourceCliError, authority_for, load_packet_authority
+from sagekit.packet import (
+    CompiledPacket,
+    PacketError,
+    compile_packet,
+    write_compiled_packet,
+)
 from sagekit.resource_governor import ResourceBusy
+from sagekit.harness import discover_project_workspace, verify_project_workspace
+from sagekit.workspace_binding import WorkspaceBinding
 from tests.test_thin_execution_documents import create_project
 
 
@@ -23,21 +30,32 @@ def tree_digest(root):
 
 
 class PacketCompileTests(unittest.TestCase):
+    def test_public_compiler_rejects_contract_root_authority_injection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+
+            with self.assertRaises(TypeError):
+                compile_packet(  # type: ignore[call-arg]
+                    root, "M36", "P2", contract_root=contracts
+                )
+
     def test_compiled_v3_packet_is_strict_resource_authority(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet = compile_packet(root, "M36", "P2")
             output = write_compiled_packet(root, ".sagekit/packets/P2.json", packet)
 
-            authority = load_packet_authority(output)
-            verified = authority_for(
-                root,
-                packet_path=output,
-                permission_mode="READ_ONLY_REVIEW",
-                controller="ignored-for-packet-authority",
+            authority = json.loads(output.read_text(encoding="utf-8"))
+            current = discover_project_workspace(root)
+            verified = verify_project_workspace(
+                WorkspaceBinding.from_dict(authority["workspace_binding"]),
+                current=current,
             )
             tampered = json.loads(output.read_text(encoding="utf-8"))
             tampered["source_contract"]["semantic_sha256"] = "0" * 64
@@ -47,11 +65,20 @@ class PacketCompileTests(unittest.TestCase):
                 json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
             ).hexdigest()
             output.write_text(json.dumps(tampered), encoding="utf-8")
-            with self.assertRaisesRegex(ResourceCliError, "recognized|source"):
-                load_packet_authority(output)
+            with self.assertRaisesRegex(PacketError, "not a recognized generated packet"):
+                write_compiled_packet(
+                    root,
+                    ".sagekit/packets/P2.json",
+                    packet,
+                    overwrite_generated=True,
+                )
 
-        self.assertEqual(packet.digest, authority.packet_digest)
-        self.assertEqual(packet.digest, verified.packet_digest)
+        self.assertTrue(verified.ok, verified.errors)
+        self.assertEqual(packet.digest, authority["packet_sha256"])
+        self.assertEqual(
+            packet.payload["resolved_policy"]["values"]["permission_mode"],
+            authority["resolved_policy"]["values"]["permission_mode"],
+        )
 
     def test_milestone_packet_can_write_compiler_owned_runtime_output(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -59,7 +86,7 @@ class PacketCompileTests(unittest.TestCase):
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            packet = compile_packet(root, "M36", contract_root=contracts)
+            packet = compile_packet(root, "M36")
 
             output = write_compiled_packet(
                 root, ".sagekit/packets/M36.json", packet
@@ -67,13 +94,111 @@ class PacketCompileTests(unittest.TestCase):
 
         self.assertEqual("M36.json", output.name)
 
+    def test_public_writer_revalidates_explicit_source_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            source = root / "docs/M36"
+            packet = compile_packet(root, "M36", "P2", source=source)
+
+            output = write_compiled_packet(
+                root, ".sagekit/packets/explicit.json", packet
+            )
+            self.assertTrue(output.is_file())
+            phase_path = source / "phases/P2.json"
+            phase = json.loads(phase_path.read_text(encoding="utf-8"))
+            phase["objective"] = "Explicit source changed after packet compilation."
+            phase_path.write_text(json.dumps(phase, indent=2) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                PacketError, "current project-owned SPEC authority"
+            ):
+                write_compiled_packet(root, ".sagekit/packets/stale.json", packet)
+
+    def test_json_roundtrip_retains_explicit_source_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            source = root / "docs/embedded-M36"
+            shutil.copytree(root / "docs/M36", source)
+            packet = compile_packet(root, "M36", "P2", source=source)
+            serialized = json.loads(packet.to_json())
+            relocated = root / "decisions/relocated-M36"
+            relocated.parent.mkdir(parents=True)
+            shutil.move(source, relocated)
+            serialized["source_provenance"]["configured_source"] = str(relocated)
+            serialized["source_provenance"]["resolved_canonical_path"] = str(
+                relocated.resolve()
+            )
+            reloaded = CompiledPacket(
+                serialized["mode"], serialized, serialized["packet_sha256"]
+            )
+
+            configured_phase = root / "docs/M36/phases/P2.json"
+            configured = json.loads(configured_phase.read_text(encoding="utf-8"))
+            configured["objective"] = "Configured source must not be selected."
+            configured_phase.write_text(
+                json.dumps(configured, indent=2) + "\n", encoding="utf-8"
+            )
+
+            output = write_compiled_packet(
+                root, ".sagekit/packets/roundtrip.json", reloaded
+            )
+            self.assertTrue(output.is_file())
+            self.assertEqual("explicit-source", serialized["source_provenance"]["authority"])
+            self.assertEqual(
+                {
+                    "model": "normalized-source-authority-v1",
+                    "semantic_sha256": serialized["source_contract"]["semantic_sha256"],
+                    "adapter": "thin-v1",
+                    "document_class": "ACTIVE_SPEC",
+                },
+                serialized["source_authority"],
+            )
+
+    def test_malformed_serialized_source_provenance_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            packet = compile_packet(root, "M36", "P2", source=root / "docs/M36")
+            payload = json.loads(packet.to_json())
+            payload["source_provenance"] = {"authority": "explicit-source"}
+            malformed = CompiledPacket(
+                payload["mode"], payload, payload["packet_sha256"]
+            )
+
+            with self.assertRaisesRegex(PacketError, "digest or generated structure"):
+                write_compiled_packet(root, ".sagekit/packets/malformed.json", malformed)
+
+    def test_signed_source_authority_rejects_provenance_adapter_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            packet = compile_packet(root, "M36", "P2", source=root / "docs/M36")
+            payload = json.loads(packet.to_json())
+            payload["source_provenance"]["selected_adapter"] = "markdown-v1"
+            tampered = CompiledPacket(
+                payload["mode"], payload, payload["packet_sha256"]
+            )
+
+            with self.assertRaisesRegex(PacketError, "signed source authority"):
+                write_compiled_packet(root, ".sagekit/packets/mismatch.json", tampered)
+
     def test_tampered_compiled_packet_is_rejected_before_write(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet = compile_packet(root, "M36", "P2")
             packet.payload["resolved_resource_policy"][
                 "allowed_resource_classes"
             ].append("submit-exclusive")
@@ -91,7 +216,7 @@ class PacketCompileTests(unittest.TestCase):
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet = compile_packet(root, "M36", "P2")
 
             with patch(
                 "sagekit.packet.ResourceManager.acquire",
@@ -107,13 +232,9 @@ class PacketCompileTests(unittest.TestCase):
             create_project(root, contracts)
             before = tree_digest(root)
 
-            standalone = compile_packet(
-                root, "M36", "P2", contract_root=contracts
-            )
-            repeat = compile_packet(root, "M36", "P2", contract_root=contracts)
-            compact = compile_packet(
-                root, "M36", "P2", compact=True, contract_root=contracts
-            )
+            standalone = compile_packet(root, "M36", "P2")
+            repeat = compile_packet(root, "M36", "P2")
+            compact = compile_packet(root, "M36", "P2", compact=True)
             after = tree_digest(root)
             unsigned = dict(standalone.payload)
             unsigned.pop("packet_sha256")
@@ -167,12 +288,12 @@ class PacketCompileTests(unittest.TestCase):
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            first = compile_packet(root, "M36", "P2", contract_root=contracts)
+            first = compile_packet(root, "M36", "P2")
             phase_path = root / "docs/M36/phases/P2.json"
             phase = json.loads(phase_path.read_text(encoding="utf-8"))
             phase["objective"] = "Changed project-specific objective."
             phase_path.write_text(json.dumps(phase, indent=2) + "\n", encoding="utf-8")
-            second = compile_packet(root, "M36", "P2", contract_root=contracts)
+            second = compile_packet(root, "M36", "P2")
 
         self.assertNotEqual(first.digest, second.digest)
         self.assertNotEqual(
@@ -186,7 +307,7 @@ class PacketCompileTests(unittest.TestCase):
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet = compile_packet(root, "M36", "P2")
 
             output = write_compiled_packet(root, ".sagekit/packets/P2.json", packet)
             self.assertTrue(output.is_file())
@@ -229,7 +350,7 @@ class PacketCompileTests(unittest.TestCase):
             root = workspace / "project"
             contracts = workspace / "contracts"
             create_project(root, contracts)
-            packet = compile_packet(root, "M36", "P2", contract_root=contracts)
+            packet = compile_packet(root, "M36", "P2")
             with self.assertRaisesRegex(PacketError, "project-relative"):
                 write_compiled_packet(root, "../packet.json", packet)
 
@@ -254,7 +375,6 @@ class PacketCompileTests(unittest.TestCase):
                 "M36",
                 "P2",
                 source=source,
-                contract_root=contracts,
             )
             alias = root / "manifest-alias.json"
             try:
@@ -279,7 +399,6 @@ class PacketCompileTests(unittest.TestCase):
                 "M36",
                 "P2",
                 source=source,
-                contract_root=contracts,
             )
             manifest = source / "MILESTONE_MANIFEST.json"
             alias = root / "manifest-from-directory-alias.json"
@@ -307,7 +426,7 @@ class PacketCompileTests(unittest.TestCase):
             first["state"] = "ready"
             first_path.write_text(json.dumps(first, indent=2) + "\n", encoding="utf-8")
             with self.assertRaisesRegex(PacketError, "dependencies are not complete"):
-                compile_packet(root, "M36", "P2", contract_root=contracts)
+                compile_packet(root, "M36", "P2")
 
             first["state"] = "complete"
             first_path.write_text(json.dumps(first, indent=2) + "\n", encoding="utf-8")
@@ -316,7 +435,7 @@ class PacketCompileTests(unittest.TestCase):
             milestone["state"] = "blocked"
             milestone_path.write_text(json.dumps(milestone, indent=2) + "\n", encoding="utf-8")
             with self.assertRaisesRegex(PacketError, "milestone state is not executable"):
-                compile_packet(root, "M36", "P2", contract_root=contracts)
+                compile_packet(root, "M36", "P2")
 
 
 if __name__ == "__main__":

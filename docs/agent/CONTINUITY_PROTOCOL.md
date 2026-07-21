@@ -59,29 +59,48 @@ summary, a version, an internal digest, and optional repository-relative file
 references with SHA-256 digests. Evidence references are compact fingerprints
 or repository-relative digests, never copied logs.
 
-## Commands
+## API Surface
 
-```text
-sagekit checkpoint create
-sagekit checkpoint status
-sagekit resume
-sagekit checkpoint clear
+```python
+sagekit.create_checkpoint(
+    repository_root,
+    *,
+    run_id=..., goal=..., authority_id=..., authority_version=...,
+    authority_summary=..., change_class=..., completed_work=...,
+    open_findings=..., evidence_references=..., invalidated_evidence=...,
+    execution_counters=..., next_action=..., allowed_paths=...,
+    stop_conditions=..., authority_references=(), base_sha=None,
+    candidate=None, convergence_authority=None,
+)
+sagekit.get_checkpoint_status(repository_root)
+sagekit.resume_checkpoint(
+    repository_root,
+    *,
+    expected_authority_id=None,
+    expected_authority_version=None,
+    expected_convergence_authority=None,
+)
+sagekit.clear_checkpoint(repository_root)
 ```
 
-`checkpoint create` captures the canonical repository, named branch, HEAD,
+`sagekit.create_checkpoint` captures the canonical repository, named branch, HEAD,
 authority, preliminary and per-candidate final counters, started verification
 attempts, optional frozen candidate, allowed paths, and next action.
-`checkpoint status` verifies
-the current state without printing the full checkpoint. `sagekit resume`
+`sagekit.get_checkpoint_status` is structural and parse-only: it validates the
+stored checkpoint but does not verify current repository state. Use
+`sagekit.resume_checkpoint` for current-state validation and the bounded resume
+packet. It
 returns the bounded resume packet. It never executes arbitrary commands.
-`checkpoint clear` removes only `CURRENT_RUN.json`.
+`sagekit.clear_checkpoint` removes only `CURRENT_RUN.json`.
 
-Use repeated `--counter NAME=VALUE` arguments when creating a checkpoint.
-Callers that hold an authority anchor should pass `--expect-authority-id` and
-`--expect-authority-version` to `status` or `resume`; a mismatch fails closed.
-Callers using a Preauthorized Convergence Window may also pass
-`--convergence-authority FILE`; replacement of its digest, allowed paths,
-execution scope, family, invariant, or stop conditions fails closed.
+Pass an `ExecutionCounters` value when creating a checkpoint.
+Callers that hold an authority anchor should pass `expected_authority_id` and
+`expected_authority_version` to `sagekit.resume_checkpoint`; a mismatch fails
+closed. `get_checkpoint_status` accepts no current-authority expectation.
+Callers resuming a Preauthorized Convergence Window may pass
+`expected_convergence_authority` to `sagekit.resume_checkpoint`; replacement of
+its digest, allowed paths, execution scope, family, invariant, or stop
+conditions fails closed.
 
 ## Resume Contract
 

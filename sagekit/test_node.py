@@ -10,6 +10,9 @@ import unittest
 import uuid
 from pathlib import Path
 
+from .check import run_source_repo_check
+from .findings import has_fail
+
 
 FOCUSED_TESTS = (
     "tests.test_thin_execution_documents",
@@ -22,7 +25,6 @@ FOCUSED_TESTS = (
     "tests.unit.test_candidate_snapshot",
     "tests.unit.test_normalization",
     "tests.integration.test_process_supervisor",
-    "tests.integration.test_resource_cli",
 )
 
 TEST_MODULE_LANES = {
@@ -36,7 +38,6 @@ TEST_MODULE_LANES = {
     "test_spec_sources": "unit",
     "test_pathing": "unit",
     "test_sagekit_check": "integration",
-    "test_sagekit_simulations": "integration",
     "test_task_dispatch_validator": "unit",
     "test_thin_documentation": "unit",
     "test_thin_execution_documents": "unit",
@@ -105,10 +106,16 @@ def validate_test_inventory(repository: Path) -> tuple[str, ...]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m sagekit.test_node")
-    parser.add_argument("lane", choices=("focused", "unit", "integration"))
+    parser.add_argument("lane", choices=("focused", "unit", "integration", "source-repo"))
     parser.add_argument("--repository", type=Path, required=True)
     args = parser.parse_args(argv)
     repository = args.repository.resolve(strict=True)
+    if args.lane == "source-repo":
+        _write_heartbeat("source-repository check")
+        findings = run_source_repo_check(repository)
+        for finding in findings:
+            print(finding.to_text(), file=sys.stderr)
+        return 1 if has_fail(findings) else 0
     suite = build_suite(args.lane, repository)
     result = unittest.TextTestRunner(
         stream=sys.stderr,

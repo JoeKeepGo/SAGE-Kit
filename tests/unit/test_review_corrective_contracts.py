@@ -12,7 +12,7 @@ from unittest.mock import patch
 from sagekit.execution_documents import ExecutionDocumentError, load_execution_project
 from sagekit.managed_execution import (
     ManagedExecutionError,
-    run_managed_command,
+    _run_managed_command,
     run_managed_git,
 )
 from sagekit.process_supervisor import ProcessClassification, ProcessResult
@@ -127,7 +127,7 @@ class CommandAuthorityCorrectiveTests(unittest.TestCase):
             outside = Path(directory)
             with patch("sagekit.managed_execution.run_process") as launch:
                 with self.assertRaisesRegex(ManagedExecutionError, "cwd|workspace|temp"):
-                    run_managed_command(
+                    _run_managed_command(
                         repository,
                         (sys.executable, "-c", "print('no')"),
                         resource_class=ResourceClass.CPU_HEAVY,
@@ -156,7 +156,7 @@ class CommandAuthorityCorrectiveTests(unittest.TestCase):
                 patch("sagekit.managed_execution.run_process") as launch,
             ):
                 with self.assertRaisesRegex(ManagedExecutionError, "verified root delegation"):
-                    run_managed_command(
+                    _run_managed_command(
                         repository,
                         (sys.executable, "-c", "print('no')"),
                         resource_class=ResourceClass.CPU_HEAVY,
@@ -185,7 +185,7 @@ class CommandAuthorityCorrectiveTests(unittest.TestCase):
                 patch("sagekit.managed_execution.project_runtime_path", return_value=runtime / "project"),
                 patch("sagekit.managed_execution.run_process", side_effect=launch),
             ):
-                run_managed_command(
+                _run_managed_command(
                     repository,
                     (sys.executable, "-c", "print('managed')"),
                     resource_class=ResourceClass.CPU_HEAVY,
@@ -230,7 +230,7 @@ class CommandAuthorityCorrectiveTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     ManagedExecutionError, "changed before launch"
                 ):
-                    run_managed_command(
+                    _run_managed_command(
                         repository,
                         (sys.executable, "-c", "print('must-not-launch')"),
                         resource_class=ResourceClass.CPU_HEAVY,

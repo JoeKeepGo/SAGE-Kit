@@ -27,15 +27,17 @@ active/new work, ambiguous or mixed authority         -> fail closed
 
 Repository scope resolution is separate from record selection. The resolver
 uses structured `Current milestone` or `Active milestone` fields from
-`docs/ACTIVE_CONTEXT.md` and structured `Status` or `Outcome` values from a
-milestone closeout. A closeout filename, prose containing `accepted`, or
-terminal task state alone is not authority. `VERIFIED` alone never proves
-legacy scope.
+the configured active-context path (legacy default:
+`docs/ACTIVE_CONTEXT.md`) and structured `Status` or `Outcome` values from a
+milestone closeout. A closeout is audit evidence only: a closeout filename,
+prose containing `accepted`, or terminal task state alone is not authority.
+`VERIFIED` alone never proves legacy scope.
 
-Existing projects that cannot express historical scope with newer active-set
-fields may use a Validation Scope Manifest. `sagekit check` reads
+An explicit Validation Scope Manifest is required to authorize immutable
+history. Existing projects that cannot express historical scope with newer
+active-set fields use a Validation Scope Manifest. `sagekit.check_project` reads
 `docs/SAGE_VALIDATION_SCOPE.json`, or an invocation may supply an external file
-with `--scope-manifest <path>`. The JSON format is defined by
+via `scope_manifest_path`. The JSON format is defined by
 `docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json`. It explicitly lists
 active containers and accepted legacy containers by stable ID and normalized
 target-relative path. Every legacy entry selects exactly one frozen
@@ -44,12 +46,13 @@ manifest digest make the authority auditable. Ranges, globs, path traversal,
 aliases, duplicate paths, and implicit membership are rejected.
 
 The manifest is migration acceptance authority, not normal runtime state. New
-projects and ordinary v2 projects normally do not need one, and `sagekit init`
-does not create it. A CLI manifest replaces, rather than merges with, a
-project-local manifest. Container authority precedence is CLI manifest,
-project-local manifest, structured active context, structured closeout, then
-conservative current/ambiguous fallback. Lower-precedence sources still expose
-real conflicts.
+projects and ordinary v2 projects normally do not need one, and host-owned
+bootstrap creation of minimal versioned project config does not create it. A harness manifest supplied by the
+harness entrypoint replaces, rather than merges with, a project-local manifest.
+For current scope, container authority precedence is harness manifest,
+project-local manifest, structured active context, then conservative
+current/ambiguous fallback. Closeout alone is audit evidence only; it can expose
+real conflicts but cannot authorize immutable history.
 
 An accepted manifest entry may authorize history with an accepted, ambiguous,
 or missing old closeout. An explicit non-accepted closeout additionally
@@ -61,19 +64,25 @@ nonterminal record into v0/v1 or downgrade an explicit v2 record.
 
 Record authority precedence is explicit matching v2 metadata, explicit
 matching v1/v0 metadata, then implicit selection from resolved container scope.
-Container resolution considers explicit active milestone authority, manifest
-migration acceptance, trusted accepted closeout authority, and terminal state.
-Inferred state can satisfy the terminal-record requirement but cannot authorize
-v0/v1 by itself. Active plus accepted authority, unknown closeout formats, and
-other conflicting, incomplete, ambiguous or mixed authority fail closed.
+Container resolution considers explicit active milestone authority and manifest
+migration acceptance. A trusted accepted closeout and terminal state are audit
+evidence; inferred state can satisfy the terminal-record requirement but cannot
+authorize v0/v1 or immutable history by itself. Active plus accepted authority,
+unknown closeout formats, and other conflicting, incomplete, ambiguous or mixed
+authority fail closed.
 
 Closed legacy history includes both `CLOSED + VERIFIED` and
 `VERIFIED + VERIFIED` terminal pairs when the container is trusted immutable
-accepted history. The manifest selects v0 for the early public record shape and
-v1 for the later hardened legacy shape; the validator never tries one version
-and falls back to another. Explicit v0/v1 metadata has the same terminal
-task/evidence and immutable-scope requirements. Closed accepted history is not
-batch-rewritten or represented as if it had adopted a newer contract.
+accepted history by an explicit Validation Scope Manifest. The manifest selects
+v0 for the early public record shape and v1 for the later hardened legacy
+shape; the validator never tries one version and falls back to another.
+Explicit v0/v1 metadata has the same terminal task/evidence and immutable-scope
+requirements. Closed accepted history is not batch-rewritten or represented as
+if it had adopted a newer contract.
+
+Focused compatibility regressions must prove that closeout-only history remains
+blocked and that only an explicit Validation Scope Manifest can authorize an
+immutable legacy container.
 
 Active and new work must explicitly declare matching v2 metadata:
 
@@ -122,8 +131,11 @@ milestone and closeout authority. Ambiguous scope produces one blocking
 milestone finding instead of a cascade of derived field failures. Agents must
 not rewrite accepted historical documents merely to satisfy a newer format.
 
-The Skill provides guidance only. The CLI/validator owns contract and milestone
-scope selection and must not accept a Skill claim as validation authority.
+`sagekit.validate_task_and_evidence_records(...)` validates one task/evidence
+pair. `sagekit.check_project(...)` validates project and gate state, including
+active/history scope and an optional external scope manifest. The Skill provides guidance only. The harness validator and host controller own
+contract and milestone scope selection and must not accept a Skill claim as
+validation authority.
 Agents must not use a manifest to conceal current failures or rewrite accepted
 history to resemble newer formats.
 

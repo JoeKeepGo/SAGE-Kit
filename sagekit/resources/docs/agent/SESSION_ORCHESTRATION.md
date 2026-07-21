@@ -226,7 +226,9 @@ for closed gates, scope expansion, shared-file or resource-lock conflicts,
 failed required evidence, unapproved runtime, destructive, submit, merge, push,
 or cleanup operations, or higher controller decisions.
 
-Superpowers is a reference integration for execution discipline when available.
+Superpowers is a reference integration for execution discipline only when runtime
+policy allows it; model-family policy bans (including GPT-5.6 overrides) take
+precedence.
 It does not change Project Manager, Coder, Final Review, or Submit Controller
 authority.
 
@@ -540,8 +542,10 @@ Corrective work is bounded by the Final Review findings.
 - Corrective workers must not redesign the feature.
 - Corrective workers must not expand milestone scope.
 - Corrective workers must not open approval gates.
-- Corrective packets may name a maximum round or convergence budget, but the
-  budget is a control signal rather than an unconditional blocker.
+- Corrective packets may name a convergence budget, but fixed-round caps are not
+  closure blockers by themselves. A finding is blocked only on two consecutive
+  no-progress rounds for the same root cause or explicit authority/required
+  evidence gaps.
 - Material convergence progress means the open finding count or finding
   severity is decreasing, scope does not expand, no blocking gate is bypassed,
   and no new authority, false-green, approval-boundary, security-boundary,

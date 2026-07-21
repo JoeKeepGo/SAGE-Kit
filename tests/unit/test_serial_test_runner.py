@@ -8,8 +8,10 @@ from unittest.mock import patch
 
 from pathlib import Path
 
+from sagekit.findings import Finding
 from sagekit.resource_governor import ResourceClass
-from sagekit.test_runner import build_plan, command_for, execute_plan
+from sagekit.test_node import main as test_node_main
+from sagekit.test_runner import NodeEvidence, build_plan, command_for, execute_plan
 from scripts.run_tests import main as runner_main
 
 
@@ -36,7 +38,7 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
 
         for lane in ("unit", "package"):
             with self.subTest(lane=lane), patch(
-                "sagekit.test_runner.run_managed_command", return_value=result
+                "sagekit.test_runner._run_managed_command", return_value=result
             ) as managed:
                 code, evidence = execute_plan(
                     repository,
@@ -73,6 +75,8 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
             ("focused", "unit", "integration", "source-repo", "package"),
             tuple(node.name for node in plan),
         )
+        self.assertEqual(("focused",), plan[1].depends_on)
+        self.assertEqual(("unit",), plan[2].depends_on)
         self.assertTrue(all(not node.waived for node in plan))
 
     def test_high_load_waiver_is_explicit_evidence_not_a_pass(self) -> None:
@@ -94,10 +98,42 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
                 self.assertIn("limited development host", node.waiver_reason)
 
     def test_individual_lane_does_not_expand_to_other_nodes(self) -> None:
-        for lane in ("unit", "integration", "package"):
+        for lane in ("focused", "unit", "integration", "package"):
             with self.subTest(lane=lane):
                 plan = build_plan(lane, waive_high_load=False)
                 self.assertEqual((lane,), tuple(node.name for node in plan))
+                self.assertEqual((), plan[0].depends_on)
+
+    def test_waived_final_nodes_prevent_success_verdict(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        result = SimpleNamespace(
+            ok=True,
+            elapsed=0.01,
+            classification=SimpleNamespace(value="success"),
+            peak_owned_processes=1,
+            child_cpu_seconds=0.0,
+            peak_rss_bytes=1,
+            stdout_bytes=0,
+            stderr_bytes=0,
+            heartbeat_count=1,
+            cleanup_complete=True,
+            containment_complete=True,
+            sampling_degraded=False,
+            orphan_count=0,
+            stdout_tail="",
+            stderr_tail="",
+        )
+        with patch("sagekit.test_runner._run_managed_command", return_value=result):
+            code, evidence = execute_plan(
+                repository,
+                build_plan("final", waive_high_load=True),
+            )
+
+        self.assertEqual(1, code)
+        self.assertEqual(
+            {"source-repo": "WAIVED", "package": "WAIVED"},
+            {item.name: item.state for item in evidence if item.state == "WAIVED"},
+        )
 
     def test_integration_timeout_has_bounded_windows_runtime_margin(self) -> None:
         integration = build_plan("integration", waive_high_load=False)[0]
@@ -112,6 +148,70 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
             ("-B", "-m", "scripts.wheel_smoke"),
             command_for(node, Path.cwd())[1:],
         )
+
+    def test_source_repo_lane_uses_internal_node_not_public_cli(self) -> None:
+        node = build_plan("source-repo", waive_high_load=False)[0]
+
+        command = command_for(node, Path.cwd())
+
+        self.assertEqual("sagekit.test_node", command[3])
+        self.assertEqual("source-repo", command[4])
+        self.assertNotIn("check", command)
+
+    def test_internal_source_repo_node_returns_finding_status(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        with patch(
+            "sagekit.test_node.run_source_repo_check",
+            return_value=[Finding("FAIL", "source", None, None, "broken")],
+        ), redirect_stderr(StringIO()):
+            code = test_node_main(
+                ["source-repo", "--repository", str(repository)]
+            )
+
+        self.assertEqual(1, code)
+
+    def test_failed_unit_skips_dependent_integration_but_runs_independent_nodes(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+
+        def result(ok: bool):
+            return SimpleNamespace(
+                ok=ok,
+                elapsed=0.01,
+                classification=SimpleNamespace(value="success" if ok else "nonzero"),
+                peak_owned_processes=1,
+                child_cpu_seconds=0.0,
+                peak_rss_bytes=1,
+                stdout_bytes=0,
+                stderr_bytes=0,
+                heartbeat_count=1,
+                cleanup_complete=True,
+                containment_complete=True,
+                sampling_degraded=False,
+                orphan_count=0,
+                stdout_tail="",
+                stderr_tail="",
+            )
+
+        launched: list[str] = []
+
+        def run(*args, **kwargs):
+            launched.append(kwargs["stage"])
+            return result(kwargs["stage"] != "unit")
+
+        with patch("sagekit.test_runner._run_managed_command", side_effect=run):
+            code, evidence = execute_plan(
+                repository,
+                build_plan("final", waive_high_load=False),
+            )
+
+        self.assertEqual(1, code)
+        self.assertEqual(("focused", "unit", "source-repo", "package"), tuple(launched))
+        states = {item.name: item.state for item in evidence}
+        self.assertEqual("PASS", states["focused"])
+        self.assertEqual("FAIL", states["unit"])
+        self.assertEqual("SKIPPED_DUE_TO_DEPENDENCY", states["integration"])
+        self.assertEqual("PASS", states["source-repo"])
+        self.assertEqual("PASS", states["package"])
 
     def test_json_mode_keeps_progress_on_stderr_and_final_json_on_stdout(self) -> None:
         stdout = StringIO()
@@ -135,6 +235,26 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertIn('"current_test": "tests.unit.test_example"', stderr.getvalue())
         self.assertTrue(stdout.getvalue().lstrip().startswith("{"))
+
+    def test_deterministic_failure_is_not_reported_as_handoff(self) -> None:
+        stdout = StringIO()
+        evidence = (
+            NodeEvidence(
+                "unit",
+                "FAIL",
+                ("python", "unit"),
+                0.1,
+                classification="nonzero",
+            ),
+        )
+        with patch(
+            "scripts.run_tests.execute_plan", return_value=(1, evidence)
+        ), redirect_stdout(stdout), redirect_stderr(StringIO()):
+            exit_code = runner_main(["unit", "--json"])
+
+        self.assertEqual(1, exit_code)
+        self.assertIn('"state": "NEEDS_CORRECTION"', stdout.getvalue())
+        self.assertNotIn("HANDOFF_READY", stdout.getvalue())
 
 
 if __name__ == "__main__":

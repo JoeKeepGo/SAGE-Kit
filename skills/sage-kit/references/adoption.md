@@ -10,7 +10,8 @@ package version and safe runtime/resource manifest digest. The project retains o
 
 - its own SPEC sources and human documents;
 - optional source-adapter and milestone mappings;
-- the configured `ACTIVE_CONTEXT` path, when it differs from the legacy default;
+- the configured `ACTIVE_CONTEXT` and optional document-routing authority paths,
+  when they differ from legacy defaults;
 - project-specific authority, gates, exceptions, acceptance, and evidence.
 
 Do not copy the SAGE-Kit runtime, schemas, generic docs, Skill, templates, tests,
@@ -27,7 +28,7 @@ select it merely because the project contains Markdown.
 Milestone documents remain first-class project assets and may live at any
 authorized project path. Resolve current execution authority in this order:
 
-1. explicit CLI source;
+1. explicit source configuration;
 2. project-configured active source or milestone mapping;
 3. `ACTIVE_CONTEXT` Current Work Pointer;
 4. legacy `docs/<M>` for an explicitly selected legacy milestone;
@@ -52,13 +53,13 @@ condition depth.
 4. Record one machine-readable project identity.
 5. Identify the active SPEC source and adapter. Add a mapping only when the
    legacy adapter is insufficient.
-6. Keep or create a compact `ACTIVE_CONTEXT` at the configured path. Existing
-   `docs/ACTIVE_CONTEXT.md` remains valid.
+6. Keep or create a compact `ACTIVE_CONTEXT` and routing authority at configured
+   paths. `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md` remain legacy defaults.
 7. Record project-specific profile, gates, authority, acceptance, and evidence
    without copying generic governance prose.
 8. Run a read-only check. Do not create milestones, fixtures, checkpoints,
    package mirrors, or generated packets unless the user selected the relevant
-   writing command.
+   writing operation.
 
 For a broad or non-technical idea, establish the capability map and architecture
 boundary before promoting an executable milestone. SAGE-Kit imposes no generic
@@ -74,6 +75,10 @@ selection. Do not rewrite history to satisfy current schemas.
 Keep leases, candidates, counters, checkpoints, and transient execution data in
 `.sagekit`, normally outside Git. `ACTIVE_CONTEXT` is a compact human/agent view,
 not the Harness state machine.
+
+Bootstrap is host-owned creation of the minimal versioned project configuration;
+there is no public `sagekit.init` or bootstrap API. Machine-enforced profiles
+activate only through project configuration.
 
 Synthetic adoption and compile fixtures belong in test temporary directories,
 not in the inspected project. Create a temporary Git repository only when the

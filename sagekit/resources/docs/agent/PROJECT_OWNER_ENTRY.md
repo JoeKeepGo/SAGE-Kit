@@ -2,7 +2,7 @@
 
 Project Owner Entry is the lightweight SAGE-Kit path for a person who knows the
 goal, business need, or user problem but may not know how to describe software
-architecture or implementation work yet.
+implementation work yet.
 
 It turns an idea into planning inputs. It must not produce an executable
 roadmap directly.
@@ -47,8 +47,8 @@ planning material. They are not authorization to start implementation.
 
 ## Capability Map Before Roadmap
 
-Before creating an executable milestone roadmap, map the project into
-capabilities:
+Before creating an executable milestone roadmap, consider the capability
+categories relevant to the stated goal:
 
 - user-facing capabilities;
 - operator or administrator capabilities;
@@ -57,8 +57,12 @@ capabilities:
 - runtime, deployment, or recovery capabilities;
 - observability, security, and support capabilities.
 
-Milestones are derived from this map. A milestone that spans several capability
-areas is probably an epic and must be split.
+These categories are advisory prompts, not product requirements. Include only
+capabilities that the project owner or active project SPEC places in scope.
+SAGE-Kit must not invent a product threat model, security requirement, safety
+property, deployment target, or approval gate. Milestones are derived from the
+in-scope capability map. A milestone that spans several capability areas is
+probably an epic and must be split.
 
 ## Project Owner Responsibilities
 
@@ -70,7 +74,7 @@ The project owner decides:
 - whether user-visible evidence proves the desired outcome.
 
 The project owner should not be asked to accept implementation claims without
-tests, runtime smoke, review evidence, or visible product evidence.
+tests, runtime smoke, review evidence, or visible evidence.
 
 ## Granularity Guardrail
 
@@ -104,4 +108,5 @@ reviewers.
 
 Do not install or enable adapters by default during intake. Record them as
 planning options until a milestone entry gate or phase authorizes the adapter,
-its authorization level, evidence requirement, and fallback path.
+its authorization level, evidence requirement, and required or safe-fallback
+behavior.

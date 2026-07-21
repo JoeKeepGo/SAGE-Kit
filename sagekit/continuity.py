@@ -66,6 +66,12 @@ def checkpoint_path(repository_root: Path) -> Path:
     return repository_root.resolve(strict=False) / ".sagekit/runtime/CURRENT_RUN.json"
 
 
+def get_checkpoint_status(repository_root: Path) -> CheckpointResult:
+    """Read and validate the current checkpoint without resuming execution."""
+
+    return _load_checkpoint(repository_root.resolve(strict=False))
+
+
 def create_checkpoint(
     repository_root: Path,
     *,
@@ -237,6 +243,11 @@ def resume_checkpoint(
             mismatches.append("expected convergence authority is missing")
         elif convergence_authority.digest != expected_convergence_authority.digest:
             mismatches.append("expected convergence authority digest differs")
+    elif convergence_authority is not None:
+        if expected_authority_id is None or expected_authority_version is None:
+            mismatches.append(
+                "current convergence authority identity and version are required for resume"
+            )
     candidate_payload = payload.get("candidate")
     if isinstance(candidate_payload, dict):
         try:

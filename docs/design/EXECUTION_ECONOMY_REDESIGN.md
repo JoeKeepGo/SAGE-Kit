@@ -23,10 +23,11 @@ product name, shell, hosted agent platform, token counter, or weekly quota.
 
 Three approaches were considered:
 
-1. **Modular policy/runtime with a thin CLI.** Small modules own classification,
-   authority, evidence, limits, review, continuity, contract selection, and
-   reporting. The CLI composes them. This is the selected approach because each
-   policy can be tested and evolved independently.
+1. **Modular policy/runtime with a narrow host bridge.** Small modules own
+   classification, authority, evidence, limits, review, continuity, contract
+   selection, and reporting. The host bridge composes them for local tooling.
+   This is the selected approach because each policy can be tested and evolved
+   independently.
 2. **Extend the existing validators in place.** This would minimize new files,
    but both validators are already large and mix parsing, policy, reconciliation,
    and presentation. Adding continuity and execution state there would create an
@@ -206,9 +207,9 @@ candidate versions keep their original clean semantics, and no mode fallback is
 allowed.
 
 The working-tree candidate also binds a non-empty snapshot authority identifier
-from the approved execution packet. The CLI requires this value explicitly;
-`clean-head` rejects it, and it cannot replace corrective, convergence, or
-submit authority.
+from the approved execution packet. The host integration requires this value
+explicitly; `clean-head` rejects it, and it cannot replace corrective,
+convergence, or submit authority.
 
 One approved corrective batch may replace an unverified candidate with one
 automatic successor. Reusing that batch id cannot create another automatic
@@ -395,18 +396,14 @@ All mismatches are returned in one aggregate. Resume fails closed and performs n
 work when any mismatch exists. Missing and corrupt checkpoints use distinct
 errors. Clearing removes only the validated checkpoint path.
 
-CLI:
+State resume is implemented through embedded host integrations:
 
-```text
-sagekit checkpoint create
-sagekit checkpoint status
-sagekit resume
-sagekit checkpoint clear
-```
+- resume validates repository/authority/evidence/counters;
+- validates continuity state and next action;
+- emits a compact next-action packet for the host runtime;
+- never executes arbitrary shell command chains itself.
 
-`resume` validates and emits the next-action packet; it does not execute arbitrary
-shell commands. The SAGE-Kit skill can use that packet to continue a new
-session without asking the user to copy prior chat history.
+A host tool or skill may render that packet into its local workflow.
 
 ## 11. Validation Contract Compatibility
 
@@ -484,7 +481,6 @@ Planned runtime modules:
 | `sagekit/validation_contracts/v2.py` | Current contract metadata and strict validation adapter. |
 | `sagekit/compatibility.py` | Pair classification, fail-closed contract selection, and active/history partitioning. |
 | `sagekit/reporting.py` | Stable bounded human/JSON reports and exact totals. |
-| `sagekit/cli.py` | Thin command parsing and delegation only. |
 
 The existing Task Dispatch validator remains the procedural legacy validation
 core. It is not given checkpoint, counter, or reviewer responsibilities.
@@ -506,26 +502,25 @@ The v1 schemas are frozen copies of the accepted baseline contract. The v2 polic
 digest is referenced by current templates and schemas. Package discovery uses
 `importlib.resources`.
 
-## 13. CLI UX and Exit Codes
+## 13. Host Interface and Result Codes
 
-Existing `check`, `doctor`, and `init` behavior remains compatible. `check` and
-`doctor` gain bounded reporting with a documented default and optional
-`--max-findings`.
+Host interfaces keep bounded diagnostics and deterministic output while staying in
+product contract control.
 
-Checkpoint commands accept `--target`; create also accepts goal, authority ID
-and version, change class, next action, allowed paths, stop conditions, authority
-references, and evidence references. Repeated arguments collect lists.
+Runtime resumes and continuity APIs accept target context, next action, change class,
+allowed paths, stop conditions, authority references, and evidence references.
+List arguments are supported.
 
-Exit codes:
+Result codes:
 
 - `0`: success/valid/resumable;
 - `1`: validation failure, checkpoint mismatch, missing/corrupt checkpoint, or
   human decision required;
-- `2`: CLI usage error;
+- `2`: input or integration misuse;
 - `3`: unexpected internal error.
 
-Human output is concise. JSON output is deterministic and includes a summary.
-No command prints secrets or full checkpoint content by default.
+Human output remains concise. JSON output remains deterministic and summary-based.
+No output prints secrets or full checkpoint content by default.
 
 ## 14. Failure Handling
 
@@ -550,10 +545,10 @@ No command prints secrets or full checkpoint content by default.
    message.
 4. Continue accepting unversioned terminal closed legacy records under v1.
 5. Do not edit or synthesize version fields in accepted history.
-6. Existing public validator functions remain callable for direct legacy tests;
+6. Existing compatibility validator functions remain callable for direct legacy tests;
    the high-level project check uses compatibility selection.
-7. Existing CLI commands and exit codes retain their meanings, with additive
-   summary fields in JSON.
+7. Existing host-facing diagnostic surfaces keep stable status results with
+   additive summary fields in JSON.
 
 ## 16. Documentation and Skill Guidance
 
@@ -611,20 +606,22 @@ The verification order is implementation and focused feedback, the single
 independent review wave, one corrective batch and targeted verification,
 review/corrective closure, candidate freeze, then exactly one final unit suite
 and one wheel build/install/outside-source smoke for that candidate. Source
-check, CLI smoke, synthetic compatibility, `git diff --check`, tracked-runtime,
-and project-name leakage checks follow without changing the candidate.
+contract checks, harness smoke, synthetic compatibility, `git diff --check`,
+tracked-runtime, and project-name leakage checks follow without changing the
+candidate.
 
 ## 18. Rollout
 
 Phase A introduces execution economy, continuity, documentation, skill routing,
 and focused tests. Phase B introduces frozen/current validation contracts,
-compatibility selection, bounded reporting, resources, CLI integration, and
-focused tests. Both phases stay on one branch.
+compatibility selection, bounded reporting, resources, host integration, and focused
+tests. Both phases stay on one branch.
 
 Before candidate freeze, two read-only reviewers run once in parallel:
 
 - authority/state/false-green/compatibility/checkpoint/governance;
-- tests/CLI/package/cross-platform/performance/bounded-output/docs consistency.
+- tests/harness/package/cross-platform/performance/bounded-output/docs
+  consistency.
 
 P0/P1 and authority/false-green/validator P2 findings are corrected. Ordinary
 documentation P2 findings may be corrected in one batch; P3 is recorded. Only

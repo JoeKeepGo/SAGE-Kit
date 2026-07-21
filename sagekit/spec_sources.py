@@ -10,7 +10,6 @@ from enum import Enum
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 
-from . import __version__
 from .execution_documents import (
     ExecutionDocumentError,
     ExecutionProject,
@@ -22,6 +21,14 @@ from .execution_documents import (
 
 CONFIG_NAME = "SAGEKIT_CONFIG.json"
 LEGACY_ACTIVE_CONTEXT = "docs/ACTIVE_CONTEXT.md"
+LEGACY_DOC_ROUTING = "docs/DOC_ROUTING.md"
+PUBLIC_CONTRACT_MANIFEST_VERSION = "public-contract-v1"
+PUBLIC_HARNESS_API_VERSION = "harness-api-v1"
+_PUBLIC_CONTRACT_RESOURCE_ROOTS = (
+    "resources/contracts",
+    "resources/execution_documents",
+    "resources/resource_governance",
+)
 _CONFIG_FIELDS = {
     "schema_version",
     "project_id",
@@ -31,6 +38,7 @@ _CONFIG_FIELDS = {
     "package",
     "sources",
 }
+_CONFIG_OPTIONAL_FIELDS = {"doc_routing", "profiles"}
 _PACKAGE_FIELDS = {"name", "version", "digest"}
 _SOURCE_FIELDS = {"adapter", "path"}
 _MARKDOWN_BLOCK_RE = re.compile(
@@ -38,7 +46,7 @@ _MARKDOWN_BLOCK_RE = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 _CURRENT_SOURCE_RE = re.compile(
-    r"^\s*(?:[-*]\s*)?(?:Current\s+source|Current\s+SPEC\s+source)\s*:\s*`?(?P<path>[^`\r\n]+?)`?\s*$",
+    r"^\s*(?:[-*]\s*)?(?:Active\s+SPEC\s+source|Current\s+SPEC\s+source|Current\s+source)\s*:\s*`?(?P<path>[^`\r\n]+?)`?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -68,8 +76,10 @@ class SourceConfig:
     adoption_profile: str
     execution_scope: str
     active_context: str
+    doc_routing: str
     package: Mapping[str, str]
     sources: Mapping[str, SourceMapping]
+    profiles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -140,7 +150,12 @@ def load_source_config(root: Path, *, required: bool = False) -> SourceConfig | 
         raise SourceConfigurationError(f"project configuration JSON is invalid: {exc}") from exc
     if not isinstance(payload, dict):
         raise SourceConfigurationError("project configuration must contain one object")
-    _exact_fields(payload, _CONFIG_FIELDS, "project configuration")
+    _exact_fields(
+        payload,
+        _CONFIG_FIELDS,
+        "project configuration",
+        optional=_CONFIG_OPTIONAL_FIELDS,
+    )
     if payload.get("schema_version") != 1:
         raise SourceConfigurationError("project configuration schema_version must be 1")
     project_id = payload.get("project_id")
@@ -161,6 +176,9 @@ def load_source_config(root: Path, *, required: bool = False) -> SourceConfig | 
         "execution_scope",
     )
     active_context = _relative_path(payload.get("active_context"), "active_context")
+    doc_routing = _relative_path(
+        payload.get("doc_routing", LEGACY_DOC_ROUTING), "doc_routing"
+    )
     package = payload.get("package")
     if not isinstance(package, dict):
         raise SourceConfigurationError("package binding must be an object")
@@ -191,14 +209,29 @@ def load_source_config(root: Path, *, required: bool = False) -> SourceConfig | 
         )
         source_path = _relative_path(raw.get("path"), f"sources.{milestone_id}.path")
         sources[milestone_id] = SourceMapping(adapter, source_path)
+    raw_profiles = payload.get("profiles", [])
+    if not isinstance(raw_profiles, list) or not all(
+        isinstance(item, str) and item for item in raw_profiles
+    ):
+        raise SourceConfigurationError("profiles must be an array of profile IDs")
+    profiles = tuple(raw_profiles)
+    if len(set(profiles)) != len(profiles):
+        raise SourceConfigurationError("profiles must contain unique profile IDs")
+    unknown_profiles = sorted(set(profiles) - {"task-dispatch-v2"})
+    if unknown_profiles:
+        raise SourceConfigurationError(
+            "profiles contains unsupported profile(s): " + ", ".join(unknown_profiles)
+        )
     return SourceConfig(
         path=path,
         project_id=project_id,
         adoption_profile=adoption_profile,
         execution_scope=execution_scope,
         active_context=active_context,
+        doc_routing=doc_routing,
         package=normalized_package,
         sources=sources,
+        profiles=profiles,
     )
 
 
@@ -212,6 +245,16 @@ def resolve_active_context_path(root: Path, config: SourceConfig | None = None) 
     return path.resolve(strict=False)
 
 
+def resolve_doc_routing_path(root: Path, config: SourceConfig | None = None) -> Path:
+    project_root = root.resolve(strict=False)
+    selected = config if config is not None else load_source_config(project_root)
+    relative = selected.doc_routing if selected is not None else LEGACY_DOC_ROUTING
+    path = project_root / Path(*PurePosixPath(relative).parts)
+    _reject_reparse_components(project_root, path, "DOC_ROUTING")
+    _ensure_within(project_root, path, "DOC_ROUTING")
+    return path.resolve(strict=False)
+
+
 def current_source_pointer(root: Path, config: SourceConfig | None = None) -> str | None:
     path = resolve_active_context_path(root, config)
     if not path.is_file():
@@ -220,10 +263,21 @@ def current_source_pointer(root: Path, config: SourceConfig | None = None) -> st
         text = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeError) as exc:
         raise SourceConfigurationError(f"ACTIVE_CONTEXT is unreadable: {exc}") from exc
-    match = _CURRENT_SOURCE_RE.search(text)
-    if match is None:
+    pointers = []
+    for line in _active_context_authority_lines(text):
+        match = _CURRENT_SOURCE_RE.match(line)
+        if match is not None:
+            pointers.append(
+                _relative_path(match.group("path").strip(), "ACTIVE_CONTEXT current source")
+            )
+    if not pointers:
         return None
-    return _relative_path(match.group("path").strip(), "ACTIVE_CONTEXT current source")
+    distinct = tuple(dict.fromkeys(pointers))
+    if len(distinct) > 1:
+        raise SourceConfigurationError(
+            "ACTIVE_CONTEXT has conflicting current SPEC source declarations"
+        )
+    return distinct[0]
 
 
 def load_normalized_spec(
@@ -231,9 +285,17 @@ def load_normalized_spec(
     milestone_id: str,
     *,
     source: Path | None = None,
-    contract_root: Path | None = None,
+    _contract_root: Path | None = None,
     phase_id: str | None = None,
+    scope_manifest: Any | None = None,
+    **_internal: Any,
 ) -> NormalizedSpec:
+    # Private packet compilation in older package builds used this spelling.
+    if _internal:
+        if set(_internal) != {"contract_root"} or _contract_root is not None:
+            unexpected = ", ".join(sorted(_internal))
+            raise TypeError(f"unexpected internal argument(s): {unexpected}")
+        _contract_root = _internal["contract_root"]
     project_root = root.resolve(strict=False)
     config = load_source_config(project_root)
     if config is not None:
@@ -248,12 +310,17 @@ def load_normalized_spec(
         authority = "explicit-source"
     else:
         mapping = config.sources.get(milestone_id) if config is not None else None
+        pointer = current_source_pointer(project_root, config)
         if mapping is not None:
+            if pointer is not None and pointer != mapping.path:
+                raise SourceConfigurationError(
+                    "ACTIVE_CONTEXT current SPEC source declaration conflicts with "
+                    f"configured source mapping for {milestone_id}"
+                )
             configured_source = mapping.path
             requested_adapter = mapping.adapter
             authority = "project-config"
         else:
-            pointer = current_source_pointer(project_root, config)
             if pointer is not None:
                 configured_source = pointer
                 authority = "active-context"
@@ -305,6 +372,11 @@ def load_normalized_spec(
             "SPEC source does not exist",
             legacy_fallback=legacy_fallback,
         )
+    _reject_accepted_history_source(
+        project_root,
+        canonical,
+        scope_manifest=scope_manifest,
+    )
 
     waves: Mapping[str, WaveSpec] = {}
     try:
@@ -317,7 +389,7 @@ def load_normalized_spec(
             project = load_execution_project(
                 project_root,
                 milestone_id,
-                contract_root=contract_root,
+                contract_root=_contract_root,
                 source_root=source_root,
                 required_phase_id=phase_id,
             )
@@ -331,7 +403,7 @@ def load_normalized_spec(
             project = load_execution_project(
                 project_root,
                 milestone_id,
-                contract_root=contract_root,
+                contract_root=_contract_root,
                 source_payload={
                     "milestone": payload.get("milestone"),
                     "phases": payload.get("phases"),
@@ -421,29 +493,86 @@ def _context_field(text: str, label: str) -> str | None:
     return match.group(1).strip() if match is not None else None
 
 
-def package_identity() -> dict[str, str]:
-    """Return a stable manifest identity for executable code and packaged resources."""
-
-    root = Path(__file__).resolve().parent
-    digest = hashlib.sha256()
-    found = False
-    for path in sorted(item for item in root.rglob("*") if item.is_file()):
-        relative = path.relative_to(root)
-        if (
-            "__pycache__" in relative.parts
-            or path.suffix.casefold() in {".pyc", ".pyo"}
-            or not (path.suffix.casefold() == ".py" or relative.parts[0] == "resources")
-        ):
+def _active_context_authority_lines(text: str):
+    fence: str | None = None
+    in_comment = False
+    for raw_line in text.splitlines():
+        line, in_comment = _without_html_comments(raw_line, in_comment)
+        stripped = line.lstrip()
+        marker = re.match(r"(?P<fence>`{3,}|~{3,})", stripped)
+        if marker is not None:
+            fence_char = marker.group("fence")[0]
+            if fence is None:
+                fence = fence_char
+            elif fence == fence_char:
+                fence = None
             continue
-        found = True
-        digest.update(relative.as_posix().encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
-    if not found:
-        raise SourceConfigurationError("installed SAGE-Kit runtime manifest is empty")
-    digest.update(__version__.encode("utf-8"))
-    return {"name": "sagekit", "version": __version__, "digest": digest.hexdigest()}
+        if fence is None and not line.startswith(("    ", "\t")):
+            yield line
+
+
+def _without_html_comments(line: str, in_comment: bool) -> tuple[str, bool]:
+    output: list[str] = []
+    cursor = 0
+    while cursor < len(line):
+        if in_comment:
+            end = line.find("-->", cursor)
+            if end < 0:
+                return "".join(output), True
+            in_comment = False
+            cursor = end + 3
+            continue
+        start = line.find("<!--", cursor)
+        if start < 0:
+            output.append(line[cursor:])
+            break
+        output.append(line[cursor:start])
+        in_comment = True
+        cursor = start + 4
+    return "".join(output), in_comment
+
+
+def public_contract_manifest(package_root: Path | None = None) -> dict[str, Any]:
+    """Describe only the stable public API and executable semantic contracts."""
+
+    root = (
+        Path(package_root).expanduser().resolve(strict=False)
+        if package_root is not None
+        else Path(__file__).resolve().parent
+    )
+    resources: dict[str, str] = {}
+    for relative_root in _PUBLIC_CONTRACT_RESOURCE_ROOTS:
+        contract_root = root / Path(*PurePosixPath(relative_root).parts)
+        if not contract_root.is_dir():
+            raise SourceConfigurationError(
+                f"installed SAGE-Kit public contract resource is missing: {relative_root}"
+            )
+        for path in sorted(item for item in contract_root.rglob("*") if item.is_file()):
+            if path.is_symlink():
+                raise SourceConfigurationError(
+                    f"installed SAGE-Kit public contract resource must not be a symlink: {path}"
+                )
+            relative = path.relative_to(root).as_posix()
+            resources[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if not resources:
+        raise SourceConfigurationError("installed SAGE-Kit public contract manifest is empty")
+    return {
+        "manifest_version": PUBLIC_CONTRACT_MANIFEST_VERSION,
+        "public_api_version": PUBLIC_HARNESS_API_VERSION,
+        "resources": resources,
+    }
+
+
+def package_identity(package_root: Path | None = None) -> dict[str, str]:
+    """Return the stable public contract identity used by project authority."""
+
+    manifest = public_contract_manifest(package_root)
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return {
+        "name": "sagekit",
+        "version": PUBLIC_CONTRACT_MANIFEST_VERSION,
+        "digest": hashlib.sha256(canonical).hexdigest(),
+    }
 
 
 def validate_package_binding(config: SourceConfig) -> None:
@@ -453,9 +582,44 @@ def validate_package_binding(config: SourceConfig) -> None:
     ]
     if differences:
         raise SourceConfigurationError(
-            "project package authority does not match the executing runtime: "
+            "project public contract authority does not match the executing Harness: "
             + ", ".join(differences)
         )
+
+
+def _reject_accepted_history_source(
+    root: Path,
+    source: Path,
+    *,
+    scope_manifest: Any | None = None,
+) -> None:
+    """Prevent explicitly classified accepted history from becoming execution input."""
+
+    from .validation_scope_manifest import (
+        LOCAL_SCOPE_MANIFEST,
+        ScopeManifestError,
+        load_validation_scope_manifest,
+    )
+
+    manifest = scope_manifest
+    if manifest is None:
+        manifest_path = root / LOCAL_SCOPE_MANIFEST
+        if not manifest_path.exists():
+            return
+        try:
+            manifest = load_validation_scope_manifest(manifest_path)
+        except ScopeManifestError as exc:
+            raise SourceConfigurationError(
+                f"validation scope authority is invalid: {exc}"
+            ) from exc
+    source_relative = source.relative_to(root).as_posix().casefold()
+    for container in manifest.accepted_legacy_containers:
+        accepted = container.path.casefold()
+        if source_relative == accepted or source_relative.startswith(accepted + "/"):
+            raise SourceConfigurationError(
+                "accepted history is non-executable and may be opened only by an explicit "
+                f"history audit: {container.path}"
+            )
 
 
 def _markdown_payload(path: Path) -> Mapping[str, Any]:
@@ -574,6 +738,7 @@ def _semantic_payload(
                 "adoption_profile": config.adoption_profile,
                 "execution_scope": config.execution_scope,
                 "package": dict(sorted(config.package.items())),
+                "profiles": list(config.profiles),
             }
             if config is not None
             else None
@@ -700,8 +865,14 @@ def _enum(value: Any, allowed: set[str], label: str) -> str:
     return value
 
 
-def _exact_fields(value: Mapping[str, Any], expected: set[str], label: str) -> None:
-    unknown = sorted(set(value) - expected)
+def _exact_fields(
+    value: Mapping[str, Any],
+    expected: set[str],
+    label: str,
+    *,
+    optional: set[str] | frozenset[str] = frozenset(),
+) -> None:
+    unknown = sorted(set(value) - expected - set(optional))
     missing = sorted(expected - set(value))
     if unknown:
         raise SourceConfigurationError(f"{label} has unknown field(s): " + ", ".join(unknown))
@@ -713,6 +884,9 @@ __all__ = [
     "CONFIG_NAME",
     "DocumentClass",
     "LEGACY_ACTIVE_CONTEXT",
+    "LEGACY_DOC_ROUTING",
+    "PUBLIC_CONTRACT_MANIFEST_VERSION",
+    "PUBLIC_HARNESS_API_VERSION",
     "NormalizedActiveContext",
     "NormalizedSpec",
     "SourceConfig",
@@ -725,6 +899,8 @@ __all__ = [
     "load_active_context_view",
     "load_source_config",
     "package_identity",
+    "public_contract_manifest",
     "resolve_active_context_path",
+    "resolve_doc_routing_path",
     "validate_package_binding",
 ]

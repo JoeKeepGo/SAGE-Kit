@@ -14,7 +14,8 @@ Create when closing the milestone:
 
 - `docs/M<ID>/MILESTONE_CLOSEOUT.md`
 
-Reference:
+Reference (resolve configured paths through `SAGEKIT_CONFIG.json`; fixed paths
+below are legacy defaults):
 
 - `docs/ACTIVE_CONTEXT.md`
 - `docs/DOC_ROUTING.md`
@@ -239,4 +240,5 @@ owner explicitly chooses resume, close-blocked, defer, or abandon; resume does
 not permit closeout.
 
 Do not add the closeout to default startup context. Read it only when
-`docs/DOC_ROUTING.md` says historical milestone context is needed.
+the configured document-routing authority says historical milestone context is
+needed.

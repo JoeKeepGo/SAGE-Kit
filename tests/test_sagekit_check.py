@@ -1,15 +1,20 @@
 import json
 import os
 import re
-import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
-from sagekit.init import fallback_content
+from sagekit.check import (
+    check_adapter_evidence,
+    default_schema_dir,
+    run_check,
+    run_source_repo_check,
+)
+from sagekit.check import detect_root
+from sagekit.reporting import build_finding_report, finding_report_payload
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,17 +24,121 @@ def normalized_path_key(path):
     return os.path.normcase(os.path.normpath(str(Path(path).resolve(strict=False))))
 
 
-def run_sagekit(*args, cwd):
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
-    return subprocess.run(
-        [sys.executable, "-m", "sagekit", *args],
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+@dataclass(frozen=True)
+class _CommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+
+
+def _as_payload_report(findings, max_findings=500):
+    report = build_finding_report(findings, max_findings=max_findings)
+    return finding_report_payload(report), any(finding.level == "FAIL" for finding in report.findings)
+
+
+def _target_not_directory_payload(path: str) -> _CommandResult:
+    findings = [
+        {"level": "FAIL", "rule": "target", "path": path, "message": "target must be an existing directory"}
+    ]
+    payload = {
+        "findings": findings,
+        "summary": {
+            "total": 1,
+            "displayed": 1,
+            "truncated": 0,
+            "by_level": {"PASS": 0, "WARN": 0, "FAIL": 1},
+        },
+    }
+    return _CommandResult(2, json.dumps(payload), "")
+
+
+def _human_output(payload: dict[str, object]) -> str:
+    findings = payload["findings"]
+    return "\n".join(
+        f"{finding['level']} {finding['rule']}: {finding['message']}" for finding in findings
     )
+
+
+def _run_check_command(start: Path, parsed) -> _CommandResult:
+    if parsed["target"] is not None and not Path(parsed["target"]).is_dir():
+        return _target_not_directory_payload(parsed["target"])
+
+    root = detect_root(start if parsed["target"] is None else Path(parsed["target"]))
+    if not (1 <= parsed["max_findings"] <= 500):
+        return _CommandResult(2, "", "between 1 and 500")
+
+    findings = (
+        run_source_repo_check(root)
+        if parsed["source_repo"]
+        else run_check(
+            root,
+            mode=parsed["mode"],
+            scope_manifest_path=parsed["scope_manifest"],
+            scope=parsed["scope"],
+        )
+    )
+    payload, has_failures = _as_payload_report(findings, max_findings=parsed["max_findings"])
+    output = json.dumps(payload) if parsed["json"] else _human_output(payload)
+    return _CommandResult(1 if has_failures else 0, output, "")
+
+
+def run_compatibility_check(*args, cwd):
+    if not args:
+        return _CommandResult(2, "", "no command provided")
+
+    if args[0] != "check":
+        return _CommandResult(2, "", f"unsupported command: {args[0]}")
+
+    start = Path(cwd).resolve()
+    parsed = {
+        "target": None,
+        "mode": None,
+        "scope": None,
+        "scope_manifest": None,
+        "source_repo": False,
+        "max_findings": 500,
+        "json": False,
+    }
+    argv = list(args[1:])
+    while argv:
+        option = argv.pop(0)
+        if option in {"--json", "--source-repo"}:
+            parsed["json"] = option == "--json" or parsed["json"]
+            if option == "--source-repo":
+                parsed["source_repo"] = True
+            continue
+        if option in {"--target", "--mode", "--scope", "--scope-manifest", "--max-findings"}:
+            if not argv:
+                return _CommandResult(
+                    2,
+                    "",
+                    f"{option} requires a value",
+                )
+            value = argv.pop(0)
+            if option == "--target":
+                parsed["target"] = value
+            elif option == "--mode":
+                parsed["mode"] = value
+            elif option == "--scope":
+                parsed["scope"] = value
+            elif option == "--scope-manifest":
+                parsed["scope_manifest"] = value
+            else:
+                try:
+                    parsed["max_findings"] = int(value)
+                except ValueError:
+                    return _CommandResult(2, "", str(value))
+            continue
+        return _CommandResult(
+            2,
+            "",
+            f"unsupported check flags: {option}",
+        )
+
+    parsed["scope_manifest"] = (
+        Path(parsed["scope_manifest"]) if parsed["scope_manifest"] else None
+    )
+    return _run_check_command(start, parsed)
 
 
 MARKDOWN_FIELD_RE = re.compile(r"^(?P<prefix>\s*(?:-\s+)?)?(?P<label>[A-Za-z][^:\n]{0,100}):\s*(?P<value>.*)$")
@@ -119,7 +228,7 @@ def write_required_docs(root):
         # Active Context
 
         Current focus: local SAGE-Kit governance checks.
-        Next action: run sagekit check.
+        Next action: run the active compatibility check.
         """,
     )
     write_file(
@@ -196,6 +305,33 @@ def write_closeout(root, milestone, status=None, prose=None):
     if prose is not None:
         lines.extend(["", prose])
     write_file(root, f"docs/{milestone}/MILESTONE_CLOSEOUT.md", "\n".join(lines))
+
+
+def write_scope_manifest(root, *, active=(), accepted=()):
+    for milestone in (*active, *accepted):
+        (root / "docs" / milestone).mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "active_containers": [
+            {"id": milestone, "path": f"docs/{milestone}"} for milestone in active
+        ],
+        "accepted_legacy_containers": [
+            {
+                "id": milestone,
+                "path": f"docs/{milestone}",
+                "contract_version": 1,
+                "supersedes": [],
+            }
+            for milestone in accepted
+        ],
+        "authority": {
+            "source": "project-owner migration acceptance",
+            "approved_by": "project-owner",
+            "approved_at": "2026-01-01T00:00:00Z",
+            "baseline_head": "0123456789abcdef0123456789abcdef01234567",
+        },
+    }
+    write_file(root, "docs/SAGE_VALIDATION_SCOPE.json", json.dumps(payload))
 
 
 def write_historical_phase(root, milestone, name="01-foundation.md"):
@@ -276,20 +412,36 @@ def write_dispatch_pair(root, task_id, lock=None, directory_id=None):
 
 
 class SagekitCheckTests(unittest.TestCase):
-    def test_version_outputs_package_version(self):
-        from sagekit import __version__
+    def test_capability_prose_does_not_activate_adapter_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs" / "M1" / "PHASE.md"
+            findings = check_adapter_evidence(
+                root,
+                path,
+                "This phase improves the product capability without an external adapter.",
+            )
 
-        result = run_sagekit("--version", cwd=REPO_ROOT)
+        self.assertEqual([], findings)
 
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), f"sagekit {__version__}")
+    def test_structured_adapter_declaration_activates_adapter_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs" / "M1" / "PHASE.md"
+            findings = check_adapter_evidence(
+                root,
+                path,
+                "## Capability Adapter\n\nAdapter: browser-qa\n",
+            )
 
+        self.assertTrue(findings)
+        self.assertIn("adapter-authorization", {item.rule for item in findings})
     def test_json_check_warns_for_missing_recommended_docs_without_failing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_required_docs(root)
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
@@ -306,7 +458,7 @@ class SagekitCheckTests(unittest.TestCase):
             root = Path(tmp)
             write_file(root, "docs/ACTIVE_CONTEXT.md", "# Active Context\n\nShort.")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -318,7 +470,7 @@ class SagekitCheckTests(unittest.TestCase):
             root = Path(tmp)
             write_required_docs(root)
 
-            result = run_sagekit("check", cwd=root)
+            result = run_compatibility_check("check", cwd=root)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("PASS required-docs:", result.stdout)
@@ -330,7 +482,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_required_docs(root)
             write_valid_planning_phase(root)
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 0, result.stdout)
             payload = json.loads(result.stdout)
@@ -376,7 +528,7 @@ class SagekitCheckTests(unittest.TestCase):
                 """,
             )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -393,9 +545,10 @@ class SagekitCheckTests(unittest.TestCase):
             write_required_docs(root)
             write_active_milestones(root, "M2")
             write_closeout(root, "M1", status="ACCEPTED")
+            write_scope_manifest(root, active=("M2",), accepted=("M1",))
             write_historical_phase(root, "M1")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 0, result.stdout)
             payload = json.loads(result.stdout)
@@ -432,6 +585,99 @@ class SagekitCheckTests(unittest.TestCase):
                 historical,
             )
 
+    def test_history_audits_thin_documents_in_manifest_selected_generic_container(self):
+        from sagekit.check import check_execution_documents
+        from sagekit.validation_scope_manifest import load_validation_scope_manifest
+        from tests.test_thin_execution_documents import create_project
+
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            root = workspace / "project"
+            contracts = workspace / "contracts"
+            create_project(root, contracts)
+            archive = root / "docs/history/archive"
+            archive.parent.mkdir(parents=True)
+            (root / "docs/M36").replace(archive)
+            write_file(
+                root,
+                "docs/SAGE_VALIDATION_SCOPE.json",
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "active_containers": [],
+                        "accepted_legacy_containers": [
+                            {
+                                "id": "M36",
+                                "path": "docs/history/archive",
+                                "contract_version": 1,
+                                "supersedes": [],
+                            }
+                        ],
+                        "authority": {
+                            "source": "project-owner migration acceptance",
+                            "approved_by": "project-owner",
+                            "approved_at": "2026-01-01T00:00:00Z",
+                            "baseline_head": "0123456789abcdef0123456789abcdef01234567",
+                        },
+                    }
+                ),
+            )
+            manifest = load_validation_scope_manifest(root / "docs/SAGE_VALIDATION_SCOPE.json")
+
+            findings = check_execution_documents(root, scope_manifest=manifest)
+
+        self.assertTrue(
+            any(
+                item.rule == "execution-document-history" and item.level == "PASS"
+                for item in findings
+            ),
+            findings,
+        )
+        self.assertFalse(
+            any(item.rule == "unsupported-history" for item in findings),
+            findings,
+        )
+
+    def test_history_blocks_unadaptable_thin_documents_in_manifest_selected_container(self):
+        from sagekit.check import check_execution_documents
+        from sagekit.validation_scope_manifest import load_validation_scope_manifest
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_file(root, "docs/history/archive/MILESTONE_MANIFEST.json", "{}\n")
+            write_file(
+                root,
+                "docs/SAGE_VALIDATION_SCOPE.json",
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "active_containers": [],
+                        "accepted_legacy_containers": [
+                            {
+                                "id": "M36",
+                                "path": "docs/history/archive",
+                                "contract_version": 1,
+                                "supersedes": [],
+                            }
+                        ],
+                        "authority": {
+                            "source": "project-owner migration acceptance",
+                            "approved_by": "project-owner",
+                            "approved_at": "2026-01-01T00:00:00Z",
+                            "baseline_head": "0123456789abcdef0123456789abcdef01234567",
+                        },
+                    }
+                ),
+            )
+            manifest = load_validation_scope_manifest(root / "docs/SAGE_VALIDATION_SCOPE.json")
+
+            findings = check_execution_documents(root, scope_manifest=manifest)
+
+        self.assertTrue(
+            any(item.rule == "unsupported-history" and item.level == "FAIL" for item in findings),
+            findings,
+        )
+
     def test_current_phase_still_requires_latest_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -439,7 +685,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_active_milestones(root, "M2")
             write_historical_phase(root, "M2", name="01-current.md")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -459,10 +705,11 @@ class SagekitCheckTests(unittest.TestCase):
             write_required_docs(root)
             write_active_milestones(root, "M3")
             write_closeout(root, "M3", status="DONE")
+            write_scope_manifest(root, active=("M3",))
             write_historical_phase(root, "M3")
             write_historical_phase(root, "M3", name="02-second.md")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -520,7 +767,7 @@ class SagekitCheckTests(unittest.TestCase):
             )
             write_historical_phase(root, "M3")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -553,6 +800,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_active_milestones(root, "M2", "M3")
             write_closeout(root, "M1", status="DONE_WITH_CONCERNS")
             write_closeout(root, "M3", status="ACCEPTED")
+            write_scope_manifest(root, active=("M2", "M3"), accepted=("M1",))
             write_historical_phase(root, "M1")
             write_valid_planning_phase(root)
             source = root / "docs/M1/01-planning.md"
@@ -560,7 +808,7 @@ class SagekitCheckTests(unittest.TestCase):
             source.replace(root / "docs/M2/01-current.md")
             write_historical_phase(root, "M3")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -630,7 +878,7 @@ class SagekitCheckTests(unittest.TestCase):
                 """,
             )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -648,7 +896,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_file(root, "docs/M1/dispatch/TASK-001/task.yaml", "id: TASK-001")
             write_file(root, "docs/M1/dispatch/TASK-001/evidence.yaml", "task_id: TASK-001")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -669,7 +917,7 @@ class SagekitCheckTests(unittest.TestCase):
                 json.dumps({"task_id": "TASK-001"}),
             )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -699,7 +947,7 @@ class SagekitCheckTests(unittest.TestCase):
                     },
                 )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             self.assertEqual(result.returncode, 1, result.stdout)
             payload = json.loads(result.stdout)
@@ -731,7 +979,7 @@ class SagekitCheckTests(unittest.TestCase):
                     },
                 )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             self.assertTrue(
@@ -751,7 +999,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_dispatch_pair(root, "TASK-001", directory_id="record-a")
             write_dispatch_pair(root, "TASK-001", directory_id="record-b")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             self.assertTrue(
@@ -784,7 +1032,7 @@ class SagekitCheckTests(unittest.TestCase):
                 """,
             )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             messages = [
@@ -801,7 +1049,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_required_docs(root)
             write_dispatch_pair(root, "TASK-001")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             self.assertTrue(
@@ -825,7 +1073,7 @@ class SagekitCheckTests(unittest.TestCase):
                 "| 2026-07-15/D1 | `INACTIVE` | archive completed record | `TASK-001` | owner | ref | none | none | evidence | none |",
             )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             self.assertTrue(
@@ -849,7 +1097,7 @@ class SagekitCheckTests(unittest.TestCase):
             closed_path.write_text(json.dumps(closed), encoding="utf-8")
             write_file(root, "docs/M1/dispatch/DISPATCH_BOARD.md", "## Active Tasks\n\n| Task |\n|---|\n")
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             board_messages = [
@@ -884,7 +1132,7 @@ class SagekitCheckTests(unittest.TestCase):
                 ),
             )
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             payload = json.loads(result.stdout)
             board_messages = [
@@ -914,7 +1162,7 @@ class SagekitCheckTests(unittest.TestCase):
             write_required_docs(root)
             before = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
 
-            result = run_sagekit("check", "--json", cwd=root)
+            result = run_compatibility_check("check", "--json", cwd=root)
 
             after = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
             self.assertEqual(result.returncode, 0, result.stdout)
@@ -929,7 +1177,7 @@ class SagekitCheckTests(unittest.TestCase):
             runner_cwd.mkdir()
             write_required_docs(target)
 
-            result = run_sagekit("check", "--target", str(target), "--json", cwd=runner_cwd)
+            result = run_compatibility_check("check", "--target", str(target), "--json", cwd=runner_cwd)
 
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
@@ -941,441 +1189,8 @@ class SagekitCheckTests(unittest.TestCase):
             reported_root = project_root_finding["message"].removeprefix("using ").strip()
             self.assertEqual(normalized_path_key(reported_root), normalized_path_key(target))
 
-    def test_local_command_wrapper_runs_outside_repo_when_on_path(self):
-        if os.name != "nt":
-            self.skipTest("sagekit.cmd wrapper is Windows-only")
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            write_required_docs(root)
-            env = os.environ.copy()
-            env["PATH"] = f"{REPO_ROOT}{os.pathsep}{env['PATH']}"
-            env.pop("PYTHONPATH", None)
-
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", "sagekit check --json"],
-                cwd=root,
-                env=env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            payload = json.loads(result.stdout)
-            self.assertTrue(payload["findings"])
-
-    def test_local_command_wrapper_does_not_write_bytecode_to_package_dir(self):
-        if os.name != "nt":
-            self.skipTest("sagekit.cmd wrapper is Windows-only")
-        with tempfile.TemporaryDirectory() as tmp:
-            workspace = Path(tmp)
-            tool_root = workspace / "tool"
-            project_root = workspace / "project"
-            tool_root.mkdir()
-            project_root.mkdir()
-            shutil.copytree(
-                REPO_ROOT / "sagekit",
-                tool_root / "sagekit",
-                ignore=shutil.ignore_patterns("__pycache__"),
-            )
-            shutil.copy2(REPO_ROOT / "sagekit.cmd", tool_root / "sagekit.cmd")
-            write_required_docs(project_root)
-
-            env = os.environ.copy()
-            env["PATH"] = f"{tool_root}{os.pathsep}{env['PATH']}"
-            env.pop("PYTHONPATH", None)
-            env.pop("PYTHONDONTWRITEBYTECODE", None)
-
-            result = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", "sagekit check --json"],
-                cwd=project_root,
-                env=env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse((tool_root / "sagekit" / "__pycache__").exists())
-
-    def test_pyproject_declares_cross_platform_console_script(self):
-        pyproject = REPO_ROOT / "pyproject.toml"
-        self.assertTrue(pyproject.exists(), "pyproject.toml should define the installable CLI entrypoint")
-
-        text = pyproject.read_text(encoding="utf-8")
-
-        self.assertIn('name = "sagekit"', text)
-        self.assertIn('sagekit = "sagekit.cli:main"', text)
-
-    def test_doctor_json_reports_source_repo_without_failing(self):
-        result = run_sagekit("doctor", "--json", cwd=REPO_ROOT)
-
-        self.assertEqual(result.returncode, 0, result.stderr)
-        payload = json.loads(result.stdout)
-        self.assertTrue(
-            any(item["level"] == "PASS" and item["rule"] == "kit-source" for item in payload["findings"]),
-            payload,
-        )
-
-    def test_doctor_does_not_write_project_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            write_required_docs(root)
-            before = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
-
-            result = run_sagekit("doctor", "--json", cwd=root)
-
-            after = sorted(path.relative_to(root) for path in root.rglob("*") if path.is_file())
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(before, after)
-
-    def test_doctor_target_reports_target_adopted_project(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            workspace = Path(tmp)
-            target = workspace / "project"
-            runner_cwd = workspace / "runner"
-            target.mkdir()
-            runner_cwd.mkdir()
-            write_required_docs(target)
-
-            result = run_sagekit("doctor", "--target", str(target), "--json", cwd=runner_cwd)
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "PASS" and item["rule"] == "adopted-project" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_doctor_reports_adopted_project_without_source_repo_warning(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            write_required_docs(root)
-
-            result = run_sagekit("doctor", "--json", cwd=root)
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "PASS" and item["rule"] == "adopted-project" for item in payload["findings"]),
-                payload,
-            )
-            self.assertFalse(
-                any(item["level"] == "WARN" and item["rule"] == "kit-source" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_light_dry_run_does_not_write_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-
-            result = run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy",
-                "--dry-run", "--json", cwd=root
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse((root / "docs").exists())
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "PASS" and item["rule"] == "init-plan" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_light_creates_required_docs_and_light_check_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-
-            init_result = run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy", "--json", cwd=root
-            )
-            check_result = run_sagekit("check", "--mode", "light", "--json", cwd=root)
-
-            self.assertEqual(init_result.returncode, 0, init_result.stderr)
-            self.assertEqual(check_result.returncode, 0, check_result.stdout)
-            for path in [
-                "docs/PROJECT_PROFILE.md",
-                "docs/QUALITY_GATES.md",
-                "docs/ACTIVE_CONTEXT.md",
-                "docs/DOC_ROUTING.md",
-            ]:
-                self.assertTrue((root / path).exists(), path)
-
-            payload = json.loads(check_result.stdout)
-            self.assertFalse(
-                any(item["rule"] == "recommended-docs" for item in payload["findings"]),
-                payload,
-            )
-            self.assertFalse(
-                any(item["level"] == "WARN" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_target_writes_only_target_project(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            workspace = Path(tmp)
-            target = workspace / "project"
-            runner_cwd = workspace / "runner"
-            target.mkdir()
-            runner_cwd.mkdir()
-
-            init_result = run_sagekit(
-                "init", "--target", str(target), "--mode", "light",
-                "--profile", "vendored-legacy", "--json", cwd=runner_cwd
-            )
-            check_result = run_sagekit("check", "--target", str(target), "--mode", "light", "--json", cwd=runner_cwd)
-            doctor_result = run_sagekit("doctor", "--target", str(target), "--json", cwd=runner_cwd)
-
-            self.assertEqual(init_result.returncode, 0, init_result.stderr)
-            self.assertEqual(check_result.returncode, 0, check_result.stdout)
-            self.assertEqual(doctor_result.returncode, 0, doctor_result.stderr)
-            self.assertTrue((target / "docs/ACTIVE_CONTEXT.md").exists())
-            self.assertFalse((runner_cwd / "docs").exists())
-
-    def test_init_target_refuses_file_target_without_writing_parent(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            workspace = Path(tmp)
-            target = workspace / "target.txt"
-            target.write_text("not a project directory\n", encoding="utf-8")
-
-            result = run_sagekit(
-                "init", "--target", str(target), "--mode", "light",
-                "--profile", "vendored-legacy", "--json", cwd=workspace
-            )
-
-            self.assertEqual(result.returncode, 2, result.stdout)
-            self.assertFalse((workspace / "docs").exists())
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "FAIL" and item["rule"] == "target" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_cli_invalid_max_findings_is_usage_error(self):
-        result = run_sagekit("check", "--max-findings", "0", "--json", cwd=REPO_ROOT)
-
-        self.assertEqual(2, result.returncode)
-        self.assertIn("between 1 and 500", result.stderr)
-
-    def test_cli_file_target_is_usage_error_for_automation(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "target.txt"
-            target.write_text("not a directory\n", encoding="utf-8")
-
-            result = run_sagekit("check", "--target", str(target), "--json", cwd=Path(tmp))
-
-        self.assertEqual(2, result.returncode)
-        payload = json.loads(result.stdout)
-        self.assertEqual("target", payload["findings"][0]["rule"])
-
-    def test_init_target_child_project_does_not_write_adopted_parent(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            parent = Path(tmp)
-            target = parent / "child-project"
-            target.mkdir()
-            write_required_docs(parent)
-            before = sorted(path.relative_to(parent) for path in parent.rglob("*") if path.is_file())
-
-            result = run_sagekit(
-                "init", "--target", str(target), "--mode", "light",
-                "--profile", "vendored-legacy", "--json", cwd=parent
-            )
-
-            after_parent = sorted(
-                path.relative_to(parent)
-                for path in parent.rglob("*")
-                if path.is_file() and not path.is_relative_to(target)
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertTrue((target / "docs/ACTIVE_CONTEXT.md").exists())
-            self.assertEqual(before, after_parent)
-
-    def test_standard_check_requires_standard_docs(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy", cwd=root
-            )
-
-            result = run_sagekit("check", "--mode", "standard", "--json", cwd=root)
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(
-                    item["level"] == "FAIL"
-                    and item["rule"] == "required-docs"
-                    and item["path"] == "docs/TECHNICAL_DESIGN.md"
-                    for item in payload["findings"]
-                ),
-                payload,
-            )
-
-    def test_init_standard_creates_standard_docs_and_standard_check_passes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-
-            init_result = run_sagekit(
-                "init", "--mode", "standard", "--profile", "vendored-legacy", "--json", cwd=root
-            )
-            check_result = run_sagekit("check", "--mode", "standard", "--json", cwd=root)
-
-            self.assertEqual(init_result.returncode, 0, init_result.stderr)
-            self.assertEqual(check_result.returncode, 0, check_result.stdout)
-            for path in [
-                "docs/TECHNICAL_DESIGN.md",
-                "docs/ENGINEERING_SYSTEM.md",
-                "docs/APPROVAL_GATES.md",
-                "docs/MILESTONE_ROADMAP.md",
-            ]:
-                self.assertTrue((root / path).exists(), path)
-
-    def test_init_heavy_keeps_optional_profiles_inactive(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-
-            init_result = run_sagekit(
-                "init", "--mode", "heavy", "--profile", "vendored-legacy", "--json", cwd=root
-            )
-            check_result = run_sagekit("check", "--mode", "heavy", "--json", cwd=root)
-
-            self.assertEqual(init_result.returncode, 0, init_result.stderr)
-            self.assertEqual(check_result.returncode, 0, check_result.stdout)
-            self.assertFalse((root / "docs/profiles/task-dispatch/DISPATCH_PROFILE.md").exists())
-            self.assertFalse(list(root.glob("docs/M*/dispatch/**/task.yaml")))
-
-    def test_init_heavy_creates_session_orchestration_packet_templates(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-
-            result = run_sagekit(
-                "init", "--mode", "heavy", "--profile", "vendored-legacy", "--json", cwd=root
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            for path in [
-                "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
-                "docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
-                "docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
-                "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md",
-                "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md",
-            ]:
-                self.assertTrue((root / path).exists(), path)
-
-    def test_init_does_not_overwrite_without_force(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            profile = write_file(root, "docs/PROJECT_PROFILE.md", "# Custom Profile\n\nKeep me.")
-
-            result = run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy", "--json", cwd=root
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(profile.read_text(encoding="utf-8"), "# Custom Profile\n\nKeep me.\n")
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "WARN" and item["rule"] == "init-skip-existing" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_force_overwrites_existing_files(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            profile = write_file(root, "docs/PROJECT_PROFILE.md", "# Custom Profile\n\nReplace me.")
-
-            result = run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy",
-                "--force", "--json", cwd=root
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertNotEqual(profile.read_text(encoding="utf-8"), "# Custom Profile\n\nReplace me.\n")
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "PASS" and item["rule"] == "init-write" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_force_refuses_existing_directory_target(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / "docs/PROJECT_PROFILE.md").mkdir(parents=True)
-
-            result = run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy",
-                "--force", "--json", cwd=root
-            )
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "FAIL" and item["rule"] == "init-unsafe-target" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_force_refuses_symlink_target(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            outside = Path(tmp) / "outside.md"
-            outside.write_text("# Outside\n", encoding="utf-8")
-            link = root / "docs/PROJECT_PROFILE.md"
-            link.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                os.symlink(outside, link)
-            except (OSError, NotImplementedError) as exc:
-                self.skipTest(f"symlink unavailable: {exc}")
-
-            result = run_sagekit(
-                "init", "--mode", "light", "--profile", "vendored-legacy",
-                "--force", "--json", cwd=root
-            )
-
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertEqual(outside.read_text(encoding="utf-8"), "# Outside\n")
-            payload = json.loads(result.stdout)
-            self.assertTrue(
-                any(item["level"] == "FAIL" and item["rule"] == "init-unsafe-target" for item in payload["findings"]),
-                payload,
-            )
-
-    def test_init_refuses_source_repository(self):
-        result = run_sagekit(
-            "init", "--mode", "light", "--profile", "vendored-legacy", "--json", cwd=REPO_ROOT
-        )
-
-        self.assertEqual(result.returncode, 1, result.stdout)
-        payload = json.loads(result.stdout)
-        self.assertTrue(
-            any(item["level"] == "FAIL" and item["rule"] == "init-source-repo" for item in payload["findings"]),
-            payload,
-        )
-
-    def test_init_target_refuses_source_repository_and_does_not_instantiate_runtime_docs(self):
-        before = {
-            "docs/ACTIVE_CONTEXT.md": (REPO_ROOT / "docs/ACTIVE_CONTEXT.md").exists(),
-            "docs/DOC_ROUTING.md": (REPO_ROOT / "docs/DOC_ROUTING.md").exists(),
-        }
-        with tempfile.TemporaryDirectory() as tmp:
-            result = run_sagekit(
-                "init", "--target", str(REPO_ROOT), "--mode", "light",
-                "--profile", "vendored-legacy", "--json", cwd=Path(tmp)
-            )
-
-        self.assertEqual(result.returncode, 1, result.stdout)
-        payload = json.loads(result.stdout)
-        self.assertTrue(
-            any(item["level"] == "FAIL" and item["rule"] == "init-source-repo" for item in payload["findings"]),
-            payload,
-        )
-        after = {
-            "docs/ACTIVE_CONTEXT.md": (REPO_ROOT / "docs/ACTIVE_CONTEXT.md").exists(),
-            "docs/DOC_ROUTING.md": (REPO_ROOT / "docs/DOC_ROUTING.md").exists(),
-        }
-        self.assertEqual(before, after)
-
     def test_source_repo_check_does_not_require_instantiated_project_context(self):
-        result = run_sagekit("check", "--source-repo", "--json", cwd=REPO_ROOT)
+        result = run_compatibility_check("check", "--source-repo", "--json", cwd=REPO_ROOT)
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
@@ -1388,7 +1203,7 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertFalse(any(item.get("path") == "docs/DOC_ROUTING.md" for item in payload["findings"]), payload)
 
     def test_source_repo_check_reports_hygiene_and_runtime_tracking(self):
-        result = run_sagekit(
+        result = run_compatibility_check(
             "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
         )
 
@@ -1399,7 +1214,7 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertIn(("PASS", "source-tracked-runtime"), rules)
 
     def test_source_repo_check_reports_packaged_resource_reference_closure(self):
-        result = run_sagekit(
+        result = run_compatibility_check(
             "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
         )
 
@@ -1425,7 +1240,7 @@ class SagekitCheckTests(unittest.TestCase):
         )
 
     def test_source_repo_check_reports_packaged_resource_mirror_parity(self):
-        result = run_sagekit(
+        result = run_compatibility_check(
             "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
         )
 
@@ -1515,14 +1330,6 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertNotIn("docs/MILESTONE_GUIDE.md", findings[0].message)
         self.assertNotIn("docs/MODEL_ASSURANCE.md", findings[0].message)
         self.assertNotIn("docs/agent/MODEL_ASSURANCE_POLICY.md", findings[0].message)
-
-    def test_init_fallback_doc_routing_is_checkable(self):
-        text = fallback_content("docs/DOC_ROUTING.md")
-
-        self.assertIn("Routing policy", text)
-        self.assertIn("Current execution", text)
-        self.assertIn("ACCEPTED_HISTORY", text)
-        self.assertIn(".sagekit", text)
 
     def test_packaged_resources_include_canonical_heavy_docs(self):
         from sagekit.init import package_resource_root
@@ -1892,7 +1699,7 @@ class SagekitCheckTests(unittest.TestCase):
             "clean-head",
             "working-tree",
             "must be authorized by the active execution packet",
-            "`--snapshot-authority`",
+            "`snapshot_authority` field",
             "binds it into the versioned candidate fingerprint",
             "index/staged state",
             "non-ignored untracked",
@@ -1900,7 +1707,7 @@ class SagekitCheckTests(unittest.TestCase):
             "before and after final verification",
             "Dirty submodules",
             "not a commit, submit, acceptance, or permission upgrade",
-            "must not provide an unbound `--allow-dirty` bypass",
+            "must not accept an unbound dirty-worktree bypass",
             "Older candidate fingerprints retain their original clean-worktree semantics",
         ]:
             self.assertIn(rule, contract)
@@ -2048,9 +1855,11 @@ class SagekitCheckTests(unittest.TestCase):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         readme_zh = (REPO_ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
 
-        for text in [core, quality, readme, readme_zh]:
+        for text in [core, quality]:
             self.assertIn("Deterministic Closure", text)
             self.assertIn("VERDICT_FINALIZED_FROM_RECEIPT", text)
+        for text in [readme, readme_zh]:
+            self.assertIn("EXECUTION_ECONOMY_REDESIGN.md", text)
 
         self.assertNotIn("- corrective re-review evidence when corrective work changes files", core)
         self.assertNotIn("\n  -> independent corrective re-review\n", readme)

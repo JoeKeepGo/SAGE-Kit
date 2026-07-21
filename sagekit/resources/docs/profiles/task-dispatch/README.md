@@ -21,10 +21,11 @@ Task Dispatch is an optional SAGE-Kit profile for milestones that need stronger
 task dispatch, evidence capture, resource coordination, and gate closeout than
 plain phase documents provide.
 
-Adopted-project checks discover bounded record pairs below one
-`docs/**/dispatch/` segment, so a manifest may also authorize a generic
-non-milestone container. Framework templates, profile resources, `_TEMPLATE`
-paths, nested `dispatch` paths, and target-external symlinks are excluded.
+When project authority activates the profile, the Harness may discover bounded
+record pairs below one `docs/**/dispatch/` segment. Discovery does not activate
+the profile. A manifest may also authorize a generic non-milestone container.
+Framework templates, profile resources, `_TEMPLATE` paths, nested `dispatch`
+paths, and target-external symlinks are excluded.
 
 Use it when a milestone has many worker tasks, repeated validation paths,
 resource contention, cross-surface integration, or a high risk of verbal
@@ -60,8 +61,6 @@ docs/profiles/task-dispatch/
     EVIDENCE_RECORD_TEMPLATE.yaml
     DISPATCH_BOARD_TEMPLATE.md
     DECISIONS_TEMPLATE.md
-scripts/
-  validate_task_dispatch.py
 ```
 
 ## Adoption
@@ -80,20 +79,17 @@ docs/M<ID>/
       evidence.yaml
 ```
 
-Run gate-ready validation before a task, phase, or milestone gate is accepted:
-
-```bash
-python scripts/validate_task_dispatch.py \
-  --gate-ready \
-  --task docs/M<ID>/dispatch/TASK-001/task.yaml \
-  --evidence docs/M<ID>/dispatch/TASK-001/evidence.yaml \
-  --schema-dir docs/profiles/task-dispatch/schemas
-```
+Before accepting a task, phase, or milestone gate, the host invokes the
+compatibility-aware Task Dispatch validation operation exposed by the embedded
+Harness. It resolves project activation and container authority before selecting
+frozen v0/v1 history validation or current v2 validation. Bare procedural
+validation is not a gate API.
 
 The profile is a structured evidence layer. It does not replace phase docs,
 quality gates, completion reports, milestone ledgers, or Project Manager final
 decision authority.
 
-For `Light` work it remains inactive unless an activation trigger is present.
+For `Light` work it remains inactive unless project authority explicitly enables
+it. Record or directory presence is not activation authority.
 When active, apply the profile reconciliation gate to the whole dispatch set;
 orphan records and overlapping active exclusive locks are invalid.

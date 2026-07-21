@@ -14,8 +14,10 @@ retains digest-bound schema artifacts but validates records with its Python
 rules, while the hardened v1 baseline also executes its frozen schema checks.
 
 This profile adds machine-checkable task and evidence records to SAGE-Kit. It
-is optional and should be activated by the Project Manager in the milestone
-entry gate or execution packet.
+is optional. Activation must come from project-owned authority, such as the
+milestone entry gate, execution packet, or normalized project configuration.
+The presence of a `dispatch` directory, `task.yaml`, `evidence.yaml`, board, or
+template is discovery input only and never activates this profile.
 
 ## Activation Criteria
 
@@ -34,8 +36,9 @@ Use this profile when at least one condition is true:
 Do not enable it only because a project uses SAGE-Kit. For small work, normal
 phase docs and completion reports are lighter and usually better.
 
-For `Light` work, Task Dispatch is off unless an activation condition above or
-an entry-gate trigger explicitly enables it.
+For `Light` work, Task Dispatch is off unless project authority explicitly
+enables it. The activation criteria help the Project Manager make that decision;
+they are not automatic triggers.
 
 ## Records
 
@@ -155,16 +158,17 @@ not current authority.
 
 ## Validator Gate
 
-When this profile is active, run the validator in gate-ready mode before
-accepting the task, phase, or milestone gate:
+When project authority activates this profile, the host must invoke the
+compatibility-aware Task Dispatch validation operation exposed by the embedded
+Harness before accepting the task, phase, or milestone gate. The Harness first
+resolves profile activation, container scope, and the declared validation
+contract, then selects frozen v0/v1 for authorized immutable history or current
+v2 for active work. Ambiguous authority, mixed metadata, and validation failure
+fail closed without contract fallback.
 
-```bash
-python scripts/validate_task_dispatch.py \
-  --gate-ready \
-  --task <path/to/task.yaml> \
-  --evidence <path/to/evidence.yaml> \
-  --schema-dir docs/profiles/task-dispatch/schemas
-```
+The procedural `validate_records` function is an implementation detail of the
+selected current contract. It is not a standalone gate API. SAGE-Kit does not
+ship or document a Task Dispatch command-line validator.
 
 Default validator success means the structured records are complete enough to
 review. Gate-ready validator success additionally means the task/evidence

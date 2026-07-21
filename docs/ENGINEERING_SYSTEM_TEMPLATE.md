@@ -7,7 +7,7 @@ This document defines the daily development workflow for humans and AI agents.
 - Keep modules cohesive and small.
 - Prefer explicit contracts over implicit shared state.
 - Define ownership before editing shared files.
-- Do not add speculative aliases or guessed fallback behavior.
+- Do not add speculative aliases or guessed behavior.
 - Preserve a runnable baseline.
 - Keep planning, implementation, review, and release gates distinct.
 - Use the lightest governance level that safely preserves scope, evidence,
@@ -17,7 +17,7 @@ This document defines the daily development workflow for humans and AI agents.
 - Route execution to available specialist skills, plugins, connectors, tools,
   CI, or reviewers under `docs/SAGE_CORE.md#external-capability-boundary`.
 - Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers so external
-  capability use has authorization, evidence mapping, and fallback.
+  capability use has authorization and evidence mapping.
 - Keep local data and secrets out of commits and reports.
 
 ## Session Roles
@@ -65,8 +65,7 @@ The plan must include:
 - public contract;
 - test plan;
 - runtime smoke;
-- selected capability adapters, authorization levels, and fallback paths when
-  relevant;
+- selected capability adapters and authorization levels when relevant;
 - non-goals;
 - completion gate.
 
@@ -142,7 +141,6 @@ Before handoff or commit:
   and permission mode plus ownership allow direct writes; otherwise return a
   memory update proposal or no-change note;
 - update completion report with memory maintenance status;
-- record capability adapter use, authorization, evidence, and fallback when
-  relevant;
+- record capability adapter use, authorization, and evidence.
 - update milestone ledger;
 - name skipped checks and remaining gaps.

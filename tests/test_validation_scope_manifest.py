@@ -1,14 +1,15 @@
 import json
-import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from sagekit.check import check_phase_docs, check_task_dispatch, run_check
 from sagekit.compatibility import select_validation_contract, validate_compatible_records
-from sagekit.milestone_scope import MilestoneScopeKind, RepositoryScopeResolver
+from sagekit.milestone_scope import (
+    MilestoneScopeKind,
+    RepositoryScopeResolver,
+    read_active_milestones,
+)
 from sagekit.task_dispatch_validator import load_record
 from sagekit.validation_scope_manifest import (
     LOCAL_SCOPE_MANIFEST,
@@ -152,19 +153,6 @@ def write_dispatch_pair(root, milestone, task, evidence, *, name="record"):
     return directory
 
 
-def run_sagekit(*args, cwd):
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
-    return subprocess.run(
-        [sys.executable, "-B", "-m", "sagekit", *args],
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-
-
 class ScopeManifestParsingTests(unittest.TestCase):
     def test_valid_external_manifest_is_loaded_with_auditable_provenance(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -220,12 +208,12 @@ class ScopeManifestParsingTests(unittest.TestCase):
             scope = RepositoryScopeResolver(
                 root,
                 manifest=manifest,
-                manifest_source="CLI",
+                manifest_source="explicit-harness",
             ).resolve(root / "docs/M1")
 
         rendered = " ".join((*scope.authorities, scope.detail))
         self.assertNotIn(str(workspace), rendered)
-        self.assertIn("validation scope manifest authority: CLI", rendered)
+        self.assertIn("validation scope manifest authority: explicit-harness", rendered)
 
     def test_malformed_json_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -652,7 +640,56 @@ class ScopeManifestContractTests(unittest.TestCase):
         self.assertNotIn("task-dispatch-board", rules)
 
 
-class ScopeManifestPhaseAndCliTests(unittest.TestCase):
+class ScopeManifestPhaseAndRuntimeTests(unittest.TestCase):
+    def test_nested_manifest_history_is_audited_without_current_phase_validation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = manifest_payload(active=("M2",), accepted=("M1",))
+            payload["accepted_legacy_containers"][0]["path"] = "docs/M2/history/M1"
+            load_validation_scope_manifest(write_manifest(root, payload))
+            phase = root / "docs/M2/history/M1/01-old.md"
+            phase.write_text("# Historical phase\n", encoding="utf-8")
+
+            findings = run_check(root, scope="history")
+
+        history_findings = [
+            finding
+            for finding in findings
+            if finding.path and finding.path.startswith("docs/M2/history/M1")
+        ]
+        self.assertTrue(
+            any(
+                finding.rule == "phase-scope-compatibility"
+                and finding.level == "PASS"
+                for finding in history_findings
+            ),
+            history_findings,
+        )
+        self.assertFalse(
+            [finding for finding in history_findings if finding.level == "FAIL"],
+            history_findings,
+        )
+
+    def test_duplicate_or_conflicting_active_milestone_fields_fail_closed(self):
+        cases = {
+            "duplicate": "- Current milestone: `M1`\n- Current milestone: `M1`\n",
+            "conflict": "- Current milestone: `M1`\n- Current milestone: `M2`\n",
+        }
+        for label, text in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                context = root / "docs/ACTIVE_CONTEXT.md"
+                context.parent.mkdir(parents=True)
+                context.write_text(text, encoding="utf-8")
+
+                _milestones, _authorities, error, available = read_active_milestones(
+                    root, context
+                )
+
+            self.assertTrue(available)
+            self.assertIsNotNone(error)
+            self.assertIn(label, error)
+
     def test_manifest_history_skips_current_phase_format_with_one_audit_finding(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -739,33 +776,21 @@ class ScopeManifestPhaseAndCliTests(unittest.TestCase):
             )
         )
 
-    def test_cli_relative_manifest_is_resolved_from_invocation_cwd(self):
+    def test_explicit_nonfile_manifest_fails_closed_for_active_scope(self):
         with tempfile.TemporaryDirectory() as directory:
-            workspace = Path(directory)
-            target = workspace / "project"
-            runner = workspace / "runner"
-            target.mkdir()
-            runner.mkdir()
-            (target / "docs/M1").mkdir(parents=True)
-            write_json(runner / "scope.json", manifest_payload())
+            root = Path(directory)
+            invalid_manifest = root / "scope-directory"
+            invalid_manifest.mkdir()
 
-            result = run_sagekit(
-                "check",
-                "--target",
-                str(target),
-                "--scope-manifest",
-                "scope.json",
-                "--json",
-                cwd=runner,
+            findings = run_check(
+                root,
+                scope="active",
+                scope_manifest_path=invalid_manifest,
             )
 
-        payload = json.loads(result.stdout)
-        authority = next(
-            item
-            for item in payload["findings"]
-            if item["rule"] == "validation-scope-manifest"
-        )
-        self.assertIn("CLI", authority["message"])
+        failures = [item for item in findings if item.level == "FAIL"]
+        self.assertEqual(["validation-scope-manifest"], [item.rule for item in failures])
+        self.assertIn("must be a file", failures[0].message)
 
     def test_cli_manifest_replaces_invalid_project_local_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -787,78 +812,7 @@ class ScopeManifestPhaseAndCliTests(unittest.TestCase):
         ]
         self.assertEqual(1, len(authority))
         self.assertEqual("PASS", authority[0].level)
-        self.assertIn("CLI", authority[0].message)
-
-    def test_manifest_text_and_json_output_report_same_authority(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            manifest = write_json(root / "scope.json", manifest_payload())
-
-            json_result = run_sagekit(
-                "check", "--scope-manifest", str(manifest), "--json", cwd=root
-            )
-            text_result = run_sagekit(
-                "check", "--scope-manifest", str(manifest), cwd=root
-            )
-
-        payload = json.loads(json_result.stdout)
-        message = next(
-            item["message"]
-            for item in payload["findings"]
-            if item["rule"] == "validation-scope-manifest"
-        )
-        self.assertIn(message, text_result.stdout)
-        self.assertEqual(json_result.returncode, text_result.returncode)
-
-    def test_cli_manifest_rejects_source_repo_missing_file_file_target_and_directory(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            manifest = write_json(root / "scope.json", manifest_payload())
-            file_target = root / "target.txt"
-            file_target.write_text("not a directory", encoding="utf-8")
-            cases = (
-                (
-                    ("check", "--source-repo", "--scope-manifest", str(manifest)),
-                    "source-repo",
-                ),
-                (
-                    ("check", "--scope-manifest", str(root / "missing.json")),
-                    "scope manifest",
-                ),
-                (
-                    ("check", "--scope-manifest", str(root)),
-                    "scope manifest",
-                ),
-                (
-                    ("check", "--target", str(file_target), "--scope-manifest", str(manifest)),
-                    "target",
-                ),
-            )
-            for args, message in cases:
-                with self.subTest(args=args):
-                    result = run_sagekit(*args, "--json", cwd=root)
-                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-                    self.assertIn(message, (result.stdout + result.stderr).lower())
-
-    def test_bounded_json_manifest_failure_preserves_total_and_exit_code(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            write_manifest(
-                root,
-                manifest_payload(active=("M1",), accepted=("M1",)),
-            )
-
-            result = run_sagekit(
-                "check", "--json", "--max-findings", "1", cwd=root
-            )
-
-        payload = json.loads(result.stdout)
-        summary = payload["summary"]
-        self.assertEqual(1, result.returncode)
-        self.assertEqual(1, summary["displayed"])
-        self.assertGreater(summary["total"], summary["displayed"])
-        self.assertGreater(summary["by_level"]["FAIL"], 0)
-
+        self.assertIn("explicit-harness", authority[0].message)
 
 class ScopeManifestPackagingTests(unittest.TestCase):
     def test_source_template_and_packaged_mirror_are_equal(self):

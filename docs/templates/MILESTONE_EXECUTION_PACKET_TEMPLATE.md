@@ -162,7 +162,7 @@ Capability Discovery:
 
 Candidate Snapshot Policy:
 - Snapshot mode: `<clean-head / working-tree>`
-- Working-tree snapshot authority (`--snapshot-authority`): `<authority id/digest or n/a>`
+- Working-tree snapshot authority (`snapshot_authority` API/config field): `<authority id/digest or n/a>`
 - Expected staged state:
 - Expected unstaged state:
 - Expected non-ignored untracked scope:

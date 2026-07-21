@@ -28,6 +28,7 @@ from .resource_governor import (
     project_runtime_path,
 )
 from .workspace_binding import (
+    WorkspaceBinding,
     authorize_command,
     build_workspace_binding,
     discover_workspace,
@@ -71,7 +72,7 @@ def run_managed_git(
             timeout=timeout,
             max_output_bytes=max_output_bytes,
         )
-    return run_managed_command(
+    return _run_managed_command(
         root,
         ("git", *arguments),
         resource_class=ResourceClass.REPO_READ,
@@ -119,6 +120,14 @@ def _is_bounded_readonly_git(arguments: Sequence[str]) -> bool:
         return "--name-only" in options and options.issubset(allowed)
     if command == "ls-files":
         return "--recurse-submodules" not in options
+    if command == "merge-base":
+        return len(arguments) == 3 and not options
+    if command == "rev-list":
+        return (
+            len(arguments) == 3
+            and options == {"--max-parents"}
+            and arguments[1] == "--max-parents=0"
+        )
     return False
 
 
@@ -165,6 +174,7 @@ def _run_bounded_readonly_git(
     )
     started = time.monotonic()
     deadline = started + timeout
+    process: subprocess.Popen[bytes] | None = None
     try:
         with tempfile.TemporaryFile() as stdout_stream, tempfile.TemporaryFile() as stderr_stream:
             process = subprocess.Popen(
@@ -176,22 +186,32 @@ def _run_bounded_readonly_git(
                 stderr=stderr_stream,
                 shell=False,
             )
+            cleanup_wait = max(0.25, min(timeout, 1.0))
+
+            def _kill_reap_and_raise(label: str) -> None:
+                process.kill()
+                try:
+                    process.wait(timeout=cleanup_wait)
+                except subprocess.TimeoutExpired as exc:
+                    raise ManagedExecutionError(f"{label}: did not terminate") from exc
+                raise ManagedExecutionError(label)
+
             while process.poll() is None:
                 stdout_size = os.fstat(stdout_stream.fileno()).st_size
                 stderr_size = os.fstat(stderr_stream.fileno()).st_size
                 if stdout_size > max_output_bytes or stderr_size > max_output_bytes:
-                    process.kill()
-                    process.wait()
-                    raise ManagedExecutionError(
+                    _kill_reap_and_raise(
                         f"bounded read-only Git output exceeded {max_output_bytes} bytes during {stage}"
                     )
                 if time.monotonic() >= deadline:
-                    process.kill()
-                    process.wait()
-                    raise ManagedExecutionError(
+                    _kill_reap_and_raise(
                         f"bounded read-only Git timed out during {stage} after {timeout:g}s"
                     )
                 time.sleep(0.02)
+            if time.monotonic() >= deadline:
+                raise ManagedExecutionError(
+                    f"bounded read-only Git timed out during {stage} after {timeout:g}s"
+                )
             stdout_size = os.fstat(stdout_stream.fileno()).st_size
             stderr_size = os.fstat(stderr_stream.fileno()).st_size
             if stdout_size > max_output_bytes or stderr_size > max_output_bytes:
@@ -205,6 +225,14 @@ def _run_bounded_readonly_git(
             returncode = process.returncode
     except OSError as exc:
         raise ManagedExecutionError(f"bounded read-only Git failed to start: {exc}") from exc
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=0.25)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=0.25)
     classification = (
         ProcessClassification.SUCCESS
         if returncode == 0
@@ -257,7 +285,7 @@ def _run_bounded_readonly_git(
     return result
 
 
-def run_managed_command(
+def _run_managed_command(
     root: Path,
     command: Sequence[str],
     *,
@@ -274,11 +302,16 @@ def run_managed_command(
     wait_timeout: float = 30.0,
     check: bool = True,
     on_heartbeat: Callable[[object], None] | None = None,
+    heartbeat_interval: float = 10.0,
     on_wait: Callable[[str], None] | None = None,
     delegated_classes: Sequence[ResourceClass] = (),
     isolated_test_harness: bool = False,
     max_owned_processes: int = 32,
+    workspace_binding: WorkspaceBinding | None = None,
+    allowed_resource_classes: Sequence[ResourceClass] | None = None,
+    authority_digest: str | None = None,
 ) -> ProcessResult:
+    """Trusted internal primitive; public callers must use sagekit.harness."""
     delegated_classes = tuple(dict.fromkeys(delegated_classes))
     if any(
         not isinstance(item, ResourceClass)
@@ -293,13 +326,24 @@ def run_managed_command(
         temp_root=temp_root,
         resource_class=resource_class,
     )
-    binding = build_workspace_binding(
-        identity,
-        base_head=identity.head,
-        permission_mode=permission_mode,
-        controller=controller,
-        allowed_paths=(),
-    )
+    if workspace_binding is None:
+        binding = build_workspace_binding(
+            identity,
+            base_head=identity.head,
+            permission_mode=permission_mode,
+            controller=controller,
+            allowed_paths=(),
+        )
+    else:
+        binding = workspace_binding
+        if binding.permission_mode != permission_mode:
+            raise ManagedExecutionError(
+                "managed permission differs from workspace authority"
+            )
+        if binding.controller != controller:
+            raise ManagedExecutionError(
+                "managed controller differs from workspace authority"
+            )
     verification = verify_workspace(binding, current=discover_workspace(root))
     if not verification.ok:
         raise ManagedExecutionError(
@@ -316,6 +360,12 @@ def run_managed_command(
         identity.git_common_dir or identity.repository_root
     )
     worktree_identity = _identity_digest(identity.worktree_root)
+    execution_authority_digest = authority_digest or binding.digest
+    if (
+        len(execution_authority_digest) != 64
+        or any(character not in "0123456789abcdef" for character in execution_authority_digest)
+    ):
+        raise ManagedExecutionError("managed execution authority digest is invalid")
     inherited_context = _inherited_context(
         manager,
         resource_class=resource_class,
@@ -329,10 +379,27 @@ def run_managed_command(
             "descendant has no verified root delegation for local execution"
         )
     parent_lease = inherited_context[0] if inherited_context is not None else None
+    configured_allowed = (
+        tuple(dict.fromkeys(allowed_resource_classes))
+        if allowed_resource_classes is not None
+        else tuple(dict.fromkeys((resource_class, *delegated_classes)))
+    )
+    if any(
+        not isinstance(item, ResourceClass)
+        or item is ResourceClass.REASONING_ONLY
+        for item in configured_allowed
+    ):
+        raise ManagedExecutionError("managed resource authority is invalid")
+    if resource_class not in configured_allowed or not set(delegated_classes).issubset(
+        configured_allowed
+    ):
+        raise ManagedExecutionError(
+            "requested or delegated resource class exceeds workspace authority"
+        )
     inherited_allowed = (
         inherited_context[1]
         if inherited_context is not None
-        else tuple(dict.fromkeys((resource_class, *delegated_classes)))
+        else configured_allowed
     )
     delegated = inherited_context is not None
     if isolated_test_harness and delegated:
@@ -359,7 +426,7 @@ def run_managed_command(
         authority_digest=(
             parent_lease.record.authority_digest
             if parent_lease is not None
-            else binding.digest
+            else execution_authority_digest
         ),
         host_identity=default_host_identity(),
         project_identity=project_identity,
@@ -417,13 +484,11 @@ def run_managed_command(
             }
         )
 
-    def heartbeat(event) -> None:
+    def renew_lease(event) -> None:
         if owned_lease is not None:
             lease_box[0] = manager.heartbeat(
                 lease_box[0], stage=event.stage, lease_ttl=DEFAULT_LEASE_TTL
             )
-        if on_heartbeat is not None:
-            on_heartbeat(event)
 
     result: ProcessResult | None = None
     try:
@@ -437,7 +502,7 @@ def run_managed_command(
             )
         if (
             parent_lease is not None
-            and binding.digest != parent_lease.record.authority_digest
+            and execution_authority_digest != parent_lease.record.authority_digest
         ):
             raise ManagedExecutionError(
                 "descendant workspace binding differs from delegated authority"
@@ -451,9 +516,10 @@ def run_managed_command(
             run_id=run_id,
             lease_id=lease.lease_id,
             max_output_bytes=max_output_bytes,
-            heartbeat_interval=10.0,
+            heartbeat_interval=heartbeat_interval,
             temp_root=temp_root,
-            on_heartbeat=heartbeat,
+            on_heartbeat=on_heartbeat,
+            on_mandatory_heartbeat=renew_lease,
             max_owned_processes=max_owned_processes,
         )
     finally:
@@ -597,6 +663,5 @@ def _identity_digest(value: str) -> str:
 
 __all__ = [
     "ManagedExecutionError",
-    "run_managed_command",
     "run_managed_git",
 ]

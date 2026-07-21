@@ -11,13 +11,27 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
-from .managed_execution import ManagedExecutionError, run_managed_command
+from .execution_limits import (
+    VerificationAttemptState,
+    VerificationNode,
+    VerificationNodeDisposition,
+    VerificationNodeResult,
+    decide_verification_node,
+)
+from .managed_execution import ManagedExecutionError, _run_managed_command
 from .resource_governor import ResourceBusy, ResourceClass
 
 
 FINAL_ORDER = ("focused", "unit", "integration", "source-repo", "package")
 HIGH_LOAD_NODES = frozenset({"source-repo", "package"})
 HIGH_LOAD_WAIVER = "waived by the user for a limited development host"
+NODE_DEPENDENCIES = {
+    "focused": (),
+    "unit": ("focused",),
+    "integration": ("unit",),
+    "source-repo": (),
+    "package": (),
+}
 
 
 @dataclass(frozen=True)
@@ -25,6 +39,7 @@ class TestNode:
     name: str
     resource_class: ResourceClass
     timeout: float
+    depends_on: tuple[str, ...] = ()
     waived: bool = False
     waiver_reason: str | None = None
 
@@ -37,6 +52,7 @@ class NodeEvidence:
     duration_seconds: float
     resource_wait_seconds: float = 0.0
     waiver_reason: str | None = None
+    blocked_by: tuple[str, ...] = ()
     classification: str | None = None
     peak_owned_processes: int | None = None
     child_cpu_seconds: float | None = None
@@ -55,7 +71,7 @@ class NodeEvidence:
 def build_plan(lane: str, *, waive_high_load: bool) -> tuple[TestNode, ...]:
     if lane == "final":
         names = FINAL_ORDER
-    elif lane in FINAL_ORDER:
+    elif lane in NODE_DEPENDENCIES:
         names = (lane,)
     else:
         raise ValueError(f"unknown test lane: {lane}")
@@ -82,6 +98,7 @@ def build_plan(lane: str, *, waive_high_load: bool) -> tuple[TestNode, ...]:
             name,
             classes[name],
             timeouts[name],
+            depends_on=(NODE_DEPENDENCIES[name] if lane == "final" else ()),
             waived=waive_high_load and name in HIGH_LOAD_NODES,
             waiver_reason=(
                 HIGH_LOAD_WAIVER
@@ -106,7 +123,15 @@ def command_for(node: TestNode, repository: Path) -> tuple[str, ...]:
             str(repository),
         )
     if node.name == "source-repo":
-        return (python, "-B", "-m", "sagekit", "check", "--source-repo", "--json")
+        return (
+            python,
+            "-B",
+            "-m",
+            "sagekit.test_node",
+            "source-repo",
+            "--repository",
+            str(repository),
+        )
     if node.name == "package":
         return (python, "-B", "-m", "scripts.wheel_smoke")
     raise ValueError(f"unknown test node: {node.name}")
@@ -120,8 +145,37 @@ def execute_plan(
 ) -> tuple[int, tuple[NodeEvidence, ...]]:
     repository = repository.resolve(strict=True)
     evidence: list[NodeEvidence] = []
+    results: dict[str, VerificationNodeResult] = {}
+    failed = False
     for node in plan:
         command = command_for(node, repository)
+        decision = decide_verification_node(
+            VerificationNode(node.name, depends_on=node.depends_on),
+            results,
+        )
+        if decision.disposition is VerificationNodeDisposition.SKIPPED_DUE_TO_DEPENDENCY:
+            item = NodeEvidence(
+                node.name,
+                "SKIPPED_DUE_TO_DEPENDENCY",
+                command,
+                0.0,
+                blocked_by=decision.blocked_by,
+                classification="dependency-failure",
+            )
+            evidence.append(item)
+            results[node.name] = VerificationNodeResult(
+                node.name, VerificationAttemptState.ABORTED
+            )
+            failed = True
+            if progress is not None:
+                progress(
+                    {
+                        "stage": node.name,
+                        "state": item.state,
+                        "blocked_by": list(item.blocked_by),
+                    }
+                )
+            continue
         if node.waived:
             item = NodeEvidence(
                 node.name,
@@ -131,6 +185,10 @@ def execute_plan(
                 waiver_reason=node.waiver_reason,
             )
             evidence.append(item)
+            results[node.name] = VerificationNodeResult(
+                node.name, VerificationAttemptState.ABORTED
+            )
+            failed = True
             if progress is not None:
                 progress({"stage": node.name, "state": "WAIVED"})
             continue
@@ -175,7 +233,7 @@ def execute_plan(
                         }
                     )
 
-            result = run_managed_command(
+            result = _run_managed_command(
                 repository,
                 command,
                 resource_class=node.resource_class,
@@ -227,11 +285,19 @@ def execute_plan(
                 stderr_tail=result.stderr_tail,
             )
             evidence.append(item)
+            results[node.name] = VerificationNodeResult(
+                node.name,
+                (
+                    VerificationAttemptState.PASSED
+                    if result.ok
+                    else VerificationAttemptState.FAILED
+                ),
+            )
             if progress is not None:
                 progress({"stage": node.name, "state": state})
             if not result.ok:
-                return 1, tuple(evidence)
-    return 0, tuple(evidence)
+                failed = True
+    return (1 if failed else 0), tuple(evidence)
 
 
 def evidence_payload(items: Sequence[NodeEvidence]) -> list[dict[str, object]]:

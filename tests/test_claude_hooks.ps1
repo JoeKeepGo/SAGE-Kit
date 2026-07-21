@@ -3,7 +3,7 @@
 #
 # Mirrors tests/test_claude_hooks.sh for the .ps1 variants: Windows path
 # separators, dot segments, case variants, malformed or missing hook input,
-# Bash-shaped commands, and validator exit-code semantics.
+# and Bash-shaped commands.
 #
 # Hooks are exercised as real child processes of the current host, so the
 # same file runs under both PowerShell 7 (pwsh) and Windows PowerShell 5.1
@@ -12,7 +12,6 @@
 $root = Split-Path -Parent $PSScriptRoot
 $hookDir = Join-Path $root 'skills/sage-kit/references/claude/hooks'
 $guard = Join-Path $hookDir 'protect-serial-files.ps1'
-$stop = Join-Path $hookDir 'stop-sagekit-check.ps1'
 $hostExe = (Get-Process -Id $PID).Path
 
 $script:passCount = 0
@@ -52,9 +51,6 @@ function Invoke-Hook([string]$hook, [string]$stdin, [string]$workDir) {
     }
 }
 
-$savedStop = $env:SAGE_STOP_CHECK
-$savedFake = $env:SAGE_FAKE_RC
-$savedPath = $env:PATH
 $savedProj = $env:CLAUDE_PROJECT_DIR
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('sagekit-hook-tests-' + [System.IO.Path]::GetRandomFileName())
@@ -63,7 +59,6 @@ New-Item -ItemType Directory -Path $tmp | Out-Null
 try {
     # Guard tests rely on the CLAUDE_PROJECT_DIR fallback to the working dir.
     $env:CLAUDE_PROJECT_DIR = $null
-    $env:SAGE_STOP_CHECK = $null
 
     # --- protect-serial-files.ps1: strict, no bypass ---
 
@@ -109,47 +104,7 @@ try {
     $rc = Invoke-Hook $guard '{"tool_input":{"command":"npm test"}}' $tmp
     Check 'guard: unrelated bash command allowed' 0 $rc
 
-    # --- stop-sagekit-check.ps1 ---
-
-    $gov = Join-Path $tmp 'gov'
-    New-Item -ItemType Directory -Path (Join-Path $gov 'docs') -Force | Out-Null
-    New-Item -ItemType File -Path (Join-Path $gov 'docs/DOC_ROUTING.md') -Force | Out-Null
-
-    $rc = Invoke-Hook $stop '' $gov
-    Check 'stop: opt-out passes' 0 $rc
-
-    $env:SAGE_STOP_CHECK = '1'
-    $rc = Invoke-Hook $stop '' $gov
-    Check 'stop: opted-in without validator fails closed' 2 $rc
-    Check-Match 'stop: missing validator reported as handoff' 'HANDOFF'
-
-    $fakeBin = Join-Path $tmp 'bin'
-    New-Item -ItemType Directory -Path $fakeBin | Out-Null
-    [System.IO.File]::WriteAllText((Join-Path $fakeBin 'sagekit.cmd'), "@echo off`r`nexit /b %SAGE_FAKE_RC%`r`n")
-    $env:PATH = $fakeBin + [System.IO.Path]::PathSeparator + $savedPath
-
-    $env:SAGE_FAKE_RC = '0'
-    $rc = Invoke-Hook $stop '' $gov
-    Check 'stop: validator pass allows stop' 0 $rc
-
-    $env:SAGE_FAKE_RC = '1'
-    $rc = Invoke-Hook $stop '' $gov
-    Check 'stop: validator findings block stop' 2 $rc
-    Check-Match 'stop: exit 1 reported as findings' 'blocking findings'
-
-    $env:SAGE_FAKE_RC = '2'
-    $rc = Invoke-Hook $stop '' $gov
-    Check 'stop: validator invocation error blocks stop' 2 $rc
-    Check-Match 'stop: exit 2 reported as handoff not findings' 'HANDOFF'
-
-    $env:SAGE_FAKE_RC = '3'
-    $rc = Invoke-Hook $stop '' $gov
-    Check 'stop: validator internal error blocks stop' 2 $rc
-    Check-Match 'stop: exit 3 reported as handoff not findings' 'HANDOFF'
 } finally {
-    $env:SAGE_STOP_CHECK = $savedStop
-    $env:SAGE_FAKE_RC = $savedFake
-    $env:PATH = $savedPath
     $env:CLAUDE_PROJECT_DIR = $savedProj
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }

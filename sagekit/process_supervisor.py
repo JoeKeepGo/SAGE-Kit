@@ -12,6 +12,7 @@ import ctypes
 import base64
 import json
 import os
+import queue
 import signal
 import subprocess
 import sys
@@ -62,6 +63,117 @@ class ProcessHeartbeat:
     elapsed: float
     owned_processes: int
     current_test: str | None = None
+
+
+_CALLBACK_STOP = object()
+_MANDATORY_RENEWAL_MAX_AGE = 25.0
+
+
+class _HeartbeatDispatcher:
+    """Deliver best-effort progress without blocking process supervision."""
+
+    def __init__(self, callback: Callable[[ProcessHeartbeat], None]) -> None:
+        self._callback = callback
+        self._queue: queue.Queue[object] = queue.Queue(maxsize=1)
+        self._closed = False
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def submit(self, heartbeat: ProcessHeartbeat) -> None:
+        if self._closed:
+            return
+        self._replace_pending(heartbeat)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._replace_pending(_CALLBACK_STOP)
+
+    def _replace_pending(self, item: object) -> None:
+        try:
+            self._queue.put_nowait(item)
+            return
+        except queue.Full:
+            pass
+        try:
+            self._queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self._queue.put_nowait(item)
+        except queue.Full:
+            pass
+
+    def _run(self) -> None:
+        while True:
+            item = self._queue.get()
+            if item is _CALLBACK_STOP:
+                return
+            try:
+                self._callback(item)  # type: ignore[arg-type]
+            except Exception:
+                # Progress notification cannot own timeout or cleanup control.
+                continue
+
+
+class _MandatoryHeartbeatDispatcher:
+    """Run at most one mandatory renewal without extending supervision time."""
+
+    def __init__(self, callback: Callable[[ProcessHeartbeat], None]) -> None:
+        self._callback = callback
+        self._lock = threading.Lock()
+        self._closed = False
+        self._in_flight_started: float | None = None
+        self._failure: BaseException | None = None
+        self._thread: threading.Thread | None = None
+
+    def submit(self, heartbeat: ProcessHeartbeat) -> None:
+        thread = threading.Thread(target=self._run, args=(heartbeat,), daemon=True)
+        with self._lock:
+            if self._closed or self._in_flight_started is not None or self._failure is not None:
+                return
+            self._in_flight_started = time.monotonic()
+            self._thread = thread
+        try:
+            thread.start()
+        except RuntimeError as exc:
+            with self._lock:
+                self._failure = exc
+                self._in_flight_started = None
+                self._thread = None
+
+    def state(self) -> tuple[BaseException | None, float | None]:
+        with self._lock:
+            return self._failure, self._in_flight_started
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+
+    def close_and_drain(
+        self, deadline: float
+    ) -> tuple[BaseException | None, bool]:
+        with self._lock:
+            self._closed = True
+            thread = self._thread
+        if thread is not None:
+            thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        with self._lock:
+            failure = self._failure
+            in_flight = self._in_flight_started is not None
+        drained = not in_flight and (thread is None or not thread.is_alive())
+        return failure, drained
+
+    def _run(self, heartbeat: ProcessHeartbeat) -> None:
+        try:
+            self._callback(heartbeat)
+        except BaseException as exc:
+            with self._lock:
+                self._failure = exc
+        finally:
+            with self._lock:
+                self._in_flight_started = None
 
 
 @dataclass(frozen=True)
@@ -410,27 +522,42 @@ class _WindowsBackend(_Backend):
                 self.job.terminate()
             except OSError as exc:
                 errors.append(f"Job Object termination failed: {exc}")
-        deadline = time.monotonic() + max(0.5, grace)
+        deadline = time.monotonic() + max(2.0, grace)
         while time.monotonic() < deadline:
             try:
                 active, _, _, _ = self.job.sample()
-            except OSError:
-                break
-            if not active:
+            except OSError as exc:
+                errors.append(f"Job Object cleanup query failed: {exc}")
+                active = None
+            if process.poll() is None:
+                try:
+                    process.wait(timeout=0.05)
+                except subprocess.TimeoutExpired:
+                    pass
+            if process.poll() is not None and active in {0, None}:
                 break
             time.sleep(0.01)
+        if process.poll() is None:
+            process.kill()
+            try:
+                process.wait(timeout=max(1.0, grace))
+            except subprocess.TimeoutExpired:
+                errors.append("direct child was not reaped")
         try:
-            process.wait(timeout=max(0.25, grace))
-        except subprocess.TimeoutExpired:
-            errors.append("direct child was not reaped")
-        if active:
+            sampled_active, _, _, _ = self.job.sample()
+            active = sampled_active
+        except OSError as exc:
+            active = None
+            errors.append(f"final Job Object query failed: {exc}")
+        if active not in {0, None}:
             errors.append(f"Job Object still has {active} active process(es)")
+        complete = active == 0 and process.poll() is not None
         return _Cleanup(
-            not active and process.poll() is not None,
+            complete,
             bool(active),
-            0 if not active else active,
+            0 if active == 0 else active,
             "; ".join(errors) or None,
-            not active and process.poll() is not None,
+            complete,
         )
 
     def close(self) -> None:
@@ -453,6 +580,7 @@ def run_process(
     required_containment: str = ContainmentLevel.MANAGED.value,
     temp_root: Path | None = None,
     on_heartbeat: Callable[[ProcessHeartbeat], None] | None = None,
+    on_mandatory_heartbeat: Callable[[ProcessHeartbeat], None] | None = None,
 ) -> ProcessResult:
     argv = _validate_command(command)
     if not stage.strip() or not run_id.strip():
@@ -512,6 +640,14 @@ def run_process(
     sampling_degraded = False
     attach_failed = False
     interrupted = threading.Event()
+    heartbeat_dispatcher = (
+        _HeartbeatDispatcher(on_heartbeat) if on_heartbeat is not None else None
+    )
+    mandatory_heartbeat_dispatcher = (
+        _MandatoryHeartbeatDispatcher(on_mandatory_heartbeat)
+        if on_mandatory_heartbeat is not None
+        else None
+    )
     try:
         try:
             launch_argv = _windows_gated_argv(argv) if os.name == "nt" else argv
@@ -575,6 +711,25 @@ def run_process(
             with _scoped_interruption_handlers(interrupted):
                 while True:
                     now = time.monotonic()
+                    mandatory_failure, mandatory_started = (
+                        mandatory_heartbeat_dispatcher.state()
+                        if mandatory_heartbeat_dispatcher is not None
+                        else (None, None)
+                    )
+                    if mandatory_failure is not None:
+                        classification = ProcessClassification.INTERNAL
+                        reason = (
+                            "mandatory-heartbeat:"
+                            f"{type(mandatory_failure).__name__}:{mandatory_failure}"
+                        )
+                        break
+                    if (
+                        mandatory_started is not None
+                        and now - mandatory_started >= _MANDATORY_RENEWAL_MAX_AGE
+                    ):
+                        classification = ProcessClassification.INTERNAL
+                        reason = "mandatory-heartbeat:timeout"
+                        break
                     if now >= next_sample:
                         try:
                             owned, sampled_cpu, sampled_rss = backend.sample(process)
@@ -595,27 +750,59 @@ def run_process(
                                 f"{owned}>{max_owned_processes}"
                             )
                             break
-                    if now >= next_heartbeat:
+                    if exit_code is None and now >= next_heartbeat:
                         heartbeat_count += 1
-                        if on_heartbeat is not None:
-                            on_heartbeat(
-                                ProcessHeartbeat(
-                                    stage,
-                                    run_id,
-                                    lease_id,
-                                    now - started,
-                                    owned,
-                                )
-                            )
+                        heartbeat = ProcessHeartbeat(
+                            stage,
+                            run_id,
+                            lease_id,
+                            now - started,
+                            owned,
+                        )
+                        if mandatory_heartbeat_dispatcher is not None:
+                            mandatory_heartbeat_dispatcher.submit(heartbeat)
+                        if heartbeat_dispatcher is not None:
+                            heartbeat_dispatcher.submit(heartbeat)
                         next_heartbeat = now + heartbeat_interval
+                    if mandatory_heartbeat_dispatcher is not None:
+                        mandatory_failure, mandatory_started = (
+                            mandatory_heartbeat_dispatcher.state()
+                        )
+                        if mandatory_failure is not None:
+                            classification = ProcessClassification.INTERNAL
+                            reason = (
+                                "mandatory-heartbeat:"
+                                f"{type(mandatory_failure).__name__}:{mandatory_failure}"
+                            )
+                            break
                     exit_code = process.poll()
                     if exit_code is not None:
-                        classification = (
-                            ProcessClassification.SUCCESS
-                            if exit_code == 0
-                            else ProcessClassification.NONZERO
-                        )
-                        reason = "exited" if exit_code == 0 else "nonzero-exit"
+                        if exit_code != 0:
+                            classification = ProcessClassification.NONZERO
+                            reason = "nonzero-exit"
+                            break
+                        if now >= deadline:
+                            classification = ProcessClassification.TIMEOUT
+                            reason = "timeout"
+                            break
+                        if mandatory_heartbeat_dispatcher is not None:
+                            mandatory_failure, mandatory_drained = (
+                                mandatory_heartbeat_dispatcher.close_and_drain(deadline)
+                            )
+                            if time.monotonic() >= deadline or not mandatory_drained:
+                                classification = ProcessClassification.TIMEOUT
+                                reason = "timeout"
+                                break
+                            if mandatory_failure is not None:
+                                classification = ProcessClassification.INTERNAL
+                                reason = (
+                                    "mandatory-heartbeat:"
+                                    f"{type(mandatory_failure).__name__}:"
+                                    f"{mandatory_failure}"
+                                )
+                                break
+                        classification = ProcessClassification.SUCCESS
+                        reason = "exited"
                         break
                     if interrupted.is_set():
                         classification = ProcessClassification.INTERRUPTED
@@ -639,6 +826,10 @@ def run_process(
         classification = ProcessClassification.INTERNAL
         reason = f"internal:{type(exc).__name__}:{exc}"
     finally:
+        if heartbeat_dispatcher is not None:
+            heartbeat_dispatcher.close()
+        if mandatory_heartbeat_dispatcher is not None:
+            mandatory_heartbeat_dispatcher.close()
         if process is not None:
             backend_cleanup = backend.cleanup(process, termination_grace)
             cleanup = (
@@ -747,7 +938,7 @@ def _capability_result(
         peak_rss_bytes=None,
         temp_root=str(temp_root) if temp_root is not None else None,
         heartbeat_count=0,
-        cleanup_complete=True,
+        cleanup_complete=False,
         containment_complete=False,
         sampling_degraded=False,
         cleanup_error=None,

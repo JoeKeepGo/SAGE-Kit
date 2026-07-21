@@ -16,7 +16,8 @@ Context hygiene keeps long-running AI work reliable.
 - Keep document routing stable unless the documentation topology or routing
   policy changes.
 - Name one Startup Context Controller for each run. That controller is the only
-  writer for `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`. Workers and
+  writer for the configured `ACTIVE_CONTEXT` path (legacy default
+  `docs/ACTIVE_CONTEXT.md`) and `docs/DOC_ROUTING.md`. Workers and
   integration lanes return proposals; they never edit or race those files.
 
 ## Minimum Read Declaration
@@ -32,7 +33,7 @@ Before broad exploration, state:
 
 | Memory Type | Location |
 |---|---|
-| Current repository state | `docs/ACTIVE_CONTEXT.md` |
+| Current repository state | Configured `ACTIVE_CONTEXT` path; legacy default `docs/ACTIVE_CONTEXT.md` |
 | Milestone progress | `docs/M<ID>/MILESTONE_LEDGER.md` |
 | Milestone outcome | `docs/M<ID>/MILESTONE_CLOSEOUT.md` |
 | Phase scope and evidence | `docs/M<ID>/<phase>.md` |
@@ -51,7 +52,7 @@ permission mode and named Startup Context Controller ownership. If either is
 missing, the agent must return a memory update proposal or explicit no-change
 note for the serial controller.
 
-For `docs/ACTIVE_CONTEXT.md`:
+For the configured `ACTIVE_CONTEXT` path:
 
 - update current repository, branch, milestone, phase, objective, next action,
   and blocker fields when they changed;
@@ -74,8 +75,8 @@ workers propose, this completion note:
 Memory Maintenance: ACTIVE_CONTEXT no change; DOC_ROUTING no change.
 ```
 
-If either file exceeds its target size budget, the agent or controller that owns
-the startup context files must compact it before claiming phase `DONE`. If the
-current agent does not own those files, it must return a memory update proposal;
-the controller must finish compaction before the phase can be `DONE`, or return
-`HANDOFF` with the compaction gap named.
+If either file exceeds its target size budget, context growth is a compaction
+duty, not an automatic completion gate. The owning controller must compact or
+record an explicit compaction handoff before the context changes can be claimed
+as current; this handoff is not itself `BLOCKED` and should continue once the
+owning controller resolves it.

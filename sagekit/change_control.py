@@ -29,7 +29,7 @@ class ChangeRequest:
     change_class: ChangeClass
     changed_paths: tuple[str, ...]
     purposes: Mapping[str, str] = field(default_factory=dict)
-    authority_granted: bool = True
+    authority_granted: bool = False
     immediate_destructive_risk: bool = False
 
 
@@ -97,9 +97,13 @@ def decide_change(
             )
         return _decide_corrective(repository_root, request, envelope)
     if request.change_class == ChangeClass.C2_CONTRACT_AFFECTING:
-        state = RunState.CONTINUE if request.authority_granted else RunState.HUMAN_DECISION_REQUIRED
-        reasons = () if request.authority_granted else ("contract-affecting authority is missing",)
-        return ChangeDecision(state, ("semantic-lane",), reasons)
+        if not request.authority_granted:
+            return ChangeDecision(
+                RunState.HUMAN_DECISION_REQUIRED,
+                ("contract-scoped",),
+                ("contract-affecting authority is missing",),
+            )
+        return ChangeDecision(RunState.CONTINUE, ("contract-scoped",))
     return ChangeDecision(
         RunState.HUMAN_DECISION_REQUIRED,
         reasons=("external or destructive work requires explicit human approval",),

@@ -15,7 +15,8 @@ status. External skills, plugins, connectors, and tools provide execution
 methods inside those approved boundaries.
 
 Task Dispatch is an internal optional SAGE-Kit profile. Superpowers and other
-skills, plugins, MCP tools, CLIs, CI systems, reviewers, frontend builders,
+skills, plugins, MCP tools, runtime adapters, CI systems, reviewers, frontend
+builders,
 OpenSpec, GitNexus, browser tools, and database tools are optional capability
 adapters unless a project explicitly defines a narrower policy.
 
@@ -35,8 +36,9 @@ Paths and adapter names are provenance and must not affect semantic identity.
 Use these scope classes: `ACTIVE_SPEC` for current execution authority,
 `ACTIVE_CONTEXT` for the compact handoff view, `ACCEPTED_HISTORY` for immutable
 accepted records, `REFERENCE_ONLY` for background, and `RUNTIME_STATE` for
-`.sagekit` state. Resolve source authority from explicit CLI source, configured
-active source, ACTIVE_CONTEXT Current Work Pointer, then the legacy adapter for
+`.sagekit` state. Resolve source authority from explicit source config,
+configured active source, ACTIVE_CONTEXT Current Work Pointer, then the legacy
+adapter for
 an explicitly selected legacy milestone. Explicit or configured sources fail
 closed without fallback; ambiguity produces one aggregated scope error.
 
@@ -51,10 +53,10 @@ binding and packaged versioned resources even when a local Skill is missing or
 older. Default adoption is package-bound; framework vendoring is explicit
 compatibility only.
 
-Use `sagekit packet compile` only to create an ephemeral packet. Check and
-compile are read-only unless the user explicitly selects a writing option. They
-must not rewrite source documents, ACTIVE_CONTEXT, runtime state, or accepted
-history. The complete scope and authority contract is packaged as
+Build ephemeral execution packets through the embedded harness runtime only.
+Build and validation are read-only unless the user explicitly selects a writing
+option. They must not rewrite source documents, ACTIVE_CONTEXT, runtime state, or
+accepted history. The complete scope and authority contract is packaged as
 `docs/agent/SPEC_SOURCE_CONTRACT.md`.
 
 ## Host Resource And Workspace Boundary
@@ -63,14 +65,15 @@ Resolve the independent `conservative-host-v1` Resource Policy for current or
 future execution; do not retrofit resource fields into accepted history.
 Packet schema v3 adds normalized SPEC identity to the v2 canonical workspace
 and resolved resource-policy bindings.
-CLI help/version, read-only file access, deterministic config parsing,
+In-process package metadata, read-only file access,
+deterministic config parsing,
 in-process SPEC normalization, `git status`, `git rev-parse`, and
 `git diff --name-only` execute directly without a heavy lease, Job Object, or
 adoption self-test. Focused validators/tests and bounded short Git subprocesses
 may use light managed execution. Full suites, builds, fresh installs,
 browser/runtime smoke, services, and descendant-producing tools use strict
-resource governance through `sagekit workspace verify` and
-`sagekit resource run`. Reviewers do not rerun tests; they ask the Root
+resource governance through managed workspace verification and managed
+resource execution. Reviewers do not rerun tests; they ask the Root
 verification controller for missing evidence.
 
 Independent verification nodes continuing means their logical results remain
@@ -86,17 +89,19 @@ or milestone.
 Containment reported by a managed run may be `HARD` or `MANAGED` according to
 its platform adapter. The guarantee that arbitrary direct commands cannot
 bypass the runtime remains `SOFT`: SAGE-Kit cannot intercept an agent, plugin,
-shell, or arbitrary child that does not use `resource run`. When the project contains
+shell, or arbitrary child that bypasses managed resource boundaries. When the
+project contains
 `docs/agent/HOST_RESOURCE_GOVERNANCE.md`, use it for lease, wait, process-tree,
 and serial verification behavior. Thin adoption deliberately may not copy that
 generic document; when it is absent, use the packet's resolved resource policy
-and the installed CLI's packaged versioned contract instead of inventing a
+and the installed package's pinned contract instead of inventing a
 project-local file or rule.
 
 ## Core Rule
 
-Do not read every SAGE-Kit document by default. Start from the active project
-context and let `docs/DOC_ROUTING.md` decide the narrow read set.
+Do not read every SAGE-Kit document by default. Start from the configured active
+project context and let the configured routing authority decide the narrow read
+set. `docs/DOC_ROUTING.md` is only the legacy default.
 
 Historical ledgers, phase docs, completion reports, and closeouts are not
 startup context.
@@ -111,7 +116,7 @@ supports.
 1. Identify the active repository boundary and change-control state.
 2. Check for SAGE-Kit project markers:
    - the configured `ACTIVE_CONTEXT` path or legacy `docs/ACTIVE_CONTEXT.md`
-   - `docs/DOC_ROUTING.md`
+   - the configured routing authority or legacy `docs/DOC_ROUTING.md`
    - `docs/PROJECT_PROFILE.md`
    - `docs/agent/AGENT_HARNESS.md`
 3. If project docs are missing but the user wants to adopt or bootstrap
@@ -120,7 +125,8 @@ supports.
    when requested; do not expect instantiated project docs to exist.
 5. If the runtime has a SAGE-Kit environment profile, read it for
    invocation, capability, and orchestration mapping in that environment:
-   - Kimi Work or Kimi Code CLI: `references/kimi-runtime.md`
+   - Kimi Work or the explicitly supported Kimi Code runtime:
+     `references/kimi-runtime.md`
    - OpenCode: `references/opencode.md`
    - Claude Code: `references/claude.md`
 6. If the repo is not SAGE-Kit governed and the user did not ask to adopt it,
@@ -132,7 +138,9 @@ For a SAGE-Kit governed project:
 
 1. Resolve and read the configured `ACTIVE_CONTEXT`; use
    `docs/ACTIVE_CONTEXT.md` as the legacy default.
-2. Read `docs/DOC_ROUTING.md`.
+2. Read the configured routing authority. Use `docs/DOC_ROUTING.md` only when
+   it exists as the project's legacy or explicit routing source; package-bound
+   projects may route directly from machine authority and the active SPEC.
 3. If `SAGE_PROJECT.json` exists, validate its explicit document model and
    contract pin. Read only the active thin manifest or legacy milestone/phase
    authority selected by routing and task scope.
@@ -146,8 +154,9 @@ For a SAGE-Kit governed project:
 6. Before writable work, name allowed files, read-only files, forbidden files,
    gates, verification commands, and stop conditions.
 
-If required startup docs are missing or contradictory, stop and report the gap
-before editing.
+If the configured startup authority is missing or contradictory, stop and
+report the gap before editing. A missing optional legacy routing document is
+not itself a blocker.
 
 ## Task Routing
 
@@ -166,15 +175,15 @@ before editing.
   convergence, or successor stop rules: read
   `docs/agent/EXECUTION_ECONOMY.md` and `docs/agent/CONTINUITY_PROTOCOL.md`.
 - Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
-  `sagekit resume` before loading broader context.
+  runtime resume state before loading broader context.
 - Task Dispatch validation contract selection or historical compatibility:
   read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. For an existing
   project whose accepted history predates structured active-set authority,
   route the owner to the Validation Scope Manifest migration procedure. Require
   an explicit container path and frozen v0/v1 version selected from historical
   provenance; do not choose a version by trying validators, invent acceptance,
-  downgrade current work, or rewrite historical documents. The CLI/validator,
-  not this Skill, decides scope and contract selection.
+  downgrade current work, or rewrite historical documents. Runtime validation
+  policy, not this Skill, decides scope and contract selection.
 
 Read only the reference files needed for the current task.
 
@@ -226,7 +235,7 @@ handoff.
   v0/v1 contract. Require current metadata for active work; mixed or ambiguous
   records fail closed, and a selected-contract failure must never fall back to
   another contract.
-- CLI/validator owns contract and milestone scope selection. Skill guidance,
+- Runtime validator owns contract and milestone scope selection. Skill guidance,
   filenames, prose, or terminal record state alone cannot authorize legacy
   validation.
 - Do not rewrite accepted historical documents to satisfy current phase format.
@@ -263,7 +272,7 @@ handoff.
   uncommitted snapshot. Bind committed, staged, unstaged, non-ignored
   untracked, deletion, mode, and symlink state; reassess before and after final
   verification. Pass and bind the packet's non-empty snapshot authority.
-  Never use an unbound allow-dirty bypass, follow external
+  Never use an unbound dirty-worktree bypass, follow external
   symlink targets, accept a dirty submodule, or treat a snapshot as
   commit/submit authority.
 - Capability or preflight failures do not consume a candidate verification run.
@@ -297,19 +306,22 @@ handoff.
   that returns `NEEDS_CORRECTION` must include a corrective packet, handoff, or
   blocker.
 - Do not let parallel workers or subagents edit the configured ACTIVE_CONTEXT
-  (legacy default `docs/ACTIVE_CONTEXT.md`) or `docs/DOC_ROUTING.md` directly.
+  (legacy default `docs/ACTIVE_CONTEXT.md`) or configured routing authority
+  (legacy default `docs/DOC_ROUTING.md`) directly.
   They must return memory update proposals for controller integration.
-- Direct edits to the configured ACTIVE_CONTEXT or `docs/DOC_ROUTING.md`
+- Direct edits to the configured ACTIVE_CONTEXT or configured routing authority
   require both permission mode and ownership. If either is missing, return a
   memory update proposal or no-change note.
 - Do not let SAGE-Kit displace specialist skills, plugins, connectors, or
   tools. Use available capability metadata to select the right specialist
   capability before delegating or executing domain work.
 - Use Capability Adapters for optional external skills, plugins, MCP tools,
-  CLIs, CI systems, reviewers, frontend skills, OpenSpec, GitNexus, browser
+  runtime adapters, CI systems, reviewers, frontend skills, OpenSpec, GitNexus,
+  browser
   QA, and database tools. Detect, authorize, bound, invoke, capture, map, and
   fall back without making them core dependencies.
-- Do not silently install external skills, plugins, CLIs, MCP servers, hooks,
+- Do not silently install external skills, plugins, runtime adapters, MCP
+  servers, hooks,
   generated skills, or global configuration. Recommend or request installation
   only when the source, writes, fallback, and approval path are explicit.
 - Treat superpowers as a reference integration, not a dependency. When
@@ -416,7 +428,7 @@ Before final handoff, commit, or completion:
 2. Maintain the configured `ACTIVE_CONTEXT` by replacement, not append-only history,
    only when permission mode and ownership allow direct writes; otherwise
    return a memory update proposal or no-change note.
-3. Update `docs/DOC_ROUTING.md` only when routing or document topology changed
+3. Update the configured routing authority only when routing or document topology changed
    and permission mode plus ownership allow direct writes; otherwise record a
    memory update proposal or no-change note.
 4. Update the completion report and milestone ledger with memory maintenance

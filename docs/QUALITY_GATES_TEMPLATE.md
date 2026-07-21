@@ -34,9 +34,9 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 
 | Gate | Required Evidence |
 |---|---|
-| Read gate | Completion report names docs read, phase doc, files, and verification plan. |
+| Read gate | Completion report names authority and context read, files, and verification plan. |
 | Project owner entry gate | Broad, non-technical, or coarse-roadmap projects produce intake and a capability map before executable roadmap planning. |
-| Phase documentation gate | Non-trivial work uses a retained phase document. |
+| Active execution authority gate | Non-trivial work uses retained active SPEC, phase, or task authority in the project's selected representation; Markdown is not required. |
 | Milestone granularity gate | Milestone candidate maps to one primary capability and has reviewable phases with contracts, file boundaries, tests, and smoke plans. |
 | Contract gate | Request, response, event, config, UI, CLI, or data contract is named before implementation. |
 | Test gate | Focused tests exist and run, or a manual-only exception is justified. |
@@ -50,9 +50,9 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Correction re-review gate | Corrective rounds have independent re-review evidence before Final Review closes the verdict, except exact `MECHANICAL_STATUS` corrections closed by a reviewer-authored Deterministic Closure predicate and receipt. |
 | Deterministic closure gate | A no-re-review closure names the prior reviewer predicate, precommitted final verdict, authoritative value/source, exact allowed diff, closure commands, out-of-scope hashes, State Truth result, a Closure Receipt Owner separate from the fixer, receipt ref/destination, `AUTO_CLOSED_BY_PREDICATE`, and `VERDICT_FINALIZED_FROM_RECEIPT`; any mismatch falls back to re-review. |
 | Security gate | Secrets and sensitive data are not exposed or staged. |
-| No fallback gate | No guessed fields, hidden success, speculative aliases, or silent downgrade paths. |
+| No fallback gate | No guessed fields, hidden success, speculative aliases, unauthorized fallback behavior, or silent downgrade paths. |
 | Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
-| Capability adapter gate | External capability use records adapter name, authorization level, boundary served, evidence produced, and fallback when relevant. |
+| Capability adapter gate | External capability use records adapter name, authorization level, boundary served, evidence produced, and required or safe-fallback behavior. |
 | Structured dispatch gate | When Task Dispatch Profile is active, task and evidence records exist, required L0-L4 levels are present, resource locks and leases are recorded, and the validator passes in gate-ready mode before acceptance. |
 | State Truth Reconciliation gate | When Task Dispatch is active, record reconciliation under `docs/profiles/task-dispatch/DISPATCH_PROFILE.md`; mismatches block acceptance. |
 
@@ -144,7 +144,7 @@ must not be retried speculatively.
 ## Universal Blockers
 
 - behavior changed but no test or smoke path exists;
-- implementation started without the required retained phase document;
+- implementation started without retained active SPEC, phase, or task authority;
 - a broad, non-technical, or coarse-roadmap project generated an executable roadmap directly
   from intake without a capability map and granularity audit;
 - milestone implementation started before phases were decomposed into
@@ -173,7 +173,8 @@ must not be retried speculatively.
   implementation surface it does not own;
 - write, corrective, environment-write, submit, merge, publish, release, or
   cleanup work occurs without the matching permission mode;
-- a hidden fallback path masks failure as success;
+- a hidden success, unauthorized fallback, or silent downgrade path masks
+  failure as success;
 - an external capability writes files, installs tools, changes environment
   configuration, or claims completion without adapter authorization and
   evidence mapping;

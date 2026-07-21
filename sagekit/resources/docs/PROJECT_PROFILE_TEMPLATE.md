@@ -1,6 +1,6 @@
 # Project Profile Template
 
-Use this file to define the durable product and project boundary. Replace every
+Use this file to define the durable project boundary. Replace every
 placeholder before implementation work depends on this profile.
 
 ## Product Summary
@@ -63,7 +63,3 @@ with a reason.
 | Term | Meaning |
 |---|---|
 | `<term>` | `<definition>` |
-
-## Banned Or Deprecated Terms
-
-List words that must not appear in product surfaces or new architecture docs.

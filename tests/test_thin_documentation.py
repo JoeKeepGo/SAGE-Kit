@@ -267,12 +267,32 @@ class ThinTemplateTests(unittest.TestCase):
 
 
 class ThinDocumentationTests(unittest.TestCase):
-    def test_readmes_install_current_release_without_candidate_language(self):
+    def test_readmes_describe_embedded_harness_without_public_cli_guidance(self):
         for filename in ("README.md", "README.zh-CN.md"):
             with self.subTest(readme=filename):
                 text = (REPO_ROOT / filename).read_text(encoding="utf-8")
-                self.assertIn("@v2026.7.20.2", text)
+                folded = text.casefold()
+                self.assertIn("harness", folded)
+                self.assertNotIn("pipx install", folded)
+                self.assertNotIn("sagekit init", folded)
+                self.assertNotIn("python -m sagekit", folded)
                 self.assertNotIn("source candidate", text.casefold())
+
+    def test_readmes_keep_authority_in_project_spec_not_fixed_documents(self):
+        english = " ".join(
+            (REPO_ROOT / "README.md").read_text(encoding="utf-8").casefold().split()
+        )
+        chinese = " ".join(
+            (REPO_ROOT / "README.zh-CN.md").read_text(encoding="utf-8").casefold().split()
+        )
+
+        self.assertIn("project-owned spec and configuration", english)
+        self.assertIn("optional legacy layout", english)
+        self.assertIn("does not own project policy", english)
+        self.assertNotIn("project documents remain the source of truth", english)
+        self.assertNotIn("harness core is embeddable and project-owned", english)
+        self.assertIn("项目自有的 spec 与配置是权威来源", chinese)
+        self.assertIn("可选传统布局", chinese)
 
     def test_readmes_core_and_repository_skill_route_resource_governance(self):
         readmes = "\n".join(
@@ -283,11 +303,68 @@ class ThinDocumentationTests(unittest.TestCase):
         skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(
             encoding="utf-8"
         ).casefold()
-        for text in (readmes, core, skill):
+        self.assertIn("embeddable", readmes)
+        self.assertIn("project", readmes)
+        for text in (core, skill):
             self.assertIn("conservative-host-v1", text)
-            self.assertIn("sagekit resource run", text)
-            self.assertIn("sagekit workspace verify", text)
+            self.assertIn("workspace", text)
+            self.assertIn("managed", text)
             self.assertIn("soft", text)
+        self.assertIn("resource governance", skill)
+        self.assertIn("workspace verification", skill)
+
+    def test_governance_authority_and_fail_closed_rules_are_packaged(self):
+        pairs = {
+            "core": (
+                "docs/SAGE_CORE.md",
+                "sagekit/resources/docs/SAGE_CORE.md",
+            ),
+            "quality": (
+                "docs/QUALITY_GATES_TEMPLATE.md",
+                "sagekit/resources/docs/QUALITY_GATES_TEMPLATE.md",
+            ),
+            "strict": (
+                "docs/agent/STRICT_MODE.md",
+                "sagekit/resources/docs/agent/STRICT_MODE.md",
+            ),
+            "entry": (
+                "docs/agent/PROJECT_OWNER_ENTRY.md",
+                "sagekit/resources/docs/agent/PROJECT_OWNER_ENTRY.md",
+            ),
+            "assurance": (
+                "docs/agent/MODEL_ASSURANCE_POLICY.md",
+                "sagekit/resources/docs/agent/MODEL_ASSURANCE_POLICY.md",
+            ),
+            "adapters": (
+                "docs/agent/CAPABILITY_ADAPTERS.md",
+                "sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md",
+            ),
+        }
+        documents = {}
+        for name, (source_path, packaged_path) in pairs.items():
+            source = REPO_ROOT / source_path
+            packaged = REPO_ROOT / packaged_path
+            self.assertEqual(source.read_bytes(), packaged.read_bytes(), name)
+            documents[name] = " ".join(
+                source.read_text(encoding="utf-8").split()
+            )
+
+        self.assertIn("retained active SPEC, phase, or task authority", documents["core"])
+        self.assertIn("Markdown location is provenance, not authority by itself", documents["core"])
+        self.assertIn("Active execution authority gate", documents["quality"])
+        self.assertNotIn("Phase documentation gate", documents["quality"])
+        self.assertIn("No fallback gate", documents["quality"])
+        self.assertIn("hidden success, unauthorized fallback, or silent downgrade", documents["quality"])
+        self.assertIn("Do not mark work `BLOCKED` merely because a fixed round count was reached", documents["quality"])
+        self.assertIn("deterministic failure must not be retried speculatively", documents["quality"])
+        self.assertIn("choose or change architecture", documents["strict"])
+        self.assertIn("Do not add fallback behavior unless", documents["strict"])
+        self.assertIn("advisory prompts, not product requirements", documents["entry"])
+        self.assertIn("must not invent a product threat model", documents["entry"])
+        self.assertIn("versioned project or runtime classification", documents["assurance"])
+        self.assertIn("passes its identifier and version to descendants", documents["assurance"])
+        self.assertIn("advisory routing inputs, not product requirements", documents["adapters"])
+        self.assertIn("Only the active project SPEC or its named owner", documents["adapters"])
 
     def test_resource_governance_document_is_packaged_and_states_containment_levels(self):
         source = REPO_ROOT / "docs/agent/HOST_RESOURCE_GOVERNANCE.md"
@@ -298,16 +375,21 @@ class ThinDocumentationTests(unittest.TestCase):
         text = " ".join(source.read_text(encoding="utf-8").casefold().split())
         for phrase in (
             "conservative-host-v1",
-            "sagekit resource run",
-            "sagekit workspace verify",
+            "sagekit.verify_project_workspace",
+            "sagekit.check_project",
+            "sagekit.run_managed_command",
             "waiting_for_resource",
             "soft guarantee",
             "`hard`",
             "`managed`",
             "containment_level",
+            "containment_complete",
+            "cleanup_complete",
+            "orphan_check",
+            "platform_adapter",
+            "limitations",
             "windows-job-object-gated-v1",
             "posix-session-process-group-v1",
-            "scripts.run_tests",
             "job object",
             "process group",
         ):
@@ -319,7 +401,7 @@ class ThinDocumentationTests(unittest.TestCase):
             with self.subTest(readme=filename):
                 text = (REPO_ROOT / filename).read_text(encoding="utf-8")
                 folded = text.casefold()
-                self.assertIn("sagekit packet compile", folded)
+                self.assertIn("harness", folded)
                 self.assertIn("sage_project.json", folded)
                 self.assertIn("thin-v1", folded)
                 self.assertIn("legacy-markdown", folded)
@@ -363,6 +445,44 @@ class ThinDocumentationTests(unittest.TestCase):
             "must not fall back",
         ):
             self.assertIn(phrase, combined)
+
+    def test_lane_f_profiles_use_embedded_authority_and_soft_unknown_runtime_guarantees(self):
+        harness = (REPO_ROOT / "docs/agent/AGENT_HARNESS.md").read_text(
+            encoding="utf-8"
+        )
+        economy = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+            encoding="utf-8"
+        )
+        packet = (
+            REPO_ROOT / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+        ).read_text(encoding="utf-8")
+        claude = (REPO_ROOT / "skills/sage-kit/references/claude.md").read_text(
+            encoding="utf-8"
+        )
+        kimi = (
+            REPO_ROOT / "skills/sage-kit/references/kimi-runtime.md"
+        ).read_text(encoding="utf-8")
+        opencode = (
+            REPO_ROOT / "skills/sage-kit/references/opencode.md"
+        ).read_text(encoding="utf-8")
+        combined = "\n".join((harness, economy, packet, claude, kimi, opencode))
+
+        self.assertNotIn("explicit CLI selection", combined)
+        self.assertNotIn("CLI help/version", combined)
+        self.assertNotIn("--snapshot-authority", combined)
+        self.assertNotIn("--allow-dirty", combined)
+        self.assertIn("explicit embedded API source", harness)
+        self.assertIn("`snapshot_authority` field", economy)
+        self.assertIn("`snapshot_authority` API/config field", packet)
+        self.assertIn("Invoke explicitly with `/sage-kit`", claude)
+        self.assertIn("Other clients that describe themselves as compatible", kimi)
+        self.assertIn("treat unknown behavior as a soft capability", kimi)
+        self.assertIn("normalized `ACTIVE_SPEC` or execution packet", claude)
+        self.assertIn("normalized active SPEC", kimi)
+        self.assertIn("normalized active SPEC", opencode)
+        self.assertIn("Persist a packet only when", claude)
+        self.assertIn("Persist a packet only when", opencode)
+        self.assertIn("Persist a lane packet", " ".join(kimi.split()))
 
         for path in (
             "docs/agent/MILESTONE_PLANNING.md",

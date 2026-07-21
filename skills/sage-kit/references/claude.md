@@ -38,7 +38,7 @@ top-level skills directory requires a restart.
 
 | Codex | Claude Code |
 |---|---|
-| `$sage-kit` mention invokes the skill | `/sage-kit` slash command, or automatic selection from the description |
+| `$sage-kit` mention invokes the skill | Invoke explicitly with `/sage-kit`; `disable-model-invocation: true` prevents model-initiated automatic loading |
 | `agents/openai.yaml` display metadata | Ignored; no equivalent surface |
 | `allow_implicit_invocation: false` (hard config) | Native equivalent: `disable-model-invocation: true` in the SKILL.md frontmatter. This field is set in the shared SKILL.md; it is inert in runtimes that do not define it. With it, only the user can invoke the skill |
 | — | Additional hard control: permission rules `Skill(sage-kit)` in settings allow/deny/ask per skill |
@@ -68,17 +68,18 @@ Example `.claude/settings.json` baseline for a governed project:
 }
 ```
 
-Treat these rules as enforcement of the SAGE-Kit boundary, not as the
-boundary itself: allowed files, gates, and stop conditions still live in the
-phase doc and execution packets.
+Treat these rules as enforcement of the SAGE-Kit boundary, not as the boundary
+itself: allowed files, gates, and stop conditions come from the normalized
+active SPEC and its ephemeral execution packet. Persist a packet only when
+project-owned SPEC/configuration requires it.
 
 ## Orchestration Mapping
 
 | SAGE-Kit construct | Claude Code mapping |
 |---|---|
 | Project Manager session | Main session running the sage-kit skill; owns routing, serial files, gates, submit authority |
-| Coder Controller and workers | `sage-coder` subagent (shipped at `references/claude/agents/sage-coder.md`), dispatched with a bounded prompt naming SAGE docs, allowed files, gates, and stop conditions |
-| Final Review session | `sage-final-review` subagent (shipped at `references/claude/agents/sage-final-review.md`) with a read-only tool allowlist and no shell; verification execution stays with the controller |
+| Coder Controller and workers | `sage-coder` subagent (shipped at `references/claude/agents/sage-coder.md`), dispatched with a bounded prompt containing the normalized `ACTIVE_SPEC` or execution packet, allowed files, gates, and stop conditions. Legacy files may be read only when explicitly named. |
+| Final Review session | `sage-final-review` subagent (shipped at `references/claude/agents/sage-final-review.md`) with a read-only tool allowlist and no shell; it consumes the normalized `ACTIVE_SPEC` or verdict packet, plus only explicitly named legacy files. Verification execution stays with the controller |
 | Read-only exploration lanes | Built-in `Explore` and `Plan` subagents — reuse them |
 | Wave Execution | Parallel subagent calls only when Wave Readiness is proven — unchanged rule |
 | Worktree Isolation | Native: set `isolation: worktree` on the worker subagent |
@@ -94,7 +95,7 @@ replaces, the milestone ledger.
 ## Deterministic Enforcement
 
 Claude Code hooks let SAGE-Kit rules execute as code instead of relying on
-model compliance. Two hooks ship under `references/claude/hooks/`, each in a
+model compliance. One hook ships under `references/claude/hooks/` in both a
 POSIX (`.sh`) and a Windows PowerShell (`.ps1`) variant:
 
 - `protect-serial-files` (PreToolUse, matcher `Edit|Write|MultiEdit|Bash`)
@@ -111,38 +112,8 @@ POSIX (`.sh`) and a Windows PowerShell (`.ps1`) variant:
     is evadable by design. A lane that needs a hard shell-level boundary
     must use a worker without `Bash` in `tools` and let the controller run
     the verification commands instead.
-- `stop-sagekit-check` (Stop, opt-in via `SAGE_STOP_CHECK=1`) is wired
-  globally in the governed project's `.claude/settings.json`. It runs
-  `sagekit check` and reads its exit code: `0` passes, `1` blocks on
-  findings, `2` (usage/config error) and `3` (internal error) block as
-  invocation/capability failures reported as HANDOFF. A missing validator or
-  Python interpreter also fails closed with a handoff message.
-
-Global wiring in the governed project's `.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": ".claude/hooks/stop-sagekit-check.sh" }
-        ]
-      }
-    ]
-  }
-}
-```
-
-On Windows, use the `.ps1` variants and declare the shell in each hook
-entry (also inside the `sage-coder` frontmatter hook):
-
-```json
-{ "type": "command", "command": ".claude/hooks/stop-sagekit-check.ps1", "shell": "powershell" }
-```
-
-The PowerShell variants parse hook input with `ConvertFrom-Json` and do not
-require `jq`.
+Completion hooks are not included by default. Completion checks belong to the
+project controller and controller-owned evidence pipeline.
 
 Hooks are enforcement, not authority: permission mode and ownership in the
 active SAGE-Kit artifact still decide whether a write is legitimate.
@@ -157,8 +128,9 @@ weaker configuration than the implementation lane they review.
 
 ## Continuity Mapping
 
-- `.sagekit/runtime/CURRENT_RUN.json` and the `sagekit checkpoint` /
-  `sagekit resume` commands work unchanged through the Bash tool.
+- `.sagekit/runtime/CURRENT_RUN.json` remains the checkpoint contract. A host
+  integration must call the exported SAGE-Kit Harness checkpoint functions;
+  Bash alone does not provide checkpoint/resume behavior.
 - `claude --continue` / `claude --resume` restore session context; the
   on-disk checkpoint remains the canonical resume contract across machines
   and agents.

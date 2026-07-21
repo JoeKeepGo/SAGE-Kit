@@ -28,6 +28,9 @@ remaining mutually exclusive files as parallel candidates. Before declaring
 `SERIAL`, record the dependency DAG, serial barriers, phase-internal lanes, and
 the concrete phase or lane dependency, file conflict, gate, or runtime
 ownership reason that prevents safe parallel work.
+If a shared file appears in multiple prepared lanes, those lanes must be merged or
+reassigned before that file is edited; no active wave may run disjoint
+parallel write on the same shared path.
 
 Do not repartition an already active phase by default. Adopt a changed wave
 shape at the next safe barrier or wave unless active authority explicitly
