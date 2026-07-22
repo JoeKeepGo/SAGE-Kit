@@ -8,16 +8,20 @@ execution and review controllers. It does not replace Phase Execution or Wave
 Execution. It wraps multiple phase executions inside a milestone-level packet
 flow.
 
+Role, review/corrective, submit, waiver, and level/permission authority are
+canonical in `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003` through
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This document retains the
+milestone controller topology, packet flow, delegation, and closure mechanics.
+
 Use this mode when a milestone has multiple phases, multiple lanes, independent
 review needs, or repeated handoff overhead.
 
 Do not use this mode for small tasks, typo fixes, narrow bug fixes, or a single
 phase that can be completed cleanly in one controller session.
 
-Session Orchestration is normally Heavy at the controller layer. Delegated
-phase, lane, review, validation, and corrective workers must still receive
-their own `Light`, `Standard`, or `Heavy` governance level based on their local
-scope and risk.
+Session Orchestration records a controller-layer assignment and a separate
+level for every delegated phase, lane, review, validation, and corrective
+worker, applying `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003`.
 
 ## Role Model
 
@@ -68,23 +72,17 @@ Project Manager Controller
 
 ## Controller Rules
 
-- The Project Manager Controller owns direction, scope, gates, and final
-  decision.
-- The Coder Controller owns execution orchestration, not product judgment.
-- The Final Review Controller owns independent verification, not final project
-  acceptance.
-- Orchestration authority does not grant worker write authority. Final Review
-  remains `READ_ONLY_REVIEW`; when Project Manager authorizes corrective
-  orchestration, each corrective worker receives its own
-  `CORRECTIVE_AUTHORIZED` packet.
+Authority meaning and separation follow
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005` and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`. The rules below retain only
+Session Orchestration's controller dispatch, integration, and packet duties.
 - Coder and Final Review controllers should delegate work to phase, lane,
   review, validation, or corrective workers when doing so reduces serial
   handoff and file ownership remains clear.
 - Coder Controller may edit only explicitly controller-owned integration or
   packet files under the narrow policy below. It never edits files assigned to
   a phase, lane, integration, or corrective worker.
-- Controllers must assign each worker a governance level. Heavy milestone
-  control does not automatically make every worker Heavy.
+- Controllers must record each worker's locally selected governance level.
 - Controllers may run workers in parallel only when the execution packet names
   disjoint file ownership, runtime ownership, evidence expectations, and stop
   conditions.
@@ -111,11 +109,9 @@ Project Manager Controller
 - When Task Dispatch Profile is active, Final Review must inspect the relevant
   task/evidence records, run or review the validator result, and use the
   records as an evidence index rather than as proof by themselves.
-- If the same session is later used for submit or cleanup, Project Manager must
-  first record the Final Review verdict, then issue a separate Submit
-  Controller authorization.
-- The initial Coder execution packet never grants submit, commit, push, merge,
-  release, publish, or cleanup authority.
+- If the same session is later used for submit or cleanup, record the Final
+  Review verdict and a separate grant under
+  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`.
 - One milestone should normally use one Coder Controller and one Final Review
   Controller.
 - Additional controllers are exceptional and must be justified by scope,
@@ -159,8 +155,8 @@ controller form.
 
 ## Permission Mode Assignment
 
-Use `docs/agent/GOVERNANCE_LEVELS.md#authority-matrix` before issuing a packet
-or worker prompt.
+Use `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004` before issuing a packet or
+worker prompt.
 
 Project Manager must select both:
 
@@ -169,17 +165,12 @@ Project Manager must select both:
   `CORRECTIVE_AUTHORIZED`, `ENVIRONMENT_WRITE_AUTHORIZED`, or
   `SUBMIT_AUTHORIZED`.
 
-`SUBMIT_AUTHORIZED` is valid only in a distinct post-verdict grant. It is not a
-valid initial Coder execution mode. Final Review always uses
-`READ_ONLY_REVIEW`; corrective orchestration authorization is recorded
-separately and grants writes only to named corrective workers.
-
-Governance level does not grant write authority by itself. Permission mode does
-not reduce the governance level. A Heavy controller may start in
-`READ_ONLY_REVIEW`, but it must still perform Heavy controller duties such as
-scope decision, packet completeness, corrective routing, or handoff when those
-duties are in scope. Project Manager final decisions are recorded as separate
-PM decision authority and are not Final Review read-only acceptance.
+Apply the separated role, Final Review/corrective, and submit rules at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`,
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`, and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`. This packet records any
+controller duty, corrective orchestration authorization, and post-verdict grant
+without converting one authority into another.
 
 Every worker or lane packet must name its permission mode. Default to
 `READ_ONLY_REVIEW` unless the active packet explicitly authorizes writes,
@@ -481,21 +472,14 @@ Final Review must classify findings before returning a non-acceptable verdict:
 - `DEFER`: can be postponed only with an explicit owner, waiver, or follow-up
   milestone.
 
-Final Review is always `READ_ONLY_REVIEW` and never edits implementation or
-corrective files. A `NEEDS_CORRECTION` verdict must include an inline or
-referenced corrective packet, Project Manager decision request, or blocker. If
-Project Manager separately authorized corrective orchestration, Final Review
-may dispatch a `CORRECTIVE_AUTHORIZED` worker inside the approved boundary and
-convergence budget; otherwise it returns `PM_DECISION_REQUIRED` and `HANDOFF`.
-
-Final Review cannot mark the milestone accepted. The Project Manager Controller
-makes the final decision through a separate PM decision authority record.
-
-Each ordinary finding must name its Finding Owner and Waiver Authority. Project
-Manager may record its waiver only with an explicit decision reference from the
-Waiver Authority or a documented delegation reference. Finding ownership alone
-does not grant waiver authority. A closed human-only approval gate requires its
-named human authority; Project Manager alone cannot waive or open it.
+Apply the canonical review/corrective, role, and waiver boundaries at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`,
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`, and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. In this flow, a
+`NEEDS_CORRECTION` verdict includes a corrective packet, Project Manager
+decision request, or blocker; authorized corrective orchestration dispatches a
+separately packeted worker, and each finding records its local Finding Owner,
+Waiver Authority, and decision or delegation reference.
 
 ## Corrective Rules
 

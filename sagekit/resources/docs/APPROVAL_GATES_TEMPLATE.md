@@ -1,7 +1,8 @@
 # Approval Gates Template
 
-Approval gates define actions that require explicit human approval before an AI
-agent or automation performs them.
+Approval semantics are canonical at `docs/SAGE_CORE.md#sage-auth-009`. This
+template instantiates project-owned gates, request inputs, and retained approval
+evidence for actions that require explicit human approval.
 
 ## Default Closed Gates
 
@@ -27,7 +28,7 @@ When approval is required, ask for:
 
 ## Agent Rules
 
-- Do not infer approval from prior unrelated messages.
-- Do not broaden approval scope.
+- Apply the explicit, target-scoped boundary in
+  `docs/SAGE_CORE.md#sage-auth-009` to every gate above.
 - Do not run real mutations when the phase says fake, dry, or simulation only.
 - Record approval evidence in the completion report.

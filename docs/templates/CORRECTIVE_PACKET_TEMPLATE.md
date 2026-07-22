@@ -2,6 +2,11 @@
 
 Use this packet for bounded fixes after Final Review.
 
+Review/corrective authority is canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`. This packet retains the named
+findings, worker/reviewer modes, allowed surfaces, evidence return, re-review,
+and receipt-owner fields for one bounded correction.
+
 ```markdown
 Corrective Round / Convergence Budget: `<round n; budget/control signal>`
 

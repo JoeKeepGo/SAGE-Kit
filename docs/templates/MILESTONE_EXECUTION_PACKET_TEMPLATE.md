@@ -2,6 +2,11 @@
 
 Use this packet from Project Manager Controller to Coder Controller.
 
+Level/permission and submit semantics are canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004` and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`. This packet retains every
+project-instance field that assigns those boundaries to controllers and workers.
+
 ```markdown
 Milestone:
 

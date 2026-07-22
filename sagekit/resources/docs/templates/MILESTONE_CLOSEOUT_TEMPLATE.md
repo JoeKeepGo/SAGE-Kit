@@ -2,6 +2,11 @@
 
 Use this file when closing a milestone.
 
+Waiver meaning is canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This closeout retains the
+project-instance Finding Owner, Waiver Authority, decision/delegation, and
+human-authority evidence fields.
+
 This file is a historical outcome index, not startup context. Keep it concise
 enough to answer what happened, what shipped, what remains, and where to find
 evidence without rereading every phase document.
@@ -60,10 +65,8 @@ command output.
 |---|---|---|---|---|---|---|
 | `<gate>` | `PASS`, `WAIVED`, `BLOCKED`, or `N/A` | `<source>` | `<owner or n/a>` | `<authority or n/a>` | `<explicit decision/delegation ref or n/a>` | `<notes>` |
 
-Ordinary quality-finding waivers cite the named Waiver Authority and explicit
-decision or delegation reference. Finding ownership alone does not grant waiver
-authority. Human-only approval gates cite the named human authority; Project
-Manager alone cannot waive them.
+Complete these local fields under
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`.
 
 ## Known Gaps
 

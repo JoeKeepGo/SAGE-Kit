@@ -3,6 +3,11 @@
 This document defines the evidence required before project work can be called
 complete.
 
+Governance/permission meaning and waiver authority are canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004` and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This template retains the
+project's gate catalog, required evidence, status, and authority fields.
+
 ## Gate Levels
 
 | Level | Use When | Evidence Examples |
@@ -24,11 +29,12 @@ Every phase completion report must classify applicable gates with these values.
 | `PASS` | Required evidence exists and was checked. |
 | `FAIL` | Evidence was produced and shows the gate failed. |
 | `BLOCKED` | Evidence cannot be produced without a blocker, missing input, or approval. |
-| `WAIVED` | Project owner explicitly accepted the risk for this phase. |
+| `WAIVED` | The named Waiver Authority, or explicitly documented delegate, approved the recorded risk for this scope. |
 | `N/A` | Gate does not apply, with a concrete reason. |
 
 Blocking gates marked `FAIL`, `BLOCKED`, or missing cannot be accepted.
-Blocking gates marked `WAIVED` require owner, reason, and scope.
+Blocking gates marked `WAIVED` require Finding Owner, Waiver Authority,
+decision or delegation reference, reason, and scope.
 
 ## Universal Required Gates
 
@@ -45,7 +51,7 @@ Blocking gates marked `WAIVED` require owner, reason, and scope.
 | Wave safety gate | When Wave Execution is used, parallel lanes have exclusive file ownership and controller integration evidence. |
 | Wave readiness gate | Wave or parallel phase execution names independent lanes, exclusive writable files, serial shared files, frozen contracts, runtime ownership, validation lanes, integration owner, and conflict stop conditions. |
 | Coder separation gate | In Session Orchestration, Coder Controller self-execution is absent or explicitly allowed, narrow, recorded, and independently reviewed. |
-| Authority gate | Every active packet names both governance level and permission mode; write, corrective, environment-write, and submit authority are explicit. |
+| Authority gate | Every active packet records both fields required by `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`; every mutation surface is explicit. |
 | Corrective closure gate | When review returns required corrections, it provides a corrective packet, Project Manager decision request, blocker, or waiver path. |
 | Correction re-review gate | Corrective rounds have independent re-review evidence before Final Review closes the verdict, except exact `MECHANICAL_STATUS` corrections closed by a reviewer-authored Deterministic Closure predicate and receipt. |
 | Deterministic closure gate | A no-re-review closure names the prior reviewer predicate, precommitted final verdict, authoritative value/source, exact allowed diff, closure commands, out-of-scope hashes, State Truth result, a Closure Receipt Owner separate from the fixer, receipt ref/destination, `AUTO_CLOSED_BY_PREDICATE`, and `VERDICT_FINALIZED_FROM_RECEIPT`; any mismatch falls back to re-review. |
@@ -181,8 +187,9 @@ must not be retried speculatively.
 - a shared contract changed without updating both owner and consumer evidence;
 - secrets, credentials, tokens, private keys, account data, or production data
   are staged or committed.
-- a blocking gate is skipped without an explicit `WAIVED` status from the
-  project owner.
+- a blocking gate is skipped without an explicit `WAIVED` status from the named
+  Waiver Authority or documented delegate; human-only gates still require the
+  named human authority.
 - Task Dispatch Profile is active and a task, phase, or milestone is accepted
   without a passing gate-ready dispatch validator result.
 - Task Dispatch Profile is active and a task or evidence record is orphaned;
@@ -238,4 +245,4 @@ Use these levels when a project adopts the Task Dispatch Profile:
 | `L4` | Release or production-path evidence. |
 
 These levels complement the gate table above. They do not replace normal
-quality gates, owner waivers, or Final Review judgment.
+quality gates, named Waiver Authority decisions, or Final Review judgment.

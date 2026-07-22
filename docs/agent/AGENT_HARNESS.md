@@ -5,6 +5,11 @@ The Agent Harness defines how AI agents work inside a SAGE-Kit project.
 The harness does not replace the project spec. It tells agents how to execute
 against the spec without losing context, widening scope, or hiding risk.
 
+Authority precedence is owned by `docs/SAGE_CORE.md#sage-auth-001`; explicit,
+target-scoped approval is owned by `docs/SAGE_CORE.md#sage-auth-009`. This
+document retains Harness routing, startup, execution, evidence, and handoff
+responsibilities inside those boundaries.
+
 ## SPEC And Execution Authority
 
 The Harness consumes the normalized model defined by
@@ -26,17 +31,18 @@ missing or conflicting authority produces one aggregated scope finding.
 ## Operating Rules
 
 - Read the smallest safe context first.
-- Select the lightest safe governance level for the current control scope using
-  `docs/agent/GOVERNANCE_LEVELS.md`.
-- Select the permission mode for the current role: read-only, writable,
-  corrective, environment-writing, or submit authority.
+- Apply the per-scope level rule and independent permission matrix in
+  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003` and
+  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`; record both for the active
+  role or packet.
 - Identify the active phase before editing.
 - Treat Project Owner Intake and Capability Map as planning inputs, not
   implementation authorization.
 - Name allowed files, read-only files, and forbidden files before writable work.
 - Use Wave Execution for safe parallel work inside a phase.
 - Use Session Orchestration for large milestone-level work that needs separate
-  Project Manager, Coder, and Final Review controllers.
+  Project Manager, Coder, and Final Review controllers under
+  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`.
 - In Session Orchestration, Coder Controller should orchestrate workers by
   default. It may self-execute only when the execution packet explicitly allows
   a narrow phase, glue step, or integration repair before Final Review.
@@ -59,7 +65,8 @@ missing or conflicting authority produces one aggregated scope finding.
   defines the milestone controller packet flow.
 - Do not invent missing contracts.
 - Do not use placeholder success for failed runtime behavior.
-- Do not touch closed approval gates.
+- Record the gates that remain closed and stop before crossing them under
+  `docs/SAGE_CORE.md#sage-auth-009`.
 - Update durable project facts before handoff when ownership allows it.
 - Treat the configured `ACTIVE_CONTEXT`, with legacy default
   `docs/ACTIVE_CONTEXT.md`, as a compact current-state snapshot.
@@ -164,16 +171,11 @@ Delegation prompts must name:
 - whether the worker must inspect its own available capability list;
 - the fallback when a selected capability is missing.
 
-SAGE-Kit governance does not replace domain skills, plugins, tools, CI, or
-human review. If a frontend, review, GitHub, database, document, browser,
-runtime, or other specialist capability applies, the controller should route
-the worker to that capability and keep SAGE-Kit as the boundary and evidence
-contract.
-
-Follow `docs/SAGE_CORE.md#external-capability-boundary`: external capability
-outputs are evidence inputs, not automatic `DONE`, gate completion, milestone
-acceptance, or approval. Superpowers is a reference integration for execution
-discipline when available, not a required dependency.
+Apply the authority and completion ordering in
+`docs/SAGE_CORE.md#sage-auth-001`. The Harness locally selects and routes useful
+domain capabilities and maps their output into SAGE-Kit evidence. Superpowers
+is a reference integration for execution discipline when available, not a
+required dependency.
 
 For each selected external capability, apply the Capability Adapter lifecycle:
 
@@ -190,9 +192,8 @@ For each selected external capability, apply the Capability Adapter lifecycle:
 Missing optional capabilities are not project failure. Treat them as
 unavailable and continue when a safe fallback exists.
 
-Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
-skills, or global configuration. Installation or environment writes require
-explicit authority in the active SAGE-Kit artifact or user approval.
+Classify installation or environment writes through the adapter policy and
+route their exact targets through `docs/SAGE_CORE.md#sage-auth-009`.
 
 ## Batch Execution
 
@@ -222,7 +223,8 @@ Before batch execution starts, the controller must record:
   Orchestration is used.
 
 A batch run must stop when any phase has a blocking `FAIL`, `BLOCKED`, or
-unapproved `WAIVED` gate. Corrective work may continue automatically only
+unapproved `WAIVED` gate. Approval scope follows
+`docs/SAGE_CORE.md#sage-auth-009`. Corrective work may continue automatically only
 inside an authorized corrective packet or boundary while the open finding count
 or severity is improving, scope is not expanding, no blocking approval gate is
 bypassed, and no new authority, false-green, approval-gate, security,
@@ -243,14 +245,15 @@ assign the shared file to a serial controller lane.
 For parallel work, use `docs/agent/WAVE_EXECUTION.md` and return lane results
 with `docs/templates/LANE_PACKET_TEMPLATE.md`.
 
-Do not globally inherit governance level. A Heavy controller may assign Light
-or Standard lanes when their file boundary, evidence, and stop conditions are
-narrow.
+Assign every lane its own level under
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003`; record the lane boundary,
+evidence, and stop conditions locally.
 
 For isolated workspaces, use `docs/agent/WORKTREE_ISOLATION.md`. Coder may
 choose which authorized phases or lanes receive worktrees, but Project Manager
 sets the allowed isolation mode, maximum count, naming, integration owner,
-submit authority, and cleanup policy.
+submit owner, and cleanup policy. Submit meaning remains canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`.
 
 ## Handoff Packet
 

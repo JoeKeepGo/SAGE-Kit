@@ -92,8 +92,9 @@ mixed records fail closed.
   milestone roadmaps.
 - Use milestone-level session orchestration only when it reduces handoff burden
   without weakening gates, verification, or final decision ownership.
-- Use proportional governance: start with the lightest safe governance level
-  and upgrade only when risk, scope, or control responsibility requires it.
+- Select governance per control scope under
+  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003`; that canonical rule owns
+  level selection and upgrade semantics.
 - Use worktree isolation only when the project explicitly authorizes isolated
   execution and names submit and cleanup ownership.
 - Use structured task dispatch only when the project explicitly adopts it and
@@ -123,25 +124,29 @@ SAGE-Kit governs authorization, milestone and phase boundaries, file ownership,
 approval gates, evidence requirements, resource locks, and completion status.
 External capabilities provide execution methods inside those boundaries.
 
+<a id="sage-auth-001"></a>
+
+### Project And Host Authority
+
 Within project execution, apply this authority order:
 
 1. Project specification and approval gates.
-2. SAGE-Kit harness rules.
+2. SAGE-Kit governance and harness defaults.
 3. External skill, plugin, connector, MCP tool, CI, or reviewer workflow.
 4. Agent default behavior.
 
-This order applies inside the project contract and does not override platform,
-system, or developer instructions.
+Project authority therefore outranks SAGE-Kit defaults, and SAGE-Kit outranks
+optional adapter and agent defaults. This order applies only inside the project
+contract and never overrides host, platform, system, or developer authority.
 
 External capability outputs are evidence inputs. They do not automatically mark
 work `DONE`, open or close approval gates, accept milestones, or satisfy
 completion requirements.
 
-Continuous execution by an external capability is allowed only inside approved
-phase, lane, task, or corrective boundaries. It must stop at closed approval
-gates, scope expansion, shared-file or resource-lock conflict, failed required
-evidence, unapproved runtime, destructive, submit, merge, push, or cleanup
-operations, or any condition that requires a higher controller decision.
+Continuous execution by an external capability remains inside its approved
+phase, lane, task, or corrective boundary and applies the approval rule below.
+Adapter-specific shared-file, resource-lock, evidence, fallback, and controller
+stop conditions remain defined in `docs/agent/CAPABILITY_ADAPTERS.md`.
 
 Plans produced by external planning workflows should be written into or mapped
 to SAGE-Kit milestone, phase, or packet documents so the project keeps one
@@ -156,6 +161,19 @@ installation policy. Adapters default to metadata-only or read-only. Installing
   external skills, plugins, runtime adapters, MCP servers, hooks, or global
   configuration
 requires explicit approval when it writes environment or user configuration.
+
+<a id="sage-auth-009"></a>
+
+## Explicit And Scoped Approval
+
+Approval is explicit and target-scoped. An agent cannot infer it from unrelated
+context, broaden or transfer it beyond the named action, target, environment,
+and conditions, or reuse it to cross another closed approval gate.
+
+Runtime or environment mutation, destructive action, external mutation, and
+commit, push, merge, publish, release, or cleanup remain closed unless the grant
+expressly covers that operation and target. Project instances retain their exact
+gate definitions and approval fields; SAGE-Kit defaults do not open them.
 
 ## Embedded Runtime Boundary
 

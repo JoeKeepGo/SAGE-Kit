@@ -2,6 +2,11 @@
 
 Use this template to start a milestone.
 
+Waiver authority is canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This entry gate retains the
+project's closed gates, named authorities, decision/delegation references, and
+milestone admission fields.
+
 ## Objective
 
 State the one milestone outcome.
@@ -192,7 +197,9 @@ Final milestone acceptance follows this order:
 The milestone can be closed only after:
 
 - every required phase is `accepted` or explicitly `superseded`;
-- blocking gates are `PASS` or explicitly `WAIVED` by the project owner;
+- blocking gates are `PASS` or explicitly `WAIVED` by the named Waiver
+  Authority or documented delegate; human-only gates require their named human
+  authority;
 - Task Dispatch gate-ready validator passes when the profile is active and a
   task, phase, or milestone acceptance gate is being advanced;
 - Task Dispatch validator is not marked `n/a` for an acceptance gate unless the

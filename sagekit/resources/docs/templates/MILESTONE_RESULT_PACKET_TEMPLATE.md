@@ -2,6 +2,11 @@
 
 Use this packet from Coder Controller to Project Manager Controller.
 
+Role and submit authority are canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005` and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`. This result retains the local
+handoff, level/mode, changed-surface, evidence, and permission-gap fields.
+
 Coder does not send this packet directly to Final Review. Project Manager runs
 the Structural Gate first and forwards the packet to Final Review only after the
 Structural Gate status is `PASS`.
@@ -160,8 +165,9 @@ Stop Conditions Triggered:
 Suggested Final Review Focus:
 ```
 
-Coder Controller must not mark the milestone accepted. That decision belongs to
-Project Manager after Final Review.
+Apply `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`; this packet records the
+Coder-to-Project-Manager handoff and leaves the post-review decision field
+pending.
 
 When Task Dispatch is active, a packet that asks Project Manager to advance a
 task, phase, or milestone acceptance gate must include gate-ready validator

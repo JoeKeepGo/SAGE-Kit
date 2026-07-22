@@ -10,8 +10,8 @@ This document defines the daily development workflow for humans and AI agents.
 - Do not add speculative aliases or guessed behavior.
 - Preserve a runnable baseline.
 - Keep planning, implementation, review, and release gates distinct.
-- Use the lightest governance level that safely preserves scope, evidence,
-  memory, and approval boundaries.
+- Select governance under `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003` and
+  record the chosen level locally.
 - Make runtime behavior visible through tests, logs, UI, API responses, or
   smoke checks.
 - Route execution to available specialist skills, plugins, connectors, tools,
@@ -22,6 +22,12 @@ This document defines the daily development workflow for humans and AI agents.
 
 ## Session Roles
 
+Authority meaning is canonical in
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005` through
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`; Final Review/corrective
+separation is explicit at `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`.
+This table retains the project's local role assignments and prohibitions.
+
 | Role | Owns | Must Not Do |
 |---|---|---|
 | Planning | Specs, milestones, phase docs, acceptance criteria. | Implement unapproved code. |
@@ -30,7 +36,7 @@ This document defines the daily development workflow for humans and AI agents.
 | Coordinator | Context routing, lane ownership, integration, ledger updates. | Hide unresolved conflicts or skipped verification. |
 | Project Manager Controller | Milestone direction, authority matrix, execution packet, structural gate, final decision. | Perform full technical review. |
 | Coder Controller | Phase and lane worker orchestration for one milestone. | Redefine milestone scope or accept the milestone. |
-| Final Review Controller | Independent review orchestration, corrective classification, and verdict. | Trust Coder self-report, accept the milestone directly, or fix code unless corrective-authorized. |
+| Final Review Controller | Independent read-only review orchestration, corrective classification, and verdict. | Trust Coder self-report, accept the milestone directly, or edit implementation/corrective files; correction is delegated to a separately `CORRECTIVE_AUTHORIZED` worker. |
 | Submit Controller | Authorized commit, push, merge, release, or worktree cleanup. | Submit unverified scope or bypass Project Manager approval. |
 
 ## Explore
@@ -55,6 +61,8 @@ promoting milestone candidates into an executable roadmap.
 
 The plan must include:
 
+- authority fields instantiate
+  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`;
 - governance level: `Light`, `Standard`, or `Heavy`;
 - permission mode: read-only, write-authorized, corrective-authorized,
   environment-write-authorized, or submit-authorized;
@@ -80,8 +88,9 @@ Re-Review`), Closeout/Status, and Submit Controller roles. Use this only for
 planning artifacts, ledgers, evidence or status records, and closeouts.
 Do not include product code, runtime behavior, schema, migrations, test
 implementation, release artifacts, credentials, production data, or approval
-gate state. Submit or push still requires explicit `SUBMIT_AUTHORIZED` scope
-and a changed-file, verification, and hygiene check.
+gate state. Any submit or push follows
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`; this workflow additionally
+requires a changed-file, verification, and hygiene check.
 
 For large milestones with many phases or high handoff overhead, use
 `docs/agent/SESSION_ORCHESTRATION.md` and create a milestone execution packet
@@ -89,7 +98,7 @@ instead of manually forwarding each phase between sessions.
 
 Use `docs/agent/WORKTREE_ISOLATION.md` only when Project Manager authorizes
 isolated milestone, phase, lane, or review workspaces and names submit and
-cleanup authority.
+cleanup ownership under `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`.
 
 Use `docs/profiles/task-dispatch/DISPATCH_PROFILE.md` only when Project Manager
 adopts structured task/evidence records, resource locks, leases, and validator

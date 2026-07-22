@@ -2,6 +2,10 @@
 
 Use this template to start a focused AI agent task.
 
+Approval semantics are owned by `docs/SAGE_CORE.md#sage-auth-009`. This
+template retains the exact authority inputs, permission fields, file boundary,
+closed-gate list, stop conditions, and evidence return required by a launch.
+
 ## Compact Controller Launch Envelope
 
 Use this form for a Project Manager, Coder, or Final Review controller that can
@@ -171,9 +175,8 @@ Runtime smoke:
 Capability routing:
 - Check available skill/plugin/connector/tool metadata before delegating or
   executing when the runtime exposes it.
-- SAGE-Kit governs scope, authorization, files, gates, locks, evidence, and
-  completion status; external capabilities provide execution methods inside
-  this boundary.
+- Apply authority precedence from `docs/SAGE_CORE.md#sage-auth-001`; record
+  selected capabilities and their local execution/evidence boundary below.
 - Codex GPT-5.6 Runtime Override: when active, record Superpowers as
   `DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not
   read, invoke, or delegate to Superpowers. `using-superpowers` is explicitly
@@ -198,8 +201,8 @@ Capability routing:
 - Before installing or initializing an approved adapter, read current provider
   docs, package metadata, or installed-tool help and report exact command,
   write targets, runtime requirements, rollback path, and fallback.
-- Do not let external capabilities expand scope, bypass locks, create a second
-  source of truth, or mark SAGE-Kit gates complete.
+- Apply `docs/SAGE_CORE.md#sage-auth-009` before any external capability crosses
+  the recorded scope, lock, gate, or mutation boundary.
 - Use these selected capabilities:
 - Selected adapters and authorization levels:
 - Do not use these capabilities:
@@ -225,10 +228,10 @@ Approval gates:
 - <closed gates>
 
 Continuous execution:
-- Continue only inside the approved phase/task/lane boundary.
-- Stop on closed approval gates, scope expansion, shared-file or resource lock
-  conflicts, failed required evidence, or unapproved runtime/destructive/submit
-  operations.
+- Apply `docs/SAGE_CORE.md#sage-auth-009`; record the exact approved
+  phase/task/lane boundary and every gate that remains closed.
+- Stop on local shared-file or resource-lock conflicts and failed required
+  evidence.
 
 Return format:
 - Use `docs/templates/LANE_PACKET_TEMPLATE.md` for lane work.

@@ -4,8 +4,9 @@ Capability Adapters define how SAGE-Kit uses external skills, plugins,
 connectors, MCP tools, CI systems, reviewers, and local CLIs without making
 them core dependencies.
 
-SAGE-Kit remains the governance layer. Adapters provide optional execution,
-planning, context, validation, or review help inside an approved SAGE-Kit
+Authority precedence and completion ownership are defined by
+`docs/SAGE_CORE.md#sage-auth-001`. This document owns adapter classification,
+authorization levels, invocation, evidence capture, and fallback inside that
 boundary.
 
 ## Classification
@@ -45,16 +46,14 @@ and continue when a safe fallback exists.
 Missing required capability must be explicit in the active authority and
 handled as an authority gap.
 
-Detected adapter categories and capabilities are advisory routing inputs, not
-product requirements. Discovery must not create a product threat model,
-security or safety requirement, approval gate, deployment target, or milestone.
-Only the active project SPEC or its named owner may place those concerns in
-scope.
+Detected adapter categories and capabilities are advisory routing inputs. This
+document may route them but does not add product requirements or gates; authority
+for project scope remains with `docs/SAGE_CORE.md#sage-auth-001`.
 
 ## Authorization Levels
 
 Adapter authorization level is separate from SAGE-Kit role permission mode in
-`docs/agent/GOVERNANCE_LEVELS.md#authority-matrix`. External capability use
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`. External capability use
 must satisfy both: the adapter must be authorized, and the active role or packet
 must allow the matching read, write, corrective, environment-write, or submit
 action.
@@ -85,8 +84,8 @@ handoff should name:
 - fallback used when unavailable, unsafe, or inconclusive;
 - any gates that remain blocked.
 
-External capability output is evidence input. It does not automatically satisfy
-SAGE-Kit gates, accept milestones, or mark work `DONE`.
+Completion ownership follows `docs/SAGE_CORE.md#sage-auth-001`; this adapter
+records the external output only as evidence.
 
 ## Frontend Adapter Rules
 

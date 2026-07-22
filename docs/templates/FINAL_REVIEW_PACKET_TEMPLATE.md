@@ -2,6 +2,12 @@
 
 Use this packet from Final Review Controller to Project Manager Controller.
 
+Role and review/corrective separation are canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005` and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`. This packet retains the
+read-only verdict, corrective delegation, closure, and Project Manager decision
+inputs.
+
 ```markdown
 Initial Verdict: `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, `NEEDS_CORRECTION`, or `BLOCKED`
 
@@ -234,4 +240,5 @@ Recommended Project Manager Decision:
 Re-Review Required: `<yes/no; no only with NOT_REQUIRED_DETERMINISTIC>`
 ```
 
-Final Review recommends. Project Manager decides.
+The recommendation and decision fields instantiate
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`.

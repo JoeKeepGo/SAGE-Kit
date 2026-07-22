@@ -1,5 +1,9 @@
 # Governance Levels
 
+<a id="sage-auth-003"></a>
+
+## Governance Scope And Level
+
 Governance Levels keep SAGE-Kit proportional. Use the lightest control level
 that preserves scope, evidence, memory, and approval boundaries.
 
@@ -11,12 +15,17 @@ Formal reviews that verify gates, milestone readiness, durable state, or
 verdict evidence are Standard or Heavy by controller scope. Final acceptance is
 a Project Manager decision, not a read-only review action.
 
+<a id="sage-auth-004"></a>
+
+## Governance And Permission Independence
+
 Governance level and permission mode are separate decisions. The governance
 level decides how much structure is required. The permission mode decides what
 the role may do in the repository, runtime, environment, or project state.
-Every packet should name both.
+Every active controller and worker packet must name both; the packet may grant
+mutation only on the surface named for that role.
 
-## Authority Matrix
+### Authority Matrix
 
 Select the governance level first, then select the permission mode for the
 current role and control scope.
@@ -29,11 +38,26 @@ current role and control scope.
 | `ENVIRONMENT_WRITE_AUTHORIZED` | Install, initialize, index, configure, or mutate environment-local tools only within the named adapter boundary. | Silent installs, global configuration, hooks, credentials, destructive changes, or treating tool setup as project completion. |
 | `SUBMIT_AUTHORIZED` | Commit, push, merge, publish, release, or clean up worktrees under a distinct post-verdict grant issued after the required review and Project Manager decision. | Initial Coder execution, submitting unreviewed scope, bypassing approval gates, or accepting technical risk without a recorded owner decision. |
 
+<a id="sage-auth-005"></a>
+
+## Separated Role Authorities
+
+Project Manager authority owns project direction, gates, and the final
+owner-authorized decision. Coder authority owns bounded implementation and
+execution orchestration. Independent Final Review authority owns the review
+verdict. Corrective Worker authority owns only the named fixes, and Submit
+authority owns only the separately granted post-verdict operations. None of
+these authorities implies another.
+
 `PM_DECISION_AUTHORIZED` is a Project Manager decision record, not a worker
 permission mode. It allows the Project Manager to record accept, accept with
 concerns, waive, defer, block, or hand off after the required evidence and Final
 Review verdict. It does not grant Final Review authority to accept a milestone,
 and it does not grant file, environment, submit, or cleanup writes.
+
+<a id="sage-auth-006"></a>
+
+## Final Review And Corrective Separation
 
 `READ_ONLY_REVIEW` is a permission mode, not a completion state. If a read-only
 review returns `NEEDS_CORRECTION`, `BLOCKED`, or gate-affecting concerns, it
@@ -46,6 +70,19 @@ Controller remains `READ_ONLY_REVIEW`; Project Manager may separately authorize
 it to dispatch review workers and bounded corrective workers. Each corrective
 worker needs its own `CORRECTIVE_AUTHORIZED` packet. The controller never edits
 implementation or corrective files.
+
+<a id="sage-auth-007"></a>
+
+## Submit Authority
+
+Commit, push, merge, publish, release, and worktree cleanup require a distinct
+post-verdict `SUBMIT_AUTHORIZED` grant. Implementation, orchestration, review,
+corrective, or Project Manager decision authority does not imply submit
+authority.
+
+<a id="sage-auth-008"></a>
+
+## Waiver Authority
 
 Waivers also require separate authority. Each ordinary quality finding names a
 Finding Owner and Waiver Authority. The Finding Owner may waive only when also
