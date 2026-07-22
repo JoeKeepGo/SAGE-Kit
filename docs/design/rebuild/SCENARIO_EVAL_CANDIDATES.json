@@ -1,0 +1,285 @@
+{
+  "schema_version": 2,
+  "baseline_sha": "9c63ed187535b492b261bce1089bb552eecc619d",
+  "scenarios": [
+    {
+      "id": "SCENARIO-HISTORY-ISOLATION-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "accepted history isolation",
+      "primary_layer": "Context",
+      "harness_component": "StateMemory",
+      "initial_state": "An immutable accepted execution container is explicitly classified as inactive history while separate current work remains active.",
+      "trigger": "The harness selects validation authority or attempts to load the historical container as executable input.",
+      "expected_decision": "Select only the pinned frozen contract for the historical container, exclude it from active reconciliation, and reject execution of that container.",
+      "forbidden_false_green": "Validating history under the current contract, silently treating it as active, or rewriting it to the newest shape.",
+      "invariants": [
+        "Historical documents are not current execution authority.",
+        "Accepted history is not rewritten.",
+        "Compatibility adapters translate inputs and do not rewrite history."
+      ],
+      "first_relevant_stage": 8,
+      "existing_test_refs": [
+        "tests/test_validation_compatibility.py::ContractSelectionTests::test_closed_unversioned_history_uses_frozen_v1",
+        "tests/test_spec_sources.py::SpecSourceTests::test_explicitly_classified_accepted_history_is_not_executable",
+        "tests/test_sagekit_check.py::SagekitCheckTests::test_accepted_historical_phase_is_not_retroactively_checked"
+      ],
+      "notes": "Direct regression coverage exists."
+    },
+    {
+      "id": "SCENARIO-CONTRACT-NO-FALLBACK-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "selected contract validation failure",
+      "primary_layer": "Harness",
+      "harness_component": "ConstraintsRecovery",
+      "initial_state": "A record pair explicitly selects the current validation contract and contains a deterministic semantic error.",
+      "trigger": "Validation under the selected contract fails.",
+      "expected_decision": "Return a blocking validation result bound to the selected version and do not attempt any older validator.",
+      "forbidden_false_green": "Accepting the records because an older or weaker contract happens to pass.",
+      "invariants": [
+        "Routing cannot bypass validator failures.",
+        "Active work cannot switch contract version mid-node without explicit authority."
+      ],
+      "first_relevant_stage": 8,
+      "existing_test_refs": [
+        "tests/test_validation_compatibility.py::ContractSelectionTests::test_v2_failure_never_falls_back_to_v1",
+        "tests/test_frozen_contracts_and_containers.py::FrozenContractSelectionTests::test_v1_failure_never_attempts_v0",
+        "tests/test_frozen_contracts_and_containers.py::FrozenContractSelectionTests::test_explicit_v2_overrides_manifest_v0_and_does_not_fallback"
+      ],
+      "notes": "Direct fail-closed coverage exists."
+    },
+    {
+      "id": "SCENARIO-SHALLOW-HISTORY-001",
+      "provenance_status": "prospective_hypothesis",
+      "admission_status": "hypothesis_unadmitted",
+      "source_failure_class": "insufficient Git ancestry for baseline derivation",
+      "primary_layer": "Context",
+      "harness_component": "Tools",
+      "initial_state": "The checkout is shallow and the authoritative comparison base is not reachable locally.",
+      "trigger": "Candidate freezing or continuity derives changed surface after merge-base lookup fails.",
+      "expected_decision": "Return HANDOFF_READY with an observable baseline-history-unavailable reason and do not mark the candidate eligible.",
+      "forbidden_false_green": "Treating the oldest locally reachable shallow commit as the proven repository baseline and under-reporting changed files.",
+      "invariants": [
+        "Full verification runs only for a frozen eligible candidate.",
+        "A host that cannot prove a boundary reports the limitation honestly."
+      ],
+      "first_relevant_stage": 3,
+      "existing_test_refs": [],
+      "notes": "Observed implementation risk and requested candidate; no verified historical incident or direct regression was found."
+    },
+    {
+      "id": "SCENARIO-PATH-IDENTITY-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "cross-platform path alias identity",
+      "primary_layer": "Harness",
+      "harness_component": "ConstraintsRecovery",
+      "initial_state": "Repository root and target are presented through platform-specific case, separator, short-name, volume, or filesystem aliases.",
+      "trigger": "Containment, ownership, or changed-path admission compares the two paths.",
+      "expected_decision": "Canonicalize aliases to one project-relative identity when they resolve to the same in-root object and reject sibling, other-volume, traversal, or symlink escape.",
+      "forbidden_false_green": "Treating aliases of one object as independent owners or accepting an escaped target because its lexical prefix matches the root.",
+      "invariants": [
+        "Parallelism requires ownership independence.",
+        "Changed paths stay within authorized boundaries.",
+        "Cross-platform capability is preserved."
+      ],
+      "first_relevant_stage": 3,
+      "existing_test_refs": [
+        "tests/test_pathing.py::CanonicalContainmentTests::test_windows_case_and_separator_variants_are_inside",
+        "tests/test_pathing.py::CanonicalContainmentTests::test_windows_short_and_full_path_api_results_are_equivalent",
+        "tests/test_pathing.py::CanonicalContainmentTests::test_posix_symlinked_parent_alias_resolves_to_same_location",
+        "tests/test_convergence_authority.py::AuthorityModelTests::test_windows_and_posix_separators_preserve_component_boundaries"
+      ],
+      "notes": "Windows and POSIX evidence exists; a macOS-specific alias case remains an evaluation gap."
+    },
+    {
+      "id": "SCENARIO-DIRTY-CANDIDATE-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "dirty worktree candidate binding",
+      "primary_layer": "Loop",
+      "harness_component": "StateMemory",
+      "initial_state": "The worktree contains staged, unstaged, and non-ignored untracked changes before candidate freeze.",
+      "trigger": "The controller requests freeze under clean-head mode or explicitly authorized working-tree mode.",
+      "expected_decision": "Reject clean-head freeze; allow working-tree freeze only with explicit digest-bound snapshot authority that binds every dirty layer and detects drift.",
+      "forbidden_false_green": "Freezing an unbound dirty tree, ignoring staged or untracked state, or treating snapshot authority as a permission upgrade.",
+      "invariants": [
+        "Full verification runs only for a frozen eligible candidate.",
+        "A node cannot grant itself authority.",
+        "Changed dependencies invalidate evidence."
+      ],
+      "first_relevant_stage": 3,
+      "existing_test_refs": [
+        "tests/test_execution_economy.py::CandidateVerificationTests::test_default_candidate_freeze_still_rejects_dirty_worktree",
+        "tests/test_execution_economy.py::CandidateVerificationTests::test_working_tree_snapshot_freezes_and_detects_each_dirty_layer",
+        "tests/test_execution_economy.py::CandidateVerificationTests::test_working_tree_snapshot_authority_is_required_and_digest_bound",
+        "tests/test_convergence_authority.py::ConvergenceStopTests::test_dirty_submodule_fails_closed_in_working_tree_mode"
+      ],
+      "notes": "Direct regression coverage exists."
+    },
+    {
+      "id": "SCENARIO-PROCESS-TIMEOUT-CLEANUP-001",
+      "provenance_status": "observed_failure",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "process timeout and descendant cleanup",
+      "primary_layer": "Harness",
+      "harness_component": "ConstraintsRecovery",
+      "initial_state": "A managed command has a bounded deadline and may spawn descendants or race with heartbeat completion.",
+      "trigger": "The deadline expires, including when the child reports success only after the deadline.",
+      "expected_decision": "Classify TIMEOUT, terminate and reap the owned process tree, report cleanup and containment, and refuse success when cleanup cannot be proven.",
+      "forbidden_false_green": "Reporting success after deadline, claiming zero orphans without a completed check, or hiding failed cleanup.",
+      "invariants": [
+        "Host enforcement limitations are reported honestly.",
+        "Failure is diagnosed at the lowest failing layer."
+      ],
+      "first_relevant_stage": 3,
+      "existing_test_refs": [
+        "tests/integration/test_process_supervisor.py::ProcessSupervisorIntegrationTests::test_timeout_cleans_parent_child_and_grandchild",
+        "tests/integration/test_process_supervisor.py::ProcessSupervisorIntegrationTests::test_windows_final_job_query_failure_does_not_claim_containment",
+        "tests/integration/test_managed_execution.py::ManagedExecutionIntegrationTests::test_bounded_git_late_success_is_still_a_timeout"
+      ],
+      "notes": "Direct integration coverage and targeted historical timeout provenance exist."
+    },
+    {
+      "id": "SCENARIO-REVIEW-DUPLICATE-FULL-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "duplicate full review or final verification",
+      "primary_layer": "Loop",
+      "harness_component": "EvaluationObservability",
+      "initial_state": "A complete batched review and final verification already exist for an unchanged scope and candidate fingerprint.",
+      "trigger": "A controller proposes another full reviewer wave or full-suite attempt only to increase perceived confidence.",
+      "expected_decision": "Deny the duplicate broad run, preserve existing evidence and counters, and continue with the recorded decision or return a resumable handoff.",
+      "forbidden_false_green": "Launching a second broad review, overwriting the first report, or counting repetition as independent confidence.",
+      "invariants": [
+        "Unchanged evidence is reused.",
+        "Use the minimum decisive verification.",
+        "Full verification runs once per eligible candidate and kind."
+      ],
+      "first_relevant_stage": 5,
+      "existing_test_refs": [
+        "tests/test_execution_economy.py::CandidateVerificationTests::test_same_candidate_cannot_repeat_final_full_suite",
+        "tests/test_convergence_authority.py::ConvergenceSuccessorTests::test_same_candidate_cannot_repeat_final_full_suite",
+        "tests/test_sagekit_check.py::SagekitCheckTests::test_deterministic_closure_contract_is_complete_and_preserves_authority"
+      ],
+      "notes": "Executable coverage is strongest for full-suite duplication; broad reviewer-wave enforcement remains mostly documentary."
+    },
+    {
+      "id": "SCENARIO-REVIEW-EVIDENCE-TARGETED-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "evidence-only corrective review expansion",
+      "primary_layer": "Loop",
+      "harness_component": "EvaluationObservability",
+      "initial_state": "Initial review is complete and the correction changes only a ledger, evidence record, status, closeout, or pointer without semantic or authority change.",
+      "trigger": "Corrective closure selects the required re-review scope.",
+      "expected_decision": "Use strict deterministic closure when its pre-authored predicate passes; otherwise run only targeted review of the affected record and direct regressions.",
+      "forbidden_false_green": "Starting another full review, recording deterministic closure as a passed re-review, or accepting fixer self-report as the verdict.",
+      "invariants": [
+        "Review remains independent from implementation.",
+        "Unchanged evidence is reused.",
+        "Use the minimum decisive verification."
+      ],
+      "first_relevant_stage": 5,
+      "existing_test_refs": [
+        "tests/test_sagekit_check.py::SagekitCheckTests::test_planning_correction_selects_deterministic_closure_or_targeted_rereview",
+        "tests/test_sagekit_check.py::SagekitCheckTests::test_corrective_packet_instantiates_honest_prefix_state_and_owner_followup",
+        "tests/test_convergence_authority.py::ConvergenceStopTests::test_missing_targeted_review_handoffs"
+      ],
+      "notes": "Direct document-contract and convergence evidence exists."
+    },
+    {
+      "id": "SCENARIO-WHITESPACE-FALSE-BLOCKER-001",
+      "provenance_status": "observed_failure",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "EOF or trailing-whitespace false blocker",
+      "primary_layer": "Loop",
+      "harness_component": "ConstraintsRecovery",
+      "initial_state": "An unaccepted writable candidate file differs only by an extra EOF blank line, missing final newline, or trailing horizontal whitespace.",
+      "trigger": "Candidate preflight classifies the byte difference.",
+      "expected_decision": "Return AUTO_NORMALIZATION_CORRECTIVE for the exact authorized file, preserve the semantic digest, and require only diff, digest, focused checks, and targeted review.",
+      "forbidden_false_green": "Stopping for product authority solely for ordinary whitespace, silently changing semantics, or auto-fixing frozen, generated, signed, or checksum-bound content.",
+      "invariants": [
+        "Use the minimum decisive verification.",
+        "Historical documents are not rewritten.",
+        "A bounded correction cannot expand writable scope."
+      ],
+      "first_relevant_stage": 5,
+      "existing_test_refs": [
+        "tests/unit/test_normalization.py::MechanicalNormalizationTests::test_safe_eof_and_trailing_whitespace_findings_are_auto_corrective",
+        "tests/unit/test_normalization.py::MechanicalNormalizationTests::test_narrow_fixer_changes_only_named_whitespace_and_preserves_semantic_digest",
+        "tests/unit/test_normalization.py::MechanicalNormalizationTests::test_templates_and_unknown_formats_are_not_auto_fixable",
+        "tests/unit/test_candidate_snapshot.py::CandidateSnapshotUnitTests::test_freeze_routes_safe_whitespace_to_auto_normalization_corrective"
+      ],
+      "notes": "Direct tests and historical formatting-only corrections exist."
+    },
+    {
+      "id": "SCENARIO-OPTIONAL-CAPABILITY-ABSENCE-001",
+      "provenance_status": "prospective_hypothesis",
+      "admission_status": "hypothesis_unadmitted",
+      "source_failure_class": "optional capability unavailable",
+      "primary_layer": "Harness",
+      "harness_component": "Tools",
+      "initial_state": "A specialist capability is optional under active authority and a safe native workflow remains available.",
+      "trigger": "Capability discovery reports that the specialist capability is absent.",
+      "expected_decision": "Record unavailable capability metadata and continue through the authorized native fallback without installation or a product-failure verdict.",
+      "forbidden_false_green": "Marking the project BLOCKED, inventing a gate, silently installing tooling, or treating discovery metadata as authority.",
+      "invariants": [
+        "Optional findings do not become active work without authority.",
+        "A node cannot grant itself authority.",
+        "Capability absence does not remove an accepted native outcome."
+      ],
+      "first_relevant_stage": 7,
+      "existing_test_refs": [
+        "tests/test_sagekit_check.py::SagekitCheckTests::test_capability_prose_does_not_activate_adapter_gate",
+        "tests/test_sagekit_check.py::SagekitCheckTests::test_structured_adapter_declaration_activates_adapter_gate"
+      ],
+      "notes": "Normative coverage is strong; a dedicated end-to-end fallback test is absent."
+    },
+    {
+      "id": "SCENARIO-RUNTIME-LIMITATION-CLASSIFICATION-001",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "source_failure_class": "runtime limitation versus product failure",
+      "primary_layer": "Harness",
+      "harness_component": "EvaluationObservability",
+      "initial_state": "The selected host cannot provide a required containment level before target launch.",
+      "trigger": "Managed execution evaluates host capability.",
+      "expected_decision": "Return CAPABILITY_LIMITATION with target-not-started evidence and do not classify the product or tests as failed.",
+      "forbidden_false_green": "Reporting PASS, NEEDS_CORRECTION, or product failure, or launching the target despite the unmet boundary.",
+      "invariants": [
+        "A host reports unenforceable boundaries honestly.",
+        "Routing cannot bypass safety boundaries.",
+        "Failure is corrected at the lowest failing layer."
+      ],
+      "first_relevant_stage": 7,
+      "existing_test_refs": [
+        "tests/integration/test_process_supervisor.py::ProcessSupervisorIntegrationTests::test_hard_requirement_rejects_before_target_launch_on_posix",
+        "tests/unit/test_lane_c_runner_classification.py::RunnerClassificationTests::test_capability_failure_is_not_a_handoff",
+        "tests/unit/test_serial_test_runner.py::SerialTestRunnerUnitTests::test_waived_final_nodes_prevent_success_verdict"
+      ],
+      "notes": "Direct classification coverage exists."
+    },
+    {
+      "id": "SCENARIO-DIVERGENT-NO-ACTION-001",
+      "provenance_status": "prospective_hypothesis",
+      "admission_status": "hypothesis_unadmitted",
+      "source_failure_class": "divergent analysis and invented work",
+      "primary_layer": "Graph",
+      "harness_component": "Orchestration",
+      "initial_state": "The requested decision is already satisfied by valid unchanged evidence while speculative changes, reviewers, and broad tests have no authority or changed-surface link.",
+      "trigger": "The controller performs graph admission and proposed result classification.",
+      "expected_decision": "Classify speculative items as OPTIONAL or OUT_OF_SCOPE, admit no new nodes, and propose NO_ACTION_REQUIRED with inspected scope, applicable decision, and reused evidence.",
+      "forbidden_false_green": "Inventing implementation work, adding reviewers or tests with no decision value, or claiming no-action without valid evidence.",
+      "invariants": [
+        "Speculative risk does not enter active work without an authority, changed-surface, evidence, or acceptance link.",
+        "A verified no-action result is valid.",
+        "A graph node must earn its coordination cost."
+      ],
+      "first_relevant_stage": 2,
+      "existing_test_refs": [],
+      "notes": "Blueprint evaluation candidate only; current runtime does not implement the proposed result."
+    }
+  ]
+}
