@@ -187,12 +187,11 @@ If yes, name:
 
 ## Milestone Closure Gate
 
-Final milestone acceptance follows this order:
-
-1. Required phases are `accepted` or explicitly `superseded`.
-2. The milestone ledger is current.
-3. `MILESTONE_CLOSEOUT.md` is written or updated.
-4. The milestone is marked closed or accepted.
+Closeout order, terminal status eligibility, and historical-context handling are
+canonical at `docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`. This entry
+gate retains only the project-instance prerequisites below; satisfying them
+does not bypass Final Review, corrective closure or explicit stop, or the
+Project Manager/project-owner decision.
 
 The milestone can be closed only after:
 

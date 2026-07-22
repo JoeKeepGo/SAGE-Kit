@@ -7,6 +7,12 @@ Role and review/corrective separation are canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`. This packet retains the
 read-only verdict, corrective delegation, closure, and Project Manager decision
 inputs.
+Review topology and corrective re-review scope are canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-002` and `#sage-loop-010`;
+Deterministic Closure is canonical at
+`docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`. This packet records their
+local findings, rationale, evidence, receipt, and PM-pending fields without
+creating another review pass or topology.
 
 ```markdown
 Initial Verdict: `ACCEPTABLE`, `ACCEPTABLE_WITH_CONCERNS`, `NEEDS_CORRECTION`, or `BLOCKED`

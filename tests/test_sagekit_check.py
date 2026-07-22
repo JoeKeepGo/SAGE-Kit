@@ -1340,6 +1340,71 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertIn("External Capability Boundary", (root / "docs/SAGE_CORE.md").read_text(encoding="utf-8"))
         self.assertTrue((root / "docs/agent/GOVERNANCE_LEVELS.md").exists())
 
+    def test_stage1c_lifecycle_rules_have_unique_owners_and_preserve_fields(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        orchestration = (root / "docs/agent/SESSION_ORCHESTRATION.md").read_text(encoding="utf-8")
+        milestone = (root / "docs/templates/MILESTONE_TEMPLATE.md").read_text(encoding="utf-8")
+        structural = (root / "docs/templates/STRUCTURAL_GATE_TEMPLATE.md").read_text(encoding="utf-8")
+
+        source_paths = sorted((REPO_ROOT / "docs").rglob("*.md")) + sorted(
+            (REPO_ROOT / "skills/sage-kit").rglob("*.md")
+        )
+        expected_owners = {
+            "sage-loop-011": "docs/agent/SESSION_ORCHESTRATION.md",
+            "sage-lif-011": "docs/templates/MILESTONE_TEMPLATE.md",
+            "sage-lif-012": "docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
+        }
+        for anchor, owner_path in expected_owners.items():
+            declaration = f'<a id="{anchor}"></a>'
+            occurrences = []
+            for path in source_paths:
+                count = path.read_text(encoding="utf-8").count(declaration)
+                if count:
+                    occurrences.append((path.relative_to(REPO_ROOT).as_posix(), count))
+            with self.subTest(anchor=anchor):
+                self.assertEqual([(owner_path, 1)], occurrences)
+
+        self.assertIn("matching authority/source reference", orchestration)
+        self.assertIn("never an independent\nreview `PASS`", orchestration)
+        self.assertIn("Final Review verdict", milestone)
+        self.assertIn("Project Manager/project-owner", milestone)
+        self.assertIn("`HANDOFF` is not a closeout result", milestone)
+        self.assertIn("Do not add the closeout to default startup context", milestone)
+
+        for token in (
+            "Primary capability",
+            "Scope implemented",
+            "Governance level",
+            "Permission mode",
+            "Ownership and contracts",
+            "Evidence references",
+            "Tests run",
+            "Runtime smoke",
+            "Approval gates",
+            "Skipped checks and blockers",
+            "Closure Receipt Owner",
+            "Convergence trend recorded",
+            "PM acceptance pending",
+        ):
+            self.assertIn(token, structural)
+        self.assertIn("does not perform technical review", structural)
+        self.assertIn("does not perform technical review, make", structural)
+        self.assertIn("or close the milestone", structural)
+
+        pointers = {
+            "docs/templates/ENTRY_GATE_TEMPLATE.md": "#sage-lif-011",
+            "docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md": "#sage-lif-011",
+            "docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md": "#sage-lif-012",
+            "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md": "#sage-loop-011",
+            "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md": "#sage-loop-011",
+            "docs/templates/COMPLETION_REPORT_TEMPLATE.md": "#sage-loop-011",
+        }
+        for relative, anchor in pointers.items():
+            with self.subTest(path=relative):
+                self.assertIn(anchor, (root / relative).read_text(encoding="utf-8"))
+
     def test_deterministic_closure_contract_is_complete_and_preserves_authority(self):
         from sagekit.init import package_resource_root
 

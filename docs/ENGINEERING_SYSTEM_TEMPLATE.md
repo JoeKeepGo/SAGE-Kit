@@ -119,8 +119,10 @@ closeout for the milestone.
 
 ## Verify
 
-Use the narrowest relevant checks during development and the full gate before
-completion.
+Use the narrowest relevant checks during development. Before completion, apply
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013` and this project's exact gate
+catalog; do not require runtime or UI evidence when that surface is outside the
+declared scope.
 
 Examples:
 

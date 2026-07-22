@@ -7,6 +7,8 @@ corrective text would require broader repeated work, this document controls.
 Approval gates, security boundaries, and explicit project authority still
 control over this policy.
 
+<a id="sage-loop-001"></a>
+
 ## Change Classification
 
 | Class | Meaning | Normal action |
@@ -65,12 +67,15 @@ verification against the changed status and its direct authority references.
 Do not reload the milestone, rerun implementation tests, rerun review lanes, or
 rehash unrelated protected files.
 
+<a id="sage-loop-002"></a>
+
 ## One Review Topology
 
 Every execution unit chooses one primary review topology:
 
 - `Light`: focused verification; no independent reviewer by default.
-- `Standard`: implementation review and affected-lane verification.
+- `Standard`: focused verification, adding affected-lane review and verification
+  only when the affected risk or contract requires them.
 - `Heavy`: wave/lane review and one final integration review.
 
 Do not stack per-task, per-worker, corrective, lane, and final reviewers by
@@ -80,6 +85,8 @@ cross-contract, or destructive risk, and record the reason.
 If planned writers share files or overlapping paths, a finding changes another
 task's assumptions, or workers would wait and replay patches, use one integration
 writer. Other agents are read-only investigators or reviewers.
+
+<a id="sage-loop-003"></a>
 
 ## Verification Ladder
 
@@ -95,9 +102,10 @@ A single finding runs only its minimum reproduction and directly affected
 focused tests. A lane gate runs only that lane's affected suite. After a
 corrective batch, run only targeted verification and targeted re-review for the
 affected finding and direct regressions. The required order is implementation,
-focused verification, independent review, one corrective batch, targeted
-verification, review/corrective closure, stable candidate freeze, and then final
-integration verification.
+focused verification, topology-required review when applicable, one corrective
+batch, targeted verification, review/corrective closure, stable candidate
+freeze, and then final integration verification. This ordering never adds an
+independent reviewer to `Light` work.
 
 Managed expensive verification is eligible only for a frozen candidate whose
 fingerprint matches current inputs. Before candidate freeze, the managed
@@ -156,9 +164,12 @@ dependencies passed reports `executed`.
 This dependency decision is not a general scheduler. Callers retain ownership
 of command execution, evidence capture, and candidate lifecycle transitions.
 
+<a id="sage-loop-006"></a>
+
 ## Stable Candidate
 
-A frozen candidate binds:
+The candidate lifecycle binds the repository root and branch. Its frozen
+fingerprint additionally binds:
 
 ```yaml
 candidate:
@@ -208,6 +219,12 @@ Candidate snapshot modes are explicit:
   unstaged state, non-ignored untracked paths and content, deletion and file
   mode state, and symlink identity without following an external target.
 
+The accepted Stage 1B `active-spec` fingerprint is a separate, versioned
+context/graph compatibility mode. It remains bound to its active milestone and
+SPEC digest and is never an implicit fallback from either repository snapshot
+mode. Candidate fingerprint versions 1 through 5 retain their declared field
+and mode semantics.
+
 `working-tree` is a deterministic candidate snapshot, not a commit, submit,
 acceptance, or permission upgrade. Its assessment recomputes the same snapshot
 before and after final verification. Any staged, unstaged, untracked, file-mode,
@@ -229,6 +246,8 @@ is bound to the successor, so the same batch cannot create another automatic
 candidate. Any change after final verification first returns `HANDOFF_READY`
 and persists state and evidence.
 
+<a id="sage-loop-012"></a>
+
 ### Mechanical Normalization Corrective
 
 Before candidate freeze, run a diff-whitespace preflight and classify extra
@@ -236,8 +255,11 @@ blank lines at EOF, missing final newlines, trailing spaces/tabs, broad
 line-ending rewrites, and non-whitespace changes. The first three route to
 `AUTO_NORMALIZATION_CORRECTIVE` when the exact file is in writable scope and is
 not generated, vendored, signed, frozen, accepted, historical, deployed, or
-byte/checksum bound. This correction needs no new user authorization and never
-returns `STOP_FOR_PM` merely for ordinary EOF or trailing whitespace.
+byte/checksum bound, its ownership is known, and the selected bytes have no
+semantic meaning. Generated, signed, checksum-bound, historical/frozen,
+semantic-byte, or unknown-ownership content fails closed without automatic
+modification. This correction needs no new user authorization and never returns
+`STOP_FOR_PM` merely for ordinary EOF or trailing whitespace.
 
 The Review or Closeout Controller stays read-only and issues an exact-file,
 whitespace-only fixer receipt. The fixer verifies the finding's byte digest,
@@ -266,6 +288,8 @@ Generation numbers are audit data, not a permanent ceiling. Two approved
 rounds with the same root cause and no finding reduction return `BLOCKED`;
 finding reduction resets that no-progress count. The system never starts an
 automatic candidate or full-suite loop.
+
+<a id="sage-loop-009"></a>
 
 ### Preauthorized Convergence Window
 
@@ -313,6 +337,8 @@ per-candidate, and each candidate can start each final verification kind only
 once. The window is not an unlimited retry mechanism. A transient rerun and a
 code corrective are different actions; deterministic failures must not be
 rerun in the hope of a different result.
+
+<a id="sage-loop-007"></a>
 
 ## Evidence Fingerprint
 
@@ -387,15 +413,24 @@ do not authorize new attempts. A successor candidate created by the one
 approved corrective batch has its own single final budget and does not require
 manual relaxation.
 
+<a id="sage-loop-010"></a>
+
 ## Review Convergence Contract
 
 Each planning candidate receives at most one full planning review. The first
 reviewer report for that scope must batch all findings and classify them P0-P3.
 A corrective re-review checks only closure of original findings, direct
-regressions, new P0/P1, and authority or false-green P2. Ledger-, evidence-,
-status-, and pointer-only changes run only the affected record or Lane D/E
-equivalent review. Full lanes run again only for changed semantics, permissions,
-source authority, or information architecture.
+regressions, new P0/P1, and P2 findings that block on authority, false-green,
+safety, or validator risk. Ledger-, evidence-, status-, and pointer-only
+changes run only the affected record or Lane D/E equivalent review. Full lanes
+run again only for changed semantics, permissions, source authority, or
+information architecture. It never repeats the initial full review.
+
+The runtime additionally treats approval-gate, security, source-authority, and
+evidence-integrity P2 categories as narrow blocking safety boundaries. This is
+an implementation-specific fail-closed constraint, not authority to broaden a
+corrective re-review beyond the finding, direct regressions, and new blocking
+risk.
 
 New ordinary P2/P3 outside direct regression enters backlog instead of expanding
 the active scope.
@@ -407,13 +442,26 @@ the active scope.
   concerns.
 - P3 does not block.
 
-The same root cause with no material reduction for two consecutive rounds is
-`BLOCKED`. A fixed round count alone is not a blocker; reaching a local review
-limit is `HANDOFF_READY`.
+<a id="sage-loop-008"></a>
+
+Finding-count or severity reduction resets no-progress. The first unchanged
+same-root round is recorded and may continue inside its existing authority; the
+second consecutive unchanged round is `BLOCKED`. A fixed round count alone is
+not a blocker; reaching a local review event limit is `HANDOFF_READY`.
 
 A zero diff means only that the compared tracked content did not change. It is
 not evidence of planning readiness, accepted authority, gate closure, required
 verification, or completion.
+
+<a id="sage-loop-013"></a>
+
+## Completion Contract
+
+Completion requires fresh evidence relevant to the declared scope and no
+unresolved blocking gate. Runtime or UI evidence is required only when that
+surface is in scope. Gate records preserve `PASS`, `FAIL`, `BLOCKED`, `WAIVED`,
+and `N/A`; the project authority, not this policy, owns the exact gate catalog,
+required evidence, and named waiver authority.
 
 ## Runtime Outcomes
 

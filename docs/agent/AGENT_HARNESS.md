@@ -315,14 +315,13 @@ Parallel workers and subagents must return memory update proposals for steps
 
 ## Completion Rule
 
-The agent may claim `DONE` only after verification evidence is fresh and no
-blocking gate is skipped, failed, unresolved, or missing required memory
-maintenance.
+Completion eligibility and scope-relevant evidence are canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`. The Harness may emit `DONE`
+only after that contract passes and required memory maintenance is recorded.
 
-Use `BLOCKED` when a required gate cannot produce evidence, authority is
-missing, approved scope would need to expand, or the same corrective root cause
-has made no material progress for two consecutive rounds inside the authorized
-corrective boundary.
+Use the canonical convergence outcome at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`; do not infer `BLOCKED` from a
+Harness-local event count.
 
 Use `HANDOFF` when work is intentionally paused for review, approval, or
 controller integration.

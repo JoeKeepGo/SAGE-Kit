@@ -60,7 +60,9 @@ does not apply to adopted target projects and does not weaken their authority,
 scope, gate, lock, evidence, approval, or completion contracts.
 
 Execution economy, corrective authority, review convergence, evidence reuse,
-and deterministic handoff follow `docs/agent/EXECUTION_ECONOMY.md`. Local
+deterministic handoff, and completion eligibility follow
+`docs/agent/EXECUTION_ECONOMY.md`, including the completion contract at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`. Local
 checkpoint and resume follow `docs/agent/CONTINUITY_PROTOCOL.md`. These focused
 policies supersede older generic instructions that would otherwise require
 broader repeated verification or review, but they never bypass an explicit
@@ -78,7 +80,7 @@ mixed records fail closed.
 - Define contracts before consumers depend on them.
 - Use retained active SPEC, phase, or task authority for non-trivial work.
 - Keep implementation scope small enough to review.
-- Verify behavior with fresh evidence before claiming completion.
+- Apply the canonical completion contract before making a completion claim.
 - Record durable state in docs instead of relying on chat memory.
 - Keep startup context compact by replacing stale state instead of accumulating
   session history.
@@ -400,13 +402,14 @@ into `docs/MILESTONE_ROADMAP.md` for implementation planning.
 
 ## Milestone Closeout Rule
 
-When a milestone closes, write or update `docs/M<ID>/MILESTONE_CLOSEOUT.md`.
+Closeout order, terminal eligibility, and the historical-context boundary are
+canonical at `docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`. When that
+sequence permits closure, write or update
+`docs/M<ID>/MILESTONE_CLOSEOUT.md`.
 
 The closeout records the milestone outcome, shipped capabilities, key decisions,
 verification summary, known gaps, follow-up milestones, and links to evidence.
 It must not duplicate raw logs, full evidence tables, or phase reports.
 
-Historical closeouts are not default startup context. Future agents read them
-only through the configured document-routing path (legacy default:
-`docs/DOC_ROUTING.md`) when prior milestone outcomes, decisions, gaps, or
-provenance are relevant.
+Future agents resolve any historical closeout through the configured
+document-routing path (legacy default: `docs/DOC_ROUTING.md`).

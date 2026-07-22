@@ -1,9 +1,13 @@
 # Structural Gate Template
 
+<a id="sage-lif-012"></a>
+
 Use this checklist after Coder returns a Milestone Result Packet and before
 sending it to Final Review.
 
-This is a completeness gate, not a technical review.
+This is the canonical Coder-result completeness gate. It routes a complete
+packet to independent Final Review; it does not perform technical review, make
+Project Manager acceptance, or close the milestone.
 
 ```markdown
 Structural Gate Status: PASS, REPAIR_REQUIRED, or BLOCKED
@@ -34,7 +38,9 @@ Required Sections Present:
 | Initial submit/cleanup authority is none; post-verdict owner is named | `<yes/no>` | `<notes>` |
 | Phase results | `<yes/no>` | `<notes>` |
 | Files changed | `<yes/no>` | `<notes>` |
+| Ownership and contracts | `<yes/no>` | `<owners/boundaries/contracts>` |
 | Contract evidence | `<yes/no>` | `<notes>` |
+| Evidence references | `<yes/no>` | `<refs or n/a reason>` |
 | Coder self review | `<yes/no>` | `<notes>` |
 | Tests run | `<yes/no>` | `<notes>` |
 | Runtime smoke | `<yes/no>` | `<notes>` |
@@ -60,8 +66,12 @@ Decision:
 
 ## Post-Final-Review Closure Gate
 
-Use this short check after Final Review when the verdict is not cleanly
-acceptable.
+This separate record retains post-review routing fields; it is not part of the
+Structural Gate `PASS`, a technical re-review, Project Manager acceptance, or
+milestone closeout. Apply convergence and targeted re-review from
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` and
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-010`, and Deterministic Closure from
+`docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`.
 
 ```markdown
 Review Closure Status: VERDICT_READY_FOR_PM, CORRECTIVE_OPENED,
@@ -101,27 +111,17 @@ Verdict Closure Branch:
 | Closure Receipt Ref | `<ref/n/a>` | `<immutable or packet-local receipt reference>` |
 | Closure Receipt Destination | `<review packet/output/n/a>` | `<receipt owner's own output>` |
 | Verdict finalization status | `VERDICT_FINALIZED_FROM_RECEIPT` or `N/A` | `<precommitted verdict; PM acceptance pending>` |
+| PM acceptance pending | `<yes/no>` | `<must remain yes until Project Manager decision>` |
 | Convergence trend recorded | `<yes/no/n/a>` | `<finding count/severity trend and root-cause progress>` |
 | Targeted or full re-review scope justified | `<yes/no/n/a>` | `<targeted status/evidence lanes or full affected lanes>` |
 
 Decision:
-- Open corrective round for `AUTO_CORRECTIVE` findings
-- Continue corrective work only inside an authorized corrective packet or
-  boundary when finding count or severity is decreasing, scope does not expand,
-  no blocking approval gate is bypassed, and no new authority, false-green,
-  approval-boundary, security-boundary, validator-failure, source-authority, or
-  evidence-integrity risk appears
-- On the first same-root stagnant round, stop automatic continuation and return
-  `NEEDS_CORRECTION`, `PM_DECISION_REQUIRED`, and `HANDOFF`
-- Return to Project Manager for decision, waiver, defer, or scope authority
-- Mark blocked for unresolved blockers or two consecutive rounds with the same
-  root cause and no material progress
-- Do not close `BLOCKED` until an authorized owner records close-blocked,
-  abandon, or defer
+- Record the canonical convergence and re-review outcome from the Final Review
+  packet and attach the named corrective packet, handoff, or blocker
+- Return Project Manager decisions, waivers, defers, and scope-authority needs
+  to their named owner
 - Mark `VERDICT_READY_FOR_PM` only after the verdict branch above is satisfied;
   this closes the review loop, not the milestone
-- For strict Deterministic Closure, require `AUTO_CLOSED_BY_PREDICATE` and
-  `NOT_REQUIRED_DETERMINISTIC`, then allow only the original Final Review
-  Controller or named packet author to apply the precommitted verdict and mark
-  `VERDICT_FINALIZED_FROM_RECEIPT`; do not start a new review pass
+- Record strict Deterministic Closure fields only when the canonical predicate
+  and receipt contract has produced them; do not mark re-review `PASSED`
 ```

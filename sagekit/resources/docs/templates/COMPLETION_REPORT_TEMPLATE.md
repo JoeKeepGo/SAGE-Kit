@@ -1,5 +1,11 @@
 # Completion Report Template
 
+Completion eligibility is canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`, and Deterministic Closure is
+canonical at `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`. This template
+retains the project-instance evidence, gate statuses, receipt, verdict, and
+Project Manager-pending fields; it does not define a second completion rule.
+
 ```markdown
 Conclusion:
 

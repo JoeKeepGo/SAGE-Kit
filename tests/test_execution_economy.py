@@ -1575,9 +1575,17 @@ class DocumentationPolicyTests(unittest.TestCase):
 
     def test_skill_routes_resume_and_record_only_changes_economically(self):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("C0 record-only", text)
-        self.assertIn("targeted record consistency verification", text)
-        self.assertIn("one primary review topology", text)
+        self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
+        for anchor in (
+            "#sage-loop-003",
+            "#sage-loop-006",
+            "#sage-loop-007",
+            "#sage-loop-008",
+            "#sage-loop-010",
+            "#sage-loop-012",
+            "#sage-loop-013",
+        ):
+            self.assertIn(anchor, text)
         self.assertIn(
             "Capability or preflight failures do not consume a candidate verification run.",
             text,
@@ -1592,19 +1600,73 @@ class DocumentationPolicyTests(unittest.TestCase):
             "Managed expensive verification is eligible only for a frozen candidate "
             "whose fingerprint matches current inputs."
         )
-        paths = (
+        owner_paths = (
             "docs/agent/EXECUTION_ECONOMY.md",
             "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
-            "skills/sage-kit/SKILL.md",
-            "skills/sage-kit/references/execution.md",
         )
 
-        for relative in paths:
+        for relative in owner_paths:
             with self.subTest(path=relative):
                 text = (REPO_ROOT / relative).read_text(encoding="utf-8")
                 self.assertIn(core_rule, " ".join(text.split()))
                 self.assertNotIn("preliminary feedback", text)
                 self.assertNotIn("It may provide development feedback", text)
+
+        for relative in (
+            "skills/sage-kit/SKILL.md",
+            "skills/sage-kit/references/execution.md",
+        ):
+            with self.subTest(pointer=relative):
+                text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn("#sage-loop-003", text)
+                self.assertNotIn(core_rule, " ".join(text.split()))
+
+    def test_stage1c_loop_rules_have_unique_owners_and_stable_pointers(self):
+        owner = REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md"
+        economy = owner.read_text(encoding="utf-8")
+        normalized = " ".join(economy.split())
+        loop_ids = ("001", "002", "003", "006", "007", "008", "009", "010", "012", "013")
+        source_paths = sorted((REPO_ROOT / "docs").rglob("*.md")) + sorted(
+            (REPO_ROOT / "skills/sage-kit").rglob("*.md")
+        )
+        for rule_id in loop_ids:
+            with self.subTest(rule_id=rule_id):
+                declaration = f'<a id="sage-loop-{rule_id}"></a>'
+                occurrences = []
+                for path in source_paths:
+                    count = path.read_text(encoding="utf-8").count(declaration)
+                    if count:
+                        occurrences.append((path.relative_to(REPO_ROOT).as_posix(), count))
+                self.assertEqual(
+                    [("docs/agent/EXECUTION_ECONOMY.md", 1)], occurrences
+                )
+
+        self.assertIn("no independent reviewer by default", economy)
+        self.assertIn("only when the affected risk or contract requires them", economy)
+        self.assertIn("topology-required review when applicable", economy)
+        self.assertIn("each matching frozen stable candidate", normalized)
+        self.assertIn("Candidate fingerprint versions 1 through 5", economy)
+        self.assertIn("first unchanged same-root round is recorded", economy)
+        self.assertIn("second consecutive unchanged round is `BLOCKED`", economy)
+        self.assertIn("It never repeats the initial full review", economy)
+        self.assertIn("unknown-ownership content fails closed", economy)
+        self.assertIn("Runtime or UI evidence is required only when that surface is in scope", normalized)
+
+        pointers = {
+            "skills/sage-kit/SKILL.md": ("#sage-loop-003", "#sage-loop-013"),
+            "skills/sage-kit/references/execution.md": ("#sage-loop-003", "#sage-loop-007"),
+            "skills/sage-kit/references/review-completion.md": ("#sage-loop-008", "#sage-loop-010"),
+            "docs/agent/CONTINUITY_PROTOCOL.md": ("#sage-loop-006", "#sage-loop-009"),
+            "docs/agent/SESSION_ORCHESTRATION.md": ("#sage-loop-008", "#sage-loop-010"),
+            "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md": ("#sage-loop-001", "#sage-loop-009"),
+            "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md": ("#sage-loop-002", "#sage-loop-010"),
+            "docs/templates/COMPLETION_REPORT_TEMPLATE.md": ("#sage-loop-013",),
+        }
+        for relative, anchors in pointers.items():
+            text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            for anchor in anchors:
+                with self.subTest(path=relative, anchor=anchor):
+                    self.assertIn(anchor, text)
 
     def test_runtime_checkpoint_is_gitignored(self):
         lines = {

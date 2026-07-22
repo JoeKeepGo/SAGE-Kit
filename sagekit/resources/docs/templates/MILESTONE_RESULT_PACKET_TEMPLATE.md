@@ -11,8 +11,11 @@ Canonical lane-result status semantics are owned by
 phase-result extension, not a lane status.
 
 Coder does not send this packet directly to Final Review. Project Manager runs
-the Structural Gate first and forwards the packet to Final Review only after the
-Structural Gate status is `PASS`.
+the canonical completeness gate at
+`docs/templates/STRUCTURAL_GATE_TEMPLATE.md#sage-lif-012` first and forwards the
+packet to Final Review only after the Structural Gate status is `PASS`. This
+packet remains the Coder-to-Project-Manager handoff and cannot perform review,
+acceptance, or closeout.
 
 ```markdown
 Status: DONE, DONE_WITH_CONCERNS, HANDOFF, or BLOCKED

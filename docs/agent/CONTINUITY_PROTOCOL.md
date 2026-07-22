@@ -1,5 +1,11 @@
 # Continuity Protocol
 
+Candidate binding, evidence reuse, and opt-in convergence semantics are
+canonical at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-006`,
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-007`, and
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-009`. This document owns only their
+checkpoint serialization, resume validation, and fail-closed continuity delta.
+
 SAGE-Kit uses one local, compact checkpoint:
 
 ```text
@@ -126,8 +132,8 @@ cannot repeat their consumption.
 When a human-approved corrective resumes `HANDOFF_READY`, the successor
 candidate persists its authority anchor, root-cause id, current finding count,
 and consecutive no-progress rounds. Resume therefore cannot turn an
-unapproved handoff into automatic execution or lose the two-round
-same-root-cause blocking rule.
+unapproved handoff into automatic execution or alter the canonical convergence
+outcome at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`.
 
 Schema v4 also persists the complete serialized Preauthorized Convergence
 Window and binds its digest to the current candidate. Resume restores the
@@ -149,8 +155,9 @@ and evidence differences in one result; do not continue from a partly matching
 state. Missing and corrupt checkpoints use distinct findings.
 
 Reaching a deterministic worker, review, or verification limit creates or
-refreshes this checkpoint and returns `HANDOFF_READY`. The user does not need to
-copy prior chat history into the next session.
+refreshes this checkpoint and records the canonical local-limit outcome from
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`. The user does not need to copy
+prior chat history into the next session.
 
 ## Source Hygiene
 

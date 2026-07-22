@@ -1254,8 +1254,9 @@ class ConvergenceDocumentationTests(unittest.TestCase):
     def test_repository_skill_routes_convergence_without_changing_installed_skill(self):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Preauthorized Convergence Window", text)
-        self.assertIn("semantic-preserving", text)
-        self.assertIn("policy-changing", text)
+        self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
+        self.assertIn("#sage-loop-008", text)
+        self.assertIn("#sage-loop-010", text)
 
 
 if __name__ == "__main__":

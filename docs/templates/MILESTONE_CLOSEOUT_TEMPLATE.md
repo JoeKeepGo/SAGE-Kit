@@ -2,6 +2,11 @@
 
 Use this file when closing a milestone.
 
+Closeout order, terminal status eligibility, and the startup-context boundary
+are canonical at `docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`. This
+template records the resulting historical outcome and does not decide whether
+the milestone may close.
+
 Waiver meaning is canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This closeout retains the
 project-instance Finding Owner, Waiver Authority, decision/delegation, and
@@ -26,8 +31,8 @@ command output.
 - Project Manager/project-owner decision/ref:
 - Change refs: `<commit, PR, changelist, release, or n/a>`
 
-`HANDOFF` is not a closeout result. Use `CLOSED_BLOCKED`, `DEFERRED`, or
-`ABANDONED` only after the authorized owner records that explicit decision.
+Record no `HANDOFF` closeout. Use `CLOSED_BLOCKED`, `DEFERRED`, or `ABANDONED`
+only after the canonical closeout sequence produces that authorized decision.
 
 ## Source Documents
 

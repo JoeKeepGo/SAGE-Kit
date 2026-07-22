@@ -6,6 +6,10 @@ Review/corrective authority is canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`. This packet retains the named
 findings, worker/reviewer modes, allowed surfaces, evidence return, re-review,
 and receipt-owner fields for one bounded correction.
+Change classification, convergence, opt-in windows, and targeted re-review are
+canonical at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-001`,
+`#sage-loop-008`, `#sage-loop-009`, and `#sage-loop-010`; Deterministic Closure
+is canonical at `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`.
 
 ```markdown
 Corrective Round / Convergence Budget: `<round n; budget/control signal>`
@@ -20,17 +24,15 @@ Convergence Control:
 - Material progress this round: `<finding count decreased/severity decreased/neither>`
 - Authorized corrective packet or boundary: `<ref>`
 - First same-root stagnant round:
-  `<yes/no; if yes, stop auto-continue and HANDOFF>`
+  `<yes/no; record and apply canonical convergence outcome>`
 - Same root cause stalled for two consecutive rounds: `<yes/no>`
 - Scope expansion allowed: `no`
 - Stop if new authority, false-green, approval-boundary, security-boundary,
   validator-failure, source-authority, or evidence-integrity risk appears:
   `yes`
-- Continue automatically inside the authorized boundary while finding count or
-  severity decreases, scope does not expand, no blocking approval gate is
-  bypassed, and no new authority, false-green, approval-boundary,
-  security-boundary, validator-failure, source-authority, or evidence-integrity
-  risk appears: `<yes/no>`
+- Continue automatically inside the authorized boundary under the canonical
+  convergence decision: `<yes/no; decision ref>`
+- Canonical convergence decision / evidence: `<outcome/ref>`
 
 Governance Level:
 - `Light`, `Standard`, or `Heavy`
@@ -107,16 +109,16 @@ explicitly approved):
   `next-layer-exposed`, or `no-progress`
 - Consecutive no-progress rounds:
 
-The window is opt-in and does not expand scope, paths, product behavior,
-security, evidence, gates, or permissions. Semantic-preserving implementation
-correctives may continue; policy-changing semantics return `HANDOFF_READY`.
-Each successor is a new candidate with independent final verification. The
-window is not an unlimited retry mechanism; transient rerun and code corrective
-are separate, and deterministic failures must not be rerun speculatively.
+Apply the window authority at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-009`. The fields above record its
+explicit opt-in authority and do not activate or expand it.
 
 Runtime Smoke:
 
 Re-Review:
+
+Apply `docs/agent/EXECUTION_ECONOMY.md#sage-loop-010`; do not repeat the initial
+full review.
 - Required: `<yes/no>`
 - Mode: `deterministic closure`, `targeted status/evidence lanes`,
   `Final Review direct read-only narrow inspection`,
@@ -137,6 +139,9 @@ Re-Review:
 - Closure blocked if re-review evidence is missing: `<yes/no>`
 
 Deterministic Closure (only when Re-Review Required is `no`):
+
+Apply `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`; the fields below are
+predicate and receipt inputs, not an independent review verdict.
 - Finding classification: `AUTO_CORRECTIVE`
 - Closure eligibility class: `MECHANICAL_STATUS`
 - Reviewer-authored predicate ref:
@@ -182,11 +187,9 @@ Stop If:
 - fix requires redesign;
 - approval gate is needed;
 - runtime evidence cannot be produced;
-- without an active Preauthorized Convergence Window, a successor would exceed
-  the default single automatic successor rule: return `HANDOFF_READY`;
-- inside an active window, the first same-root no-progress round is recorded;
-- the same root cause has no material progress for two consecutive corrective
-  rounds: return `BLOCKED`;
+- the canonical candidate/convergence decision at
+  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` or `#sage-loop-009` requires
+  `HANDOFF_READY` or `BLOCKED`; record the outcome and evidence reference;
 - scope expands or a new authority, false-green, approval-boundary,
   security-boundary, validator-failure, source-authority, or evidence-integrity
   risk appears.

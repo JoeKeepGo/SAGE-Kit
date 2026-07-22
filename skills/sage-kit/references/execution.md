@@ -2,7 +2,8 @@
 
 Execution economy, change classes, Bounded Corrective Authority, evidence
 invalidation, one primary review topology, shared-file serialization, and local
-limits are canonical in `docs/agent/EXECUTION_ECONOMY.md`. Use
+limits are canonical at the `sage-loop-*` anchors in
+`docs/agent/EXECUTION_ECONOMY.md`. Use
 `docs/agent/CONTINUITY_PROTOCOL.md` when a local limit requires
 `HANDOFF_READY`. These rules prevent older generic execution guidance from
 causing broader repeated work; explicit project approval and safety gates still
@@ -342,27 +343,11 @@ Heavy, corrective, or final-verification work. Ordinary Light or Standard work,
 including affected-lane focused verification, stays in the basic workflow above
 and does not load or apply these advanced runtime details by default.
 
-Managed expensive verification is eligible only for a frozen candidate whose
-fingerprint matches current inputs. Before freeze, full suite, retained
-regression, wheel/install, outside-source/package smoke, and full integration
-re-review are prohibited; legacy preliminary counters do not authorize them.
-Any legacy pre-freeze result remains only a historical development signal and
-cannot serve as final acceptance evidence.
-
-For one finding, use the minimum reproduction and directly affected focused
-tests. At a lane gate, use only the affected-lane suite. After a corrective,
-use targeted verification and targeted re-review. Reduce harness or teardown
-failures to a minimum reproduction instead of rerunning the complete suite.
-Ordinary record or status correction uses targeted consistency verification
-and does not reopen a product full suite while implementation inputs remain
-unchanged.
-
-Reuse matching-fingerprint evidence while its inputs remain unchanged. A new
-diff invalidates only the affected checks, paths, contracts, dependencies,
-platforms, or packages; independent evidence remains reusable. Workers and
-reviewers cannot expand expensive-verification authority. A Lane Controller
-owns only affected-lane verification, and the Root or Final Controller
-exclusively owns final full-suite authority.
+Apply verification admission at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-003`, candidate binding at
+`#sage-loop-006`, and evidence reuse at `#sage-loop-007`. This reference
+retains only execution-local packet, worker, Lane, Root, and Final Controller
+routing; none may expand the authority resolved from those sections.
 
 Capability or preflight failure for an eligible candidate does not consume a
 final run. Each admitted attempt keeps one stable identity, records `STARTED`
@@ -370,28 +355,10 @@ once and its terminal completion, and resumes from checkpoints under that same
 identity without recounting. When one verification-graph node fails, skip only
 successors that depend on it; continue and report independent nodes.
 
-After the single corrective batch closes, freeze a
-HEAD/diff/contract/dependency fingerprint and allow one final run per matching
-candidate. Final verification and acceptance bind only to that exact frozen
-candidate. A candidate change retains the old result as history but forbids
-reusing it as current final evidence.
-
-Candidate freeze defaults to `clean-head`, which rejects staged, unstaged, and
-untracked changes. When the active packet explicitly authorizes it, use
-`working-tree` to bind the complete non-ignored uncommitted state without
-granting commit or submit authority. Pass and bind the packet's non-empty
-snapshot authority. Reassess that snapshot before and after
-final verification. Any staged, unstaged, untracked, deletion, mode, or symlink
-drift invalidates it. Dirty submodules and unrepresentable state fail closed;
-there is no unbound allow-dirty option or automatic fallback to another mode.
-
-One approved corrective batch may create one automatic successor without
-budget approval; another successor from that batch or any change after final
-verification returns `HANDOFF_READY`. A human-approved handoff corrective may
-create the next generation only when it persists an authority anchor,
-root-cause id, and finding count. Generation is not mechanically capped; the
-same root cause with no progress for two approved rounds returns `BLOCKED`,
-while reduced findings reset the no-progress count.
+Candidate successors and no-progress outcomes remain governed by
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-006` and `#sage-loop-008`; execution
+records their identities and routes their outcomes without redefining either
+contract.
 
 Within an explicit Preauthorized Convergence Window, each successor candidate
 keeps a distinct fingerprint, checkpoint, finding trend, and final-verification
@@ -414,15 +381,9 @@ evidence to candidate continuity, checkpoints, and consistency verification.
 Do not infer a governance result from user token budgets, platform quotas, or
 similar service limits. Record the concrete capability or evidence constraint
 and use the applicable handoff, checkpoint, or stop rule instead.
-Continue automatic correction only inside an authorized corrective packet or
-boundary while findings or severity decrease, scope does not expand, no
-blocking approval gate is bypassed, and no new authority, false-green,
-approval-gate, security, validator/gate-ready, source-authority, or
-evidence-integrity risk appears. Stop as `BLOCKED` when the same root cause has
-no material progress for two consecutive rounds, required evidence or authority
-is missing, or the fix would exceed the approved boundary. When Project Manager
-judgment is needed, return `NEEDS_CORRECTION` with `PM_DECISION_REQUIRED`
-closure/status rather than `BLOCKED`.
+Route corrective convergence through
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`; this reference records the
+resulting checkpoint or controller handoff without redefining it.
 
 Coder and Final Review controllers must reassess whether the milestone should
 run serially, with waves inside phases, or with parallel phases. Heavy mode

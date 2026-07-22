@@ -198,29 +198,12 @@ handoff.
 
 ## Guardrails
 
-- Give each planning candidate at most one full planning review and require one
-  batched findings report. After C0/C1 or ledger/evidence/status-only changes,
-  run targeted verification and closure only. Rerun full lanes only for changed
-  semantics, permissions, source authority, or information architecture. A
-  zero diff is not readiness or acceptance evidence.
-- Treat C0 record-only maintenance as record ownership work. Run
-  targeted record consistency verification only; do not rerun implementation tests or full
-  review lanes when protected implementation evidence remains valid.
-- Use Bounded Corrective Authority for C1 and aggregate uncovered paths into one
-  `AUTHORITY_DELTA`. C2 requires affected semantic review. C3 requires a human
-  decision.
-- Treat a Preauthorized Convergence Window as explicit opt-in authority. Keep
-  the default single automatic successor when it is absent. Inside the window,
-  allow only semantic-preserving implementation correction with stable scope,
-  family, allowed paths, invariant, evidence, and required targeted review.
-  policy-changing semantics return `HANDOFF_READY`; two consecutive same-root
-  no-progress rounds return `BLOCKED`. Never use the window as unlimited retry
-  or to rerun deterministic failures speculatively.
-- Choose one primary review topology for an execution unit. Do not stack
-  per-task, per-worker, corrective, lane, and final reviewers without a
-  recorded P0/P1, security, authority, cross-contract, or destructive reason.
-- Reuse evidence according to its fingerprint and invalidate only affected
-  paths, contracts, dependencies, platforms, packages, or authority versions.
+- Route change classification, review topology, verification, candidate and
+  evidence handling, convergence, re-review, normalization, and completion to
+  the stable `sage-loop-*` anchors in `docs/agent/EXECUTION_ECONOMY.md`. This
+  Skill selects when that authority is needed; it does not restate those
+  contracts. Use `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011` for
+  Deterministic Closure.
 - Validate closed legacy Task Dispatch history with the manifest-selected frozen
   v0/v1 contract. Require current metadata for active work; mixed or ambiguous
   records fail closed, and a selected-contract failure must never fall back to
@@ -233,59 +216,28 @@ handoff.
   aggregated compatibility finding.
 - When a deterministic local limit is reached, create a checkpoint and return
   `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
-- Managed expensive verification is eligible only for a frozen candidate whose
-  fingerprint matches current inputs. Before freeze, prohibit full suite,
-  retained regression, wheel/install, outside-source/package smoke, and full
-  integration re-review; a non-consuming legacy preliminary counter is not
-  authority to run them.
-- Before candidate freeze, run the diff-whitespace preflight. Safe extra EOF
-  blank lines, missing final newline, and trailing spaces/tabs route to
-  `AUTO_NORMALIZATION_CORRECTIVE` through an exact-file whitespace-only fixer;
-  Review/Closeout remains read-only. Do not request new user authority or return
-  `STOP_FOR_PM` for those ordinary findings. Never auto-normalize broad line
-  endings or generated, vendored, signed, frozen, accepted, historical,
-  deployed-migration, or byte/checksum-bound files. Candidate migrations are
-  eligible only when unaccepted and already writable. After a normalization
-  successor, run only diff-check, non-whitespace digest, related focused tests,
-  and targeted re-review; invalidate only affected or byte-sensitive evidence.
-- For one finding, run only the minimum reproduction and directly affected
-  focused tests. At a lane gate, run only the affected-lane suite. After a
-  corrective, run only targeted verification and targeted re-review. Reduce
-  harness or teardown failures to a minimum reproduction before any broader
-  rerun.
-- Reuse evidence for the same fingerprint while its inputs remain unchanged.
-  Workers and reviewers cannot expand expensive-verification authority; Lane
-  Controllers own only affected-lane verification, and the Root or Final
-  Controller exclusively owns final full-suite authority.
-- Candidate freeze defaults to `clean-head` and rejects dirty worktrees. Use
-  `working-tree` only when the active packet explicitly authorizes an
-  uncommitted snapshot. Bind committed, staged, unstaged, non-ignored
-  untracked, deletion, mode, and symlink state; reassess before and after final
-  verification. Pass and bind the packet's non-empty snapshot authority.
-  Never use an unbound dirty-worktree bypass, follow external
-  symlink targets, accept a dirty submodule, or treat a snapshot as
-  commit/submit authority.
+- Apply verification admission at
+  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-003`, candidate binding at
+  `#sage-loop-006`, evidence reuse at `#sage-loop-007`, and normalization at
+  `#sage-loop-012`. Worker, Lane, Root, and Final controllers keep only the
+  authority assigned by those sections and the active packet.
 - Capability or preflight failures do not consume a candidate verification run.
   A run is consumed atomically when candidate execution starts. Persist started
   attempt ids so checkpoint/resume cannot count them twice.
 - Failure of one verification node skips only dependent successors;
   independent verification nodes continue and report their own results.
-- Freeze the candidate only after review and the bounded corrective batch
-  close. One approved corrective batch may create one automatic successor
-  without human budget relaxation; another successor from that batch or any
-  post-final code change first returns `HANDOFF_READY`. A human-approved
-  handoff corrective may create the next generation only with a persisted
-  authority anchor, root-cause id, and finding count. Do not impose a numeric
-  generation ceiling: block only after two approved rounds for the same root
-  cause make no progress, and reset that count when findings decrease.
+- Candidate successors and no-progress outcomes follow
+  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-006` and `#sage-loop-008`; the
+  Skill must not synthesize successor authority or retry budgets.
 - Keep one task tied to one approved phase unless a batch plan defines order,
   gates, and stop conditions.
 - Do not invent missing contracts, fallback behavior, or success evidence.
 - Do not edit outside the approved file boundary.
 - Do not open approval gates without explicit user approval.
-- Do not treat historical closeouts as startup context.
-- Do not claim `DONE` unless required verification and memory maintenance are
-  complete.
+- Apply the closeout context boundary at
+  `docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`.
+- Apply `docs/agent/EXECUTION_ECONOMY.md#sage-loop-013` before claiming `DONE`,
+  and record required memory maintenance in the project report.
 - Use `docs/agent/GOVERNANCE_LEVELS.md` to choose the lightest governance level
   that safely preserves scope, evidence, memory, and approval boundaries, and
   choose the matching permission mode for read-only, write, corrective,
@@ -358,24 +310,13 @@ handoff.
   workers; it must not edit implementation or corrective files itself. If
   review is read-only, it must return a packet-only corrective handoff or
   blocker.
-- Severity gates acceptance: open P0/P1 always block; P2 blocks only for
-  authority, false-green, approval gate, security, validator/gate-ready, source
-  authority, or evidence-integrity issues; ordinary documentation-consistency
-  P2 may close as concerns or be auto-corrected; P3 does not block.
-- After corrective work, follow the Deterministic Closure eligibility,
-  separation, receipt, and reject/fallback contract in
-  `docs/agent/SESSION_ORCHESTRATION.md`; only Final Review may record a
+- After corrective work, follow the canonical targeted re-review scope at
+  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-010` and the Deterministic Closure
+  eligibility, separation, receipt, and reject/fallback contract in
+  `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`; only Final Review may record a
   precommitted `VERDICT_FINALIZED_FROM_RECEIPT`, not milestone acceptance.
-- Do not mark `BLOCKED` merely because a fixed corrective round count was
-  reached. Continue only inside an authorized corrective packet or boundary
-  while findings or severity decrease, scope does not expand, no blocking
-  approval gate is bypassed, and no new authority, false-green, approval-gate,
-  security, validator/gate-ready, source-authority, or evidence-integrity risk
-  appears. Mark `BLOCKED` when the same root cause makes no material progress
-  for two consecutive corrective rounds, required evidence or authority is
-  missing, or the fix would exceed the approved boundary. When Project Manager
-  judgment is needed, return `NEEDS_CORRECTION` with `PM_DECISION_REQUIRED`
-  closure/status rather than `BLOCKED`.
+- Use `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` for convergence outcomes;
+  this Skill only routes any resulting handoff or Project Manager decision.
 - Do not claim Wave Execution or parallel phases unless Wave Readiness is
   proven with independent lanes, exclusive writable files, serial shared files,
   frozen contracts, runtime ownership, validation lanes, and integration owner.

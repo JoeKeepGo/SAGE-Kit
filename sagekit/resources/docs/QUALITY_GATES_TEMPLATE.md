@@ -7,6 +7,9 @@ Governance/permission meaning and waiver authority are canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004` and
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This template retains the
 project's gate catalog, required evidence, status, and authority fields.
+General completion eligibility is canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`; this project template alone
+owns the exact applicable gate catalog and evidence requirements.
 
 ## Gate Levels
 
@@ -92,24 +95,14 @@ Final Review severity decides whether Project Manager acceptance is blocked.
 
 ## Corrective Convergence Rule
 
-Corrective work should continue automatically only inside an authorized
-corrective packet or boundary, and only while all are true:
-
-- open finding count or severity is decreasing;
-- the approved scope is not expanding;
-- no blocking approval gate is bypassed;
-- no new authority, false-green, approval-gate, security,
-  validator/gate-ready, source-authority, or evidence-integrity risk appears;
-- the same root cause has not stalled for two consecutive corrective rounds.
-
-Do not mark work `BLOCKED` merely because a fixed round count was reached. Use
-`BLOCKED` when no authorized path is making progress, required evidence or
-authority is missing, scope would need to expand, or the same root cause has
-made no material progress for two consecutive corrective rounds.
+Apply convergence and corrective re-review from
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` and `#sage-loop-010`. This
+template records the project's applicable gate result; it does not redefine
+no-progress or review scope.
 
 The no-re-review `MECHANICAL_STATUS` exception must satisfy the complete
 Deterministic Closure contract and reject/fallback table in
-`docs/agent/SESSION_ORCHESTRATION.md`. Only Final Review may record
+`docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`. Only Final Review may record
 `VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager acceptance remains pending.
 All ineligible or failed cases use the targeted or full re-review selected by
 that contract.
@@ -119,33 +112,18 @@ command exits successfully. For example, `git diff --check` line-ending notices
 such as LF-to-CRLF conversion warnings are non-blocking warnings when exit code
 is `0`. Ordinary EOF/trailing-whitespace findings use the pre-freeze
 `AUTO_NORMALIZATION_CORRECTIVE` contract in
-`docs/agent/EXECUTION_ECONOMY.md`; they do not directly become an artificial
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-012`; they do not directly become an artificial
 human blocker. Conflict markers, malformed patches, protected-byte findings,
 or any remaining non-zero verification exit still fail closed.
 
 ### Preauthorized Convergence Window Gate
 
-The Preauthorized Convergence Window is opt-in. If inactive, one approved
-corrective batch still creates at most a single automatic successor. If active,
+Apply the explicit opt-in contract at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-009`. When the project activates it,
 record its authority id and digest, execution scope, root-cause family,
 component-aware allowed paths, invariant, `implementation-preserving-only`
-policy, targeted-review state, stop conditions, and approval source.
-
-Continue across multiple candidates only for semantic-preserving corrective
-implementation while findings or severity converge, or when targeted-reviewed
-evidence shows the next deterministic layer in the same family. Do not hand off
-because of a fixed generation count. Each candidate still gets independent
-final-verification counters and may start final verification only once.
-
-Return `HANDOFF_READY` for policy-changing semantics, scope/path/invariant or
-family changes, new gates or permissions, consumer mutation, security or
-evidence weakening, test/gate weakening, or missing/malformed authority. Return
-`BLOCKED` after two consecutive no-progress rounds for the same root cause or
-when required evidence cannot be produced. Security, authority, containment,
-validator, package, and release-gate implementation correctives require the
-targeted review named by the authority. This is not an unlimited retry rule:
-transient rerun is distinct from code corrective, and deterministic failure
-must not be retried speculatively.
+policy, targeted-review state, stop conditions, and approval source in the gate
+evidence.
 
 ## Universal Blockers
 
@@ -216,6 +194,10 @@ Replace with project-specific commands:
 ```
 
 ## Completion Language Rule
+
+Apply `docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`, then report the local
+gate table without inventing evidence for an out-of-scope runtime or UI
+surface.
 
 Allowed:
 

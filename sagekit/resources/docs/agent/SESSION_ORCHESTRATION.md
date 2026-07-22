@@ -414,24 +414,13 @@ explicitly recorded as not an acceptance gate.
 
 ## Project Manager Structural Gate
 
-The Project Manager Controller does not perform technical verification between
-Coder and Final Review.
-
-It checks only whether the Coder packet is structurally ready for review:
-
-- every phase has a status;
-- primary capability and capability-map reference are present or marked not
-  applicable;
-- files changed are listed;
-- contracts and ownership are named;
-- tests and runtime smoke are reported or marked not applicable;
-- skipped checks and blockers have reasons;
-- approval gates are not silently opened;
-- active context, document routing, ledger, and closeout notes are present;
-- stop conditions are surfaced.
+Structural Gate meaning and its complete field checklist are canonical in
+`docs/templates/STRUCTURAL_GATE_TEMPLATE.md#sage-lif-012`. The Project Manager
+Controller invokes that completeness gate between Coder and Final Review; it
+does not perform technical review, accept the milestone, or close it.
 
 If the packet is incomplete, return it to the Coder Controller for packet repair
-only. Do not send an incomplete packet to Final Review.
+only. Forward it to Final Review only on Structural Gate `PASS`.
 
 ## Final Review Rules
 
@@ -507,53 +496,37 @@ Corrective work is bounded by the Final Review findings.
 - Corrective worker `DONE` means fix execution is complete. It does not close a
   finding, review verdict, gate, or milestone. A separately recorded re-review
   result or valid Deterministic Closure receipt closes the finding.
-- Outside strict Deterministic Closure, Final Review may directly perform a
-  narrow read-only diff inspection or delegate one narrow re-review for
-  low-risk, local corrections. It must rerun affected review workers, review subagents, or
-  validation lanes when the original review used them, the fix touches behavior,
-  contracts, runtime, shared files, or gates, or the regression surface is
-  unclear.
+- Outside strict Deterministic Closure, apply the canonical targeted re-review
+  scope at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-010`. Final Review may
+  directly perform a narrow read-only diff inspection or delegate one narrow
+  re-review for the original finding closure and direct regressions; it does not
+  repeat the initial full review.
 - When the corrective change only updates ledger, evidence, status, closeout,
   or other review bookkeeping without changing product semantics, permissions,
   source authority, information architecture, contracts, runtime behavior, or
   validator requirements, use strict Deterministic Closure when all of its
   conditions are pre-authored and satisfied; otherwise Final Review should run
   only the targeted status/evidence lanes named by the project review plan.
-- When the corrective change alters semantics, permission or authority
-  boundaries, source authority, information architecture, public contracts,
-  security posture, runtime behavior, validator meaning, or approval gates,
-  Final Review must rerun the full affected review lanes.
+- A correction that changes scope, authority, policy, or an approved contract
+  returns to the matching authority instead of silently broadening re-review.
 - Corrective workers must not redesign the feature.
 - Corrective workers must not expand milestone scope.
 - Corrective workers must not open approval gates.
-- Corrective packets may name a convergence budget, but fixed-round caps are not
-  closure blockers by themselves. A finding is blocked only on two consecutive
-  no-progress rounds for the same root cause or explicit authority/required
-  evidence gaps.
-- Material convergence progress means the open finding count or finding
-  severity is decreasing, scope does not expand, no blocking gate is bypassed,
-  and no new authority, false-green, approval-boundary, security-boundary,
-  validator-failure, source-authority, or evidence-integrity risk appears.
-  Continue automatically only while that definition is satisfied inside an
-  authorized corrective packet or boundary.
-- At the first same-root round with no material progress, stop automatic
-  continuation, keep the verdict `NEEDS_CORRECTION`, and return
-  `PM_DECISION_REQUIRED` plus `HANDOFF`.
-- Return `BLOCKED` when the same root cause shows no material progress for two
-  consecutive corrective rounds, required evidence or authority is missing,
-  the fix would exceed the approved boundary, or no authorized path can make
-  progress.
-- If the convergence budget is exhausted while the run is still converging,
-  return `NEEDS_CORRECTION` with convergence evidence. When higher Project
-  Manager judgment is needed, keep the Final Review verdict as
-  `NEEDS_CORRECTION` and set closure/status to `PM_DECISION_REQUIRED` instead
-  of inventing a new verdict or marking final `BLOCKED`.
+- Convergence, no-progress, and local event-limit outcomes are canonical at
+  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`; a configured budget is only
+  a controller signal. This controller records trend and root cause, continues
+  only inside existing corrective authority, routes `HANDOFF_READY` to the
+  Project Manager, and never manufactures `BLOCKED` from a local count.
 
 ## Automatic Review Scope Selection
 
 Final Review must choose the narrowest review scope that protects authority and
 evidence. This selection is part of the review packet; it should not depend on a
 human remembering to request the right lane.
+
+<a id="sage-loop-011"></a>
+
+### Deterministic Closure
 
 Use Deterministic Closure without starting another review lane, subagent, or
 Final Review pass only when all are true:
@@ -562,9 +535,9 @@ Final Review pass only when all are true:
   `MECHANICAL_STATUS` and authored the closure predicate before corrective
   editing; the normal finding classification remains `AUTO_CORRECTIVE`;
 - the predicate names the finding ID, exact files and fields, authoritative
-  value and source reference, allowed diff, closure commands, precommitted final
-  verdict, Closure Receipt Owner, Closure Receipt Destination, and protected
-  out-of-scope hashes;
+  value and matching authority/source reference, allowed diff, closure checks
+  and commands, precommitted final verdict, Closure Receipt Owner, Closure
+  Receipt Destination, and protected out-of-scope hashes;
 - the substantive evidence and authoritative value were already reviewed; the
   correction only mirrors that value and does not originate a gate, approval,
   verdict, or acceptance decision;
@@ -612,24 +585,11 @@ Deterministic Closure Reject/Fallback:
 | State Truth Reconciliation is not `PASS` | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
 | Authoritative value, false-green risk, or gate-ready state remains unclear | `INVALID_REVIEW_REQUIRED`; targeted/full re-review. |
 
-Use targeted status/evidence re-review when all are true:
-
-- only ledgers, task/evidence records, status tables, closeout notes, or
-  review packets changed;
-- no product code, runtime behavior, schema, migration, test implementation,
-  source authority, information architecture, permission boundary, approval
-  gate, or validator meaning changed;
-- the remaining findings are ordinary consistency, stale status, or evidence
-  bookkeeping issues.
-
-Use full affected-lane re-review when any are true:
-
-- semantics, source authority, information architecture, permissions, security,
-  approval gates, public contracts, runtime behavior, validator rules, or
-  required evidence changed;
-- the correction touches implementation files or test/runtime behavior;
-- false-green risk, hidden fallback, or gate-ready status is in question;
-- the targeted review cannot prove the remaining acceptance boundary.
+If the predicate, diff, authority, checks, hashes, receipt ownership, or verdict
+is missing or ambiguous, Deterministic Closure is invalid and the canonical
+targeted/full fallback at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-010`
+applies. A deterministic receipt is closure evidence, never an independent
+review `PASS`.
 
 ## Serial Gates
 
@@ -667,7 +627,9 @@ These remain serial even in Session Orchestration:
 
 ## Completion
 
-A milestone run using Session Orchestration is not complete until:
+General completion eligibility is canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`. A milestone run using Session
+Orchestration additionally records these controller-local obligations:
 
 - Coder packet is structurally complete;
 - Final Review returns a verdict;
@@ -679,8 +641,6 @@ A milestone run using Session Orchestration is not complete until:
 - active context and routing maintenance are handled;
 - closeout is written when the milestone closes.
 
-The required closure order is Final Review verdict, corrective convergence or
-explicit stop, Project Manager/project-owner decision, ledger update, then
-closeout. `HANDOFF` is never a terminal closeout result. A `BLOCKED` run remains
-open until the authorized owner records a close-blocked, abandon, defer, or
-resume decision; only the first three permit closeout.
+The closure sequence, terminal status eligibility, and historical-context
+boundary are canonical at
+`docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`.
