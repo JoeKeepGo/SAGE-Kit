@@ -1497,17 +1497,27 @@ class SagekitCheckTests(unittest.TestCase):
         from sagekit.init import package_resource_root
 
         root = package_resource_root()
-        planning_contracts = [
-            (root / "docs/agent/MILESTONE_PLANNING.md").read_text(encoding="utf-8"),
-            (root / "docs/agent/WAVE_EXECUTION.md").read_text(encoding="utf-8"),
-            (root / "docs/agent/SESSION_ORCHESTRATION.md").read_text(encoding="utf-8"),
-            (REPO_ROOT / "skills/sage-kit/references/planning.md").read_text(encoding="utf-8"),
-        ]
-        combined = " ".join(" ".join(text.split()) for text in planning_contracts)
+        core = (root / "docs/SAGE_CORE.md").read_text(encoding="utf-8")
+        wave = (root / "docs/agent/WAVE_EXECUTION.md").read_text(encoding="utf-8")
+        planning = (root / "docs/agent/MILESTONE_PLANNING.md").read_text(
+            encoding="utf-8"
+        )
+        orchestration = (root / "docs/agent/SESSION_ORCHESTRATION.md").read_text(
+            encoding="utf-8"
+        )
+        skill_planning = (
+            REPO_ROOT / "skills/sage-kit/references/planning.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('<a id="sage-grf-001"></a>', core)
+        self.assertIn("Begin with one bounded execution loop", core)
+        self.assertIn("Light work is never required to upgrade to Graph execution", core)
+        for anchor in ("sage-grf-002", "sage-grf-005", "sage-grf-006"):
+            self.assertIn(f'<a id="{anchor}"></a>', wave)
 
         self.assertIn(
             "Shared serial ownership does not justify milestone-wide serial execution",
-            combined,
+            wave,
         )
         for requirement in [
             "dependency DAG",
@@ -1515,20 +1525,27 @@ class SagekitCheckTests(unittest.TestCase):
             "serial barriers",
             "phase-internal lanes",
         ]:
-            self.assertIn(requirement, combined)
+            self.assertIn(requirement, wave)
         self.assertRegex(
-            combined,
+            " ".join(wave.split()),
             r"SERIAL.{0,500}(phase|lane).{0,200}(dependency|conflict|gate|runtime)",
         )
         self.assertIn(
             "A missing readiness item serializes only the affected node",
-            combined,
+            wave,
         )
-        self.assertIn("continue evaluating unaffected parallel candidates", combined)
+        self.assertIn(
+            "continue evaluating unaffected parallel candidates",
+            " ".join(wave.split()),
+        )
         self.assertIn(
             "Milestone-wide `SERIAL` is allowed only when the barrier cannot be isolated",
-            combined,
+            " ".join(wave.split()),
         )
+
+        for text in (planning, orchestration, skill_planning):
+            self.assertIn("docs/SAGE_CORE.md#sage-grf-001", text)
+            self.assertIn("docs/agent/WAVE_EXECUTION.md#sage-grf-002", text)
 
         packet = (
             root / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
@@ -1541,6 +1558,7 @@ class SagekitCheckTests(unittest.TestCase):
         from sagekit.init import package_resource_root
 
         root = package_resource_root()
+        harness = (root / "docs/agent/AGENT_HARNESS.md").read_text(encoding="utf-8")
         prompt_template = (
             root / "docs/templates/AGENT_PROMPT_TEMPLATE.md"
         ).read_text(encoding="utf-8")
@@ -1555,9 +1573,12 @@ class SagekitCheckTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         combined = " ".join(
             " ".join(text.split())
-            for text in [prompt_template, execution_packet, orchestration, skill_execution]
+            for text in [harness, prompt_template, execution_packet, orchestration, skill_execution]
         )
 
+        self.assertIn('<a id="sage-auth-010"></a>', harness)
+        self.assertIn("it must not change scope, gates, permission, ownership", harness)
+        self.assertIn("fail closed before editing", harness)
         self.assertIn("Compact Controller Launch Envelope", combined)
         for field in [
             "role and objective",
@@ -1596,20 +1617,131 @@ class SagekitCheckTests(unittest.TestCase):
         ]:
             self.assertIn(field, combined)
         self.assertIn("launch-only delta", combined)
-        self.assertIn(
-            "must not change scope, gates, permission, shared ownership, contracts, or runtime authority",
-            combined,
-        )
         self.assertIn("fail closed before editing", combined)
-        for authority_text in [execution_packet, orchestration, skill_execution]:
-            authority_contract = " ".join(authority_text.split())
-            for rule in [
-                "authority ID",
-                "reconciliation destination",
-                "launch-only delta",
-                "fail closed before editing",
-            ]:
-                self.assertIn(rule, authority_contract)
+        for non_owner in [
+            prompt_template,
+            execution_packet,
+            orchestration,
+            skill_execution,
+        ]:
+            self.assertIn("docs/agent/AGENT_HARNESS.md#sage-auth-010", non_owner)
+
+    def test_stage1b_context_and_graph_rules_have_canonical_owners_and_pointers(self):
+        paths = {
+            "core": "docs/SAGE_CORE.md",
+            "harness": "docs/agent/AGENT_HARNESS.md",
+            "source": "docs/agent/SPEC_SOURCE_CONTRACT.md",
+            "planning": "docs/agent/MILESTONE_PLANNING.md",
+            "session": "docs/agent/SESSION_ORCHESTRATION.md",
+            "wave": "docs/agent/WAVE_EXECUTION.md",
+            "agent_prompt": "docs/templates/AGENT_PROMPT_TEMPLATE.md",
+            "milestone_packet": "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+            "lane_packet": "docs/templates/LANE_PACKET_TEMPLATE.md",
+            "result_packet": "docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
+            "skill": "skills/sage-kit/SKILL.md",
+            "adoption": "skills/sage-kit/references/adoption.md",
+            "skill_planning": "skills/sage-kit/references/planning.md",
+            "skill_execution": "skills/sage-kit/references/execution.md",
+            "skill_review": "skills/sage-kit/references/review-completion.md",
+        }
+        sources = {
+            name: (REPO_ROOT / path).read_text(encoding="utf-8")
+            for name, path in paths.items()
+        }
+        owners = {
+            "sage-auth-010": "harness",
+            "sage-ctx-001": "source",
+            "sage-ctx-002": "source",
+            "sage-ctx-005": "harness",
+            "sage-grf-001": "core",
+            "sage-grf-002": "wave",
+            "sage-grf-005": "wave",
+            "sage-grf-006": "wave",
+            "sage-grf-011": "wave",
+        }
+        for anchor, owner in owners.items():
+            marker = f'<a id="{anchor}"></a>'
+            self.assertEqual(sources[owner].count(marker), 1, anchor)
+            for name, text in sources.items():
+                if name != owner:
+                    self.assertNotIn(marker, text, (anchor, name))
+
+        pointer_matrix = {
+            "docs/agent/AGENT_HARNESS.md#sage-auth-010": (
+                "agent_prompt",
+                "milestone_packet",
+                "session",
+                "skill_execution",
+            ),
+            "docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001": (
+                "core",
+                "harness",
+                "skill",
+                "adoption",
+                "skill_planning",
+                "skill_execution",
+                "skill_review",
+            ),
+            "docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002": (
+                "core",
+                "harness",
+                "skill",
+                "adoption",
+                "skill_review",
+            ),
+            "docs/agent/AGENT_HARNESS.md#sage-ctx-005": ("skill",),
+            "docs/SAGE_CORE.md#sage-grf-001": (
+                "planning",
+                "session",
+                "wave",
+                "skill",
+                "skill_planning",
+                "skill_execution",
+            ),
+            "docs/agent/WAVE_EXECUTION.md#sage-grf-002": (
+                "planning",
+                "session",
+                "milestone_packet",
+                "skill",
+                "skill_planning",
+                "skill_execution",
+            ),
+            "docs/agent/WAVE_EXECUTION.md#sage-grf-005": (
+                "planning",
+                "session",
+                "skill_planning",
+            ),
+            "docs/agent/WAVE_EXECUTION.md#sage-grf-006": (
+                "planning",
+                "session",
+                "skill_planning",
+                "skill_execution",
+            ),
+            "docs/agent/WAVE_EXECUTION.md#sage-grf-011": (
+                "lane_packet",
+                "result_packet",
+            ),
+        }
+        for pointer, non_owners in pointer_matrix.items():
+            for non_owner in non_owners:
+                self.assertIn(pointer, sources[non_owner], (pointer, non_owner))
+
+        source = sources["source"]
+        self.assertIn("Resolve one current source in this order", source)
+        self.assertIn("An explicit or configured source fails closed", source)
+        self.assertIn("not a complete execution specification", source)
+        self.assertIn("ACCEPTED_HISTORY` is non-executable", source)
+
+        harness = sources["harness"]
+        self.assertIn("Load active authority and exposed capability metadata first", harness)
+        self.assertIn("Skill or reference bodies relevant to the routed task", harness)
+        self.assertIn("docs/agent/AGENT_HARNESS.md#sage-ctx-005", sources["skill"])
+
+        wave = sources["wave"]
+        for status in ("`DONE`", "`DONE_WITH_CONCERNS`", "`HANDOFF`", "`BLOCKED`"):
+            self.assertIn(status, wave)
+        self.assertIn("HANDOFF`: nonterminal", wave)
+        self.assertIn("cannot auto-advance a phase or acceptance", wave)
 
     def test_codex_gpt56_uses_native_workflows_without_superpowers(self):
         from sagekit.init import package_resource_root

@@ -14,6 +14,9 @@ memory maintenance, closeout, commit, or push.
 
 For `thin-v1`, review `SAGE_PROJECT.json`, the active
 `MILESTONE_MANIFEST.json`, and selected phase manifests as structured authority.
+Resolve and classify that current authority under
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`.
 Confirm their contract/profile references and digests, dependency integrity,
 path containment, approval/permission consistency, acceptance, state, and
 evidence references. Generic governance prose is not required in the project

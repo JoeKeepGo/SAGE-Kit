@@ -113,21 +113,19 @@ Use this ladder before accepting a milestone plan:
 
 ## Execution Shape Analysis
 
-Before choosing an execution shape, record a dependency DAG for the milestone.
-The analysis must list parallel candidates, serial barriers, and any
-phase-internal lanes that can use disjoint ownership. Shared serial ownership
-does not justify milestone-wide serial execution.
+Use `docs/SAGE_CORE.md#sage-grf-001` to decide whether one bounded loop is
+sufficient or Graph planning has decision value. Canonical dependency,
+parallel-candidate, serial-barrier, phase-internal-lane, affected-serialization,
+and safe-barrier semantics are owned by
+`docs/agent/WAVE_EXECUTION.md#sage-grf-002`,
+`docs/agent/WAVE_EXECUTION.md#sage-grf-005`, and
+`docs/agent/WAVE_EXECUTION.md#sage-grf-006`.
 
-Assign shared files to a named serial integration owner, then continue checking
-whether work on mutually exclusive files can run in parallel around that
-barrier. A `SERIAL` decision must identify the concrete phase or lane
-dependency, file conflict, approval gate, or runtime ownership constraint that
-prevents a safe wave. A broad label such as migration, integration, backend, or
-frontend is not sufficient by itself.
-
-Do not repartition a phase that is already active unless its authority
-explicitly permits it. Apply a safer parallel plan from the next safe
-barrier or wave.
+This planning document remains responsible for recording the milestone's
+dependency DAG, parallel candidates, serial barriers, phase-internal lanes,
+named integration owner, readiness evidence, and chosen execution shape in the
+plan and entry gate. It applies the canonical rules to project facts rather than
+redefining them.
 
 ## Milestone Entry Gate Checklist
 

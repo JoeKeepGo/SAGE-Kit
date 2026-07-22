@@ -105,11 +105,10 @@ Ledger Notes:
 
 Status rules:
 
-- `DONE` means the lane can be considered for controller integration.
-- `DONE_WITH_CONCERNS` requires controller review and cannot auto-advance.
-- `HANDOFF` is nonterminal and transfers review, approval, re-review, or
-  controller-integration work. It must name both `Next Owner` and `Next Action`.
-- `BLOCKED` stops the lane and must name `Stopped Because`.
+- Canonical `DONE`, `DONE_WITH_CONCERNS`, `HANDOFF`, and `BLOCKED` semantics are
+  owned by `docs/agent/WAVE_EXECUTION.md#sage-grf-011`.
+- This packet retains the local status field. A `HANDOFF` fills both
+  `Next Owner` and `Next Action`; a `BLOCKED` lane fills `Stopped Because`.
 - Corrective lane `DONE` means assigned fix execution is complete. A finding
   remains open until the named re-review owner records `PASSED` or the named
   Closure Receipt Owner, separate from the Corrective Worker, records a valid,

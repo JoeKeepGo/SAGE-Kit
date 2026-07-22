@@ -6,6 +6,9 @@ Role and submit authority are canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005` and
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`. This result retains the local
 handoff, level/mode, changed-surface, evidence, and permission-gap fields.
+Canonical lane-result status semantics are owned by
+`docs/agent/WAVE_EXECUTION.md#sage-grf-011`; `SUPERSEDED` below is a
+phase-result extension, not a lane status.
 
 Coder does not send this packet directly to Final Review. Project Manager runs
 the Structural Gate first and forwards the packet to Final Review only after the

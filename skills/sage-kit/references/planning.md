@@ -6,7 +6,8 @@ orchestration, and worktree isolation planning.
 ## Execution Document Routing
 
 Before planning an executable milestone, select its document model and SPEC
-sources from project authority. `legacy-markdown` continues to use the retained
+sources from project authority under
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`. `legacy-markdown` continues to use the retained
 Markdown entry gate and phase documents. `thin-v1` requires
 `SAGE_PROJECT.json` plus explicit or configured milestone and phase sources. The
 legacy adapter keeps `docs/<M>/MILESTONE_MANIFEST.json` and
@@ -153,17 +154,13 @@ Parallel lanes must have disjoint writable files. If a lane needs a shared
 startup context file, it returns a proposal and the controller applies it
 serially.
 
-Before selecting `SERIAL`, record the dependency DAG, parallel candidates,
-serial barriers, and phase-internal lanes. Shared serial ownership does not
-justify milestone-wide serial execution. Assign shared files to a serial
-integration owner and preserve parallelism for mutually exclusive files.
-`SERIAL` requires a concrete phase or lane dependency, file conflict, gate, or
-runtime ownership reason. Do not repartition an active phase by default; apply
-the new shape from the next safe barrier or wave.
-
-A missing readiness item serializes only the affected node; continue evaluating
-unaffected parallel candidates. Milestone-wide `SERIAL` is allowed only when
-the barrier cannot be isolated.
+Admit Graph planning under `docs/SAGE_CORE.md#sage-grf-001`. Record the
+project-specific dependency DAG, parallel candidates, serial barriers, and
+phase-internal lanes in the plan, and apply the canonical shape,
+affected-serialization, and active-change rules at
+`docs/agent/WAVE_EXECUTION.md#sage-grf-002`,
+`docs/agent/WAVE_EXECUTION.md#sage-grf-005`, and
+`docs/agent/WAVE_EXECUTION.md#sage-grf-006`.
 
 ## Session Orchestration Planning
 

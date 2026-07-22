@@ -44,13 +44,10 @@ tables, or test plan. Let project routing select the narrow read set and load a
 phase-specific authority only when that phase starts. Keeping the envelope near
 40-80 lines is a guideline, not a correctness gate.
 
-A `launch-only delta` may clarify reporting or execution order already allowed
-by approved authority. It must not change scope, gates, permission, shared
-ownership, contracts, or runtime authority. Changes to those boundaries must
-first be written to and approved in the execution packet or other named
-authority source. If any required prompt or packet reference is missing,
-unreadable, contradictory, or conflicts with the delta, fail closed before
-editing.
+The canonical `launch-only delta` and fail-closed boundary is owned by
+`docs/agent/AGENT_HARNESS.md#sage-auth-010`. This template retains the envelope
+fields, standalone exception, explicit local-worker form, and task-specific
+reporting needed to apply that rule; it does not define a second authority.
 
 ## Standalone Task Exception
 

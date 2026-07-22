@@ -10,18 +10,32 @@ target-scoped approval is owned by `docs/SAGE_CORE.md#sage-auth-009`. This
 document retains Harness routing, startup, execution, evidence, and handoff
 responsibilities inside those boundaries.
 
+<a id="sage-auth-010"></a>
+
+## Controller Launch Envelope
+
+A controller launch envelope references the readable execution packet or other
+named project authority; it does not become a second execution source. A
+`launch-only delta` may clarify reporting or execution order already allowed by
+that authority, but it must not change scope, gates, permission, ownership,
+contracts, or runtime authority. Any such boundary change must first be written
+to and approved in the named authority source.
+
+If a required authority reference is missing, unreadable, contradictory, or
+conflicts with the delta, fail closed before editing. Controller and worker
+templates retain the local fields, host/task delta, and self-contained exception
+needed for launch, while this section owns the general boundary.
+
 ## SPEC And Execution Authority
 
 The Harness consumes the normalized model defined by
-`docs/agent/SPEC_SOURCE_CONTRACT.md`, never a directory convention directly.
-`ACTIVE_SPEC` is current execution authority; `ACTIVE_CONTEXT` is its compact
-handoff view; `ACCEPTED_HISTORY` and `REFERENCE_ONLY` are non-executable; and
-leases, candidates, counters, and checkpoints are `.sagekit` `RUNTIME_STATE`.
-
-Resolve the source from an explicit embedded API source, configured mapping,
-ACTIVE_CONTEXT Current Work Pointer, then the legacy `docs/<M>` adapter for an
-explicitly selected legacy milestone. Explicit and configured sources fail
-closed without fallback. Paths are provenance, not semantic identity.
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`, never a directory convention
+directly. That contract owns source-selection order and fail-closed behavior;
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002` owns executable and
+non-executable scope classification. The Harness is responsible for consuming
+the resolved normalized authority, including an explicit embedded API source,
+and applying startup, routing, and execution controls. Paths remain provenance,
+not semantic identity.
 
 Thin sources contain project facts while generic governance comes from the
 pinned profile. Thin reduces repeated prose, not planning depth. Established
@@ -122,7 +136,14 @@ generated packets, or `.sagekit` state in the inspected project. Default checks
 inspect active authority only; history validation requires an explicit history
 audit or scope selection.
 
+<a id="sage-ctx-005"></a>
+
 ## Context Budget
+
+Load active authority and exposed capability metadata first, then load only the
+Skill or reference bodies relevant to the routed task. Broaden context only for
+a named correctness, safety, provenance, full-review, or acceptance decision;
+record the reason, bounded read set, and decision before the broader read.
 
 Context budget is a guardrail, not a correctness cap. Start narrow, then expand
 when the task needs more evidence.

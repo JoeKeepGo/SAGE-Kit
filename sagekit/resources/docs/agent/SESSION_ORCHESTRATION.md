@@ -13,8 +13,9 @@ canonical in `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003` through
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This document retains the
 milestone controller topology, packet flow, delegation, and closure mechanics.
 
-Use this mode when a milestone has multiple phases, multiple lanes, independent
-review needs, or repeated handoff overhead.
+Use this mode only after Graph admission under
+`docs/SAGE_CORE.md#sage-grf-001`, when a milestone has multiple phases, multiple
+lanes, independent review needs, or repeated handoff overhead.
 
 Do not use this mode for small tasks, typo fixes, narrow bug fixes, or a single
 phase that can be completed cleanly in one controller session.
@@ -137,15 +138,11 @@ routing and reads phase-specific authority when that phase starts. A 40-80 line
 envelope is a guideline, not a correctness gate; authority completeness and
 unambiguous deltas take precedence over length.
 
-Each PM authority delta records its authority ID, source, priority, and
-reconciliation destination. Only a `launch-only delta` may stay in the launch
-envelope, such as a reporting instruction or execution-order hint already
-allowed by the approved dependency DAG. A launch-only delta must not change
-scope, gates, permission, shared ownership, contracts, or runtime authority.
-Any such change must first update and receive approval in the execution packet
-or other named authority source. If a referenced prompt or packet is missing,
-unreadable, contradictory, or conflicts with a delta, fail closed before
-editing and return the authority gap.
+Each PM authority delta retains its authority ID, source, priority, and
+reconciliation destination. Classify the delta and handle missing or conflicting
+authority under the canonical launch boundary at
+`docs/agent/AGENT_HARNESS.md#sage-auth-010`; this document remains responsible
+for the controller-specific field set and routing behavior.
 
 Worker prompts remain explicit. Every worker still receives its exact allowed,
 read-only, and forbidden files, tests, evidence, runtime ownership, and stop
@@ -281,12 +278,11 @@ A wave is ready only when the execution packet or phase doc names:
 - integration owner;
 - stop conditions for conflicts.
 
-A missing readiness item serializes only the affected node; continue evaluating
-unaffected parallel candidates. Milestone-wide `SERIAL` is allowed only when
-the barrier cannot be isolated. Return `STOP_FOR_PM` when isolating or changing
-the affected node needs Project Manager authority. Do not create a cosmetic
-wave plan where the Coder Controller still performs all implementation work
-directly.
+Apply affected-node serialization from
+`docs/agent/WAVE_EXECUTION.md#sage-grf-005`. This controller returns
+`STOP_FOR_PM` when isolating or changing that node needs Project Manager
+authority, and must not create a cosmetic wave plan where the Coder Controller
+still performs all implementation work directly.
 
 ## Coder Self Review
 
@@ -309,6 +305,10 @@ packet reaches Final Review are integration repairs, not corrective rounds.
 
 Coder and Final Review controllers both assess execution shape:
 
+Canonical shape terms and `SERIAL` admission are owned by
+`docs/agent/WAVE_EXECUTION.md#sage-grf-002`; this section maps the selected shape
+to controller and Final Review responsibilities.
+
 - record the dependency DAG, parallel candidates, serial barriers, and
   phase-internal lanes before selecting an execution shape;
 
@@ -324,10 +324,10 @@ Coder and Final Review controllers both assess execution shape:
 Coder uses this assessment to choose worker execution. Final Review uses it to
 verify whether the chosen execution shape was safe.
 
-Shared serial ownership does not justify milestone-wide serial execution.
-Assign shared files to the serial integration owner and preserve parallelism
-for disjoint peripheral work. An already active phase is not repartitioned by
-default; a new shape begins at the next safe barrier or wave.
+Apply active-shape changes only under
+`docs/agent/WAVE_EXECUTION.md#sage-grf-006`. Session Orchestration remains
+responsible for reflecting the resulting controller assignment and review
+boundary in its packets.
 
 ## Governance Level Assignment
 

@@ -26,17 +26,11 @@ select it merely because the project contains Markdown.
 ## Choose The SPEC Source
 
 Milestone documents remain first-class project assets and may live at any
-authorized project path. Resolve current execution authority in this order:
-
-1. explicit source configuration;
-2. project-configured active source or milestone mapping;
-3. `ACTIVE_CONTEXT` Current Work Pointer;
-4. legacy `docs/<M>` for an explicitly selected legacy milestone;
-5. one aggregated scope error.
-
-An explicit or configured source never silently falls back. Accepted history,
-reference folders, filenames, globs, and old status fields do not become current
-authority. See `docs/agent/SPEC_SOURCE_CONTRACT.md` for scope and adapter rules.
+authorized project path. Resolve current execution authority under
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and classify it under
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. Adoption remains responsible
+for recording the selected project source, adapter, and any required mapping,
+not for redefining precedence or fallback.
 
 Keep an established `legacy-markdown` project working without migration.
 `thin-v1` remains an execution document model, not a Task Dispatch version. Thin
@@ -68,13 +62,10 @@ risk, authority, and reviewability to choose the shape.
 
 ## History And Runtime State
 
-Default checks inspect active authority only. Accepted history remains immutable
-and uses frozen contracts only through an explicit history audit or scope
-selection. Do not rewrite history to satisfy current schemas.
-
-Keep leases, candidates, counters, checkpoints, and transient execution data in
-`.sagekit`, normally outside Git. `ACTIVE_CONTEXT` is a compact human/agent view,
-not the Harness state machine.
+Apply active, handoff, history, reference, and runtime-state classification from
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. Adoption keeps accepted
+history unchanged, places transient execution data under `.sagekit`, and keeps
+the configured handoff view compact.
 
 Bootstrap is host-owned creation of the minimal versioned project configuration;
 there is no public `sagekit.init` or bootstrap API. Machine-enforced profiles

@@ -36,6 +36,8 @@ allowed and forbidden boundaries, evidence requirements, stop conditions, and
 resource policy. Project documents do not need to repeat generic Kit or Skill
 rules already supplied by the pinned package contract.
 
+<a id="sage-ctx-002"></a>
+
 ## Scope Classes
 
 - `ACTIVE_SPEC`: the project facts authorized for current execution.
@@ -59,6 +61,8 @@ history, use the versioned `active-spec` candidate snapshot. It binds the
 normalized current Milestone semantic digest; legacy clean-head and
 working-tree candidate formats retain their existing whole-repository
 semantics.
+
+<a id="sage-ctx-001"></a>
 
 ## Authority Resolution
 
@@ -91,6 +95,9 @@ view contains only:
 - blockers and next action;
 - a small set of key decisions;
 - evidence and closeout pointers.
+
+It is not a complete execution specification and cannot replace the selected
+`ACTIVE_SPEC` or execution packet.
 
 Full history, leases, candidate counters, and the Harness state machine belong
 outside this view. Ordinary status, next-action, evidence-pointer, layout,

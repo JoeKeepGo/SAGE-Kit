@@ -21,13 +21,11 @@ pinned package contract, while project documents retain project-specific facts.
 A standalone compiled packet may carry resolved rules without making project
 documents repeat them.
 
-The scope classes are `ACTIVE_SPEC`, `ACTIVE_CONTEXT`, `ACCEPTED_HISTORY`,
-`REFERENCE_ONLY`, and `.sagekit` `RUNTIME_STATE`. Resolve current authority from
-an explicit source, configured mapping, ACTIVE_CONTEXT Current Work Pointer,
-then legacy adapter for an explicitly selected legacy milestone. `ACTIVE_CONTEXT`
-remains a compact handoff helper and can be configured as a local project input.
-Explicit and configured sources fail closed without fallback. Ordinary checks are
-active-only; frozen history contracts run only for explicit history audit.
+Source selection and its fail-closed order are canonical at
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`; executable, handoff, history,
+reference, and runtime-state classification is canonical at
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. SAGE Core retains the top-level
+module boundary and does not redefine those rules.
 
 The execution document model remains separate from Task Dispatch. Existing
 `legacy-markdown` projects continue without migration. `thin-v1` removes
@@ -196,6 +194,23 @@ baseline. Standard makes the Standard project-authority baseline blocking.
 Heavy makes the minimal controller-governance baseline blocking, but optional
 controls such as Task Dispatch, Wave Execution, Worktree Isolation, profiles,
 and adapters remain opt-in and artifact-triggered.
+
+<a id="sage-grf-001"></a>
+
+## Graph Admission
+
+Begin with one bounded execution loop. Admit a Graph only when it has concrete
+decision value from a dependency, an independent context or tool boundary, safe
+parallel work with a defined join, an independent evaluator, authority
+separation, or a state boundary. Otherwise keep the work as one bounded loop.
+
+Light work is never required to upgrade to Graph execution. Milestones, Waves,
+Phases, Lanes, and a single bounded loop remain available shapes; admission is
+based on the work, not governance weight. A Graph here expresses planning and
+execution relationships only. It does not create a runtime Graph, resolver,
+scheduler, graph database, or authority for dynamic graph rewrite. Once a Graph
+or Wave is admitted, execution-shape, affected-serialization, safe-barrier, and
+lane-status semantics are owned by `docs/agent/WAVE_EXECUTION.md`.
 
 ## Trivial And Non-Trivial Work
 

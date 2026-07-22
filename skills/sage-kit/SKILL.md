@@ -33,14 +33,11 @@ project documentation directory. Source adapters normalize Markdown, explicit
 paths, configured mappings, and legacy `docs/<M>` into one location-free model.
 Paths and adapter names are provenance and must not affect semantic identity.
 
-Use these scope classes: `ACTIVE_SPEC` for current execution authority,
-`ACTIVE_CONTEXT` for the compact handoff view, `ACCEPTED_HISTORY` for immutable
-accepted records, `REFERENCE_ONLY` for background, and `RUNTIME_STATE` for
-`.sagekit` state. Resolve source authority from explicit source config,
-configured active source, ACTIVE_CONTEXT Current Work Pointer, then the legacy
-adapter for
-an explicitly selected legacy milestone. Explicit or configured sources fail
-closed without fallback; ambiguity produces one aggregated scope error.
+Canonical source selection and scope classification are owned by
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. This Skill retains activation,
+situation detection, and task routing; it does not redefine source precedence or
+turn handoff/history material into execution authority.
 
 Two independent version dimensions remain: Task Dispatch v0/v1/v2 and the
 execution document model `legacy-markdown` or `thin-v1`. Never treat `thin-v1`
@@ -99,17 +96,10 @@ project-local file or rule.
 
 ## Core Rule
 
-Do not read every SAGE-Kit document by default. Start from the configured active
-project context and let the configured routing authority decide the narrow read
-set. `docs/DOC_ROUTING.md` is only the legacy default.
-
-Historical ledgers, phase docs, completion reports, and closeouts are not
-startup context.
-
-Context budget is a guardrail, not a correctness cap. Expand the read set when
-correctness, safety, provenance, full milestone review, or final acceptance
-requires it, but state why the extra context is needed and what decision it
-supports.
+Context loading is canonical at
+`docs/agent/AGENT_HARNESS.md#sage-ctx-005`. This Skill is responsible for
+activation, detecting the situation, and routing the task to the relevant
+reference below; it does not load every Skill or reference body by default.
 
 ## Detect The Situation
 
@@ -346,11 +336,10 @@ handoff.
   Record it as execution evidence and keep gate decisions in SAGE-Kit docs.
 - Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`; do not
   guess the policy from memory.
-- Use Wave Execution only when file ownership is disjoint and serial gates stay
-  serial.
-- Before choosing milestone-wide `SERIAL`, route planning through a dependency
-  DAG that isolates parallel candidates, serial barriers, and phase-internal
-  lanes; shared integration ownership alone is not sufficient.
+- Use Graph execution only after admission under
+  `docs/SAGE_CORE.md#sage-grf-001`; when Wave Execution is selected, apply
+  `docs/agent/WAVE_EXECUTION.md#sage-grf-002` rather than restating its shape
+  rules here.
 - Use Session Orchestration only for large milestones where Project Manager,
   Coder, and Final Review controller packets reduce handoff overhead without
   weakening gates.

@@ -15,6 +15,8 @@ Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 
 For an explicitly adopted `thin-v1` milestone, validate `SAGE_PROJECT.json`,
 `MILESTONE_MANIFEST.json`, and the selected phase manifest before execution.
+Resolve the selected current source under
+`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`.
 Resolve explicit project approval/gates before project overrides, pinned
 contract/profile policy, and runtime defaults. Unknown profiles, invalid
 overrides, conflicting authority, and missing digests must not fall back.
@@ -324,12 +326,10 @@ PM authority deltas, terminal state, and only necessary prohibitions or stop
 conditions. The envelope must not duplicate the execution packet. A 40-80 line
 target is a guideline, not a correctness gate.
 
-Every PM authority delta records its authority ID, source, priority, and
-reconciliation destination. Only a `launch-only delta` may remain in the
-envelope, and it must not change scope, gates, permission, shared ownership,
-contracts, or runtime authority. Update and approve the packet before making
-any such change. Missing, unreadable, contradictory, or conflicting prompt or
-packet authority must fail closed before editing.
+Every PM authority delta retains its authority ID, source, priority, and
+reconciliation destination. Classify it and handle authority gaps under
+`docs/agent/AGENT_HARNESS.md#sage-auth-010`; this reference retains execution-
+specific worker launch and packet-loading guidance.
 
 Worker prompts remain explicit. Workers and external agents that cannot read
 the referenced authority still receive exact allowed, read-only, and forbidden
@@ -430,13 +430,11 @@ does not imply wave readiness. Stop for Project Manager when a sequencing
 change affects scope, approval gates, public contracts, shared ownership, or
 final decision authority.
 
-That assessment starts from the dependency DAG, parallel candidates, serial
-barriers, and phase-internal lanes. Shared serial ownership does not justify
-milestone-wide serial execution. Keep shared files with a serial integration
-owner; `SERIAL` requires a concrete phase or lane dependency, file conflict,
-gate, or runtime ownership reason. Preserve the active phase and apply a new
-shape at the next safe barrier or wave unless its authority permits
-repartitioning.
+Apply Graph admission from `docs/SAGE_CORE.md#sage-grf-001` and execution-shape
+and active-change semantics from `docs/agent/WAVE_EXECUTION.md#sage-grf-002` and
+`docs/agent/WAVE_EXECUTION.md#sage-grf-006`. This reference remains responsible
+for executing the selected shape and returning a controller decision when its
+packet boundary would change.
 
 ## Runtime And Integration Claims
 

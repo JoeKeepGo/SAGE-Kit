@@ -6,7 +6,12 @@ verification, approval gates, and submission serial.
 
 For milestone-level Project Manager, Coder, and Final Review controller
 handoff, use `docs/agent/SESSION_ORCHESTRATION.md`. Wave Execution remains the
-rule for safe parallel phases and phase-internal lanes.
+rule for safe parallel phases and phase-internal lanes after admission under
+`docs/SAGE_CORE.md#sage-grf-001`.
+
+<a id="sage-grf-002"></a>
+
+## Execution Shape
 
 The rule is:
 
@@ -22,6 +27,13 @@ Heavy governance does not create wave readiness by itself. If a lane cannot be
 made independent, keep that lane or affected node serial and continue testing
 the remaining candidates for safe parallel execution.
 
+The dependency DAG records real ordering edges whose successors wait for a
+predecessor contract, evidence, or gate. A parallel candidate has no unmet
+ordering barrier and has isolatable write and resource ownership. A serial
+barrier is a concrete dependency, ownership conflict, gate, or runtime
+constraint. A phase-internal lane is a bounded phase subdivision with named
+objective, ownership, and evidence.
+
 Shared serial ownership does not justify milestone-wide serial execution.
 Keep shared files with a named serial integration owner and evaluate the
 remaining mutually exclusive files as parallel candidates. Before declaring
@@ -32,9 +44,14 @@ If a shared file appears in multiple prepared lanes, those lanes must be merged 
 reassigned before that file is edited; no active wave may run disjoint
 parallel write on the same shared path.
 
+<a id="sage-grf-006"></a>
+
+## Active Shape Changes
+
 Do not repartition an already active phase by default. Adopt a changed wave
 shape at the next safe barrier or wave unless active authority explicitly
-permits repartitioning.
+permits repartitioning. This safe-barrier rule does not authorize runtime or
+dynamic Graph rewrite.
 
 ## Why Waves Exist
 
@@ -94,6 +111,10 @@ Wave readiness requires:
 - a named integration owner;
 - stop conditions for file conflicts, contract drift, runtime conflicts, and
   failed required evidence.
+
+<a id="sage-grf-005"></a>
+
+### Affected Serialization
 
 A missing readiness item serializes only the affected node; continue evaluating
 unaffected parallel candidates. Milestone-wide `SERIAL` is allowed only when
@@ -239,10 +260,14 @@ A phase that used waves must report:
   controller;
 - skipped checks and remaining gaps.
 
+<a id="sage-grf-011"></a>
+
 ## Lane Status Semantics
 
 - `DONE`: lane objective completed and required lane checks passed.
 - `DONE_WITH_CONCERNS`: controller review required before integration; this
-  status cannot auto-advance a phase.
+  status cannot auto-advance a phase or acceptance.
+- `HANDOFF`: nonterminal transfer of unfinished review, approval, integration,
+  or next-action responsibility to a named owner.
 - `BLOCKED`: lane cannot proceed; the phase remains blocked or returns to
   planning until the blocker is resolved.
