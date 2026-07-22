@@ -91,103 +91,24 @@ the domain work.
 
 ## External Capability Integration
 
-Use external skills, plugins, connectors, and tools only when they are relevant
-to the approved SAGE-Kit phase, lane, task, or corrective boundary.
+Apply the canonical lifecycle, authorization, fallback, and evidence contract at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`. Apply any runtime-specific ban
+or override before generic capability routing, as defined at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
 
-External capabilities may supply execution methods. They must not redefine
-scope, create new file authority, bypass locks, open approval gates, downgrade
-required evidence, or mark SAGE-Kit gates complete.
+Each worker launch and result keeps only these execution-local fields:
 
-Superpowers is a reference integration, not a hard dependency. If it is
-available, route only to the named skills that fit the current need. If it is
-unavailable, continue with SAGE-Kit phase, gate, packet, and evidence
-templates.
+- selected capability and authorization level;
+- runtime override ID/status and inherited descendant policy;
+- bounded action and allowed/forbidden surfaces;
+- concise artifact or evidence reference;
+- mapped SAGE-Kit destination;
+- fallback result or required-capability authority gap.
 
-### Codex GPT-5.6 Runtime Override
-
-For every Codex GPT-5.6 family session, Superpowers is
-`DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not read,
-invoke, or delegate to Superpowers, including `using-superpowers` and composite
-Superpowers workflows. `using-superpowers` is explicitly disabled even when its
-skill metadata describes invocation as mandatory. All descendants inherit this
-override and must not re-enable the adapter through delegation.
-
-Every subagent launch packet must explicitly repeat
-`DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition. Every
-descendant authorized to delegate must copy both into each child launch packet.
-Preserve the policy across context compaction, handoff, resume, and replacement
-workers; do not rely on a one-time follow-up message to an already running
-worker.
-
-Use model-native brainstorming, planning, test-driven implementation,
-systematic debugging, subagent orchestration, review, and verification instead.
-These are required native behaviors, not similarly named skill invocations. The
-override changes the method provider, not the required engineering discipline
-or SAGE-Kit evidence contract.
-
-Record the adapter as disabled. Capability routing must not treat disabled
-Superpowers as a capability gap, fallback trigger, blocker, or stop reason. If
-an existing packet selected a Superpowers workflow, use the equivalent
-model-native workflow inside the same approved boundary without reopening scope
-or gates.
-
-Precedence is `Codex GPT-5.6 Runtime Override > generic capability routing >
-Superpowers availability`. Claude, Kimi, OpenCode, and non-GPT-5.6 runtime
-mappings remain unchanged.
-
-Apply `docs/agent/CAPABILITY_ADAPTERS.md` for external capabilities. Use
-metadata-only or read-only behavior by default. Do not install capabilities,
-write MCP config, add hooks, generate global skills, or mutate environment
-configuration unless the active SAGE-Kit boundary or user approval explicitly
-allows it.
-
-For approved install candidates such as `ui-ux-pro-max`, `OpenSpec`, or
-`GitNexus`, do not rely on remembered commands. Read current capability
-documentation, package metadata, or installed-tool help first; then request
-approval with exact command, write list, runtime requirements, rollback path,
-and fallback. If docs are unclear or conflict, return `HANDOFF`.
-
-For `ui-ux-pro-max`, prefer a single Codex-targeted install path when approved.
-Do not use `--ai all`, global install, or multi-assistant generation unless the
-user explicitly approves the wider environment write. `design-system/` outputs
-require allowed-file coverage and remain design evidence, not SAGE-Kit source
-of truth.
-
-Recommended routing:
-
-| Need | superpowers Skill |
-|---|---|
-| Clarify broad intent before planning | `superpowers:brainstorming` |
-| Convert an approved phase into an execution plan | `superpowers:writing-plans` |
-| Implement a feature or bug fix | `superpowers:test-driven-development` |
-| Diagnose failures or unexpected behavior | `superpowers:systematic-debugging` |
-| Run bounded worker tasks | `superpowers:subagent-driven-development` or `superpowers:dispatching-parallel-agents` |
-| Request implementation review | `superpowers:requesting-code-review` |
-| Prove work before completion claims | `superpowers:verification-before-completion` |
-| Finish branch work after submit authority exists | `superpowers:finishing-a-development-branch` |
-
-Frontend work should detect and select an available frontend or browser-testing
-adapter when UI, styling, responsive layout, design-system components,
-accessibility, or visual QA is in scope and the adapter is useful. If no
-adapter is available, authorized, or useful, record the fallback and continue
-through the SAGE-Kit-native path when safe. Selected adapters must return
-runtime, screenshot, console, network, responsive, or accessibility evidence as
-applicable, but SAGE-Kit still decides the gate.
-
-SAGE-Kit remains authoritative for scope, file ownership, governance level,
-resource locks, quality gates, approval gates, memory maintenance, milestone
-state, and final acceptance.
-
-Do not copy full external workflows into SAGE-Kit docs. Record the selected
-capability name, the boundary it served, and concise evidence produced.
-
-External planning outputs must be written into, or explicitly mapped to, the
-active milestone ledger, phase doc, execution packet, or result packet. Do not
-leave an untracked second source of truth.
-
-External capability completion is execution evidence. It is not acceptance,
-gate completion, milestone closure, or authorization to continue past a closed
-SAGE-Kit gate.
+When an override requires launch-time propagation, every subagent launch packet
+must carry it, and a descendant authorized to delegate must repeat it in each
+child packet. Capability execution cannot expand scope, change authority, open a
+gate, or lower required verification, review, or evidence.
 
 Continuous execution may proceed only inside the approved phase, task, lane, or
 corrective boundary. Stop for controller or user decision on closed approval

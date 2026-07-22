@@ -1,4 +1,4 @@
-﻿# SAGE-Kit Planning
+# SAGE-Kit Planning
 
 Use this reference for roadmap, milestone, entry gate, phase, wave, session
 orchestration, and worktree isolation planning.
@@ -114,9 +114,9 @@ Conditional optional controls:
 - Capability Adapters: when an external capability is selected, unavailable
   but relevant, or needs fallback, name authorization level, fallback, and
   evidence mapping. Otherwise: `Not enabled: <reason>`.
-- Superpowers: when available and relevant, name the specific skills and
-  SAGE-Kit boundary. If unavailable or irrelevant, record
-  `Not enabled: <reason>`.
+- Runtime override: record any applicable override ID and status from
+  `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`; otherwise use the runtime's
+  normal adapter policy.
 - External planning outputs: when used, name where outputs are written or
   mapped so the milestone ledger, phase docs, and packets remain the source of
   truth. Otherwise: `Not enabled: <reason>`.
@@ -245,38 +245,22 @@ before submit.
 
 ## Capability Adapter Planning
 
-Use `docs/agent/CAPABILITY_ADAPTERS.md` when a phase, milestone, or controller
-expects an external skill, plugin, MCP tool, runtime adapter, CI system,
-reviewer, frontend tool, OpenSpec, GitNexus, browser QA, or database tool.
+Use the canonical lifecycle, authorization, fallback, and evidence contract at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` when a phase, milestone, or
+controller expects an external capability.
 
-Plan:
+Keep only task-shaped planning fields here:
 
 - adapter name and provider type;
-- default authorization level;
-- current provider documentation, package metadata, or installed-tool help that
-  must be read before install or setup;
-- whether installation or environment writes are forbidden, allowed, or gated;
+- authority reference and authorization level;
 - SAGE-Kit boundary the adapter serves;
 - allowed files and forbidden files;
-- evidence required from the adapter;
-- fallback path when unavailable or inconclusive;
-- where adapter output is mapped into SAGE-Kit docs.
-
-Do not make optional adapters startup or completion dependencies. Missing
-adapter support should degrade to the SAGE-Kit-native path unless the active
-gate requires that capability and has no safe fallback.
-
-Approved install candidates may be requested after explicit approval, not
-installed silently. Current approved candidates are `ui-ux-pro-max`, `OpenSpec`,
-and `GitNexus`. Before requesting installation, read the current provider docs
-and state exact commands, write targets, runtime requirements, uninstall or
-rollback path, and fallback.
-
-For `ui-ux-pro-max`, plan the narrowest assistant target. In Codex work, prefer
-a single Codex-targeted route and treat `--ai all`, global install, or
-multi-assistant generation as separate environment-write approval. Plan
-`design-system/` writes only when the phase or packet includes that directory
-in allowed files.
+- required evidence and mapping destination;
+- safe native fallback or explicit required-capability authority gap;
+- installation, credential, environment-write, or external-mutation gate when
+  applicable;
+- runtime override status from
+  `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
 
 ## Task Dispatch Planning
 

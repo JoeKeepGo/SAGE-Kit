@@ -194,27 +194,15 @@ Delegation prompts must name:
 
 Apply the authority and completion ordering in
 `docs/SAGE_CORE.md#sage-auth-001`. The Harness locally selects and routes useful
-domain capabilities and maps their output into SAGE-Kit evidence. Superpowers
-is a reference integration for execution discipline when available, not a
-required dependency.
+domain capabilities and maps their output into SAGE-Kit evidence. Apply the
+canonical lifecycle, authorization, fallback, evidence, and mutation rules at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`.
 
-For each selected external capability, apply the Capability Adapter lifecycle:
-
-1. Detect availability from metadata, CLI, MCP, connector, or project config.
-2. Authorize the capability for the active phase, lane, task, gate, or
-   corrective packet.
-3. Bound allowed files, forbidden files, approval gates, evidence levels,
-   runtime limits, and stop conditions.
-4. Invoke only the selected instructions or tools needed for the task.
-5. Capture concise outputs as evidence, context, planning input, or findings.
-6. Map useful outputs into the active SAGE-Kit artifact.
-7. Fall back to SAGE-Kit-native workflow or return `HANDOFF` or `BLOCKED`.
-
-Missing optional capabilities are not project failure. Treat them as
-unavailable and continue when a safe fallback exists.
-
-Classify installation or environment writes through the adapter policy and
-route their exact targets through `docs/SAGE_CORE.md#sage-auth-009`.
+Runtime overrides are canonical at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`. The Harness does not
+automatically intercept delegation or inject policy into child packets, so a
+controller must propagate an active override explicitly at every launch
+boundary or return `HANDOFF` before launching the descendant.
 
 ## Batch Execution
 

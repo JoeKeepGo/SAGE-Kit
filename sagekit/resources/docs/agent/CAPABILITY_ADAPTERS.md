@@ -21,6 +21,7 @@ Built-in profiles may have SAGE-Kit schemas, templates, and validators.
 Reference integrations and external adapters must not be copied into SAGE-Kit
 core. They are invoked or referenced only when available and authorized.
 
+<a id="sage-adp-003"></a>
 ## Adapter Lifecycle
 
 Use this lifecycle for every optional capability:
@@ -40,6 +41,12 @@ Use this lifecycle for every optional capability:
    SAGE-Kit-native path or return `HANDOFF`. `BLOCKED` is only valid when the
    active SPEC or packet explicitly marks that adapter as required for
    authority, safety, or gate completion.
+
+Fallback must remain inside the same authority and scope. It must not bypass a
+gate, create new permission, or reduce required verification, review, or
+evidence. An equivalent safe native path preserves the same acceptance and
+completion standards and does not make the capability absence a product
+blocker.
 
 Missing optional capability is not project failure. Record it as unavailable
 and continue when a safe fallback exists.
@@ -68,6 +75,9 @@ action.
 
 Adapters should default to `metadata-only` or `read-only`. Higher levels require
 the active SAGE-Kit artifact to name the authority and evidence required.
+Credential discovery, access, use, storage, or transmission is never implied by
+capability availability; it requires matching authority and must stay inside
+the recorded adapter boundary.
 
 ## Evidence Contract
 
@@ -85,7 +95,9 @@ handoff should name:
 - any gates that remain blocked.
 
 Completion ownership follows `docs/SAGE_CORE.md#sage-auth-001`; this adapter
-records the external output only as evidence.
+records the external output only as evidence. External completion is not
+`DONE`, gate `PASS`, or Project Manager acceptance, and it cannot open a closed
+gate by itself.
 
 ## Frontend Adapter Rules
 
@@ -121,14 +133,15 @@ The selected adapter must stop before:
 Superpowers may provide execution discipline when available. Treat it as a
 reference integration, not a dependency.
 
+<a id="sage-adp-007"></a>
 ### Codex GPT-5.6 Runtime Override
 
 For a Codex session running any GPT-5.6 family model, Superpowers is
 `DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not read,
-invoke, or delegate to Superpowers, including `using-superpowers` and composite
-Superpowers workflows. `using-superpowers` is explicitly disabled even when its
-skill metadata describes invocation as mandatory. All descendants inherit this
-override.
+invoke, route to, reference, or delegate to Superpowers, including
+`using-superpowers` and composite Superpowers workflows. `using-superpowers` is
+explicitly disabled even when its skill metadata describes invocation as
+mandatory. All descendants inherit this override.
 
 Inheritance must be explicit at every delegation boundary. Every controller
 must copy `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition
@@ -146,14 +159,18 @@ instead of launching that descendant.
 This override disables only the adapter. It does not disable engineering
 discipline. Controllers and workers must use model-native brainstorming,
 planning, test-driven implementation, systematic debugging, subagent
-orchestration, review, and verification inside the active SAGE-Kit boundary.
-These are required native behaviors, not similarly named skill invocations.
+orchestration, review, verification, and branch completion inside the active
+SAGE-Kit boundary. These are required native behaviors, not similarly named
+skill invocations.
 
-Capability discovery records Superpowers as disabled and must not treat a model-
-family ban as a capability gap, fallback trigger, blocker, or reason to stop.
+Capability discovery records Superpowers as disabled and must not treat disabled
+Superpowers as a capability gap, fallback trigger, blocker, or reason to stop.
 Existing packets that selected Superpowers route to equivalent model-native
 execution without reopening scope or gates. Claude, Kimi, OpenCode, and non-GPT-5.6
 runtime mappings remain unchanged.
+
+The native fallback does not change authority, expand scope, bypass gates, or
+reduce verification, review, or evidence. It changes only the method provider.
 
 Precedence is:
 

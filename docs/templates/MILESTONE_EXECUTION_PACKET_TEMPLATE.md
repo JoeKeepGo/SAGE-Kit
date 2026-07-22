@@ -142,13 +142,16 @@ Task Dispatch Policy:
 - Task/evidence update owner:
 
 Capability Discovery:
+- Adapter contract: `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`
+- Runtime override contract: `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`
 - Capability registry checked: `<yes/no/not available>`
 - Runtime/model family:
 - Execution method owner: `<MODEL_NATIVE / ADAPTER>`
 - Codex GPT-5.6 Runtime Override: `<active/inactive>`
 - Superpowers policy: `<DISABLED_BY_RUNTIME_POLICY / optional / selected>`
 - `using-superpowers` policy: `<disabled for Codex GPT-5.6 / runtime default>`
-- Native workflow coverage: `<brainstorming, planning, TDD, debugging, subagent orchestration, review, verification; behaviors, not skill invocations>`
+- Prohibited adapter actions when override is active: `<read/invoke/route/reference/delegate>`
+- Native workflow coverage: `<brainstorming, planning, TDD, debugging, subagent orchestration, review, verification, branch completion; behaviors, not skill invocations>`
 - Descendant policy inheritance: `<explicitly repeat the status and using-superpowers prohibition in every child launch packet>`
 - SAGE-Kit boundary: `<scope/files/gates/locks/evidence controlled by this packet>`
 - Selected skills:

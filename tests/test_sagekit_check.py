@@ -1833,21 +1833,14 @@ class SagekitCheckTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertEqual(capability_source, capability_packaged)
-        codex_contracts = [
-            capability_source,
-            prompt,
-            packet,
-            skill,
-            execution,
-            openai_profile,
-        ]
+        codex_contracts = [capability_source, prompt, packet, skill, execution, openai_profile]
         combined = " ".join(" ".join(text.split()) for text in codex_contracts)
         for rule in [
             "Codex GPT-5.6 Runtime Override",
             "DISABLED_BY_RUNTIME_POLICY",
-            "must not read, invoke, or delegate to Superpowers",
+            "must not read, invoke, route to, reference, or delegate to Superpowers",
             "`using-superpowers` is explicitly disabled even when its skill metadata describes invocation as mandatory",
-            "model-native brainstorming, planning, test-driven implementation, systematic debugging, subagent orchestration, review, and verification",
+            "model-native brainstorming, planning, test-driven implementation, systematic debugging, subagent orchestration, review, verification, and branch completion",
             "native behaviors, not similarly named skill invocations",
             "descendants inherit",
             "Every subagent launch packet must explicitly repeat",
@@ -1857,11 +1850,14 @@ class SagekitCheckTests(unittest.TestCase):
         ]:
             self.assertIn(rule, combined)
 
-        for text in [capability_source, skill, execution]:
-            normalized = " ".join(text.split())
-            self.assertIn("Codex GPT-5.6 Runtime Override", normalized)
-            self.assertIn("DISABLED_BY_RUNTIME_POLICY", normalized)
-            self.assertIn("model-native brainstorming", normalized)
+        canonical = " ".join(capability_source.split())
+        self.assertIn("Codex GPT-5.6 Runtime Override", canonical)
+        self.assertIn("DISABLED_BY_RUNTIME_POLICY", canonical)
+        self.assertIn("model-native brainstorming", canonical)
+
+        pointer = "docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007"
+        for text in [prompt, packet, skill, execution, openai_profile]:
+            self.assertIn(pointer, text)
 
         self.assertIn("When running a GPT-5.6 family model in Codex", " ".join(openai_profile.split()))
         self.assertIn("Otherwise use the runtime's normal adapter policy", " ".join(openai_profile.split()))
@@ -1869,6 +1865,121 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertIn("references/kimi-runtime.md", skill)
         self.assertIn("references/claude.md", skill)
         self.assertIn("references/opencode.md", skill)
+
+    def test_stage1d_adapter_rules_have_unique_owners_thin_pointers_and_parity(self):
+        from sagekit.init import package_resource_root
+
+        root = package_resource_root()
+        paths = {
+            "skill": "skills/sage-kit/SKILL.md",
+            "planning": "skills/sage-kit/references/planning.md",
+            "execution": "skills/sage-kit/references/execution.md",
+            "openai": "skills/sage-kit/agents/openai.yaml",
+            "adapters": "docs/agent/CAPABILITY_ADAPTERS.md",
+            "harness": "docs/agent/AGENT_HARNESS.md",
+            "prompt": "docs/templates/AGENT_PROMPT_TEMPLATE.md",
+            "packet": "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+        }
+        sources = {
+            name: (REPO_ROOT / path).read_text(encoding="utf-8")
+            for name, path in paths.items()
+        }
+
+        owners = {
+            "sage-adp-002": "skill",
+            "sage-adp-003": "adapters",
+            "sage-adp-007": "adapters",
+        }
+        for anchor, owner in owners.items():
+            marker = f'<a id="{anchor}"></a>'
+            self.assertEqual(sources[owner].count(marker), 1, anchor)
+            for name, text in sources.items():
+                if name != owner:
+                    self.assertNotIn(marker, text, (anchor, name))
+
+        pointer_matrix = {
+            "docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003": (
+                "skill", "planning", "execution", "harness", "prompt", "packet"
+            ),
+            "docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007": (
+                "skill", "execution", "openai", "prompt", "packet"
+            ),
+        }
+        for pointer, non_owners in pointer_matrix.items():
+            for non_owner in non_owners:
+                self.assertIn(pointer, sources[non_owner], (pointer, non_owner))
+
+        adapters = sources["adapters"]
+        adapter_contract = " ".join(adapters.split())
+        lifecycle = ["Detect:", "Authorize:", "Bound:", "Invoke:", "Capture:", "Map:", "Fallback:"]
+        positions = [adapters.index(step) for step in lifecycle]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("default to `metadata-only` or `read-only`", adapter_contract)
+        self.assertIn("reduce required verification, review, or evidence", adapter_contract)
+        self.assertIn("does not make the capability absence a product blocker", adapter_contract)
+        self.assertIn("not `DONE`, gate `PASS`, or Project Manager acceptance", adapter_contract)
+        self.assertIn("Claude, Kimi, OpenCode, and non-GPT-5.6", adapter_contract)
+        self.assertIn("Credential discovery, access, use, storage, or transmission", adapter_contract)
+
+        for non_owner in ("planning", "execution", "harness", "prompt", "packet"):
+            text = sources[non_owner]
+            self.assertFalse(all(step in text for step in lifecycle), non_owner)
+        self.assertNotIn("| Need | superpowers Skill |", sources["execution"])
+
+        skill_contract = " ".join(sources["skill"].split())
+        for phrase in (
+            "For a Codex session running any GPT-5.6 family model",
+            "must not read, invoke, route to, reference, or delegate to Superpowers",
+            "Every subagent launch packet must explicitly repeat",
+            "every descendant authorized to delegate must repeat both",
+            "including after compaction, handoff, or resume",
+            "Other model and host mappings keep their normal adapter policy",
+        ):
+            self.assertIn(phrase, skill_contract)
+
+        openai_contract = " ".join(sources["openai"].split())
+        for phrase in (
+            "When running a GPT-5.6 family model in Codex",
+            "do not read, invoke, route to, reference, or delegate to Superpowers",
+            "Otherwise use the runtime's normal adapter policy",
+            "descendants that delegate must repeat both in every child packet",
+        ):
+            self.assertIn(phrase, openai_contract)
+
+        harness_contract = " ".join(sources["harness"].split())
+        self.assertIn("capabilities that are explicitly forbidden or unavailable", harness_contract)
+        self.assertIn("fallback when a selected capability is missing", harness_contract)
+        self.assertIn("does not automatically intercept delegation or inject policy", harness_contract)
+
+        prompt_contract = " ".join(sources["prompt"].split())
+        self.assertIn("Runtime/model family:", prompt_contract)
+        self.assertIn("Runtime override ID/status:", prompt_contract)
+        self.assertIn("invoke, route to, reference, or delegate to Superpowers", prompt_contract)
+        self.assertIn("Adapter evidence destination:", prompt_contract)
+
+        packet_contract = " ".join(sources["packet"].split())
+        for field in (
+            "Runtime/model family:",
+            "Prohibited adapter actions when override is active:",
+            "Descendant policy inheritance:",
+            "Adapter authorization levels:",
+            "Adapter fallback policy:",
+            "External capability completion counts as: `execution evidence only`",
+        ):
+            self.assertIn(field, packet_contract)
+
+        specialist_contract = " ".join(sources["skill"].casefold().split())
+        for capability in ("specialist skills", "plugins", "mcp", "ci", "browser", "database", "frontend", "document", "review"):
+            self.assertIn(capability, specialist_contract)
+
+        for source_path in (
+            "docs/agent/CAPABILITY_ADAPTERS.md",
+            "docs/agent/AGENT_HARNESS.md",
+            "docs/templates/AGENT_PROMPT_TEMPLATE.md",
+            "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+        ):
+            packaged = root / source_path
+            self.assertEqual((REPO_ROOT / source_path).read_bytes(), packaged.read_bytes(), source_path)
 
     def test_working_tree_candidate_snapshot_is_explicit_and_bound(self):
         from sagekit.init import package_resource_root

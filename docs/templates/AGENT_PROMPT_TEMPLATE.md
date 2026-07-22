@@ -170,36 +170,19 @@ Runtime smoke:
 - <commands or not applicable reason>
 
 Capability routing:
-- Check available skill/plugin/connector/tool metadata before delegating or
-  executing when the runtime exposes it.
-- Apply authority precedence from `docs/SAGE_CORE.md#sage-auth-001`; record
-  selected capabilities and their local execution/evidence boundary below.
-- Codex GPT-5.6 Runtime Override: when active, record Superpowers as
-  `DISABLED_BY_RUNTIME_POLICY`. The controller and its descendants must not
-  read, invoke, or delegate to Superpowers. `using-superpowers` is explicitly
-  disabled even when its skill metadata describes invocation as mandatory.
-  All descendants inherit the override and use model-native brainstorming,
-  planning, test-driven implementation, systematic debugging, subagent
-  orchestration, review, and verification as native behaviors, not similarly
-  named skill invocations. Do not treat the disabled adapter as a capability
-  gap, fallback trigger, blocker, or stop condition.
-- Every subagent launch packet must explicitly repeat
-  `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition. A
-  descendant authorized to delegate must repeat both in every child packet.
-  Preserve the rule across compaction, handoff, and resume.
-- If superpowers is available, use only the selected skills that fit this
-  boundary on runtimes where the Codex GPT-5.6 Runtime Override is inactive.
-  If unavailable, use the SAGE-Kit packet, phase, gate, and evidence path
-  instead.
-- Use Capability Adapters for optional external providers. Default to
-  metadata-only or read-only unless the active packet authorizes writes.
-- Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
-  skills, or global configuration.
-- Before installing or initializing an approved adapter, read current provider
-  docs, package metadata, or installed-tool help and report exact command,
-  write targets, runtime requirements, rollback path, and fallback.
-- Apply `docs/SAGE_CORE.md#sage-auth-009` before any external capability crosses
-  the recorded scope, lock, gate, or mutation boundary.
+- Apply `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` for lifecycle,
+  authorization, fallback, evidence, credentials, installation, and mutation.
+- Apply `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007` before generic routing;
+  repeat an active prohibition and descendant inheritance in every child
+  launch packet.
+- Codex GPT-5.6 launch guard when active: Superpowers is
+  `DISABLED_BY_RUNTIME_POLICY`; controllers and descendants must not read,
+  invoke, route to, reference, or delegate to Superpowers, and
+  `using-superpowers` remains disabled. Use the canonical model-native fallback.
+- Runtime/model family:
+- Runtime override ID/status:
+- Prohibited actions/capabilities:
+- Native execution method when an adapter is disabled or unavailable:
 - Use these selected capabilities:
 - Selected adapters and authorization levels:
 - Do not use these capabilities:

@@ -267,6 +267,35 @@ class ThinTemplateTests(unittest.TestCase):
 
 
 class ThinDocumentationTests(unittest.TestCase):
+    def test_repository_skill_is_a_thin_activation_and_routing_layer(self):
+        skill_path = REPO_ROOT / "skills/sage-kit/SKILL.md"
+        skill = skill_path.read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(skill.splitlines()), 220)
+        self.assertLessEqual(len(skill.split()), 1500)
+        self.assertIn('<a id="sage-adp-002"></a>', skill)
+        self.assertIn("disable-model-invocation: true", skill)
+        self.assertIn("Installed Skill is not project authority", skill)
+        self.assertIn("Light", skill)
+        self.assertIn("Standard", skill)
+        self.assertIn("Heavy", skill)
+        self.assertIn("Read only the canonical owners and host references", skill)
+        self.assertIn("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003", skill)
+        self.assertIn("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007", skill)
+        for anchor in (
+            "docs/SAGE_CORE.md#sage-auth-001",
+            "docs/SAGE_CORE.md#sage-auth-009",
+            "docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001",
+            "docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002",
+            "docs/agent/AGENT_HARNESS.md#sage-ctx-005",
+            "docs/SAGE_CORE.md#sage-grf-001",
+            "docs/agent/WAVE_EXECUTION.md#sage-grf-002",
+            "docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011",
+        ):
+            self.assertIn(anchor, skill)
+        self.assertNotIn("## End Of Run", skill)
+        self.assertNotIn("## Guardrails", skill)
+
     def test_readmes_describe_embedded_harness_without_public_cli_guidance(self):
         for filename in ("README.md", "README.zh-CN.md"):
             with self.subTest(readme=filename):

@@ -6,366 +6,157 @@ disable-model-invocation: true
 
 # SAGE-Kit
 
-Use this skill to keep AI work aligned with SAGE-Kit without loading the whole
-framework into context.
+Use this Skill only as the activation and routing layer for SAGE-Kit. It does
+not replace the project's SPEC, execution authority, approval gates,
+permissions, scope, evidence, or acceptance owner.
 
-SAGE-Kit is governance, not a skill library. It controls scope,
-authorization, file boundaries, gates, evidence, locks, memory, and completion
-status. External skills, plugins, connectors, and tools provide execution
-methods inside those approved boundaries.
+## Codex GPT-5.6 Pre-Load Guard
 
-Task Dispatch is an internal optional SAGE-Kit profile. Superpowers and other
-skills, plugins, MCP tools, runtime adapters, CI systems, reviewers, frontend
-builders,
-OpenSpec, GitNexus, browser tools, and database tools are optional capability
-adapters unless a project explicitly defines a narrower policy.
+Before capability discovery or routing, detect the runtime and model family.
+For a Codex session running any GPT-5.6 family model, apply the
+`Codex GPT-5.6 Runtime Override`: Superpowers is
+`DISABLED_BY_RUNTIME_POLICY`. Root and all descendants must not read, invoke,
+route to, reference, or delegate to Superpowers. `using-superpowers` is
+explicitly disabled even when its metadata describes invocation as mandatory.
 
-This skill does not replace the project's own specification authority. The
-project remains responsible for its profile, design, gates, active context,
-routing, project-specific milestone/phase facts, ledgers, evidence, and
-closeouts. It does not need to copy generic governance prose into each
-milestone or phase.
+All descendants inherit the override. Every subagent launch packet must
+explicitly repeat `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers`
+prohibition; every descendant authorized to delegate must repeat both in every
+child packet, including after compaction, handoff, or resume. Use model-native
+brainstorming, planning, test-driven implementation, systematic debugging,
+subagent orchestration, review, verification, and branch completion as native
+behaviors, not similarly named skill invocations. The disabled adapter is not a
+capability gap, fallback trigger, blocker, or reason to stop.
 
-## SPEC Sources And Thin Execution Documents
+This override applies only to Codex GPT-5.6 family sessions. Other model and
+host mappings keep their normal adapter policy. The canonical contract is
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
 
-SAGE-Kit governs SPEC semantics and Harness execution contracts, not a fixed
-project documentation directory. Source adapters normalize Markdown, explicit
-paths, configured mappings, and legacy `docs/<M>` into one location-free model.
-Paths and adapter names are provenance and must not affect semantic identity.
+<a id="sage-adp-002"></a>
+## Activation And Authority
 
-Canonical source selection and scope classification are owned by
-`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and
-`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. This Skill retains activation,
-situation detection, and task routing; it does not redefine source precedence or
-turn handoff/history material into execution authority.
+Activate only when the user explicitly invokes SAGE-Kit, asks to adopt or
+bootstrap it, or the active repository routes work through SAGE-Kit-owned
+constructs. If the repository is not SAGE-Kit governed and adoption was not
+requested, do not impose SAGE-Kit.
 
-Two independent version dimensions remain: Task Dispatch v0/v1/v2 and the
-execution document model `legacy-markdown` or `thin-v1`. Never treat `thin-v1`
-as Task Dispatch v3 or retrofit accepted history. Thin documents remove generic
-prose, not project-specific planning depth, and SAGE-Kit sets no universal
-maximum for Milestones, Waves, Phases, or changed files.
+Installed Skill is not project authority. Project-owned SPEC and configuration,
+plus any explicitly named Project Manager decision, remain authoritative. The
+Skill interprets and routes that authority; it must not manufacture missing
+scope, permission, gates, file ownership, evidence, fallback, or completion.
+Authority precedence and completion ownership remain canonical at
+`docs/SAGE_CORE.md#sage-auth-001`; mutation and approval boundaries remain at
+`docs/SAGE_CORE.md#sage-auth-009`.
 
-Installed Skill is not project authority. Use the project package/contract
-binding and packaged versioned resources even when a local Skill is missing or
-older. Default adoption is package-bound; framework vendoring is explicit
-compatibility only.
+For a governed project:
 
-Build ephemeral execution packets through the embedded harness runtime only.
-Build and validation are read-only unless the user explicitly selects a writing
-option. They must not rewrite source documents, ACTIVE_CONTEXT, runtime state, or
-accepted history. The complete scope and authority contract is packaged as
-`docs/agent/SPEC_SOURCE_CONTRACT.md`.
+1. Resolve the repository/worktree boundary and current change-control state.
+2. Resolve the configured active context and routing authority. Legacy projects
+   may use `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`; package-bound
+   projects may route from machine authority and the active SPEC.
+3. If `SAGE_PROJECT.json` exists, validate its contract pin and
+   `execution_document_model`, then load only the active `legacy-markdown` or
+   `thin-v1` execution authority selected for this task.
+4. Apply source precedence and scope classification from
+   `docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and
+   `docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`.
+5. Before writable work, resolve allowed, read-only, and forbidden files;
+   approval gates; verification; and stop conditions.
 
-## Host Resource And Workspace Boundary
+A missing optional legacy routing file is not itself a blocker. Missing,
+unreadable, contradictory, or unauthorized active authority fails closed before
+editing; report the precise gap rather than guessing.
 
-Resolve the independent `conservative-host-v1` Resource Policy for current or
-future execution; do not retrofit resource fields into accepted history.
-Packet schema v3 adds normalized SPEC identity to the v2 canonical workspace
-and resolved resource-policy bindings.
-In-process package metadata, read-only file access,
-deterministic config parsing,
-in-process SPEC normalization, `git status`, `git rev-parse`, and
-`git diff --name-only` execute directly without a heavy lease, Job Object, or
-adoption self-test. Focused validators/tests and bounded short Git subprocesses
-may use light managed execution. Full suites, builds, fresh installs,
-browser/runtime smoke, services, and descendant-producing tools use strict
-resource governance through managed workspace verification and managed
-resource execution. Reviewers do not rerun tests; they ask the Root
-verification controller for missing evidence.
+## Proportional Governance
 
-Independent verification nodes continuing means their logical results remain
-required; it does not authorize parallel CPU use. A node waiting for a lease is
-`WAITING_FOR_RESOURCE`, not `STOP` or `BLOCKED`, and continues automatically
-after release. Wave Readiness also requires Resource Readiness. Heavy work may
-use the policy's limited writers only in independent worktrees with disjoint
-writable paths and an integration owner; host CPU-heavy and package-build
-leases remain serial. Keep the detailed Resource Policy in its versioned
-contract and host-governance document rather than copying it into every phase
-or milestone.
+Select the lightest level that preserves the active authority and risk:
 
-Containment reported by a managed run may be `HARD` or `MANAGED` according to
-its platform adapter. The guarantee that arbitrary direct commands cannot
-bypass the runtime remains `SOFT`: SAGE-Kit cannot intercept an agent, plugin,
-shell, or arbitrary child that bypasses managed resource boundaries. When the
-project contains
-`docs/agent/HOST_RESOURCE_GOVERNANCE.md`, use it for lease, wait, process-tree,
-and serial verification behavior. Thin adoption deliberately may not copy that
-generic document; when it is absent, use the packet's resolved resource policy
-and the installed package's pinned contract instead of inventing a
-project-local file or rule.
+- **Light** for bounded, low-risk work without delegation or closed gates.
+- **Standard** for ordinary multi-file implementation, review, or verification.
+- **Heavy** for controller work, delegation, corrective authority,
+  environment writes, submit operations, or elevated risk.
 
-## Core Rule
+Resolve the matching read-only, write, corrective, environment-write, or submit
+permission mode from `docs/agent/GOVERNANCE_LEVELS.md`. A Heavy controller may
+delegate Light or Standard work, but delegation never transfers broader
+authority than the launch packet states.
 
-Context loading is canonical at
-`docs/agent/AGENT_HARNESS.md#sage-ctx-005`. This Skill is responsible for
-activation, detecting the situation, and routing the task to the relevant
-reference below; it does not load every Skill or reference body by default.
+## Narrow Task Routing
 
-## Detect The Situation
+Read only the canonical owners and host references needed by the current task;
+do not load the whole SAGE-Kit or every Skill body by default.
 
-1. Identify the active repository boundary and change-control state.
-2. Check for SAGE-Kit project markers:
-   - the configured `ACTIVE_CONTEXT` path or legacy `docs/ACTIVE_CONTEXT.md`
-   - the configured routing authority or legacy `docs/DOC_ROUTING.md`
-   - `docs/PROJECT_PROFILE.md`
-   - `docs/agent/AGENT_HARNESS.md`
-3. If project docs are missing but the user wants to adopt or bootstrap
-   SAGE-Kit, read `references/adoption.md`.
-4. If this is the SAGE-Kit source repository, edit kit templates or skills only
-   when requested; do not expect instantiated project docs to exist.
-5. If the runtime has a SAGE-Kit environment profile, read it for
-   invocation, capability, and orchestration mapping in that environment:
-   - Kimi Work or the explicitly supported Kimi Code runtime:
-     `references/kimi-runtime.md`
-   - OpenCode: `references/opencode.md`
-   - Claude Code: `references/claude.md`
-6. If the repo is not SAGE-Kit governed and the user did not ask to adopt it,
-   do not impose SAGE-Kit.
+| Situation | Route |
+|---|---|
+| Adoption or bootstrap | `references/adoption.md` |
+| Milestone, roadmap, or phase planning | `references/planning.md` |
+| Implementation, debugging, refactor, or bounded workers | Relevant sections of `references/execution.md` |
+| Review, handoff, completion, or closeout | `references/review-completion.md` |
+| Context loading and controller launch | `docs/agent/AGENT_HARNESS.md#sage-ctx-005` and `docs/agent/AGENT_HARNESS.md#sage-auth-010` |
+| Execution economy, verification, convergence, re-review, or normalization | Stable `sage-loop-*` anchors in `docs/agent/EXECUTION_ECONOMY.md` |
+| Deterministic Closure | `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011` |
+| Graph admission | `docs/SAGE_CORE.md#sage-grf-001` |
+| Wave execution | `docs/agent/WAVE_EXECUTION.md#sage-grf-002` |
+| Capability selection and lifecycle | `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` |
+| Runtime adapter override | `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007` |
+| Checkpoint or resume | `docs/agent/CONTINUITY_PROTOCOL.md` plus runtime resume state |
+| Validation compatibility | `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md` |
 
-## Default Startup
+Load Advanced Execution Economy only for relevant Heavy, corrective, or final
+verification work. Preserve accepted history: never infer a new contract,
+retrofit current fields, or try multiple validators until one passes.
 
-For a SAGE-Kit governed project:
+For host-specific invocation mapping, route only when that host is active:
 
-1. Resolve and read the configured `ACTIVE_CONTEXT`; use
-   `docs/ACTIVE_CONTEXT.md` as the legacy default.
-2. Read the configured routing authority. Use `docs/DOC_ROUTING.md` only when
-   it exists as the project's legacy or explicit routing source; package-bound
-   projects may route directly from machine authority and the active SPEC.
-3. If `SAGE_PROJECT.json` exists, validate its explicit document model and
-   contract pin. Read only the active thin manifest or legacy milestone/phase
-   authority selected by routing and task scope.
-4. Select the governance level and permission mode for the current control
-   scope using `docs/agent/GOVERNANCE_LEVELS.md` when the task is non-trivial,
-   delegated, controller-level, review, corrective, environment-writing, or
-   submit-related.
-5. When external capabilities are relevant, read
-   `docs/agent/CAPABILITY_ADAPTERS.md` or the project routing entry that
-   defines the adapter boundary.
-6. Before writable work, name allowed files, read-only files, forbidden files,
-   gates, verification commands, and stop conditions.
+- Kimi Work or explicitly supported Kimi Code: `references/kimi-runtime.md`
+- OpenCode: `references/opencode.md`
+- Claude Code: `references/claude.md`
 
-If the configured startup authority is missing or contradictory, stop and
-report the gap before editing. A missing optional legacy routing document is
-not itself a blocker.
+## Capability Coexistence
 
-## Task Routing
+SAGE-Kit governs boundaries; it does not monopolize tool selection. Use exposed
+metadata to select task-relevant specialist skills, plugins, MCP tools, CI,
+browser, database, frontend, document, and review capabilities. Load only the
+selected instructions. External capability use remains inside project
+authority and the lifecycle at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`.
 
-- Adoption or bootstrap: read `references/adoption.md`.
-- Milestone, roadmap, or phase planning: read `references/planning.md`.
-- Implementation, debugging, refactor, or subagent execution: read only the
-  relevant core sections of `references/execution.md`. Load its Advanced
-  Execution Economy section only under the Heavy, corrective, or
-  final-verification rule below.
-- Review, handoff, completion, or closeout: read
-  `references/review-completion.md`.
-- Execution economy, change classes, corrective authority, evidence reuse,
-  review topology, or deterministic limits: read
-  `docs/agent/EXECUTION_ECONOMY.md`.
-- Preauthorized Convergence Window, multi-candidate deterministic corrective
-  convergence, or successor stop rules: read
-  `docs/agent/EXECUTION_ECONOMY.md` and `docs/agent/CONTINUITY_PROTOCOL.md`.
-- Checkpoint or resume: read `docs/agent/CONTINUITY_PROTOCOL.md`, then run
-  runtime resume state before loading broader context.
-- Task Dispatch validation contract selection or historical compatibility:
-  read `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. For an existing
-  project whose accepted history predates structured active-set authority,
-  route the owner to the Validation Scope Manifest migration procedure. Require
-  an explicit container path and frozen v0/v1 version selected from historical
-  provenance; do not choose a version by trying validators, invent acceptance,
-  downgrade current work, or rewrite historical documents. Runtime validation
-  policy, not this Skill, decides scope and contract selection.
+Optional capability absence does not become a false product blocker when a safe
+native path exists. Fallback must preserve scope, gates, authority,
+verification, review, and evidence. External output is evidence input only; it
+does not declare `DONE`, pass a gate, or grant Project Manager acceptance.
 
-Read only the reference files needed for the current task.
+Capability discovery is metadata-only or read-only by default. Installation,
+hooks, environment writes, credentials, external mutation, destructive action,
+or submit operations require matching explicit authority. SAGE-Kit does not
+silently install or reconfigure capabilities.
 
-Load advanced execution-economy detail only for relevant Heavy, corrective,
-or final-verification work. Ordinary Light or Standard tasks use the core
-workflow and must not carry that advanced runtime context by default.
+## Delegation And Stop Boundary
 
-## Context Budget
+Every delegated lane must name its objective, authority references, governance
+and permission mode, allowed/read-only/forbidden files, applicable capabilities,
+commands, evidence, fallback, and stop conditions. Descendants inherit all
+forbidden paths and runtime overrides. Parallel writers require disjoint paths
+and an integration owner; shared authority/state files remain controller-owned.
 
-Prefer narrow reads in this order:
+Host enforcement must be described honestly. Managed execution may report
+`HARD` or `MANAGED` containment through its platform adapter, while arbitrary
+direct commands that bypass the managed runtime remain a `SOFT` guarantee.
+For `conservative-host-v1` resource governance, use
+`docs/agent/HOST_RESOURCE_GOVERNANCE.md` for workspace verification, managed
+execution, leases, process trees, and limitations.
 
-1. active context and routing;
-2. active milestone, phase, gate, or packet docs;
-3. capability metadata before capability bodies;
-4. closeouts before historical ledgers;
-5. targeted searches or ranges before full archives.
+Stop and return the narrow authority gap or handoff when required authority is
+missing, a closed gate would be crossed, scope or permissions would expand,
+required evidence cannot be produced, or a destructive/environment/submit
+action lacks approval. Do not convert an optional adapter absence into `BLOCKED`
+when an equivalent safe native workflow exists.
 
-Do not read every specification document, phase doc, ledger, closeout, skill body,
-plugin body, or log by default. If a broad read is required, say why and
-summarize the useful result into the ledger, closeout, completion report, or
-handoff.
+For planning-only closeout, preserve separate Planning Author, Planning Review,
+Targeted Fix, Closure Verification (`strict Deterministic Closure` or `Targeted
+Re-Review`), Closeout/Status, and Submit Controller authority. Under
+`docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`, only Final Review may record
+`VERDICT_FINALIZED_FROM_RECEIPT`; that is not milestone acceptance.
 
-## Guardrails
-
-- Route change classification, review topology, verification, candidate and
-  evidence handling, convergence, re-review, normalization, and completion to
-  the stable `sage-loop-*` anchors in `docs/agent/EXECUTION_ECONOMY.md`. This
-  Skill selects when that authority is needed; it does not restate those
-  contracts. Use `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011` for
-  Deterministic Closure.
-- Validate closed legacy Task Dispatch history with the manifest-selected frozen
-  v0/v1 contract. Require current metadata for active work; mixed or ambiguous
-  records fail closed, and a selected-contract failure must never fall back to
-  another contract.
-- Runtime validator owns contract and milestone scope selection. Skill guidance,
-  filenames, prose, or terminal record state alone cannot authorize legacy
-  validation.
-- Do not rewrite accepted historical documents to satisfy current phase format.
-  The validator reports immutable accepted history through an auditable,
-  aggregated compatibility finding.
-- When a deterministic local limit is reached, create a checkpoint and return
-  `HANDOFF_READY`; reserve `STOP` for immediate safety or destructive risk.
-- Apply verification admission at
-  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-003`, candidate binding at
-  `#sage-loop-006`, evidence reuse at `#sage-loop-007`, and normalization at
-  `#sage-loop-012`. Worker, Lane, Root, and Final controllers keep only the
-  authority assigned by those sections and the active packet.
-- Capability or preflight failures do not consume a candidate verification run.
-  A run is consumed atomically when candidate execution starts. Persist started
-  attempt ids so checkpoint/resume cannot count them twice.
-- Failure of one verification node skips only dependent successors;
-  independent verification nodes continue and report their own results.
-- Candidate successors and no-progress outcomes follow
-  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-006` and `#sage-loop-008`; the
-  Skill must not synthesize successor authority or retry budgets.
-- Keep one task tied to one approved phase unless a batch plan defines order,
-  gates, and stop conditions.
-- Do not invent missing contracts, fallback behavior, or success evidence.
-- Do not edit outside the approved file boundary.
-- Do not open approval gates without explicit user approval.
-- Apply the closeout context boundary at
-  `docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`.
-- Apply `docs/agent/EXECUTION_ECONOMY.md#sage-loop-013` before claiming `DONE`,
-  and record required memory maintenance in the project report.
-- Use `docs/agent/GOVERNANCE_LEVELS.md` to choose the lightest governance level
-  that safely preserves scope, evidence, memory, and approval boundaries, and
-  choose the matching permission mode for read-only, write, corrective,
-  environment-write, or submit authority. Heavy controller work may delegate
-  Light or Standard workers.
-- Do not treat `READ_ONLY_REVIEW` as closure when findings require correction,
-  Project Manager decision, blocker handling, or waiver. A read-only review
-  that returns `NEEDS_CORRECTION` must include a corrective packet, handoff, or
-  blocker.
-- Do not let parallel workers or subagents edit the configured ACTIVE_CONTEXT
-  (legacy default `docs/ACTIVE_CONTEXT.md`) or configured routing authority
-  (legacy default `docs/DOC_ROUTING.md`) directly.
-  They must return memory update proposals for controller integration.
-- Direct edits to the configured ACTIVE_CONTEXT or configured routing authority
-  require both permission mode and ownership. If either is missing, return a
-  memory update proposal or no-change note.
-- Do not let SAGE-Kit displace specialist skills, plugins, connectors, or
-  tools. Use available capability metadata to select the right specialist
-  capability before delegating or executing domain work.
-- Use Capability Adapters for optional external skills, plugins, MCP tools,
-  runtime adapters, CI systems, reviewers, frontend skills, OpenSpec, GitNexus,
-  browser
-  QA, and database tools. Detect, authorize, bound, invoke, capture, map, and
-  fall back without making them core dependencies.
-- Do not silently install external skills, plugins, runtime adapters, MCP
-  servers, hooks,
-  generated skills, or global configuration. Recommend or request installation
-  only when the source, writes, fallback, and approval path are explicit.
-- Treat superpowers as a reference integration, not a dependency. When
-  available and relevant, selected superpowers skills may guide execution
-  inside an approved SAGE-Kit boundary. If unavailable, continue with SAGE-Kit
-  phase, gate, packet, and evidence templates.
-- Codex GPT-5.6 Runtime Override: in a Codex session running any GPT-5.6
-  family model, Superpowers is `DISABLED_BY_RUNTIME_POLICY`. Controllers and
-  descendants must not read, invoke, or delegate to Superpowers.
-  `using-superpowers` is explicitly
-  disabled even when its skill metadata describes invocation as mandatory, and
-  all descendants inherit the override. They must still use model-native
-  brainstorming, planning, test-driven implementation, systematic debugging,
-  subagent orchestration, review, and verification as native behaviors, not
-  similarly named skill invocations. Capability routing must not treat disabled
-  Superpowers as a capability gap, fallback trigger, blocker, or stop reason.
-  Every subagent launch packet must explicitly repeat
-  `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers` prohibition. Every
-  descendant authorized to delegate must propagate both into each child packet,
-  including after compaction, handoff, or resume.
-- Do not treat external capability completion as SAGE-Kit gate completion.
-  Record it as execution evidence and keep gate decisions in SAGE-Kit docs.
-- Use Strict Mode according to `docs/agent/MODEL_ASSURANCE_POLICY.md`; do not
-  guess the policy from memory.
-- Use Graph execution only after admission under
-  `docs/SAGE_CORE.md#sage-grf-001`; when Wave Execution is selected, apply
-  `docs/agent/WAVE_EXECUTION.md#sage-grf-002` rather than restating its shape
-  rules here.
-- Use Session Orchestration only for large milestones where Project Manager,
-  Coder, and Final Review controller packets reduce handoff overhead without
-  weakening gates.
-- When local project authority is readable, use a Compact Controller Launch
-  Envelope that references it instead of copying the execution packet; allow
-  only identified launch-only deltas, fail closed on missing or conflicting
-  authority, and keep worker prompts explicit when they need complete execution
-  boundaries.
-- In Session Orchestration, Coder Controller orchestrates workers by default.
-  It may self-execute only when the execution packet explicitly allows a narrow
-  phase, glue step, or integration repair before Final Review, and it must
-  record why worker dispatch was skipped.
-- Final Review must classify required corrections as `AUTO_CORRECTIVE`,
-  `PM_DECISION`, `BLOCKED`, or `DEFER`. If corrective execution is authorized,
-  it may orchestrate a bounded corrective round through separately authorized
-  workers; it must not edit implementation or corrective files itself. If
-  review is read-only, it must return a packet-only corrective handoff or
-  blocker.
-- After corrective work, follow the canonical targeted re-review scope at
-  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-010` and the Deterministic Closure
-  eligibility, separation, receipt, and reject/fallback contract in
-  `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`; only Final Review may record a
-  precommitted `VERDICT_FINALIZED_FROM_RECEIPT`, not milestone acceptance.
-- Use `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` for convergence outcomes;
-  this Skill only routes any resulting handoff or Project Manager decision.
-- Do not claim Wave Execution or parallel phases unless Wave Readiness is
-  proven with independent lanes, exclusive writable files, serial shared files,
-  frozen contracts, runtime ownership, validation lanes, and integration owner.
-- Use Worktree Isolation only when Project Manager authorization names the
-  allowed mode, maximum count, naming, integration owner, submit authority, and
-  cleanup policy.
-- Use Task Dispatch Profile only when project routing, the milestone entry
-  gate, or the execution packet adopts structured task/evidence records and
-  validator closeout.
-- When Task Dispatch state changes, run State Truth Reconciliation before
-  moving on: task status, runs, leases, blockers, closure notes, evidence
-  reasons, artifacts, commands, ledger decisions, board status, and next action
-  must describe the same current truth. Do not leave planning/future/waiting or
-  superseded STOP text active after authority, branch, run, or lease state has
-  changed. Reconciliation is inspect-only by default; mutate each surface only
-  with its named ownership and write/corrective authority, otherwise return an
-  update proposal, corrective packet, or `HANDOFF`.
-- Use Project Owner Entry for broad or non-technical ideas, but do not promote
-  its draft outputs into an executable roadmap until a capability map and
-  Milestone Granularity Gate pass.
-- Automatically select Planning Package Closeout Flow when the work is
-  planning-only, manual handoff is the main cost, submit or push is explicitly
-  authorized or separately assigned to a Submit Controller, role separation can
-  be preserved, and the work is limited to roadmap, capability map, milestone,
-  phase, ledger,
-  evidence/status, review packet, closeout, or submit handoff artifacts.
-  Preserve separate Planning Author, Planning Review, Targeted Fix, Closure
-  Verification (`strict Deterministic Closure` or `Targeted Re-Review`),
-  Closeout/Status, and Submit Controller authority. Stop and run full
-  affected review lanes if semantics, permissions, source authority,
-  information architecture, contracts, approval gates, validator meaning,
-  implementation scope, or runtime behavior changes.
-
-## End Of Run
-
-Before final handoff, commit, or completion:
-
-1. Run the required checks or state why they cannot run.
-2. Maintain the configured `ACTIVE_CONTEXT` by replacement, not append-only history,
-   only when permission mode and ownership allow direct writes; otherwise
-   return a memory update proposal or no-change note.
-3. Update the configured routing authority only when routing or document topology changed
-   and permission mode plus ownership allow direct writes; otherwise record a
-   memory update proposal or no-change note.
-4. Update the completion report and milestone ledger with memory maintenance
-   status when the task owns them.
-5. Write or update `MILESTONE_CLOSEOUT.md` only when closing a milestone.
-6. Update task/evidence records and run the dispatch validator only when Task
-   Dispatch Profile is active for the current task or gate.
-7. Run State Truth Reconciliation when task, evidence, lease, authority, board,
-   ledger, or next-action state changed.
-8. Report skipped checks, blockers, remaining gaps, and next action.
+At handoff, report the authority used, changed files, focused verification,
+review evidence, skipped checks, blockers, deferred items, and next action.
