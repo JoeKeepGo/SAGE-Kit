@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:graph-contract:v1:node-result",
+  "title": "SAGE-Kit Node Result v1",
+  "description": "A language-neutral envelope for observable decisions, evidence references, bounded findings, changed surface, and transition proposals. It does not store private reasoning, complete chat or tool transcripts, secrets, or credentials.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "node_id",
+    "status",
+    "changed_paths",
+    "evidence_refs",
+    "findings",
+    "authority_change",
+    "proposed_next_nodes"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:graph-contract:v1:node-result",
+      "description": "Stable identity of the Node Result schema used by this instance."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the Node Result envelope."
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "READY",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "SUCCEEDED",
+        "NO_ACTION_REQUIRED",
+        "FAILED",
+        "NEEDS_CORRECTION",
+        "HANDOFF",
+        "BLOCKED",
+        "CANCELLED",
+        "DONE_WITH_CONCERNS"
+      ],
+      "description": "Observable node state or outcome; this enum does not define a state machine. NO_ACTION_REQUIRED is distinct from SUCCEEDED, PASS, and WAIVED, and Stage 2B decides whether it satisfies a join. DONE_WITH_CONCERNS requires controller review, cannot auto-advance a phase or acceptance, cannot satisfy a required success join, and is not mapped to SUCCEEDED, PASS, or WAIVED."
+    },
+    "changed_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Paths observably changed by the node; an empty array records no changed surface."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "References to bounded evidence, not embedded complete tool transcripts."
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/finding"
+      },
+      "description": "Bounded observable findings, not private reasoning or transcript storage."
+    },
+    "authority_change": {
+      "type": "boolean",
+      "description": "When true, requests a higher-authority decision; it does not modify authority, a gate, or the project authority envelope."
+    },
+    "proposed_next_nodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Transition proposals only; they do not create, schedule, admit, or execute nodes."
+    },
+    "inspected_scope": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Non-empty scope inspected for an evidence-bound no-action decision."
+    },
+    "decision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Observable bounded decision, not hidden reasoning."
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "severity",
+        "summary",
+        "evidence_refs"
+      ],
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "P0",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "NO_ACTION_REQUIRED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "inspected_scope",
+          "decision",
+          "evidence_refs"
+        ],
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:graph-contract:v1:graph",
+  "title": "SAGE-Kit Graph Contract v1",
+  "description": "A language-neutral, portable data boundary. Schema presence does not activate Graph execution, does not create runtime state, does not create a scheduler, does not modify ACTIVE_CONTEXT, does not execute nodes, and does not change project authority. Light governance remains graph-artifact optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "graph_id",
+    "generation",
+    "source_authority",
+    "governance_level",
+    "autonomy_level",
+    "human_gates",
+    "nodes",
+    "joins"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:graph-contract:v1:graph",
+      "description": "Stable identity of the Graph Contract schema used by this instance."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of the Graph Contract instance boundary."
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Authority-scoped identity of this graph instance."
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Declared graph generation; it does not authorize graph rewriting."
+    },
+    "source_authority": {
+      "$ref": "#/$defs/source_authority"
+    },
+    "governance_level": {
+      "type": "string",
+      "enum": [
+        "Light",
+        "Standard",
+        "Heavy"
+      ],
+      "description": "The externally selected control structure. Governance is independent from permission and autonomy and grants neither."
+    },
+    "autonomy_level": {
+      "type": "string",
+      "enum": [
+        "turn-based",
+        "goal-based"
+      ],
+      "description": "The host continuation mode, independent from governance. goal-based records that a host may continue only while an external completion verifier, authority envelope, and convergence rule permit it; this field does not grant continuation authority."
+    },
+    "completion_verifier": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional external completion verifier reference; the schema does not execute it or treat it as authority."
+    },
+    "human_gates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true,
+      "description": "Human gate identities or references. Recording a gate cannot open, close, waive, or reclassify it."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/node"
+      },
+      "description": "Declared nodes only; presence does not create runtime state, scheduling, or execution."
+    },
+    "joins": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/join"
+      },
+      "description": "Declared join boundaries. Stage 2B owns pure join validation and transition decisions."
+    }
+  },
+  "$defs": {
+    "source_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "reference"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identity of the external authority source."
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository-neutral reference to the external authority record."
+        }
+      },
+      "description": "Identifies existing source authority; it neither grants authority nor overrides project authority."
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role",
+        "depends_on",
+        "permission",
+        "verifier",
+        "output_contract",
+        "resources",
+        "classification"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "Declared dependency identities; cycle and readiness validation are deferred to Stage 2B."
+        },
+        "permission": {
+          "type": "string",
+          "enum": [
+            "READ_ONLY_REVIEW",
+            "WRITE_AUTHORIZED",
+            "CORRECTIVE_AUTHORIZED",
+            "ENVIRONMENT_WRITE_AUTHORIZED",
+            "SUBMIT_AUTHORIZED"
+          ],
+          "description": "An explicit permission mode recorded from the external authority envelope. It is not inferred from governance, is not granted by this schema, and cannot be upgraded by the node."
+        },
+        "verifier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reference to externally defined verification; it is not executed by this schema."
+        },
+        "output_contract": {
+          "const": "urn:sagekit:graph-contract:v1:node-result",
+          "description": "Stable Node Result v1 envelope identity."
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true,
+          "description": "Declared resource identities; declarations do not acquire or mutate resources."
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "required",
+            "optional"
+          ],
+          "description": "Whether the node is required or optional; join satisfaction remains a Stage 2B decision."
+        }
+      }
+    },
+    "join": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "requires",
+        "policy"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requires": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "all-required",
+            "required-plus-optional",
+            "first-success",
+            "manual-gate",
+            "corrective-join"
+          ],
+          "description": "all-required preserves every required node; required-plus-optional preserves required nodes while optional evidence may be unavailable for a recorded reason; first-success is only for redundant, equivalent, read-only exploration. first-success may not bypass a required failure or replace authority, safety, approval, validator, or acceptance decisions. manual-gate records a required named human decision without making it; corrective-join binds a finding, correction, focused evidence, and targeted re-review. Stage 2B owns unsafe-join validation."
+        }
+      }
+    }
+  }
+}

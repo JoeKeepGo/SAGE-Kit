@@ -1,0 +1,26 @@
+{
+  "contract_id": "urn:sagekit:graph-contract:v1",
+  "contract_family": "sagekit-graph-contract",
+  "version": "v1",
+  "manifest_version": 1,
+  "resources": {
+    "graph_schema": {
+      "resource": "graph.schema.json",
+      "canonical_sha256": "510f9d4a960aba78f80ac0ec35ac37504d992702528acad3c9f96279cab1824e"
+    },
+    "node_result_schema": {
+      "resource": "node-result.schema.json",
+      "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379"
+    }
+  },
+  "digest_semantics": "SHA-256 over exact canonical resource bytes; this is resource integrity only and not a semantic graph digest.",
+  "compatibility": "Language-neutral Graph Contract v1 and Node Result v1 data boundaries. Schema presence does not activate Graph execution, runtime state, scheduling, node execution, gates, or authority. Light remains graph-artifact optional.",
+  "source_authority": {
+    "identity": "SAGE-Kit rebuild Stage 2A",
+    "reference": "rebuild.md#stage-2-graph-contract-and-node-result"
+  },
+  "packaged_mirror": {
+    "path": "sagekit/resources/contracts/graph/v1",
+    "expectation": "All resources are byte-identical mirrors of canonical resources in docs/contracts/graph/v1."
+  }
+}
