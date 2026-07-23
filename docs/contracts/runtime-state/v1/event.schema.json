@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:runtime-state-contract:v1:event",
+  "title": "SAGE-Kit Runtime Event Record v1",
+  "description": "A language-neutral observable event data boundary for one future JSONL record. Schema presence does not create .sagekit, does not write runtime files, does not acquire a lock or lease, does not start a scheduler, does not recover a run, does not modify ACTIVE_CONTEXT, does not modify project history, and does not execute a Graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "event_id",
+    "run_id",
+    "sequence",
+    "graph_digest",
+    "event_type",
+    "authority_id",
+    "actor_id",
+    "observed_at",
+    "reason_code",
+    "evidence_refs",
+    "artifact_refs"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:runtime-state-contract:v1:event",
+      "description": "Stable identity of the Runtime Event Record v1 boundary."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of this event record data boundary."
+    },
+    "event_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Stable event identity bound to run_id and sequence by the Stage 3B generator; timestamp or random UUID alone is not sufficient."
+    },
+    "run_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Stable repository-neutral run identity. Generation is deferred to Stage 3B."
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Positive observable event order within a run. This schema does not append or allocate it."
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Stage 2B canonical graph digest. It is independent from observed timing."
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "RUN_INITIALIZED",
+        "GRAPH_BOUND",
+        "RUN_STARTED",
+        "NODE_READY",
+        "NODE_STARTED",
+        "NODE_WAITING_RESOURCE",
+        "NODE_RESULT_RECORDED",
+        "NODE_TRANSITIONED",
+        "RECOVERY_STARTED",
+        "RECOVERY_COMPLETED",
+        "RUN_HANDOFF",
+        "RUN_BLOCKED",
+        "RUN_COMPLETED",
+        "RUN_CANCELLED"
+      ],
+      "description": "Observable event classification only; it does not cause the named behavior."
+    },
+    "authority_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Reference to existing event authority; it does not copy, create, or upgrade authority."
+    },
+    "actor_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Observable actor identity; it grants no writer, gate, transition, or execution authority."
+    },
+    "observed_at": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 64,
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "description": "RFC3339 observable metadata. It is not semantic graph identity, not event identity, and cannot change authority or transition legality."
+    },
+    "reason_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,127}$",
+      "description": "Bounded non-empty observable reason identifier, not free-form reasoning."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reference"
+      },
+      "description": "Bounded external evidence references; no evidence table, transcript, or output is embedded."
+    },
+    "artifact_refs": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reference"
+      },
+      "description": "Bounded external artifact references; no complete command or tool output is embedded."
+    },
+    "node_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Optional Graph Contract v1 node identity for node-scoped events."
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Optional attempt identity scoped by run_id and node_id. It is correlation only and does not grant repeat execution authority."
+    },
+    "previous_status": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "READY",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "SUCCEEDED",
+        "NO_ACTION_REQUIRED",
+        "FAILED",
+        "NEEDS_CORRECTION",
+        "HANDOFF",
+        "BLOCKED",
+        "CANCELLED",
+        "DONE_WITH_CONCERNS"
+      ],
+      "description": "Observed prior Stage 2 node status. Stage 2B pure validation remains the transition-rule owner."
+    },
+    "next_status": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "READY",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "SUCCEEDED",
+        "NO_ACTION_REQUIRED",
+        "FAILED",
+        "NEEDS_CORRECTION",
+        "HANDOFF",
+        "BLOCKED",
+        "CANCELLED",
+        "DONE_WITH_CONCERNS"
+      ],
+      "description": "Observed next Stage 2 node status. Stage 2B pure validation remains the transition-rule owner."
+    },
+    "result_digest": {
+      "$ref": "#/$defs/digest_reference",
+      "description": "Optional bounded reference to an externally defined result digest; no digest algorithm is created here."
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Optional non-negative observable duration in milliseconds; it is not success evidence."
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+-]{0,255}$"
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?!/)(?!https?://)(?!.*[\\r\\n]).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "digest_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+-]{0,255}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "event_type"
+        ],
+        "properties": {
+          "event_type": {
+            "enum": [
+              "NODE_READY",
+              "NODE_STARTED",
+              "NODE_WAITING_RESOURCE",
+              "NODE_RESULT_RECORDED",
+              "NODE_TRANSITIONED"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "node_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "event_type"
+        ],
+        "properties": {
+          "event_type": {
+            "enum": [
+              "NODE_STARTED",
+              "NODE_RESULT_RECORDED"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "attempt_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "event_type"
+        ],
+        "properties": {
+          "event_type": {
+            "const": "NODE_TRANSITIONED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "previous_status",
+          "next_status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "event_type"
+        ],
+        "properties": {
+          "event_type": {
+            "const": "NODE_RESULT_RECORDED"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "result_digest"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "attempt_id"
+        ]
+      },
+      "then": {
+        "required": [
+          "node_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "result_digest"
+        ]
+      },
+      "then": {
+        "required": [
+          "node_id"
+        ]
+      }
+    }
+  ]
+}

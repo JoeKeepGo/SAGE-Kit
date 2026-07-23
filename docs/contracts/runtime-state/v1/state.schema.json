@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:runtime-state-contract:v1:state",
+  "title": "SAGE-Kit Runtime State Snapshot v1",
+  "description": "A language-neutral run-state data boundary. Schema presence does not create .sagekit, does not write runtime files, does not acquire a lock or lease, does not start a scheduler, does not recover a run, does not modify ACTIVE_CONTEXT, does not modify project history, and does not execute a Graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "run_id",
+    "graph_digest",
+    "graph_generation",
+    "revision",
+    "last_event_sequence",
+    "run_status",
+    "authority_id",
+    "controller_id",
+    "node_states"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:runtime-state-contract:v1:state",
+      "description": "Stable identity of the Runtime State Snapshot v1 boundary."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of this state snapshot data boundary."
+    },
+    "run_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Stable repository-neutral run identity. Generation is deferred to Stage 3B."
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Stage 2B canonical graph digest. The Graph payload remains an immutable Graph Contract v1 snapshot outside this state object."
+    },
+    "graph_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Observed Graph Contract v1 generation; it grants no graph mutation authority."
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Non-negative state revision label. This schema does not increment or persist it."
+    },
+    "last_event_sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Last observable event sequence represented by this snapshot; zero permits an initialized pre-event boundary."
+    },
+    "run_status": {
+      "type": "string",
+      "enum": [
+        "INITIALIZED",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "NEEDS_CORRECTION",
+        "HANDOFF",
+        "BLOCKED",
+        "COMPLETED",
+        "CANCELLED",
+        "RECOVERING"
+      ],
+      "description": "Observable aggregate run status only. This schema defines no run transition behavior."
+    },
+    "authority_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Reference to existing run authority; it does not copy, create, or upgrade authority."
+    },
+    "controller_id": {
+      "$ref": "#/$defs/identity",
+      "description": "Observable controller identity; it grants no writer, scheduling, gate, or execution authority."
+    },
+    "node_states": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/node_state"
+      },
+      "description": "Bounded node-state facts. Cross-item graph membership and node identity uniqueness remain validator concerns outside this schema."
+    },
+    "handoff_ref": {
+      "$ref": "#/$defs/reference",
+      "description": "Optional reference to configured ACTIVE_CONTEXT or a bounded handoff artifact; never copied handoff content."
+    },
+    "recovery_status": {
+      "$ref": "#/$defs/label",
+      "description": "Optional observable recovery label only. It does not initiate recovery or decide continuation."
+    }
+  },
+  "$defs": {
+    "identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+-]{0,255}$"
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?!/)(?!https?://)(?!.*[\\r\\n]).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "digest_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+-]{0,255}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+    },
+    "node_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "status",
+        "attempt_id",
+        "last_event_sequence",
+        "evidence_refs"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "#/$defs/identity",
+          "description": "Graph Contract v1 node identity reference."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "READY",
+            "RUNNING",
+            "WAITING_RESOURCE",
+            "SUCCEEDED",
+            "NO_ACTION_REQUIRED",
+            "FAILED",
+            "NEEDS_CORRECTION",
+            "HANDOFF",
+            "BLOCKED",
+            "CANCELLED",
+            "DONE_WITH_CONCERNS"
+          ],
+          "description": "Stage 2 node status fact. Stage 2B pure validation remains the sole owner of transition rules; this schema defines none."
+        },
+        "attempt_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Run- and node-scoped attempt identity. Null is permitted before an attempt starts; the identity does not grant repeat execution authority."
+        },
+        "last_event_sequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Last event sequence observably associated with this node state."
+        },
+        "result_digest": {
+          "$ref": "#/$defs/digest_reference",
+          "description": "Optional bounded reference to an externally defined result digest; no digest algorithm is created here."
+        },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "description": "Bounded evidence references, never embedded evidence tables, output, or transcripts."
+        },
+        "blocker_reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^(?!.*[\\r\\n]).*\\S.*$",
+          "description": "Bounded single-line observable blocker summary, not private reasoning or a transcript."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "RUNNING",
+                  "SUCCEEDED",
+                  "NO_ACTION_REQUIRED",
+                  "FAILED",
+                  "NEEDS_CORRECTION",
+                  "DONE_WITH_CONCERNS"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "attempt_id": {
+                "$ref": "#/$defs/identity"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
