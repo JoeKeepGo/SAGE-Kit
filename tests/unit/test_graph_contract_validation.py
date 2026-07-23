@@ -67,6 +67,30 @@ def minimal_graph():
     }
 
 
+def corrective_graph():
+    payload = minimal_graph()
+    payload["nodes"] = [
+        node(
+            "review",
+            role="independent review",
+            permission="READ_ONLY_REVIEW",
+        ),
+        node(
+            "correct",
+            role="corrective implementation",
+            permission="CORRECTIVE_AUTHORIZED",
+        ),
+    ]
+    payload["joins"] = [
+        {
+            "id": "finding-closure",
+            "requires": ["review", "correct"],
+            "policy": "corrective-join",
+        }
+    ]
+    return payload
+
+
 def minimal_result(status="SUCCEEDED"):
     return {
         "schema_id": "urn:sagekit:graph-contract:v1:node-result",
@@ -391,37 +415,66 @@ class JoinValidationTests(unittest.TestCase):
         self.assertFalse(result.valid)
         self.assertIn("required-plus-optional-missing-required", issue_codes(result))
 
-    def test_corrective_join_requires_provable_independent_responsibilities(self):
-        payload = minimal_graph()
-        payload["nodes"] = [
-            node(
-                "review",
-                role="independent review",
-                permission="READ_ONLY_REVIEW",
-            ),
-            node(
-                "correct",
-                role="corrective implementation",
-                permission="CORRECTIVE_AUTHORIZED",
-            ),
-        ]
-        payload["joins"] = [
+    def test_required_only_corrective_join_is_structurally_valid_without_resolution_input(
+        self,
+    ):
+        payload = corrective_graph()
+        result = validate_graph_contract(payload)
+        self.assertNotIn(
+            "corrective-join-responsibility-unproven",
+            issue_codes(result),
+            result.to_json(),
+        )
+        self.assertTrue(result.valid, result.to_json())
+        self.assertRegex(result.semantic_digest or "", r"^[0-9a-f]{64}$")
+        self.assertEqual(
+            {"issues", "semantic_digest", "valid"},
+            set(result.as_dict()),
+        )
+        self.assertTrue(
             {
-                "id": "finding-closure",
-                "requires": ["review", "correct"],
-                "policy": "corrective-join",
-            }
-        ]
-        result = validate_graph_contract(payload)
-        self.assertFalse(result.valid)
-        self.assertIn("corrective-join-responsibility-unproven", issue_codes(result))
+                "satisfied",
+                "approved",
+                "execution_authority",
+                "external_join_decisions",
+            }.isdisjoint(result.as_dict())
+        )
+
         payload["nodes"][0]["role"] = "general worker"
-        result = validate_graph_contract(payload)
-        self.assertFalse(result.valid)
-        self.assertIn("corrective-join-responsibility-unproven", issue_codes(result))
-        payload["nodes"][0]["classification"] = "optional"
-        result = validate_graph_contract(payload)
-        self.assertIn("corrective-join-optional-node", issue_codes(result))
+        self.assertTrue(validate_graph_contract(payload).valid)
+
+    def test_corrective_join_rejects_optional_and_missing_nodes(self):
+        optional = corrective_graph()
+        optional["nodes"][0]["classification"] = "optional"
+        optional_result = validate_graph_contract(optional)
+        self.assertFalse(optional_result.valid)
+        self.assertIn("corrective-join-optional-node", issue_codes(optional_result))
+
+        missing = corrective_graph()
+        missing["joins"][0]["requires"][1] = "missing"
+        missing_result = validate_graph_contract(missing)
+        self.assertFalse(missing_result.valid)
+        self.assertIn("missing-join-reference", issue_codes(missing_result))
+
+    def test_corrective_join_preserves_duplicate_and_cycle_errors(self):
+        duplicate = corrective_graph()
+        duplicate["nodes"].append(copy.deepcopy(duplicate["nodes"][0]))
+        duplicate["joins"].append(copy.deepcopy(duplicate["joins"][0]))
+        duplicate_result = validate_graph_contract(duplicate)
+        self.assertFalse(duplicate_result.valid)
+        self.assertTrue(
+            {"duplicate-node-id", "duplicate-join-id"}.issubset(
+                issue_codes(duplicate_result)
+            ),
+            duplicate_result.to_json(),
+        )
+
+        cyclic = corrective_graph()
+        cyclic["nodes"][0]["depends_on"] = ["correct"]
+        cyclic["nodes"][1]["depends_on"] = ["review"]
+        cyclic_result = validate_graph_contract(cyclic)
+        self.assertFalse(cyclic_result.valid)
+        self.assertIn("dependency-cycle", issue_codes(cyclic_result))
 
 
 class NodeTransitionTests(unittest.TestCase):
@@ -618,13 +671,17 @@ class NodeResultValidationTests(unittest.TestCase):
 class DeterminismAndPurityTests(unittest.TestCase):
     def test_inputs_are_not_mutated(self):
         graph = minimal_graph()
+        corrective = corrective_graph()
         result_payload = minimal_result()
         graph_before = copy.deepcopy(graph)
+        corrective_before = copy.deepcopy(corrective)
         result_before = copy.deepcopy(result_payload)
         validate_graph_contract(graph)
         canonical_graph_digest(graph)
+        validate_graph_contract(corrective)
         validate_node_result(result_payload, graph)
         self.assertEqual(graph_before, graph)
+        self.assertEqual(corrective_before, corrective)
         self.assertEqual(result_before, result_payload)
 
     def test_issue_order_and_json_representation_are_stable_and_bounded(self):

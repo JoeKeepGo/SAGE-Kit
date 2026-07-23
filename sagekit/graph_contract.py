@@ -649,11 +649,9 @@ def _validate_join_semantics(
                         "corrective-join-optional-node",
                         "Corrective joins may reference only required nodes.",
                     )
-            issues.add(
-                path,
-                "corrective-join-responsibility-unproven",
-                "Graph Contract v1 cannot prove independent review and corrective responsibilities.",
-            )
+            # Structural validity is not satisfaction, approval, or execution
+            # authority. External resolution input must prove corrective
+            # responsibility, and the resolver must fail closed when it is absent.
 
 
 def _semantic_reference_identity(reference: str) -> str:
