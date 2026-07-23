@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import re
@@ -7,19 +8,22 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-BASELINE_COMMIT = "9b4ce24422bb1f0b630dde5f21d6d1a798f80854"
+BASELINE_COMMIT = "6c7f7a97abcea8fe3cb871924c43fdc3dae0b8c6"
 CANONICAL = REPOSITORY / "docs/contracts/ready-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/ready-resolution/v1"
 RESOURCE_NAMES = (
     "contract.json",
+    "error.schema.json",
     "input.schema.json",
     "result.schema.json",
 )
 EXPECTED_STAGE4A_PATHS = {
     "docs/contracts/ready-resolution/v1/contract.json",
+    "docs/contracts/ready-resolution/v1/error.schema.json",
     "docs/contracts/ready-resolution/v1/input.schema.json",
     "docs/contracts/ready-resolution/v1/result.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/contract.json",
+    "sagekit/resources/contracts/ready-resolution/v1/error.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/input.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/result.schema.json",
     "tests/unit/test_ready_resolution_contract_v1.py",
@@ -33,8 +37,16 @@ DEPENDENCY_DIGESTS = {
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
 PRE_CORRECTIVE_SCHEMA_DIGESTS = {
-    "input.schema.json": "298e56d3044360458f48b7b36d7d044e646e8de4ca1ac1a58e3f16bbd604edd4",
-    "result.schema.json": "66f78b241d40b948d96bb1df26389e43318c98b4cde62b772ee1a8e83502d3ac",
+    "input.schema.json": "b859ca2e55214b027150e74e32c193be92299fa087476804de09cf6c48b2e313",
+    "result.schema.json": "747ec9575d8b8248e4c31219ae6a39cdb84ad60a0434cfedece47c72c857144e",
+}
+INPUT_DIGEST_DOMAIN = b"sagekit-ready-resolution-input-v1\0"
+ERROR_CODES = {
+    "REQUIRED_INPUT_INVALID",
+    "GRAPH_INVALID",
+    "GRAPH_BINDING_MISMATCH",
+    "INPUT_TOO_LARGE",
+    "RESULT_TOO_LARGE",
 }
 NODE_STATUSES = {
     "PENDING",
@@ -94,7 +106,6 @@ REQUIRED_REASON_CODES = {
     "JOIN_NODE_FAILED",
     "EXTERNAL_DECISION_MISSING",
     "EXTERNAL_DECISION_REJECTED",
-    "REQUIRED_INPUT_INVALID",
 }
 SUMMARY_FIELDS = {
     "node_decision_count",
@@ -159,6 +170,32 @@ def canonical_json_bytes(value):
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
+
+
+def semantic_input_digest(value, schema):
+    """Independent contract-vector implementation; this is not a product resolver."""
+    if not is_schema_valid(value, schema):
+        raise ValueError("strict input validation must succeed before digest")
+    for array_name, identity_name in (
+        ("node_states", "node_id"),
+        ("resource_availability", "resource_id"),
+        ("external_join_decisions", "join_id"),
+    ):
+        identities = [item[identity_name] for item in value[array_name]]
+        if len(identities) != len(set(identities)):
+            raise ValueError(f"duplicate {identity_name}")
+
+    normalized = copy.deepcopy(value)
+    for array_name, identity_name in (
+        ("node_states", "node_id"),
+        ("resource_availability", "resource_id"),
+        ("external_join_decisions", "join_id"),
+    ):
+        normalized[array_name].sort(key=lambda item: item[identity_name])
+        for item in normalized[array_name]:
+            if "evidence_refs" in item:
+                item["evidence_refs"].sort()
+    return hashlib.sha256(INPUT_DIGEST_DOMAIN + canonical_json_bytes(normalized)).hexdigest()
 
 
 def changed_paths_since_baseline():
@@ -354,6 +391,7 @@ def valid_result():
         "schema_version": 1,
         "graph_digest": "a" * 64,
         "graph_generation": 1,
+        "input_digest": "b" * 64,
         "graph_disposition": "READY",
         "node_decisions": [
             {
@@ -370,6 +408,20 @@ def valid_result():
     }
 
 
+def valid_error():
+    return {
+        "schema_id": "urn:sagekit:ready-resolution:v1:error",
+        "schema_version": 1,
+        "error_code": "REQUIRED_INPUT_INVALID",
+        "issues": [
+            {
+                "path": "$.node_states[0].status",
+                "code": "VALUE_NOT_ALLOWED",
+            }
+        ],
+    }
+
+
 class ReadyResolutionContractV1Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -377,7 +429,8 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         cls.packaged = {name: PACKAGED / name for name in RESOURCE_NAMES}
         missing = [
             str(path.relative_to(REPOSITORY)).replace("\\", "/")
-            for path in (*cls.canonical.values(), *cls.packaged.values())
+            for name, path in (*cls.canonical.items(), *cls.packaged.items())
+            if name != "error.schema.json"
             if not path.is_file()
         ]
         if missing:
@@ -388,15 +441,30 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         cls.manifest = load_json(cls.canonical["contract.json"])
         cls.input_schema = load_json(cls.canonical["input.schema.json"])
         cls.result_schema = load_json(cls.canonical["result.schema.json"])
+        cls.error_schema = (
+            load_json(cls.canonical["error.schema.json"])
+            if cls.canonical["error.schema.json"].is_file()
+            else None
+        )
 
-    def test_six_resources_parse_and_use_stable_identities(self):
+    def test_eight_resources_parse_and_use_stable_identities(self):
+        self.assertTrue(
+            self.canonical["error.schema.json"].is_file(),
+            "Stage 4A-C3 TDD RED: canonical error.schema.json does not exist",
+        )
+        self.assertTrue(
+            self.packaged["error.schema.json"].is_file(),
+            "Stage 4A-C3 TDD RED: packaged error.schema.json does not exist",
+        )
         for path in (*self.canonical.values(), *self.packaged.values()):
             load_json(path)
         self.assertEqual("urn:sagekit:ready-resolution:v1", self.manifest["contract_id"])
         self.assertEqual("urn:sagekit:ready-resolution:v1:input", self.input_schema["$id"])
         self.assertEqual("urn:sagekit:ready-resolution:v1:result", self.result_schema["$id"])
+        self.assertEqual("urn:sagekit:ready-resolution:v1:error", self.error_schema["$id"])
         self.assertEqual(1, self.input_schema["properties"]["schema_version"]["const"])
         self.assertEqual(1, self.result_schema["properties"]["schema_version"]["const"])
+        self.assertEqual(1, self.error_schema["properties"]["schema_version"]["const"])
 
     def test_canonical_and_packaged_families_are_exact_byte_mirrors(self):
         self.assertEqual(RESOURCE_NAMES, tuple(sorted(path.name for path in CANONICAL.iterdir())))
@@ -409,8 +477,12 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         self.assertEqual("v1", self.manifest["version"])
         self.assertEqual(1, self.manifest["manifest_version"])
         resources = self.manifest["resources"]
-        self.assertEqual({"input_schema", "result_schema"}, set(resources))
-        for key, name in (("input_schema", "input.schema.json"), ("result_schema", "result.schema.json")):
+        self.assertEqual({"input_schema", "result_schema", "error_schema"}, set(resources))
+        for key, name in (
+            ("input_schema", "input.schema.json"),
+            ("result_schema", "result.schema.json"),
+            ("error_schema", "error.schema.json"),
+        ):
             self.assertEqual(name, resources[key]["resource"])
             self.assertEqual(canonical_sha256(self.canonical[name]), resources[key]["canonical_sha256"])
             self.assertRegex(resources[key]["canonical_sha256"], r"^[0-9a-f]{64}$")
@@ -460,6 +532,274 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             runtime["canonical_resource_integrity"],
         )
 
+    def test_contract_defines_domain_separated_semantic_input_digest(self):
+        digest_contract = self.manifest["semantic_input_digest"]
+        self.assertEqual("SHA-256", digest_contract["algorithm"])
+        self.assertEqual("sagekit-ready-resolution-input-v1\u0000", digest_contract["domain_separator"])
+        self.assertEqual(INPUT_DIGEST_DOMAIN.hex(), digest_contract["domain_separator_utf8_hex"])
+        self.assertEqual(
+            "70133af3c18e621a9f4586e43b8fe1807b5a0c85e4976eea302745ec1a8b0a37",
+            semantic_input_digest(valid_input(), self.input_schema),
+        )
+        text = json.dumps(digest_contract, ensure_ascii=False, sort_keys=True).lower()
+        for phrase in (
+            "strict validation",
+            "duplicate",
+            "unknown",
+            "canonical normalized input bytes",
+            "unicode code point",
+            "node_states",
+            "node_id",
+            "resource_availability",
+            "resource_id",
+            "external_join_decisions",
+            "join_id",
+            "evidence_refs",
+            "opaque",
+            "not authority",
+            "separate from graph semantic digest",
+        ):
+            self.assertIn(phrase, text)
+
+    def test_semantic_input_digest_is_order_independent_for_identity_arrays_and_evidence(self):
+        candidate = valid_input()
+        candidate["node_states"].append(
+            {
+                "node_id": "another-node",
+                "status": "NO_ACTION_REQUIRED",
+                "result_digest": "node-result:sha256:" + "c" * 64,
+                "evidence_refs": ["evidence/z", "evidence/a"],
+            }
+        )
+        candidate["resource_availability"].append(
+            {
+                "resource_id": "gpu.heavy",
+                "availability": "UNKNOWN",
+                "reason_code": "RESOURCE_UNKNOWN",
+                "evidence_refs": ["evidence/z", "evidence/a"],
+            }
+        )
+        candidate["external_join_decisions"].append(
+            {
+                "join_id": "corrective-review",
+                "decision": "REJECTED",
+                "authority_ref": "authority/corrective-rejection",
+                "evidence_refs": ["evidence/z", "evidence/a"],
+            }
+        )
+        reordered = copy.deepcopy(candidate)
+        for name in ("node_states", "resource_availability", "external_join_decisions"):
+            reordered[name].reverse()
+            for item in reordered[name]:
+                if "evidence_refs" in item:
+                    item["evidence_refs"].reverse()
+        self.assertEqual(
+            semantic_input_digest(candidate, self.input_schema),
+            semantic_input_digest(reordered, self.input_schema),
+        )
+
+    def test_semantic_input_digest_binds_every_decision_input(self):
+        original = valid_input()
+        expected = semantic_input_digest(original, self.input_schema)
+        mutations = []
+
+        changed = copy.deepcopy(original)
+        changed["node_states"][0]["status"] = "RUNNING"
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["resource_availability"][0].update(
+            availability="AVAILABLE", reason_code="RESOURCE_AVAILABLE"
+        )
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["resource_availability"][0]["evidence_refs"] = ["evidence/other-resource"]
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["external_join_decisions"][0]["decision"] = "REJECTED"
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["external_join_decisions"][0]["authority_ref"] = "authority/other"
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["external_join_decisions"][0]["evidence_refs"] = ["evidence/other"]
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["node_states"][0]["evidence_refs"] = ["evidence/node"]
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["graph_digest"] = "d" * 64
+        mutations.append(changed)
+        changed = copy.deepcopy(original)
+        changed["graph_generation"] = 2
+        mutations.append(changed)
+
+        for candidate in mutations:
+            self.assertNotEqual(expected, semantic_input_digest(candidate, self.input_schema))
+
+        terminal = copy.deepcopy(original)
+        terminal["node_states"][0].update(
+            status="SUCCEEDED",
+            result_digest="node-result:sha256:" + "c" * 64,
+        )
+        changed_digest = copy.deepcopy(terminal)
+        changed_digest["node_states"][0]["result_digest"] = "node-result:sha256:" + "d" * 64
+        self.assertNotEqual(
+            semantic_input_digest(terminal, self.input_schema),
+            semantic_input_digest(changed_digest, self.input_schema),
+        )
+
+    def test_semantic_input_digest_preserves_opaque_ids_and_rejects_before_digest(self):
+        candidate = valid_input()
+        candidate["node_states"][0]["node_id"] = " C:\\Looks\\Like\\Path/阶段/ß "
+        candidate["resource_availability"][0]["resource_id"] = "../资源/CPU"
+        candidate["external_join_decisions"][0]["join_id"] = "JOIN/İ/α"
+        preserved = copy.deepcopy(candidate)
+        preserved_digest = semantic_input_digest(candidate, self.input_schema)
+        self.assertEqual(preserved, candidate)
+        trimmed = copy.deepcopy(candidate)
+        trimmed["node_states"][0]["node_id"] = trimmed["node_states"][0]["node_id"].strip()
+        self.assertNotEqual(
+            preserved_digest,
+            semantic_input_digest(trimmed, self.input_schema),
+        )
+
+        for array_name, identity_name in (
+            ("node_states", "node_id"),
+            ("resource_availability", "resource_id"),
+            ("external_join_decisions", "join_id"),
+        ):
+            duplicate = valid_input()
+            second = copy.deepcopy(duplicate[array_name][0])
+            if array_name == "node_states":
+                second["status"] = "RUNNING"
+            elif array_name == "resource_availability":
+                second.update(availability="UNKNOWN", reason_code="RESOURCE_UNKNOWN")
+            else:
+                second["authority_ref"] = "authority/conflict"
+            duplicate[array_name].append(second)
+            with self.assertRaises(ValueError, msg=identity_name):
+                semantic_input_digest(duplicate, self.input_schema)
+        extra = valid_input()
+        extra["unknown"] = True
+        with self.assertRaises(ValueError):
+            semantic_input_digest(extra, self.input_schema)
+
+    def test_result_is_bound_to_input_digest_and_cannot_be_reused_by_graph_only(self):
+        self.assertIn("input_digest", self.result_schema["required"])
+        self.assertFalse(
+            is_schema_valid(
+                {key: value for key, value in valid_result().items() if key != "input_digest"},
+                self.result_schema,
+            )
+        )
+        text = json.dumps(
+            {
+                "manifest": self.manifest,
+                "result": self.result_schema,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ).lower()
+        for phrase in (
+            "matching input_digest",
+            "input_digest mismatch",
+            "must not reuse",
+            "graph_digest alone",
+            "external_join_decision",
+            "authority",
+            "evidence",
+            "available",
+            "busy",
+            "unavailable",
+            "unknown",
+        ):
+            self.assertIn(phrase, text)
+
+    def test_error_is_a_bounded_mutually_exclusive_output_not_partial_result(self):
+        self.assertTrue(is_schema_valid(valid_error(), self.error_schema))
+        self.assertFalse(is_schema_valid(valid_error(), self.result_schema))
+        self.assertFalse(is_schema_valid(valid_result(), self.error_schema))
+        forbidden = {
+            "node_decisions",
+            "join_decisions",
+            "graph_disposition",
+            "summary",
+            "ready_nodes",
+        }
+        self.assertTrue(forbidden.isdisjoint(property_names(self.error_schema)))
+        for name in forbidden:
+            candidate = valid_error()
+            candidate[name] = []
+            self.assertFalse(is_schema_valid(candidate, self.error_schema), name)
+        text = json.dumps(
+            {
+                "manifest": self.manifest,
+                "error": self.error_schema,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ).lower()
+        for phrase in (
+            "mutually exclusive",
+            "invalid required input",
+            "not a partial result",
+            "must not generate",
+            "partial",
+            "graph_invalid",
+            "graph_binding_mismatch",
+            "input_too_large",
+            "result_too_large",
+            "not runtime mutation",
+            "not a blocked node",
+            "handoff",
+            "acceptance",
+        ):
+            self.assertIn(phrase, text)
+
+    def test_error_issues_are_deterministic_unique_and_bounded(self):
+        issues = self.error_schema["properties"]["issues"]
+        self.assertEqual(1, issues["minItems"])
+        self.assertEqual(100, issues["maxItems"])
+        self.assertTrue(issues["uniqueItems"])
+        issue = self.error_schema["$defs"]["issue"]
+        self.assertEqual({"path", "code"}, set(issue["required"]))
+        self.assertEqual({"path", "code"}, set(issue["properties"]))
+        self.assertEqual(1024, issue["properties"]["path"]["maxLength"])
+        self.assertRegex("VALUE_NOT_ALLOWED", issue["properties"]["code"]["pattern"])
+        self.assertNotRegex("not-stable", issue["properties"]["code"]["pattern"])
+        self.assertFalse(
+            is_schema_valid(
+                {
+                    **valid_error(),
+                    "issues": [valid_error()["issues"][0]] * 2,
+                },
+                self.error_schema,
+            )
+        )
+        description = issues["description"].lower()
+        for phrase in (
+            "deterministic",
+            "path",
+            "code",
+            "stop",
+            "100",
+            "no traceback",
+            "no payload",
+        ):
+            self.assertIn(phrase, description)
+
+    def test_invalid_input_error_cannot_claim_input_digest(self):
+        invalid = valid_error()
+        invalid["input_digest"] = "c" * 64
+        self.assertFalse(is_schema_valid(invalid, self.error_schema))
+
+        post_validation = valid_error()
+        post_validation["error_code"] = "GRAPH_BINDING_MISMATCH"
+        post_validation["graph_digest"] = "a" * 64
+        post_validation["graph_generation"] = 1
+        post_validation["input_digest"] = "c" * 64
+        self.assertTrue(is_schema_valid(post_validation, self.error_schema))
+
     def test_input_and_result_required_fields_are_exact(self):
         self.assertEqual(
             {
@@ -495,12 +835,17 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
                 "schema_version",
                 "graph_digest",
                 "graph_generation",
+                "input_digest",
                 "graph_disposition",
                 "node_decisions",
                 "join_decisions",
                 "summary",
             },
             set(self.result_schema["required"]),
+        )
+        self.assertEqual(
+            {"schema_id", "schema_version", "error_code", "issues"},
+            set(self.error_schema["required"]),
         )
         self.assertEqual(
             {
@@ -538,11 +883,17 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             set(self.result_schema["$defs"]["join_decision"]["properties"]["disposition"]["enum"]),
         )
         self.assertEqual(GRAPH_DISPOSITIONS, set(self.result_schema["properties"]["graph_disposition"]["enum"]))
+        self.assertEqual(ERROR_CODES, set(self.error_schema["properties"]["error_code"]["enum"]))
         reason_codes = set(self.result_schema["$defs"]["reason_code"]["enum"])
         self.assertTrue(REQUIRED_REASON_CODES.issubset(reason_codes))
+        self.assertNotIn("REQUIRED_INPUT_INVALID", reason_codes)
 
     def test_every_object_is_closed_and_every_array_is_bounded(self):
-        for name, schema in (("input", self.input_schema), ("result", self.result_schema)):
+        for name, schema in (
+            ("input", self.input_schema),
+            ("result", self.result_schema),
+            ("error", self.error_schema),
+        ):
             objects = list(object_schemas(schema))
             self.assertTrue(objects, name)
             for object_schema in objects:
@@ -828,11 +1179,13 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         bounds = self.manifest["canonical_byte_budgets"]
         self.assertEqual(16777216, bounds["max_input_canonical_bytes"])
         self.assertEqual(16777216, bounds["max_result_canonical_bytes"])
+        self.assertEqual(1048576, bounds["max_error_canonical_bytes"])
         text = json.dumps(
             {
                 "bounds": bounds,
                 "input": self.input_schema["description"],
                 "result": self.result_schema["description"],
+                "error": self.error_schema["description"],
                 "compatibility": self.manifest["compatibility"],
             },
             ensure_ascii=False,
@@ -853,6 +1206,9 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "does not shrink the graph contract",
             "optional resolver invocation",
             "pre-implementation compatibility corrective",
+            "input_too_large",
+            "result_too_large",
+            "100",
         ):
             self.assertIn(phrase, text)
         measurement = bounds["measurement"].lower()
@@ -893,10 +1249,15 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
 
     def test_corrective_updates_schema_digests_without_changing_dependency_digests(self):
         resources = self.manifest["resources"]
-        for key, name in (("input_schema", "input.schema.json"), ("result_schema", "result.schema.json")):
+        for key, name in (
+            ("input_schema", "input.schema.json"),
+            ("result_schema", "result.schema.json"),
+            ("error_schema", "error.schema.json"),
+        ):
             digest = resources[key]["canonical_sha256"]
             self.assertEqual(canonical_sha256(self.canonical[name]), digest)
-            self.assertNotEqual(PRE_CORRECTIVE_SCHEMA_DIGESTS[name], digest)
+            if name in PRE_CORRECTIVE_SCHEMA_DIGESTS:
+                self.assertNotEqual(PRE_CORRECTIVE_SCHEMA_DIGESTS[name], digest)
 
     def test_node_result_digest_is_conditional_and_no_action_is_evidence_bound(self):
         result_statuses = {
@@ -1113,7 +1474,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             self.assertIn(phrase, text)
 
     def test_schemas_exclude_private_runtime_and_execution_payloads(self):
-        schemas = (self.input_schema, self.result_schema)
+        schemas = (self.input_schema, self.result_schema, self.error_schema)
         names = property_names(schemas)
         self.assertTrue(FORBIDDEN_PROPERTIES.isdisjoint(names), FORBIDDEN_PROPERTIES & names)
         serialized = json.dumps(schemas, sort_keys=True)
@@ -1121,6 +1482,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         for schema, instance in (
             (self.input_schema, valid_input()),
             (self.result_schema, valid_result()),
+            (self.error_schema, valid_error()),
         ):
             for forbidden in FORBIDDEN_PROPERTIES:
                 candidate = dict(instance)

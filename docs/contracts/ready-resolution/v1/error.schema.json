@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:ready-resolution:v1:error",
+  "title": "SAGE-Kit Ready Resolution Error v1",
+  "description": "A bounded, language-neutral failure envelope that is mutually exclusive with Ready Resolution Result v1. Invalid required input returns REQUIRED_INPUT_INVALID; invalid Graph, Graph binding mismatch, oversized input, or oversized result uses its corresponding stable error code. Error is not a partial Result and must not generate a fabricated BLOCKED node, ready-node subset, truncated success, HANDOFF, Project Manager decision, or acceptance. The aggregate canonical Error representation is limited to 1048576 bytes under contract.json. Collection stops at no more than 100 deterministic unique issues; an over-limit Error must carry no additional issues and must never respond to oversized input with unbounded error output. Optional graph_digest, graph_generation, and input_digest appear only when safely available. input_digest may appear only after strict validation, identity uniqueness, and canonicalization succeed. Error is not runtime mutation and contains no command, callback, handle, prompt, private reasoning, transcript, stdout, stderr, environment, credential, secret, absolute local path, traceback, or arbitrary payload.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "error_code",
+    "issues"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:ready-resolution:v1:error",
+      "description": "Stable identity of the Ready Resolution Error v1 boundary."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of this language-neutral error boundary."
+    },
+    "error_code": {
+      "type": "string",
+      "enum": [
+        "REQUIRED_INPUT_INVALID",
+        "GRAPH_INVALID",
+        "GRAPH_BINDING_MISMATCH",
+        "INPUT_TOO_LARGE",
+        "RESULT_TOO_LARGE"
+      ],
+      "description": "Stable top-level machine-readable error classification."
+    },
+    "issues": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/issue"
+      },
+      "description": "Deterministic unique machine-readable path and code pairs only, ordered by path then code using Unicode code point order. Collection must stop at 100 issues. Contains no traceback and no payload."
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Optional Graph semantic digest only when safely available; it grants no authority."
+    },
+    "graph_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Optional observed Graph generation only when safely available; it grants no mutation authority."
+    },
+    "input_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Optional domain-separated semantic input digest only after strict validation, uniqueness, and canonicalization succeed; it grants no authority."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "error_code"
+        ],
+        "properties": {
+          "error_code": {
+            "const": "REQUIRED_INPUT_INVALID"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "input_digest"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "code"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^\\$(?:(?:\\.[A-Za-z_][A-Za-z0-9_]*)|\\[[0-9]{1,5}\\])*$",
+          "description": "Bounded language-neutral instance path rooted at $, never an absolute local filesystem path."
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+          "description": "Stable uppercase machine-code grammar; no human prose or payload."
+        }
+      }
+    }
+  }
+}

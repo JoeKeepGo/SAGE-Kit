@@ -6,11 +6,15 @@
   "resources": {
     "input_schema": {
       "resource": "input.schema.json",
-      "canonical_sha256": "b859ca2e55214b027150e74e32c193be92299fa087476804de09cf6c48b2e313"
+      "canonical_sha256": "fc6d9edfdd50c66959ed55c59cda6b78cd7ac44b508081ce896aa2efdcc2b481"
     },
     "result_schema": {
       "resource": "result.schema.json",
-      "canonical_sha256": "747ec9575d8b8248e4c31219ae6a39cdb84ad60a0434cfedece47c72c857144e"
+      "canonical_sha256": "35fc3245998601bd0d5e4d7cff42a5a1be35dfacd4729668c1286cdb340ddf4b"
+    },
+    "error_schema": {
+      "resource": "error.schema.json",
+      "canonical_sha256": "a373a5bd3c136a09bd1f80426fdbf954f8e4d2a5b090a579d327aa90b1e589d7"
     }
   },
   "dependencies": {
@@ -47,21 +51,53 @@
     "input_consistency_boundary": "Each node_id, resource_id, and join_id appears at most once in its identity-scoped input array. Duplicate or conflicting records for one identity are invalid required input and must yield REQUIRED_INPUT_INVALID; a resolver must not select, merge, vote, or apply a default.",
     "terminal_semantics": "Dependency success uses only existing explicit success meaning. SUCCEEDED is not Project Manager acceptance. NO_ACTION_REQUIRED remains evidence-bound. DONE_WITH_CONCERNS does not satisfy required success. HANDOFF is a nonterminal workflow outcome. BLOCKED cannot be bypassed by majority or optional policy. A failed required dependency cannot make its dependent node READY.",
     "resource_boundary": "AVAILABLE is a host-observed snapshot, not lock acquisition. BUSY yields WAITING_RESOURCE rather than STOP or BLOCKED. UNAVAILABLE and UNKNOWN remain distinct. Missing resource observations are not AVAILABLE. The contract does not poll, wait, acquire, lock, or schedule.",
-    "result_boundary": "The resolver result is decision output, not runtime mutation. The host decides whether and how an authorized result maps to an event or state update.",
+    "result_boundary": "The resolver Result is decision output, not runtime mutation. It is valid only for a matching input_digest; input_digest mismatch makes it non-reusable, and a host must not reuse a Result from graph_digest alone. The binding covers every validated decision input, including node state status and result digest, resource AVAILABLE, BUSY, UNAVAILABLE, or UNKNOWN snapshots, and external_join_decision authority and evidence. SATISFIED manual or corrective join authority evidence need not be copied into Result because input_digest binds the decision to that original validated input. The host decides whether and how an authorized Result maps to an event or state update.",
+    "error_boundary": "Result and Error are mutually exclusive language-neutral outputs. Invalid or oversized input, invalid Graph, Graph binding mismatch, or oversized result returns Error. Error is not a partial Result and must not generate a fabricated BLOCKED node, partial ready nodes, truncated success, HANDOFF, Project Manager decision, or acceptance. Error is not runtime mutation and has no event, transition, scheduler, or execution effect.",
     "identity_reference_boundary": "Node, resource, and join IDs are opaque semantic identities. Even when identity text looks like a path, it must be preserved exactly without path normalization, slugging, case-folding, truncation, path-based rejection, or filesystem interpretation. Opaque IDs are carried only in typed identity fields and do not automatically authorize file access; a resolver must not use an opaque ID for a filesystem operation. Evidence_refs, authority_ref, and blocking_refs are separate bounded repository-neutral references and never substitutes for required Graph identities.",
     "privacy_boundary": "Instances carry only bounded machine-readable reasons, counts, typed opaque Graph identities, and repository-neutral references. Evidence_refs, authority_ref, and blocking_refs reject absolute paths, UNC or rooted paths, file URIs, HTTP(S) URIs, and newline-bearing values. Instances exclude prompts, private reasoning, transcripts, stdout, stderr, environment dumps, credentials, secrets, process or agent or tool handles, absolute local paths, arbitrary payloads, mutable objects, and complete project history. CSV, Markdown, runtime writes, and filesystem access are outside this contract stage."
+  },
+  "semantic_input_digest": {
+    "algorithm": "SHA-256",
+    "domain_separator": "sagekit-ready-resolution-input-v1\u0000",
+    "domain_separator_utf8_hex": "736167656b69742d72656164792d7265736f6c7574696f6e2d696e7075742d763100",
+    "construction": "SHA-256(UTF-8(domain_separator) + canonical normalized input bytes). The domain separator is fixed exactly, including its trailing NUL byte.",
+    "validation_order": "Before digesting, parse strict JSON, reject duplicate object names, validate the entire Input Schema with unknown and extra fields forbidden, enforce every schema bound and conditional, and reject duplicate or conflicting node_id, resource_id, or join_id identity. Strict validation, uniqueness, and canonicalization must all succeed before input_digest exists or may appear in Error.",
+    "normalization": {
+      "object_keys": "Sort every object key by Unicode code point sequence using the existing canonical strict JSON rule.",
+      "node_states": "Stable-sort the complete node_states records by the original opaque node_id value in Unicode code point order.",
+      "resource_availability": "Stable-sort the complete resource_availability records by the original opaque resource_id value in Unicode code point order.",
+      "external_join_decisions": "Stable-sort the complete external_join_decisions records by the original opaque join_id value in Unicode code point order.",
+      "evidence_refs": "Sort every evidence_refs array by the original reference string in Unicode code point order.",
+      "other_fields": "Do not reorder any other array and do not transform any non-array semantic field. Status, availability, reason_code, result_digest, authority_ref, Graph binding, schema identity, and schema version remain exactly represented."
+    },
+    "identity_preservation": "Preserve every opaque node_id, resource_id, and join_id exactly. Do not trim, case-fold, Unicode-normalize, path-normalize, slash-normalize, reject path-looking text, or otherwise rewrite identity or reference values.",
+    "semantic_coverage": "The digest binds graph_digest, graph_generation, every node state including status, result_digest and evidence_refs, every resource snapshot including availability, reason_code and evidence_refs, every external join decision including decision, authority_ref and evidence_refs, and every other admitted Input field.",
+    "order_independence": "Permuting node_states, resource_availability, external_join_decisions, or evidence_refs alone does not change input_digest. Changing any admitted semantic value does change its normalized input bytes and therefore its digest identity.",
+    "distinctions": "Normalized semantic input digest is separate from canonical byte measurement used for 16 MiB admission and separate from Graph semantic digest and canonical resource integrity digests. It is not authority, permission, acceptance, execution identity, or a grant of any kind.",
+    "result_binding": "Result is valid only for the exact matching input_digest. input_digest mismatch forbids reuse, and graph_digest or graph_generation alone is insufficient for reuse."
   },
   "canonical_byte_budgets": {
     "max_input_canonical_bytes": 16777216,
     "max_result_canonical_bytes": 16777216,
+    "max_error_canonical_bytes": 1048576,
     "measurement": "Canonicalize parsed strict JSON values, then measure their bytes. Emit UTF-8 without a byte-order mark. Sort object keys lexicographically by Unicode code point sequence; reject duplicate object names as invalid strict JSON. Preserve array order and emit no insignificant whitespace. Emit null, true, and false literally. Ready Resolution numbers are integers: emit the shortest base-10 form with no leading plus or zero and emit zero as 0; NaN, infinity, negative zero, and non-integer numbers are invalid. In strings, escape quotation mark as \\\" and reverse solidus as \\\\, use \\b, \\t, \\n, \\f, and \\r for U+0008, U+0009, U+000A, U+000C, and U+000D, encode every other U+0000 through U+001F as lowercase \\u00xx, and do not escape solidus. Encode every other Unicode scalar directly as UTF-8 rather than ASCII escape, including non-BMP scalars. If a parsed host string can contain an unpaired UTF-16 surrogate code unit, preserve it for measurement and emit it as a lowercase \\uxxxx escape; a valid surrogate pair denotes its single non-BMP scalar. These mandatory JSON escapes measure a representation and never rewrite semantic identity. This deterministic measurement is used only for admission, not semantic identity or authority.",
     "identity_rule": "An individual opaque ID is never rewritten or truncated to satisfy an aggregate byte budget.",
-    "input_overflow": "Input over max_input_canonical_bytes makes a future resolver return a bounded REQUIRED_INPUT_INVALID error.",
-    "result_overflow": "A resolver must not generate a result over max_result_canonical_bytes, including a partial or false-success result.",
-    "graph_scope": "The byte budget does not alter the Graph digest, does not shrink the Graph Contract itself or its opaque identity domain, and limits only the optional resolver invocation."
+    "input_overflow": "Input over max_input_canonical_bytes returns bounded INPUT_TOO_LARGE Error and must not generate a partial Result.",
+    "result_overflow": "A resolver must not generate, truncate, or report success for a Result over max_result_canonical_bytes; it returns bounded RESULT_TOO_LARGE Error.",
+    "error_overflow": "Error is limited to max_error_canonical_bytes. The deterministic issue collector must stop within 100 issues and omit further issues rather than emit unbounded error output in response to oversized input.",
+    "graph_scope": "The byte budgets do not alter the Graph digest, do not shrink the Graph Contract itself or its opaque identity domain, and limit only the optional resolver invocation."
   },
-  "digest_semantics": "SHA-256 over each canonical resource's LF-normalized bytes is resource integrity only, not execution identity, semantic graph identity, runtime state identity, event identity, result identity, authority, or permission.",
-  "compatibility": "This pre-implementation compatibility corrective remains Ready Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. It separates typed opaque blocking identities from repository-neutral references and binds aggregate canonical byte admission without narrowing the Graph Contract identity domain. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation; Stage 4B resolver implementation remains deferred.",
+  "error_semantics": {
+    "REQUIRED_INPUT_INVALID": "Strict Input Schema, conditional, unknown-field, reference, or duplicate node/resource/join identity failure.",
+    "GRAPH_INVALID": "The supplied Graph fails Graph Contract v1 validation; no Result is produced.",
+    "GRAPH_BINDING_MISMATCH": "Input graph_digest or graph_generation does not bind to the validated Graph snapshot; no Result is produced.",
+    "INPUT_TOO_LARGE": "Canonical input bytes exceed max_input_canonical_bytes; no partial Result is produced.",
+    "RESULT_TOO_LARGE": "A complete candidate Result would exceed max_result_canonical_bytes; success is not truncated or partially reported.",
+    "input_digest_availability": "input_digest may appear in Error only after strict Input validation, identity uniqueness, and canonicalization succeed.",
+    "classification_boundary": "Error is not a BLOCKED node, HANDOFF, Project Manager decision, waiver, gate satisfaction, acceptance, runtime mutation, or authority."
+  },
+  "digest_semantics": "SHA-256 over each canonical resource's LF-normalized bytes is resource integrity only, not execution identity, semantic graph identity, runtime state identity, event identity, result identity, semantic input identity, authority, or permission. semantic_input_digest is separately domain-separated and defined only by semantic_input_digest.",
+  "compatibility": "This pre-implementation compatibility corrective remains Ready Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. It binds successful Results to complete validated semantic input and introduces a mutually exclusive language-neutral Error without narrowing the Graph Contract identity domain. It preserves typed opaque blocking identities, repository-neutral references, summary, privacy boundaries, 16 MiB input and result admission, host execution ownership, no scheduler, and no CLI. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation; Stage 4B resolver implementation remains deferred.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 4A",
     "reference": "Ready Resolution Contract v1 objective"
