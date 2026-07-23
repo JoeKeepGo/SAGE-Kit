@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:ready-resolution:v1:result",
   "title": "SAGE-Kit Ready Resolution Result v1",
-  "description": "A bounded, language-neutral decision output, not runtime mutation. It contains dispositions, stable reason codes, repository-neutral blocking references, and counts only. It contains no command, callback, process handle, agent packet, mutable object, private reasoning, transcript, environment dump, credential, secret, stdout, stderr, or arbitrary payload. The host decides whether and how to map this result to an authorized event or state update.",
+  "description": "A bounded, language-neutral decision output, not runtime mutation. The entire result instance has a deterministic canonical strict JSON limit of 16777216 bytes, measured with the complete canonical_byte_budgets algorithm in contract.json: UTF-8 without BOM, object keys lexicographically sorted by Unicode code point sequence, no insignificant whitespace, shortest decimal integers, fixed necessary JSON string escaping, and all other Unicode scalars encoded directly as UTF-8 rather than ASCII escape. Mandatory representation escaping never rewrites identity. This aggregate measurement is admission only, not semantic identity or authority. An individual opaque identity is never rewritten or truncated. A resolver must not generate an over-limit partial or false-success result; the byte budget does not alter the Graph digest and does not shrink the Graph Contract or its identity domain, and applies only to the optional resolver invocation. The result separates opaque blocking node and resource identities from bounded repository-neutral authority and evidence references. It contains dispositions, stable reason codes, typed blocking identities, repository-neutral blocking references, and counts only. It contains no command, callback, process handle, agent packet, mutable object, private reasoning, transcript, environment dump, credential, secret, stdout, stderr, or arbitrary payload. The host decides whether and how to map this result to an authorized event or state update.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -74,17 +74,20 @@
   "$defs": {
     "node_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Opaque non-empty Graph node semantic identity. Even when its text looks like a path, it is preserved exactly and is never path-normalized, rejected as a path, treated as file access, or used for a filesystem operation."
     },
     "graph_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Opaque non-empty Graph resource or join semantic identity. Even when its text looks like a path, it is preserved exactly and is never path-normalized, rejected as a path, treated as file access, or used for a filesystem operation."
     },
     "reference": {
       "type": "string",
       "minLength": 1,
       "maxLength": 1024,
-      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Ii][Ll][Ee]):)(?!.*[\\r\\n]).+$"
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Ii][Ll][Ee]):)(?!.*[\\r\\n]).+$",
+      "description": "Bounded repository-neutral evidence or authority reference. Absolute paths, UNC or rooted paths, file URIs, HTTP(S) URIs, and newline-bearing values are invalid."
     },
     "sha256": {
       "type": "string",
@@ -128,6 +131,8 @@
         "node_id",
         "disposition",
         "reason_codes",
+        "blocking_node_ids",
+        "blocking_resource_ids",
         "blocking_refs"
       ],
       "properties": {
@@ -159,6 +164,24 @@
           },
           "description": "Bounded deterministic machine-readable reasons, never unbounded prose."
         },
+        "blocking_node_ids": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/node_id"
+          },
+          "description": "Bounded unique opaque Graph node identities that block this node decision. Values are semantic identities, never references or filesystem paths."
+        },
+        "blocking_resource_ids": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/graph_id"
+          },
+          "description": "Bounded unique opaque Graph resource identities that block this node decision. Values are semantic identities, never references or filesystem paths."
+        },
         "blocking_refs": {
           "type": "array",
           "maxItems": 100,
@@ -166,9 +189,168 @@
           "items": {
             "$ref": "#/$defs/reference"
           },
-          "description": "Bounded repository-neutral references to blocking dependencies, resources, joins, or evidence."
+          "description": "Bounded unique repository-neutral authority or evidence references associated with the blocker. Opaque node, resource, and join identities never belong in this field."
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "disposition": {
+              "const": "READY"
+            },
+            "reason_codes": {
+              "items": {
+                "enum": [
+                  "DEPENDENCIES_SATISFIED",
+                  "RESOURCE_AVAILABLE"
+                ]
+              }
+            },
+            "blocking_node_ids": {
+              "maxItems": 0
+            },
+            "blocking_resource_ids": {
+              "maxItems": 0
+            },
+            "blocking_refs": {
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "WAITING_DEPENDENCY"
+            },
+            "reason_codes": {
+              "items": {
+                "enum": [
+                  "DEPENDENCY_PENDING",
+                  "DEPENDENCY_FAILED"
+                ]
+              }
+            },
+            "blocking_node_ids": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "WAITING_RESOURCE"
+            },
+            "reason_codes": {
+              "items": {
+                "enum": [
+                  "RESOURCE_BUSY",
+                  "RESOURCE_UNAVAILABLE",
+                  "RESOURCE_UNKNOWN"
+                ]
+              }
+            },
+            "blocking_resource_ids": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "IN_PROGRESS"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "NODE_RUNNING"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "NEEDS_CORRECTION"
+            },
+            "reason_codes": {
+              "items": {
+                "enum": [
+                  "NODE_FAILED",
+                  "NODE_NEEDS_CORRECTION",
+                  "NODE_DONE_WITH_CONCERNS"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "HANDOFF_REQUIRED"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "NODE_HANDOFF"
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "BLOCKED"
+            },
+            "reason_codes": {
+              "items": {
+                "enum": [
+                  "DEPENDENCY_FAILED",
+                  "RESOURCE_UNAVAILABLE",
+                  "NODE_FAILED",
+                  "NODE_BLOCKED",
+                  "NODE_CANCELLED",
+                  "NODE_DONE_WITH_CONCERNS",
+                  "REQUIRED_INPUT_INVALID"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "COMPLETED"
+            },
+            "reason_codes": {
+              "items": {
+                "enum": [
+                  "NODE_SUCCEEDED",
+                  "NODE_NO_ACTION_REQUIRED"
+                ]
+              }
+            },
+            "blocking_node_ids": {
+              "maxItems": 0
+            },
+            "blocking_resource_ids": {
+              "maxItems": 0
+            },
+            "blocking_refs": {
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "CANCELLED"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "NODE_CANCELLED"
+              }
+            }
+          }
+        }
+      ]
     },
     "join_decision": {
       "type": "object",
@@ -178,6 +360,7 @@
         "join_id",
         "disposition",
         "reason_codes",
+        "blocking_node_ids",
         "blocking_refs"
       ],
       "properties": {
@@ -205,6 +388,15 @@
           },
           "description": "Bounded deterministic machine-readable reasons, never approval prose."
         },
+        "blocking_node_ids": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/node_id"
+          },
+          "description": "Bounded unique opaque Graph node identities that block this join decision. External authority or evidence remains in blocking_refs."
+        },
         "blocking_refs": {
           "type": "array",
           "maxItems": 100,
@@ -212,9 +404,101 @@
           "items": {
             "$ref": "#/$defs/reference"
           },
-          "description": "Bounded repository-neutral references to pending or failed nodes and explicit external-decision evidence."
+          "description": "Bounded unique repository-neutral authority or evidence references. Opaque node identities never belong in this field, and references cannot replace node identities for an automatic join failure."
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "disposition": {
+              "const": "SATISFIED"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "JOIN_SATISFIED"
+              }
+            },
+            "blocking_node_ids": {
+              "maxItems": 0
+            },
+            "blocking_refs": {
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "WAITING_NODE"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "JOIN_NODE_PENDING"
+              }
+            },
+            "blocking_node_ids": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "REQUIRES_EXTERNAL_DECISION"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "EXTERNAL_DECISION_MISSING"
+              }
+            },
+            "blocking_node_ids": {
+              "maxItems": 0
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "REJECTED"
+            },
+            "reason_codes": {
+              "items": {
+                "const": "EXTERNAL_DECISION_REJECTED"
+              }
+            },
+            "blocking_node_ids": {
+              "maxItems": 0
+            },
+            "blocking_refs": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "BLOCKED"
+            },
+            "reason_codes": {
+              "contains": {
+                "const": "JOIN_NODE_FAILED"
+              },
+              "items": {
+                "enum": [
+                  "JOIN_NODE_FAILED",
+                  "NODE_FAILED",
+                  "NODE_BLOCKED",
+                  "NODE_CANCELLED",
+                  "NODE_DONE_WITH_CONCERNS"
+                ]
+              }
+            },
+            "blocking_node_ids": {
+              "minItems": 1
+            }
+          }
+        }
+      ]
     },
     "bounded_count": {
       "type": "integer",

@@ -6,11 +6,11 @@
   "resources": {
     "input_schema": {
       "resource": "input.schema.json",
-      "canonical_sha256": "298e56d3044360458f48b7b36d7d044e646e8de4ca1ac1a58e3f16bbd604edd4"
+      "canonical_sha256": "b859ca2e55214b027150e74e32c193be92299fa087476804de09cf6c48b2e313"
     },
     "result_schema": {
       "resource": "result.schema.json",
-      "canonical_sha256": "66f78b241d40b948d96bb1df26389e43318c98b4cde62b772ee1a8e83502d3ac"
+      "canonical_sha256": "747ec9575d8b8248e4c31219ae6a39cdb84ad60a0434cfedece47c72c857144e"
     }
   },
   "dependencies": {
@@ -48,10 +48,20 @@
     "terminal_semantics": "Dependency success uses only existing explicit success meaning. SUCCEEDED is not Project Manager acceptance. NO_ACTION_REQUIRED remains evidence-bound. DONE_WITH_CONCERNS does not satisfy required success. HANDOFF is a nonterminal workflow outcome. BLOCKED cannot be bypassed by majority or optional policy. A failed required dependency cannot make its dependent node READY.",
     "resource_boundary": "AVAILABLE is a host-observed snapshot, not lock acquisition. BUSY yields WAITING_RESOURCE rather than STOP or BLOCKED. UNAVAILABLE and UNKNOWN remain distinct. Missing resource observations are not AVAILABLE. The contract does not poll, wait, acquire, lock, or schedule.",
     "result_boundary": "The resolver result is decision output, not runtime mutation. The host decides whether and how an authorized result maps to an event or state update.",
-    "privacy_boundary": "Instances carry only bounded machine-readable reasons, counts, and repository-neutral references. They exclude prompts, private reasoning, transcripts, stdout, stderr, environment dumps, credentials, secrets, process or agent or tool handles, absolute local paths, arbitrary payloads, mutable objects, and complete project history."
+    "identity_reference_boundary": "Node, resource, and join IDs are opaque semantic identities. Even when identity text looks like a path, it must be preserved exactly without path normalization, slugging, case-folding, truncation, path-based rejection, or filesystem interpretation. Opaque IDs are carried only in typed identity fields and do not automatically authorize file access; a resolver must not use an opaque ID for a filesystem operation. Evidence_refs, authority_ref, and blocking_refs are separate bounded repository-neutral references and never substitutes for required Graph identities.",
+    "privacy_boundary": "Instances carry only bounded machine-readable reasons, counts, typed opaque Graph identities, and repository-neutral references. Evidence_refs, authority_ref, and blocking_refs reject absolute paths, UNC or rooted paths, file URIs, HTTP(S) URIs, and newline-bearing values. Instances exclude prompts, private reasoning, transcripts, stdout, stderr, environment dumps, credentials, secrets, process or agent or tool handles, absolute local paths, arbitrary payloads, mutable objects, and complete project history. CSV, Markdown, runtime writes, and filesystem access are outside this contract stage."
+  },
+  "canonical_byte_budgets": {
+    "max_input_canonical_bytes": 16777216,
+    "max_result_canonical_bytes": 16777216,
+    "measurement": "Canonicalize parsed strict JSON values, then measure their bytes. Emit UTF-8 without a byte-order mark. Sort object keys lexicographically by Unicode code point sequence; reject duplicate object names as invalid strict JSON. Preserve array order and emit no insignificant whitespace. Emit null, true, and false literally. Ready Resolution numbers are integers: emit the shortest base-10 form with no leading plus or zero and emit zero as 0; NaN, infinity, negative zero, and non-integer numbers are invalid. In strings, escape quotation mark as \\\" and reverse solidus as \\\\, use \\b, \\t, \\n, \\f, and \\r for U+0008, U+0009, U+000A, U+000C, and U+000D, encode every other U+0000 through U+001F as lowercase \\u00xx, and do not escape solidus. Encode every other Unicode scalar directly as UTF-8 rather than ASCII escape, including non-BMP scalars. If a parsed host string can contain an unpaired UTF-16 surrogate code unit, preserve it for measurement and emit it as a lowercase \\uxxxx escape; a valid surrogate pair denotes its single non-BMP scalar. These mandatory JSON escapes measure a representation and never rewrite semantic identity. This deterministic measurement is used only for admission, not semantic identity or authority.",
+    "identity_rule": "An individual opaque ID is never rewritten or truncated to satisfy an aggregate byte budget.",
+    "input_overflow": "Input over max_input_canonical_bytes makes a future resolver return a bounded REQUIRED_INPUT_INVALID error.",
+    "result_overflow": "A resolver must not generate a result over max_result_canonical_bytes, including a partial or false-success result.",
+    "graph_scope": "The byte budget does not alter the Graph digest, does not shrink the Graph Contract itself or its opaque identity domain, and limits only the optional resolver invocation."
   },
   "digest_semantics": "SHA-256 over each canonical resource's LF-normalized bytes is resource integrity only, not execution identity, semantic graph identity, runtime state identity, event identity, result identity, authority, or permission.",
-  "compatibility": "Language-neutral Ready Resolution Contract v1 preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation.",
+  "compatibility": "This pre-implementation compatibility corrective remains Ready Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. It separates typed opaque blocking identities from repository-neutral references and binds aggregate canonical byte admission without narrowing the Graph Contract identity domain. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation; Stage 4B resolver implementation remains deferred.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 4A",
     "reference": "Ready Resolution Contract v1 objective"

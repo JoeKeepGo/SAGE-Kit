@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:ready-resolution:v1:input",
   "title": "SAGE-Kit Ready Resolution Input v1",
-  "description": "A bounded, language-neutral snapshot presented to a future pure resolver. Schema presence does not activate Graph execution, execute nodes, poll or acquire resources, open a human gate, create a scheduler, create runtime state, mutate the Graph, or grant execution or transition authority. The host supplies already-observed facts and retains execution ownership.",
+  "description": "A bounded, language-neutral snapshot presented to a future pure resolver. The entire input instance is admitted only when its deterministic canonical strict JSON representation is at most 16777216 bytes, measured with the complete canonical_byte_budgets algorithm in contract.json: UTF-8 without BOM, object keys lexicographically sorted by Unicode code point sequence, no insignificant whitespace, shortest decimal integers, fixed necessary JSON string escaping, and all other Unicode scalars encoded directly as UTF-8 rather than ASCII escape. Mandatory representation escaping never rewrites identity. This aggregate measurement is admission only, not semantic identity or authority. An individual opaque identity is never rewritten or truncated. Input over this limit makes an optional resolver invocation return a bounded REQUIRED_INPUT_INVALID error; the byte budget does not alter the Graph digest and does not shrink the Graph Contract itself. Schema presence does not activate Graph execution, execute nodes, poll or acquire resources, open a human gate, create a scheduler, create runtime state, mutate the Graph, or grant execution or transition authority. The host supplies already-observed facts and retains execution ownership.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -65,17 +65,20 @@
   "$defs": {
     "node_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Opaque non-empty Graph node semantic identity. Even when its text looks like a path, it is preserved exactly and is never path-normalized, rejected as a path, treated as file access, or used for a filesystem operation."
     },
     "graph_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Opaque non-empty Graph resource or join semantic identity. Even when its text looks like a path, it is preserved exactly and is never path-normalized, rejected as a path, treated as file access, or used for a filesystem operation."
     },
     "reference": {
       "type": "string",
       "minLength": 1,
       "maxLength": 1024,
-      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Ii][Ll][Ee]):)(?!.*[\\r\\n]).+$"
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Ii][Ll][Ee]):)(?!.*[\\r\\n]).+$",
+      "description": "Bounded repository-neutral evidence or authority reference. Absolute paths, UNC or rooted paths, file URIs, HTTP(S) URIs, and newline-bearing values are invalid."
     },
     "sha256": {
       "type": "string",

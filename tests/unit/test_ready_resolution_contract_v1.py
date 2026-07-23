@@ -32,6 +32,10 @@ DEPENDENCY_DIGESTS = {
     "docs/contracts/runtime-state/v1/state.schema.json": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
+PRE_CORRECTIVE_SCHEMA_DIGESTS = {
+    "input.schema.json": "298e56d3044360458f48b7b36d7d044e646e8de4ca1ac1a58e3f16bbd604edd4",
+    "result.schema.json": "66f78b241d40b948d96bb1df26389e43318c98b4cde62b772ee1a8e83502d3ac",
+}
 NODE_STATUSES = {
     "PENDING",
     "READY",
@@ -145,6 +149,16 @@ def load_json(path):
 
 def canonical_sha256(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def canonical_json_bytes(value):
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
 
 
 def changed_paths_since_baseline():
@@ -279,6 +293,12 @@ def is_schema_valid(instance, schema, root=None):
                 return False
         if "items" in schema and not all(is_schema_valid(item, schema["items"], root) for item in instance):
             return False
+        if "contains" in schema:
+            match_count = sum(is_schema_valid(item, schema["contains"], root) for item in instance)
+            if match_count < schema.get("minContains", 1):
+                return False
+            if "maxContains" in schema and match_count > schema["maxContains"]:
+                return False
 
     if isinstance(instance, dict):
         if any(name not in instance for name in schema.get("required", [])):
@@ -340,6 +360,8 @@ def valid_result():
                 "node_id": "阶段/节点 α",
                 "disposition": "READY",
                 "reason_codes": ["DEPENDENCIES_SATISFIED"],
+                "blocking_node_ids": [],
+                "blocking_resource_ids": [],
                 "blocking_refs": [],
             }
         ],
@@ -481,11 +503,18 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             set(self.result_schema["required"]),
         )
         self.assertEqual(
-            {"node_id", "disposition", "reason_codes", "blocking_refs"},
+            {
+                "node_id",
+                "disposition",
+                "reason_codes",
+                "blocking_node_ids",
+                "blocking_resource_ids",
+                "blocking_refs",
+            },
             set(self.result_schema["$defs"]["node_decision"]["required"]),
         )
         self.assertEqual(
-            {"join_id", "disposition", "reason_codes", "blocking_refs"},
+            {"join_id", "disposition", "reason_codes", "blocking_node_ids", "blocking_refs"},
             set(self.result_schema["$defs"]["join_decision"]["required"]),
         )
         self.assertEqual(SUMMARY_FIELDS, set(self.result_schema["$defs"]["summary"]["required"]))
@@ -529,9 +558,16 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
 
     def test_graph_derived_ids_remain_opaque_unicode_and_slash_strings(self):
         node_id = self.input_schema["$defs"]["node_id"]
-        self.assertEqual({"type": "string", "minLength": 1}, node_id)
-        self.assertEqual({"type": "string", "minLength": 1}, self.input_schema["$defs"]["graph_id"])
-        self.assertEqual({"type": "string", "minLength": 1}, self.result_schema["$defs"]["graph_id"])
+        for identity_schema in (
+            node_id,
+            self.input_schema["$defs"]["graph_id"],
+            self.result_schema["$defs"]["node_id"],
+            self.result_schema["$defs"]["graph_id"],
+        ):
+            self.assertEqual("string", identity_schema["type"])
+            self.assertEqual(1, identity_schema["minLength"])
+            self.assertNotIn("maxLength", identity_schema)
+            self.assertNotIn("pattern", identity_schema)
         for value in ("阶段/节点 α", r"lane\worker", " node with spaces ", "!leading", "節" * 300):
             candidate = valid_input()
             candidate["node_states"][0]["node_id"] = value
@@ -544,6 +580,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
                     "join_id": value,
                     "disposition": "SATISFIED",
                     "reason_codes": ["JOIN_SATISFIED"],
+                    "blocking_node_ids": [],
                     "blocking_refs": [],
                 }
             ]
@@ -559,6 +596,307 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         candidate = valid_input()
         candidate["external_join_decisions"][0]["join_id"] = ""
         self.assertFalse(is_schema_valid(candidate, self.input_schema))
+
+    def test_result_separates_opaque_blocking_identities_from_references(self):
+        node_properties = self.result_schema["$defs"]["node_decision"]["properties"]
+        join_properties = self.result_schema["$defs"]["join_decision"]["properties"]
+        self.assertEqual({"$ref": "#/$defs/node_id"}, node_properties["blocking_node_ids"]["items"])
+        self.assertEqual({"$ref": "#/$defs/graph_id"}, node_properties["blocking_resource_ids"]["items"])
+        self.assertEqual({"$ref": "#/$defs/node_id"}, join_properties["blocking_node_ids"]["items"])
+        self.assertNotIn("blocking_ids", node_properties)
+        self.assertNotIn("blocking_ids", join_properties)
+
+        identity_cases = (
+            ("blocking_node_ids", "/absolute-looking-node"),
+            ("blocking_resource_ids", r"C:\looking\resource"),
+            ("blocking_node_ids", "阻塞/节点 δ"),
+            ("blocking_node_ids", "opaque-" + ("節" * 1100)),
+        )
+        for field, identity in identity_cases:
+            result = valid_result()
+            decision = result["node_decisions"][0]
+            decision.update(
+                disposition="BLOCKED",
+                reason_codes=["NODE_BLOCKED"],
+                blocking_node_ids=[],
+                blocking_resource_ids=[],
+            )
+            decision[field] = [identity]
+            self.assertTrue(is_schema_valid(result, self.result_schema), (field, identity))
+
+        for reference in (
+            "/absolute-looking-node",
+            r"C:\looking\resource",
+            "opaque-" + ("節" * 1100),
+        ):
+            result = valid_result()
+            result["node_decisions"][0].update(
+                blocking_node_ids=[],
+                blocking_resource_ids=[],
+                blocking_refs=[reference],
+            )
+            self.assertFalse(is_schema_valid(result, self.result_schema), reference)
+
+    def test_result_identity_conditionals_prevent_false_green(self):
+        default_reason_codes = {
+            "READY": ("DEPENDENCIES_SATISFIED",),
+            "WAITING_DEPENDENCY": ("DEPENDENCY_PENDING",),
+            "WAITING_RESOURCE": ("RESOURCE_BUSY",),
+            "IN_PROGRESS": ("NODE_RUNNING",),
+            "NEEDS_CORRECTION": ("NODE_NEEDS_CORRECTION",),
+            "HANDOFF_REQUIRED": ("NODE_HANDOFF",),
+            "BLOCKED": ("NODE_BLOCKED",),
+            "COMPLETED": ("NODE_SUCCEEDED",),
+            "CANCELLED": ("NODE_CANCELLED",),
+        }
+
+        def node_result(
+            disposition,
+            node_ids=(),
+            resource_ids=(),
+            refs=(),
+            reason_codes=None,
+        ):
+            result = valid_result()
+            result["node_decisions"][0].update(
+                disposition=disposition,
+                reason_codes=list(reason_codes or default_reason_codes[disposition]),
+                blocking_node_ids=list(node_ids),
+                blocking_resource_ids=list(resource_ids),
+                blocking_refs=list(refs),
+            )
+            return result
+
+        self.assertFalse(is_schema_valid(node_result("WAITING_DEPENDENCY"), self.result_schema))
+        self.assertTrue(
+            is_schema_valid(
+                node_result("WAITING_DEPENDENCY", node_ids=("/absolute-looking-node",)),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(is_schema_valid(node_result("WAITING_RESOURCE"), self.result_schema))
+        self.assertTrue(
+            is_schema_valid(
+                node_result("WAITING_RESOURCE", resource_ids=(r"C:\looking\resource",)),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(node_result("READY", node_ids=("dependency",)), self.result_schema)
+        )
+        self.assertFalse(
+            is_schema_valid(node_result("READY", resource_ids=("resource",)), self.result_schema)
+        )
+        self.assertFalse(
+            is_schema_valid(node_result("COMPLETED", node_ids=("dependency",)), self.result_schema)
+        )
+        self.assertFalse(
+            is_schema_valid(node_result("COMPLETED", resource_ids=("resource",)), self.result_schema)
+        )
+        self.assertFalse(
+            is_schema_valid(
+                node_result("READY", reason_codes=("DEPENDENCY_FAILED",)),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                node_result("COMPLETED", reason_codes=("NODE_HANDOFF",)),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                node_result("READY", refs=("evidence/not-a-blocker",)),
+                self.result_schema,
+            )
+        )
+        self.assertTrue(
+            is_schema_valid(node_result("BLOCKED", node_ids=("dependency",)), self.result_schema)
+        )
+        self.assertTrue(
+            is_schema_valid(node_result("BLOCKED", refs=("evidence/blocker",)), self.result_schema)
+        )
+
+        def join_result(disposition, node_ids=(), refs=(), reason_code="JOIN_SATISFIED"):
+            result = valid_result()
+            result["join_decisions"] = [
+                {
+                    "join_id": "join",
+                    "disposition": disposition,
+                    "reason_codes": [reason_code],
+                    "blocking_node_ids": list(node_ids),
+                    "blocking_refs": list(refs),
+                }
+            ]
+            return result
+
+        self.assertFalse(is_schema_valid(join_result("WAITING_NODE"), self.result_schema))
+        self.assertTrue(
+            is_schema_valid(
+                join_result(
+                    "WAITING_NODE",
+                    node_ids=("/absolute-looking-node",),
+                    reason_code="JOIN_NODE_PENDING",
+                ),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(join_result("SATISFIED", node_ids=("node",)), self.result_schema)
+        )
+        self.assertFalse(
+            is_schema_valid(
+                join_result("SATISFIED", reason_code="EXTERNAL_DECISION_MISSING"),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                join_result("SATISFIED", refs=("evidence/not-a-blocker",)),
+                self.result_schema,
+            )
+        )
+        self.assertTrue(
+            is_schema_valid(
+                join_result(
+                    "REQUIRES_EXTERNAL_DECISION",
+                    reason_code="EXTERNAL_DECISION_MISSING",
+                ),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                join_result(
+                    "REQUIRES_EXTERNAL_DECISION",
+                    node_ids=("fabricated-node",),
+                    reason_code="EXTERNAL_DECISION_MISSING",
+                ),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                join_result("REJECTED", reason_code="EXTERNAL_DECISION_REJECTED"),
+                self.result_schema,
+            )
+        )
+        self.assertTrue(
+            is_schema_valid(
+                join_result(
+                    "REJECTED",
+                    refs=("authority/rejection",),
+                    reason_code="EXTERNAL_DECISION_REJECTED",
+                ),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                join_result(
+                    "BLOCKED",
+                    refs=("evidence/automatic-failure",),
+                    reason_code="JOIN_NODE_FAILED",
+                ),
+                self.result_schema,
+            )
+        )
+        self.assertTrue(
+            is_schema_valid(
+                join_result(
+                    "BLOCKED",
+                    node_ids=("failed-node",),
+                    refs=("evidence/automatic-failure",),
+                    reason_code="JOIN_NODE_FAILED",
+                ),
+                self.result_schema,
+            )
+        )
+        self.assertFalse(
+            is_schema_valid(
+                join_result(
+                    "BLOCKED",
+                    node_ids=("failed-node",),
+                    reason_code="JOIN_SATISFIED",
+                ),
+                self.result_schema,
+            )
+        )
+
+    def test_aggregate_canonical_byte_budgets_are_language_neutral_admission_only(self):
+        bounds = self.manifest["canonical_byte_budgets"]
+        self.assertEqual(16777216, bounds["max_input_canonical_bytes"])
+        self.assertEqual(16777216, bounds["max_result_canonical_bytes"])
+        text = json.dumps(
+            {
+                "bounds": bounds,
+                "input": self.input_schema["description"],
+                "result": self.result_schema["description"],
+                "compatibility": self.manifest["compatibility"],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ).lower()
+        for phrase in (
+            "utf-8",
+            "object keys lexicographically sorted",
+            "no insignificant whitespace",
+            "rather than ascii escape",
+            "strict json values",
+            "admission",
+            "not semantic identity or authority",
+            "never rewritten or truncated",
+            "required_input_invalid",
+            "partial or false-success",
+            "does not alter the graph digest",
+            "does not shrink the graph contract",
+            "optional resolver invocation",
+            "pre-implementation compatibility corrective",
+        ):
+            self.assertIn(phrase, text)
+        measurement = bounds["measurement"].lower()
+        for phrase in (
+            "without a byte-order mark",
+            "unicode code point sequence",
+            "duplicate object names",
+            "shortest base-10 form",
+            "quotation mark",
+            "reverse solidus",
+            "u+0000 through u+001f",
+            "do not escape solidus",
+            "non-bmp",
+            "unpaired utf-16 surrogate",
+            "mandatory json escapes",
+        ):
+            self.assertIn(phrase, measurement)
+
+        vector = {
+            "z": "quote\" reverse\\ control\u0001 astral😀",
+            "a": [True, None, 10],
+        }
+        expected = (
+            b'{"a":[true,null,10],"z":"quote\\" reverse\\\\ control\\u0001 astral'
+            + "😀".encode("utf-8")
+            + b'"}'
+        )
+        self.assertEqual(expected, canonical_json_bytes(vector))
+
+        boundary_overhead = len(canonical_json_bytes({"id": ""}))
+        exact_boundary = {"id": "x" * (bounds["max_input_canonical_bytes"] - boundary_overhead)}
+        self.assertEqual(bounds["max_input_canonical_bytes"], len(canonical_json_bytes(exact_boundary)))
+        exact_boundary["id"] += "x"
+        self.assertEqual(
+            bounds["max_input_canonical_bytes"] + 1,
+            len(canonical_json_bytes(exact_boundary)),
+        )
+
+    def test_corrective_updates_schema_digests_without_changing_dependency_digests(self):
+        resources = self.manifest["resources"]
+        for key, name in (("input_schema", "input.schema.json"), ("result_schema", "result.schema.json")):
+            digest = resources[key]["canonical_sha256"]
+            self.assertEqual(canonical_sha256(self.canonical[name]), digest)
+            self.assertNotEqual(PRE_CORRECTIVE_SCHEMA_DIGESTS[name], digest)
 
     def test_node_result_digest_is_conditional_and_no_action_is_evidence_bound(self):
         result_statuses = {
@@ -652,7 +990,8 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
                 "join_id": "manual-review",
                 "disposition": "REQUIRES_EXTERNAL_DECISION",
                 "reason_codes": ["EXTERNAL_DECISION_MISSING"],
-                "blocking_refs": ["join/manual-review"],
+                "blocking_node_ids": [],
+                "blocking_refs": [],
             }
         ]
         result["summary"]["join_decision_count"] = 1
@@ -695,6 +1034,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             r"\rooted\approval",
             "file:///C:/private/approval",
             "HTTPS://example.test/private-approval",
+            "evidence/line\nbreak",
         )
         for reference in forbidden_references:
             candidate = valid_input()
