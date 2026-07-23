@@ -6,11 +6,11 @@
   "resources": {
     "state_schema": {
       "resource": "state.schema.json",
-      "canonical_sha256": "e8cfac0e19f0a0cef5550c9402e492c5cf9484224af8c906f66da4fb26d872af"
+      "canonical_sha256": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e"
     },
     "event_schema": {
       "resource": "event.schema.json",
-      "canonical_sha256": "5aecc3d537f4fd51337f2d4c4c891fddeb6ea8f1d85c45cea32574d7dce1b25f"
+      "canonical_sha256": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9"
     }
   },
   "dependencies": {
@@ -54,7 +54,7 @@
     "constraint": "Runtime state and events must not copy and must not modify session handoff or project memory content, accepted history, complete milestone documents, or complete phase documents."
   },
   "digest_semantics": "SHA-256 over exact canonical resource bytes; this is resource integrity only, not a runtime snapshot digest, event identity algorithm, or result digest algorithm.",
-  "compatibility": "Language-neutral Runtime State Contract v1. Graph snapshots remain Graph Contract v1, node statuses remain compatible with Stage 2, and the Stage 2B pure validator remains the owner of transition rules. Light and Graph optionality are unchanged. Schema presence does not create runtime state, write files, acquire authority, start scheduling, recover a run, or execute a Graph.",
+  "compatibility": "Language-neutral Runtime State Contract v1 with a compatibility corrective preserving the full Graph Contract v1 non-empty opaque node-ID domain. Graph snapshots remain Graph Contract v1, node statuses remain compatible with Stage 2, all non-node runtime identities retain their existing bounded grammar, and the Stage 2B pure validator remains the owner of transition rules. Light and Graph optionality are unchanged. Schema presence does not create runtime state, write files, acquire authority, start scheduling, recover a run, or execute a Graph.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 3A",
     "reference": "rebuild.md#stage-3-runtime-snapshot-and-event-log"

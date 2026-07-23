@@ -7,6 +7,7 @@ acquisition, initialization, or mutation calls.
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
@@ -18,6 +19,7 @@ from pathlib import Path
 import re
 import stat
 import tempfile
+import threading
 from typing import Any, Callable, Mapping, Sequence
 
 from .graph_contract import (
@@ -152,6 +154,20 @@ _LOCK_FIELDS = frozenset(
         "writer_id",
     }
 )
+_LOCK_ALLOWED_FIELDS = _LOCK_FIELDS | {"takeover_authority"}
+_TAKEOVER_FIELDS = frozenset(
+    {
+        "confirmation_id",
+        "run_id",
+        "graph_digest",
+        "authority_id",
+        "controller_id",
+        "expected_prior_writer_id",
+        "expected_prior_lock_digest",
+        "new_writer_id",
+        "reason_code",
+    }
+)
 _ATTEMPT_REQUIRED_STATUSES = frozenset(
     {
         "RUNNING",
@@ -242,7 +258,28 @@ class RuntimeWriter:
     _lock_bytes: bytes
     _lock_identity: tuple[int, int, int, int, int]
     _runtime_identity: tuple[int, int]
+    _takeover_authority: RuntimeTakeoverAuthority | None = None
     _released: bool = False
+
+
+@dataclass(frozen=True)
+class RuntimeTakeoverAuthority:
+    confirmation_id: str
+    run_id: str
+    graph_digest: str
+    authority_id: str
+    controller_id: str
+    expected_prior_writer_id: str
+    expected_prior_lock_digest: str
+    new_writer_id: str
+    reason_code: str
+
+
+_OPERATION_GUARDS_LOCK = threading.Lock()
+_OPERATION_GUARDS: dict[
+    tuple[str, tuple[int, int], tuple[int, int, int, int, int], bytes],
+    threading.RLock,
+] = {}
 
 
 @dataclass(frozen=True)
@@ -254,6 +291,7 @@ class _RuntimePaths:
     state: Path
     events: Path
     lock: Path
+    takeover_guard: Path
 
 
 @dataclass(frozen=True)
@@ -362,6 +400,14 @@ def _require_identity(value: Any, label: str) -> str:
     )
 
 
+def _require_node_id(value: Any, label: str) -> str:
+    if type(value) is not str:
+        raise RuntimeStoreIntegrityError(f"{label} must be a string")
+    if not value:
+        raise RuntimeStoreIntegrityError(f"{label} must be non-empty")
+    return value
+
+
 def _require_sha256(value: Any, label: str) -> str:
     return _require_string(
         value,
@@ -459,7 +505,7 @@ def derive_event_id(run_id: str, sequence: int) -> str:
 
 def derive_attempt_id(run_id: str, node_id: str, attempt_number: int) -> str:
     _require_identity(run_id, "run_id")
-    _require_identity(node_id, "node_id")
+    _require_node_id(node_id, "node_id")
     _require_integer(
         attempt_number,
         "attempt_number",
@@ -508,6 +554,7 @@ def _paths(root: str | os.PathLike[str]) -> _RuntimePaths:
         state=runtime / "state.json",
         events=runtime / "events.jsonl",
         lock=runtime / "writer.lock",
+        takeover_guard=runtime / ".writer.takeover.guard",
     )
 
 
@@ -574,6 +621,21 @@ def _ensure_runtime_directory(paths: _RuntimePaths, *, create: bool) -> bool:
             paths.root, paths.runtime, "runtime directory"
         )
     return True
+
+
+def _runtime_entry_names(
+    paths: _RuntimePaths,
+    runtime_identity: tuple[int, int],
+) -> set[str]:
+    _assert_directory_identity(paths.runtime, runtime_identity)
+    try:
+        names = {entry.name for entry in paths.runtime.iterdir()}
+    except OSError as exc:
+        raise RuntimeStoreIntegrityError(
+            "runtime directory entries cannot be inspected safely"
+        ) from exc
+    _assert_directory_identity(paths.runtime, runtime_identity)
+    return names
 
 
 def _file_identity(result: os.stat_result) -> tuple[int, int, int, int, int]:
@@ -726,7 +788,7 @@ def validate_runtime_state(
             allowed=_NODE_STATE_FIELDS,
             label=label,
         )
-        node_id = _require_identity(node_state["node_id"], f"{label}.node_id")
+        node_id = _require_node_id(node_state["node_id"], f"{label}.node_id")
         node_ids.append(node_id)
         status_value = _require_enum(
             node_state["status"], NODE_STATUSES, f"{label}.status"
@@ -847,7 +909,7 @@ def validate_runtime_event(
     graph_value = _validate_graph(graph)
     graph_nodes = {item["id"] for item in graph["nodes"]}
     if "node_id" in event:
-        node_id = _require_identity(event["node_id"], "event.node_id")
+        node_id = _require_node_id(event["node_id"], "event.node_id")
         if node_id not in graph_nodes:
             raise RuntimeStoreIntegrityError("event node is not declared by the graph")
     if "attempt_id" in event:
@@ -911,7 +973,7 @@ def _validate_lock_payload(
     lock = _require_exact_mapping(
         payload,
         required=_LOCK_FIELDS,
-        allowed=_LOCK_FIELDS,
+        allowed=_LOCK_ALLOWED_FIELDS,
         label="writer lock",
     )
     if lock["schema_id"] != LOCK_SCHEMA_ID:
@@ -923,6 +985,23 @@ def _validate_lock_payload(
     _require_identity(lock["authority_id"], "lock.authority_id")
     _require_identity(lock["controller_id"], "lock.controller_id")
     _require_identity(lock["writer_id"], "lock.writer_id")
+    takeover = None
+    if "takeover_authority" in lock:
+        takeover = _takeover_authority_from_mapping(lock["takeover_authority"])
+        if takeover.new_writer_id != lock["writer_id"]:
+            raise RuntimeStoreIntegrityError(
+                "takeover authority new writer does not match the writer lock"
+            )
+        for field in (
+            "run_id",
+            "graph_digest",
+            "authority_id",
+            "controller_id",
+        ):
+            if getattr(takeover, field) != lock[field]:
+                raise RuntimeStoreIntegrityError(
+                    f"takeover authority {field} does not match the writer lock"
+                )
     if writer is not None:
         expected = {
             "schema_id": LOCK_SCHEMA_ID,
@@ -933,8 +1012,66 @@ def _validate_lock_payload(
             "controller_id": writer.controller_id,
             "writer_id": writer.writer_id,
         }
+        if writer._takeover_authority is not None:
+            expected["takeover_authority"] = _takeover_authority_mapping(
+                writer._takeover_authority
+            )
         if lock != expected:
             raise RuntimeStoreIntegrityError("writer lock no longer matches its handle")
+
+
+def _validate_takeover_authority(
+    authority: RuntimeTakeoverAuthority,
+) -> RuntimeTakeoverAuthority:
+    if type(authority) is not RuntimeTakeoverAuthority:
+        raise RuntimeStoreIntegrityError("takeover authority type is invalid")
+    _require_identity(authority.confirmation_id, "takeover.confirmation_id")
+    _require_identity(authority.run_id, "takeover.run_id")
+    _require_sha256(authority.graph_digest, "takeover.graph_digest")
+    _require_identity(authority.authority_id, "takeover.authority_id")
+    _require_identity(authority.controller_id, "takeover.controller_id")
+    _require_identity(
+        authority.expected_prior_writer_id,
+        "takeover.expected_prior_writer_id",
+    )
+    _require_sha256(
+        authority.expected_prior_lock_digest,
+        "takeover.expected_prior_lock_digest",
+    )
+    _require_identity(authority.new_writer_id, "takeover.new_writer_id")
+    if authority.new_writer_id == authority.expected_prior_writer_id:
+        raise RuntimeStoreIntegrityError(
+            "takeover must bind a distinct successor writer identity"
+        )
+    if authority.reason_code != "HOST_CONFIRMED_ABANDONED_WRITER":
+        raise RuntimeStoreIntegrityError("takeover reason code is not authorized")
+    return authority
+
+
+def _takeover_authority_mapping(
+    authority: RuntimeTakeoverAuthority,
+) -> dict[str, str]:
+    _validate_takeover_authority(authority)
+    return {
+        field: getattr(authority, field)
+        for field in sorted(_TAKEOVER_FIELDS)
+    }
+
+
+def _takeover_authority_from_mapping(value: Any) -> RuntimeTakeoverAuthority:
+    mapping = _require_exact_mapping(
+        value,
+        required=_TAKEOVER_FIELDS,
+        allowed=_TAKEOVER_FIELDS,
+        label="takeover authority",
+    )
+    try:
+        authority = RuntimeTakeoverAuthority(
+            **{field: mapping[field] for field in _TAKEOVER_FIELDS}
+        )
+    except TypeError as exc:
+        raise RuntimeStoreIntegrityError("takeover authority is malformed") from exc
+    return _validate_takeover_authority(authority)
 
 
 def _directory_fsync(
@@ -1189,6 +1326,189 @@ def acquire_runtime_writer(
     return writer
 
 
+@contextmanager
+def _exclusive_takeover_guard(
+    path: Path,
+    runtime_identity: tuple[int, int],
+):
+    _assert_directory_identity(path.parent, runtime_identity)
+    flags = os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    locked = False
+    try:
+        opened = os.fstat(descriptor)
+        if _is_reparse(opened) or not stat.S_ISREG(opened.st_mode):
+            raise RuntimeStoreIntegrityError(
+                "takeover guard is not a safe regular file"
+            )
+        if opened.st_size == 0:
+            os.write(descriptor, b"\0")
+            os.fsync(descriptor)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            raise RuntimeStoreBusy(
+                "another explicit writer takeover is already in progress"
+            ) from exc
+        locked = True
+        _assert_directory_identity(path.parent, runtime_identity)
+        yield
+    finally:
+        if locked:
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def takeover_runtime_writer(
+    root: str | os.PathLike[str],
+    authority: RuntimeTakeoverAuthority,
+) -> RuntimeWriter:
+    """Replace one exact abandoned writer lock under explicit host authority."""
+
+    authority = _validate_takeover_authority(authority)
+    paths = _paths(root)
+    if not _ensure_runtime_directory(paths, create=False):
+        raise RuntimeStoreIntegrityError("runtime directory is not initialized")
+    runtime_identity = _directory_identity(paths.runtime.lstat())
+    _assert_directory_identity(paths.runtime, runtime_identity)
+
+    with _exclusive_takeover_guard(paths.takeover_guard, runtime_identity):
+        prior_bytes, prior_identity = _read_regular_bytes(
+            paths.lock,
+            maximum=MAX_LOCK_BYTES,
+        )
+        with _lock_operation_guard(
+            paths.runtime,
+            runtime_identity,
+            prior_identity,
+            prior_bytes,
+        ):
+            current_bytes, current_identity = _read_regular_bytes(
+                paths.lock,
+                maximum=MAX_LOCK_BYTES,
+            )
+            if (
+                current_identity != prior_identity
+                or current_bytes != prior_bytes
+            ):
+                raise RuntimeStoreIntegrityError(
+                    "writer lock changed before takeover validation"
+                )
+            prior_payload = _strict_json_loads(current_bytes, "writer lock")
+            if _canonical_json_bytes(prior_payload) != current_bytes:
+                raise RuntimeStoreIntegrityError(
+                    "writer lock is not canonical"
+                )
+            _validate_lock_payload(prior_payload)
+            if hashlib.sha256(current_bytes).hexdigest() != (
+                authority.expected_prior_lock_digest
+            ):
+                raise RuntimeStoreIntegrityError(
+                    "writer lock digest does not match takeover authority"
+                )
+            expected = {
+                "run_id": authority.run_id,
+                "graph_digest": authority.graph_digest,
+                "authority_id": authority.authority_id,
+                "controller_id": authority.controller_id,
+                "writer_id": authority.expected_prior_writer_id,
+            }
+            if any(prior_payload[field] != value for field, value in expected.items()):
+                raise RuntimeStoreIntegrityError(
+                    "writer lock does not match takeover authority"
+                )
+
+            replacement_payload = {
+                "schema_id": LOCK_SCHEMA_ID,
+                "schema_version": 1,
+                "run_id": authority.run_id,
+                "graph_digest": authority.graph_digest,
+                "authority_id": authority.authority_id,
+                "controller_id": authority.controller_id,
+                "writer_id": authority.new_writer_id,
+                "takeover_authority": _takeover_authority_mapping(authority),
+            }
+            replacement_bytes = _canonical_json_bytes(replacement_payload)
+            if len(replacement_bytes) > MAX_LOCK_BYTES:
+                raise RuntimeStoreIntegrityError(
+                    "replacement writer lock exceeds its size bound"
+                )
+            _validate_lock_payload(replacement_payload)
+            temporary: Path | None = None
+            try:
+                temporary = _write_temp(
+                    paths.lock,
+                    replacement_bytes,
+                    _owner_token(authority.new_writer_id),
+                    expected_directory_identity=runtime_identity,
+                )
+                final_prior_bytes, final_prior_identity = _read_regular_bytes(
+                    paths.lock,
+                    maximum=MAX_LOCK_BYTES,
+                )
+                if (
+                    final_prior_identity != prior_identity
+                    or final_prior_bytes != prior_bytes
+                ):
+                    raise RuntimeStoreIntegrityError(
+                        "writer lock changed before atomic takeover"
+                    )
+                _replace_file(
+                    temporary,
+                    paths.lock,
+                    expected_directory_identity=runtime_identity,
+                )
+                temporary = None
+                _directory_fsync(paths.runtime, runtime_identity)
+            finally:
+                if temporary is not None:
+                    try:
+                        temporary.unlink()
+                    except FileNotFoundError:
+                        pass
+
+            committed_bytes, committed_identity = _read_regular_bytes(
+                paths.lock,
+                maximum=MAX_LOCK_BYTES,
+            )
+            if committed_bytes != replacement_bytes:
+                raise RuntimeStoreIntegrityError(
+                    "replacement writer lock did not commit exactly"
+                )
+            writer = RuntimeWriter(
+                root=paths.root,
+                runtime_directory=paths.runtime,
+                run_id=authority.run_id,
+                graph_digest=authority.graph_digest,
+                authority_id=authority.authority_id,
+                controller_id=authority.controller_id,
+                writer_id=authority.new_writer_id,
+                _lock_bytes=replacement_bytes,
+                _lock_identity=committed_identity,
+                _runtime_identity=runtime_identity,
+                _takeover_authority=authority,
+            )
+            _verify_writer(writer)
+            return writer
+
+
 def _verify_writer(writer: RuntimeWriter) -> _RuntimePaths:
     if type(writer) is not RuntimeWriter:
         raise RuntimeStoreIntegrityError("writer handle type is invalid")
@@ -1211,33 +1531,98 @@ def _verify_writer(writer: RuntimeWriter) -> _RuntimePaths:
     return paths
 
 
+def _operation_guard_key(
+    runtime_directory: Path,
+    runtime_identity: tuple[int, int],
+    lock_identity: tuple[int, int, int, int, int],
+    lock_bytes: bytes,
+) -> tuple[str, tuple[int, int], tuple[int, int, int, int, int], bytes]:
+    return (
+        os.fspath(runtime_directory),
+        runtime_identity,
+        lock_identity,
+        hashlib.sha256(lock_bytes).digest(),
+    )
+
+
+@contextmanager
+def _lock_operation_guard(
+    runtime_directory: Path,
+    runtime_identity: tuple[int, int],
+    lock_identity: tuple[int, int, int, int, int],
+    lock_bytes: bytes,
+):
+    key = _operation_guard_key(
+        runtime_directory,
+        runtime_identity,
+        lock_identity,
+        lock_bytes,
+    )
+    with _OPERATION_GUARDS_LOCK:
+        guard = _OPERATION_GUARDS.setdefault(key, threading.RLock())
+    with guard:
+        yield
+
+
+@contextmanager
+def _writer_guard(writer: RuntimeWriter):
+    if type(writer) is not RuntimeWriter:
+        raise RuntimeStoreIntegrityError("writer handle type is invalid")
+    with _lock_operation_guard(
+        writer.runtime_directory,
+        writer._runtime_identity,
+        writer._lock_identity,
+        writer._lock_bytes,
+    ):
+        yield
+
+
+@contextmanager
+def _writer_operation(writer: RuntimeWriter):
+    with _writer_guard(writer):
+        yield _verify_writer(writer)
+
+
 def release_runtime_writer(writer: RuntimeWriter) -> None:
     if type(writer) is not RuntimeWriter:
         raise RuntimeStoreIntegrityError("writer handle type is invalid")
-    if writer._released:
-        return
-    paths = _paths(writer.root)
-    _ensure_runtime_directory(paths, create=False)
-    _assert_directory_identity(paths.runtime, writer._runtime_identity)
-    if _entry_lstat(paths.lock) is None:
-        raise RuntimeStoreIntegrityError(
-            "writer lock is missing before first release"
+    with _writer_guard(writer):
+        if writer._released:
+            return
+        paths = _verify_writer(writer)
+        present = {
+            name
+            for name, target in (
+                ("graph.json", paths.graph),
+                ("events.jsonl", paths.events),
+                ("state.json", paths.state),
+            )
+            if _entry_lstat(target) is not None
+        }
+        if present == {"graph.json"}:
+            raise RuntimeStoreIntegrityError(
+                "graph-only initialization retains writer ownership until "
+                "continuation or explicit takeover"
+            )
+        if _entry_lstat(paths.lock) is None:
+            raise RuntimeStoreIntegrityError(
+                "writer lock is missing before first release"
+            )
+        data, identity = _read_regular_bytes(paths.lock, maximum=MAX_LOCK_BYTES)
+        if identity != writer._lock_identity or data != writer._lock_bytes:
+            raise RuntimeStoreIntegrityError("refusing to release an unknown writer lock")
+        payload = _strict_json_loads(data, "writer lock")
+        if _canonical_json_bytes(payload) != data:
+            raise RuntimeStoreIntegrityError("refusing to release a malformed writer lock")
+        _validate_lock_payload(payload, writer=writer)
+        _remove_owned_lock(
+            paths.lock,
+            runtime_identity=writer._runtime_identity,
+            expected_identity=writer._lock_identity,
+            expected_bytes=writer._lock_bytes,
+            owner_token=_owner_token(writer.writer_id),
         )
-    data, identity = _read_regular_bytes(paths.lock, maximum=MAX_LOCK_BYTES)
-    if identity != writer._lock_identity or data != writer._lock_bytes:
-        raise RuntimeStoreIntegrityError("refusing to release an unknown writer lock")
-    payload = _strict_json_loads(data, "writer lock")
-    if _canonical_json_bytes(payload) != data:
-        raise RuntimeStoreIntegrityError("refusing to release a malformed writer lock")
-    _validate_lock_payload(payload, writer=writer)
-    _remove_owned_lock(
-        paths.lock,
-        runtime_identity=writer._runtime_identity,
-        expected_identity=writer._lock_identity,
-        expected_bytes=writer._lock_bytes,
-        owner_token=_owner_token(writer.writer_id),
-    )
-    writer._released = True
+        writer._released = True
 
 
 def _clock_value(clock: Callable[[], Any] | None) -> str:
@@ -1320,6 +1705,16 @@ def initialize_runtime_store(
     *,
     clock: Callable[[], Any] | None = None,
 ) -> RuntimeStoreInspection:
+    with _writer_operation(writer):
+        return _initialize_runtime_store_locked(writer, graph, clock=clock)
+
+
+def _initialize_runtime_store_locked(
+    writer: RuntimeWriter,
+    graph: Any,
+    *,
+    clock: Callable[[], Any] | None = None,
+) -> RuntimeStoreInspection:
     paths = _verify_writer(writer)
     graph_digest = _validate_graph(graph)
     if graph_digest != writer.graph_digest:
@@ -1351,11 +1746,61 @@ def initialize_runtime_store(
         raise RuntimeStoreIntegrityError("graph snapshot exceeds its size bound")
     event_bytes = b"".join(_canonical_json_bytes(event) for event in events)
     state_bytes = _canonical_json_bytes(state)
-    for target in (paths.graph, paths.events, paths.state):
-        if _entry_lstat(target) is not None:
+    if len(event_bytes) > MAX_EVENTS_BYTES:
+        raise RuntimeStoreIntegrityError("initial event log exceeds its total size bound")
+    if len(state_bytes) > MAX_STATE_BYTES:
+        raise RuntimeStoreIntegrityError("runtime state exceeds its size bound")
+
+    names = _runtime_entry_names(paths, writer._runtime_identity)
+    known_names = {
+        "writer.lock",
+        ".writer.takeover.guard",
+        "graph.json",
+        "events.jsonl",
+        "state.json",
+    }
+    unknown_names = sorted(names - known_names)
+    if unknown_names and names.intersection(
+        {"graph.json", "events.jsonl", "state.json"}
+    ):
+        raise RuntimeStoreIntegrityError(
+            f"runtime store contains unknown data: {unknown_names}"
+        )
+    present = {
+        name
+        for name, target in (
+            ("graph.json", paths.graph),
+            ("events.jsonl", paths.events),
+            ("state.json", paths.state),
+        )
+        if _entry_lstat(target) is not None
+    }
+    graph_only = present == {"graph.json"}
+    graph_identity: tuple[int, int, int, int, int] | None = None
+    if graph_only:
+        existing_graph_bytes, graph_identity = _read_regular_bytes(
+            paths.graph,
+            maximum=MAX_GRAPH_BYTES,
+        )
+        if existing_graph_bytes != graph_bytes:
             raise RuntimeStoreIntegrityError(
-                f"runtime store already contains {target.name}"
+                "existing graph snapshot does not match initialization graph"
             )
+    elif present == {"graph.json", "events.jsonl", "state.json"}:
+        details = _inspect_runtime_store(paths.root)
+        if (
+            details.report.status is RuntimeStoreStatus.LOCKED
+            and details.graph is not None
+            and _canonical_json_bytes(details.graph) == graph_bytes
+        ):
+            return details.report
+        raise RuntimeStoreIntegrityError(
+            "existing runtime store is not the exact initialized store"
+        )
+    elif present:
+        raise RuntimeStoreIntegrityError(
+            f"runtime store has an unsupported initialization boundary: {sorted(present)}"
+        )
 
     owner = _owner_token(writer.writer_id)
     temporaries: list[Path] = []
@@ -1363,15 +1808,17 @@ def initialize_runtime_store(
     committed_state = False
     directory_results: list[bool] = []
     try:
-        _verify_writer(writer)
-        graph_temp = _write_temp(
-            paths.graph,
-            graph_bytes,
-            owner,
-            expected_directory_identity=writer._runtime_identity,
-            writer=writer,
-        )
-        temporaries.append(graph_temp)
+        graph_temp: Path | None = None
+        if not graph_only:
+            _verify_writer(writer)
+            graph_temp = _write_temp(
+                paths.graph,
+                graph_bytes,
+                owner,
+                expected_directory_identity=writer._runtime_identity,
+                writer=writer,
+            )
+            temporaries.append(graph_temp)
         _verify_writer(writer)
         events_temp = _write_temp(
             paths.events,
@@ -1391,15 +1838,32 @@ def initialize_runtime_store(
         )
         temporaries.append(state_temp)
 
-        _verify_writer(writer)
-        _replace_file(
-            graph_temp,
-            paths.graph,
-            expected_directory_identity=writer._runtime_identity,
-            writer=writer,
-        )
-        committed_any = True
-        temporaries.remove(graph_temp)
+        if graph_only:
+            current_graph_bytes, current_graph_identity = _read_regular_bytes(
+                paths.graph,
+                maximum=MAX_GRAPH_BYTES,
+            )
+            if (
+                current_graph_bytes != graph_bytes
+                or current_graph_identity != graph_identity
+            ):
+                raise RuntimeStoreIntegrityError(
+                    "graph changed before initialization continuation"
+                )
+        else:
+            _verify_writer(writer)
+            if graph_temp is None:
+                raise RuntimeStoreIntegrityError(
+                    "fresh initialization omitted its graph temporary"
+                )
+            _replace_file(
+                graph_temp,
+                paths.graph,
+                expected_directory_identity=writer._runtime_identity,
+                writer=writer,
+            )
+            committed_any = True
+            temporaries.remove(graph_temp)
         _verify_writer(writer)
         _replace_file(
             events_temp,
@@ -1407,11 +1871,25 @@ def initialize_runtime_store(
             expected_directory_identity=writer._runtime_identity,
             writer=writer,
         )
+        committed_any = True
         temporaries.remove(events_temp)
         directory_results.append(
             _directory_fsync(paths.runtime, writer._runtime_identity)
         )
         _verify_writer(writer)
+        if graph_only:
+            current_graph_bytes, current_graph_identity = _read_regular_bytes(
+                paths.graph,
+                maximum=MAX_GRAPH_BYTES,
+            )
+            if (
+                current_graph_bytes != graph_bytes
+                or current_graph_identity != graph_identity
+            ):
+                raise RuntimeStoreIncomplete(
+                    "graph changed before continuation state commit",
+                    status=RuntimeStoreStatus.RECOVERY_REQUIRED,
+                )
         _replace_file(
             state_temp,
             paths.state,
@@ -2196,6 +2674,15 @@ def append_runtime_event(
     event: Any,
     updated_state: Any,
 ) -> RuntimeStoreInspection:
+    with _writer_operation(writer):
+        return _append_runtime_event_locked(writer, event, updated_state)
+
+
+def _append_runtime_event_locked(
+    writer: RuntimeWriter,
+    event: Any,
+    updated_state: Any,
+) -> RuntimeStoreInspection:
     paths = _verify_writer(writer)
     details = _inspect_runtime_store(paths.root)
     if details.report.status is not RuntimeStoreStatus.LOCKED:
@@ -2341,6 +2828,26 @@ def _commit_runtime_recovery(
 ) -> RuntimeStoreInspection:
     """Commit a pre-assessed recovery with append-only, state-last ordering."""
 
+    with _writer_operation(writer):
+        return _commit_runtime_recovery_locked(
+            writer,
+            expected_graph_bytes=expected_graph_bytes,
+            expected_state_bytes=expected_state_bytes,
+            expected_event_bytes=expected_event_bytes,
+            recovery_events=recovery_events,
+            recovered_state=recovered_state,
+        )
+
+
+def _commit_runtime_recovery_locked(
+    writer: RuntimeWriter,
+    *,
+    expected_graph_bytes: bytes,
+    expected_state_bytes: bytes | None,
+    expected_event_bytes: bytes,
+    recovery_events: Sequence[Mapping[str, Any]],
+    recovered_state: Mapping[str, Any],
+) -> RuntimeStoreInspection:
     paths = _verify_writer(writer)
     graph_bytes, _ = _read_regular_bytes(paths.graph, maximum=MAX_GRAPH_BYTES)
     if graph_bytes != expected_graph_bytes:

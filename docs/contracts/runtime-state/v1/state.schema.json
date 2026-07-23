@@ -96,6 +96,10 @@
     }
   },
   "$defs": {
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "identity": {
       "type": "string",
       "minLength": 1,
@@ -138,8 +142,8 @@
       ],
       "properties": {
         "node_id": {
-          "$ref": "#/$defs/identity",
-          "description": "Graph Contract v1 node identity reference."
+          "$ref": "#/$defs/node_id",
+          "description": "Opaque Graph Contract v1 node identity reference. It is preserved exactly and is bounded by the canonical state resource limit."
         },
         "status": {
           "type": "string",

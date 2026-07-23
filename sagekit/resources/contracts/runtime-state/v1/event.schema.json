@@ -109,8 +109,8 @@
       "description": "Bounded external artifact references; no complete command or tool output is embedded."
     },
     "node_id": {
-      "$ref": "#/$defs/identity",
-      "description": "Optional Graph Contract v1 node identity for node-scoped events."
+      "$ref": "#/$defs/node_id",
+      "description": "Optional opaque Graph Contract v1 node identity for node-scoped events. It is preserved exactly and is bounded by the canonical event resource limit."
     },
     "attempt_id": {
       "$ref": "#/$defs/identity",
@@ -164,6 +164,10 @@
     }
   },
   "$defs": {
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "identity": {
       "type": "string",
       "minLength": 1,

@@ -168,6 +168,41 @@ class ImportAndPurityTests(unittest.TestCase):
 
 
 class HandoffViewTests(unittest.TestCase):
+    def test_opaque_graph_node_ids_are_preserved_without_reference_path_checks(self):
+        opaque_ids = (
+            "node with spaces",
+            "path/segment\\opaque",
+            "/absolute-looking-node",
+            "C:\\absolute-looking-node",
+            "節点-α",
+            "!leading-punctuation",
+            "=csv-formula",
+            "x" * 300,
+        )
+        for node_id in opaque_ids:
+            with self.subTest(node_id=node_id[:40]):
+                runtime_state = state(node(node_id))
+                view = build_runtime_handoff_view(assessment(runtime_state))
+                self.assertEqual(node_id, view["nodes"]["waiting"]["ids"][0])
+                rendered = render_runtime_csv(assessment(runtime_state))
+                row = list(csv.DictReader(io.StringIO(rendered)))[0]
+                expected = (
+                    "'" + node_id
+                    if node_id.lstrip().startswith(("=", "+", "-", "@"))
+                    else node_id
+                )
+                self.assertEqual(expected, row["node_id"])
+
+        unsafe = state(
+            node(
+                "C:\\opaque\\node",
+                evidence_refs=("C:\\secret\\evidence.txt",),
+            )
+        )
+        view = build_runtime_handoff_view(assessment(unsafe))
+        self.assertFalse(view["valid_for_execution"])
+        self.assertIn("SOURCE_STATE_INVALID", view["diagnostic_codes"])
+
     def test_consistent_handoff_is_immutable_json_compatible_and_reference_only(self):
         source = assessment(
             state(

@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-BASELINE_COMMIT = "057be4bb5952520432ab7252fb141abf9c2353cc"
+BASELINE_COMMIT = "fee1246560bf358275c9f213f908b9045a4bf7e7"
 CANONICAL = REPOSITORY / "docs/contracts/runtime-state/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/runtime-state/v1"
 RESOURCE_NAMES = (
@@ -16,14 +16,20 @@ RESOURCE_NAMES = (
     "event.schema.json",
     "state.schema.json",
 )
-EXPECTED_STAGE3A_PATHS = {
+EXPECTED_STAGE3D_PATHS = {
     "docs/contracts/runtime-state/v1/contract.json",
     "docs/contracts/runtime-state/v1/event.schema.json",
     "docs/contracts/runtime-state/v1/state.schema.json",
     "sagekit/resources/contracts/runtime-state/v1/contract.json",
     "sagekit/resources/contracts/runtime-state/v1/event.schema.json",
     "sagekit/resources/contracts/runtime-state/v1/state.schema.json",
+    "sagekit/runtime_store.py",
+    "sagekit/runtime_recovery.py",
+    "sagekit/runtime_views.py",
     "tests/unit/test_runtime_state_contract_v1.py",
+    "tests/unit/test_runtime_store.py",
+    "tests/unit/test_runtime_recovery.py",
+    "tests/unit/test_runtime_views.py",
 }
 GRAPH_RESOURCE_DIGESTS = {
     "contract.json": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
@@ -136,7 +142,7 @@ def load_json(path):
 
 
 def sha256(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def changed_paths_since_baseline():
@@ -435,6 +441,41 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertTrue(is_schema_valid(valid_state(), self.state))
         self.assertTrue(is_schema_valid(valid_event(), self.event))
 
+    def test_node_id_has_its_own_graph_compatible_opaque_string_definition(self):
+        state_node_ref = self.state["$defs"]["node_state"]["properties"]["node_id"]["$ref"]
+        event_node_ref = self.event["properties"]["node_id"]["$ref"]
+        self.assertEqual("#/$defs/node_id", state_node_ref)
+        self.assertEqual("#/$defs/node_id", event_node_ref)
+        for schema in (self.state, self.event):
+            node_id = schema["$defs"]["node_id"]
+            self.assertEqual("string", node_id["type"])
+            self.assertEqual(1, node_id["minLength"])
+            self.assertNotIn("maxLength", node_id)
+            self.assertNotIn("pattern", node_id)
+
+        opaque_values = (
+            "node with spaces",
+            "path/segment\\opaque",
+            "節点-α",
+            "!leading-punctuation",
+            "x" * 300,
+        )
+        for value in opaque_values:
+            with self.subTest(value=value[:40]):
+                state = valid_state()
+                state["node_states"][0]["node_id"] = value
+                event = valid_event()
+                event.update({"event_type": "NODE_READY", "node_id": value})
+                self.assertTrue(is_schema_valid(state, self.state))
+                self.assertTrue(is_schema_valid(event, self.event))
+
+        state = valid_state()
+        state["node_states"][0]["node_id"] = ""
+        event = valid_event()
+        event.update({"event_type": "NODE_READY", "node_id": ""})
+        self.assertFalse(is_schema_valid(state, self.state))
+        self.assertFalse(is_schema_valid(event, self.event))
+
     def test_integer_fields_reject_bool_and_out_of_range_values(self):
         for field in ("graph_generation", "revision", "last_event_sequence"):
             payload = valid_state()
@@ -508,7 +549,8 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
                 if not isinstance(item, dict):
                     continue
                 if item.get("type") == "string" and "const" not in item and "enum" not in item:
-                    self.assertIn("maxLength", item, item)
+                    if item is not schema["$defs"].get("node_id"):
+                        self.assertIn("maxLength", item, item)
                 if item.get("type") == "array":
                     self.assertIn("maxItems", item, item)
         for schema, names in (
@@ -610,7 +652,7 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertFalse((REPOSITORY / ".sagekit").exists())
 
     def test_only_frozen_paths_one_canonical_family_and_one_packaged_mirror_exist(self):
-        self.assertEqual(EXPECTED_STAGE3A_PATHS, changed_paths_since_baseline())
+        self.assertEqual(EXPECTED_STAGE3D_PATHS, changed_paths_since_baseline())
         canonical_families = {
             path.parent.relative_to(REPOSITORY).as_posix()
             for path in (REPOSITORY / "docs").rglob("runtime-state/v1/contract.json")

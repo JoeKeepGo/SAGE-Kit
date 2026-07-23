@@ -439,6 +439,111 @@ def _insert_malformed_middle(paths):
 
 
 class WriterAuthorizedRecoveryTests(unittest.TestCase):
+    def test_exact_recovery_started_projection_remains_in_progress_and_completes_once(self):
+        import sagekit.runtime_recovery as recovery
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph, writer = initialize(root)
+            paths = runtime_paths(root)
+            events = load_events(paths["events"])
+            started = recovery._recovery_event(
+                writer,
+                sequence=len(events) + 1,
+                event_type="RECOVERY_STARTED",
+                observed_at=FIXED_TIME,
+            )
+            events.append(started)
+            replay = recovery.replay_runtime_events(
+                graph,
+                events,
+                **expected_binding(writer),
+            )
+            self.assertEqual(
+                recovery.RecoveryClassification.RECOVERY_IN_PROGRESS,
+                replay.classification,
+            )
+            paths["events"].write_bytes(
+                b"".join(canonical_bytes(item) for item in events)
+            )
+            paths["state"].write_bytes(canonical_bytes(replay.reconstructed_state))
+
+            assessment = recovery.assess_runtime_recovery(
+                root,
+                writer_id=writer.writer_id,
+                **expected_binding(writer),
+            )
+            self.assertEqual(
+                recovery.RecoveryClassification.RECOVERY_IN_PROGRESS,
+                assessment.classification,
+            )
+            result = recovery.recover_runtime_state(writer, clock=lambda: FIXED_TIME)
+            self.assertEqual(
+                recovery.RecoveryClassification.RECOVERED,
+                result.classification,
+            )
+            self.assertEqual(1, result.appended_event_count)
+            event_types = [item["event_type"] for item in load_events(paths["events"])]
+            self.assertEqual(1, event_types.count("RECOVERY_STARTED"))
+            self.assertEqual(1, event_types.count("RECOVERY_COMPLETED"))
+            repeated = recovery.recover_runtime_state(writer, clock=lambda: FIXED_TIME)
+            self.assertEqual(
+                recovery.RecoveryClassification.CONSISTENT,
+                repeated.classification,
+            )
+            self.assertEqual(0, repeated.appended_event_count)
+
+    def test_exact_started_completion_state_failure_retries_without_duplicate_event(self):
+        import sagekit.runtime_recovery as recovery
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph, writer = initialize(root)
+            paths = runtime_paths(root)
+            events = load_events(paths["events"])
+            events.append(
+                recovery._recovery_event(
+                    writer,
+                    sequence=len(events) + 1,
+                    event_type="RECOVERY_STARTED",
+                    observed_at=FIXED_TIME,
+                )
+            )
+            replay = recovery.replay_runtime_events(
+                graph,
+                events,
+                **expected_binding(writer),
+            )
+            paths["events"].write_bytes(
+                b"".join(canonical_bytes(item) for item in events)
+            )
+            paths["state"].write_bytes(canonical_bytes(replay.reconstructed_state))
+            original = runtime_store._replace_file
+
+            def fail_state(source, target, **kwargs):
+                if Path(target).name == "state.json":
+                    raise OSError("injected completion state failure")
+                return original(source, target, **kwargs)
+
+            with patch(
+                "sagekit.runtime_store._replace_file",
+                side_effect=fail_state,
+            ):
+                with self.assertRaises(RuntimeStoreIncomplete):
+                    recovery.recover_runtime_state(writer, clock=lambda: FIXED_TIME)
+            committed = paths["events"].read_bytes()
+            types = [item["event_type"] for item in load_events(paths["events"])]
+            self.assertEqual(1, types.count("RECOVERY_STARTED"))
+            self.assertEqual(1, types.count("RECOVERY_COMPLETED"))
+
+            result = recovery.recover_runtime_state(writer, clock=lambda: FIXED_TIME)
+            self.assertEqual(
+                recovery.RecoveryClassification.RECOVERED,
+                result.classification,
+            )
+            self.assertEqual(0, result.appended_event_count)
+            self.assertEqual(committed, paths["events"].read_bytes())
+
     def test_state_missing_recovery_is_explicit_atomic_and_idempotent(self):
         from sagekit.runtime_recovery import (
             RecoveryClassification,

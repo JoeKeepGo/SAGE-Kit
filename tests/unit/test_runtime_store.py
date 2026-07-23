@@ -1,22 +1,26 @@
 import copy
 from datetime import datetime, timezone
+import hashlib
 import importlib
+import inspect
 import json
 import ntpath
 import os
 from pathlib import Path
 import posixpath
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
 import sagekit
-from sagekit.graph_contract import canonical_graph_digest
+from sagekit.graph_contract import canonical_graph_digest, validate_graph_contract
 import sagekit.runtime_store as runtime_store
 from sagekit.runtime_store import (
     RuntimeStoreBusy,
     RuntimeStoreError,
     RuntimeStoreIncomplete,
+    RuntimeStoreInspection,
     RuntimeStoreIntegrityError,
     RuntimeStoreStatus,
     acquire_runtime_writer,
@@ -115,6 +119,22 @@ def runtime_paths(root):
         "events": runtime / "events.jsonl",
         "lock": runtime / "writer.lock",
     }
+
+
+def takeover_authority(writer, *, new_writer_id="writer:takeover", **overrides):
+    values = {
+        "confirmation_id": "takeover:host-confirmed-001",
+        "run_id": writer.run_id,
+        "graph_digest": writer.graph_digest,
+        "authority_id": writer.authority_id,
+        "controller_id": writer.controller_id,
+        "expected_prior_writer_id": writer.writer_id,
+        "expected_prior_lock_digest": hashlib.sha256(writer._lock_bytes).hexdigest(),
+        "new_writer_id": new_writer_id,
+        "reason_code": "HOST_CONFIRMED_ABANDONED_WRITER",
+    }
+    values.update(overrides)
+    return runtime_store.RuntimeTakeoverAuthority(**values)
 
 
 def acquire(root, graph=None, **overrides):
@@ -646,6 +666,198 @@ class InitializationAndSchemaTests(unittest.TestCase):
 
 
 class AtomicInitializationTests(unittest.TestCase):
+    def test_graph_only_partial_initialization_retries_without_rewriting_graph(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            writer = acquire(root, graph)
+            paths = runtime_paths(root)
+            original = runtime_store._replace_file
+
+            def fail_events(source, target, **kwargs):
+                if Path(target).name == "events.jsonl":
+                    raise OSError("injected events replace failure")
+                return original(source, target, **kwargs)
+
+            with patch("sagekit.runtime_store._replace_file", side_effect=fail_events):
+                with self.assertRaises(RuntimeStoreIncomplete):
+                    initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+            graph_bytes = paths["graph"].read_bytes()
+            self.assertFalse(paths["events"].exists())
+            self.assertFalse(paths["state"].exists())
+
+            result = initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+            self.assertEqual(RuntimeStoreStatus.LOCKED, result.status)
+            self.assertEqual(graph_bytes, paths["graph"].read_bytes())
+            self.assertEqual(
+                ["RUN_INITIALIZED", "GRAPH_BOUND"],
+                [
+                    json.loads(line)["event_type"]
+                    for line in paths["events"].read_text(encoding="utf-8").splitlines()
+                ],
+            )
+            second = initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+            self.assertEqual(RuntimeStoreStatus.LOCKED, second.status)
+            self.assertEqual(
+                2,
+                len(paths["events"].read_text(encoding="utf-8").splitlines()),
+            )
+
+    def test_graph_only_binding_cannot_be_released_or_reacquired_by_foreign_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            old = acquire(root, graph)
+            paths = runtime_paths(root)
+            original = runtime_store._replace_file
+
+            def fail_events(source, target, **kwargs):
+                if Path(target).name == "events.jsonl":
+                    raise OSError("injected events replace failure")
+                return original(source, target, **kwargs)
+
+            with patch(
+                "sagekit.runtime_store._replace_file",
+                side_effect=fail_events,
+            ):
+                with self.assertRaises(RuntimeStoreIncomplete):
+                    initialize_runtime_store(old, graph, clock=lambda: FIXED_TIME)
+            lock_bytes = paths["lock"].read_bytes()
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                release_runtime_writer(old)
+            self.assertEqual(lock_bytes, paths["lock"].read_bytes())
+            with self.assertRaises(RuntimeStoreBusy):
+                acquire(
+                    root,
+                    graph,
+                    authority_id="authority:foreign",
+                    controller_id="controller:foreign",
+                    run_key="foreign-run",
+                    writer_id="writer:foreign",
+                )
+
+            successor = runtime_store.takeover_runtime_writer(
+                root,
+                takeover_authority(old),
+            )
+            result = initialize_runtime_store(
+                successor,
+                graph,
+                clock=lambda: FIXED_TIME,
+            )
+            self.assertEqual(RuntimeStoreStatus.LOCKED, result.status)
+            release_runtime_writer(successor)
+
+    def test_initialization_total_resource_bounds_fail_before_any_resource_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            writer = acquire(root)
+            paths = runtime_paths(root)
+            before = {
+                path.name: path.read_bytes()
+                for path in paths["runtime"].iterdir()
+            }
+            with patch.object(runtime_store, "MAX_EVENTS_BYTES", 1):
+                with self.assertRaises(RuntimeStoreIntegrityError):
+                    initialize_runtime_store(
+                        writer,
+                        minimal_graph(),
+                        clock=lambda: FIXED_TIME,
+                    )
+            after = {
+                path.name: path.read_bytes()
+                for path in paths["runtime"].iterdir()
+            }
+            self.assertEqual(before, after)
+
+    def test_graph_only_mismatch_and_unknown_data_are_zero_write_failures(self):
+        for mode in ("mismatch", "malformed", "unknown"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                graph = minimal_graph()
+                writer = acquire(root, graph)
+                paths = runtime_paths(root)
+                if mode == "mismatch":
+                    other = minimal_graph()
+                    other["graph_id"] = "graph-other"
+                    paths["graph"].write_bytes(canonical_bytes(other))
+                elif mode == "malformed":
+                    paths["graph"].write_bytes(b"{malformed}\n")
+                else:
+                    paths["graph"].write_bytes(canonical_bytes(graph))
+                    (paths["runtime"] / "unknown-runtime-data").write_bytes(b"foreign")
+                before = tree_snapshot(paths["runtime"])
+                with self.assertRaises(RuntimeStoreIntegrityError):
+                    initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+                self.assertEqual(before, tree_snapshot(paths["runtime"]))
+
+    def test_events_state_partial_combinations_are_not_initialization_continuations(self):
+        for present in ({"graph", "events"}, {"graph", "state"}):
+            with (
+                self.subTest(present=present),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                graph = minimal_graph()
+                writer = acquire(root, graph)
+                paths = runtime_paths(root)
+                state, events = runtime_store._initial_payloads(
+                    writer,
+                    graph,
+                    FIXED_TIME,
+                )
+                paths["graph"].write_bytes(canonical_bytes(graph))
+                if "events" in present:
+                    paths["events"].write_bytes(
+                        b"".join(canonical_bytes(event) for event in events)
+                    )
+                if "state" in present:
+                    paths["state"].write_bytes(canonical_bytes(state))
+                before = tree_snapshot(paths["runtime"])
+                with self.assertRaises(RuntimeStoreIntegrityError):
+                    initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+                self.assertEqual(before, tree_snapshot(paths["runtime"]))
+
+    def test_graph_change_during_continuation_is_detected_before_event_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            writer = acquire(root, graph)
+            paths = runtime_paths(root)
+            original_replace = runtime_store._replace_file
+
+            def fail_events(source, target, **kwargs):
+                if Path(target).name == "events.jsonl":
+                    raise OSError("injected events replace failure")
+                return original_replace(source, target, **kwargs)
+
+            with patch(
+                "sagekit.runtime_store._replace_file",
+                side_effect=fail_events,
+            ):
+                with self.assertRaises(RuntimeStoreIncomplete):
+                    initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+            graph_bytes = paths["graph"].read_bytes()
+            original_write_temp = runtime_store._write_temp
+            changed = False
+
+            def change_graph_after_temps(target, payload, owner, **kwargs):
+                nonlocal changed
+                temporary = original_write_temp(target, payload, owner, **kwargs)
+                if Path(target).name == "state.json" and not changed:
+                    changed = True
+                    paths["graph"].write_bytes(graph_bytes)
+                return temporary
+
+            with patch(
+                "sagekit.runtime_store._write_temp",
+                side_effect=change_graph_after_temps,
+            ):
+                with self.assertRaises(RuntimeStoreIntegrityError):
+                    initialize_runtime_store(writer, graph, clock=lambda: FIXED_TIME)
+            self.assertFalse(paths["events"].exists())
+            self.assertFalse(paths["state"].exists())
+
     def test_replace_order_is_graph_events_state_and_all_temps_are_same_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1216,7 +1428,8 @@ class InspectionAndScopeTests(unittest.TestCase):
             "requests",
             "time.sleep",
             "while True",
-            "threading",
+            "ThreadPoolExecutor",
+            "concurrent.futures",
             "argparse",
         )
         for token in forbidden:
@@ -1260,6 +1473,471 @@ class InspectionAndScopeTests(unittest.TestCase):
                 ),
                 writer.run_id,
             )
+
+
+class OpaqueNodeIdCorrectiveTests(unittest.TestCase):
+    def test_stage2_accepts_each_runtime_opaque_node_id_fixture(self):
+        values = (
+            "node with spaces",
+            "path/segment\\opaque",
+            "節点-α",
+            "!leading-punctuation",
+            "x" * 300,
+        )
+        for node_id in values:
+            with self.subTest(node_id=node_id[:40]):
+                graph = minimal_graph()
+                graph["nodes"][0]["id"] = node_id
+                graph["joins"][0]["requires"] = [node_id]
+                result = validate_graph_contract(graph)
+                self.assertTrue(result.valid, result.issues)
+
+    def test_graph_valid_opaque_node_ids_round_trip_and_attempt_ids_are_stable(self):
+        values = (
+            "node with spaces",
+            "path/segment\\opaque",
+            "節点-α",
+            "!leading-punctuation",
+            "x" * 300,
+        )
+        for node_id in values:
+            with (
+                self.subTest(node_id=node_id[:40]),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                graph = minimal_graph()
+                graph["nodes"][0]["id"] = node_id
+                graph["joins"][0]["requires"] = [node_id]
+                writer, _ = initialize(root, graph)
+                state = load_json(runtime_paths(root)["state"])
+                self.assertEqual(node_id, state["node_states"][0]["node_id"])
+                self.assertEqual(
+                    derive_attempt_id(writer.run_id, node_id, 1),
+                    derive_attempt_id(writer.run_id, node_id, 1),
+                )
+                release_runtime_writer(writer)
+
+    def test_attempt_identity_uses_exact_opaque_node_id_bytes(self):
+        run_id = "run:" + "a" * 64
+        pairs = (
+            ("path/node", "path\\node"),
+            ("é", "e\u0301"),
+            (" node", "node "),
+        )
+        for left, right in pairs:
+            with self.subTest(left=left, right=right):
+                self.assertNotEqual(
+                    derive_attempt_id(run_id, left, 1),
+                    derive_attempt_id(run_id, right, 1),
+                )
+
+    def test_empty_node_id_remains_rejected(self):
+        graph = minimal_graph()
+        graph["nodes"][0]["id"] = ""
+        graph["joins"][0]["requires"] = [""]
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                acquire(Path(directory), graph)
+
+
+class ExplicitTakeoverCorrectiveTests(unittest.TestCase):
+    def test_ordinary_acquire_stays_busy_and_exact_takeover_invalidates_old_handle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            old, _ = initialize(root, graph)
+            before = {
+                name: runtime_paths(root)[name].read_bytes()
+                for name in ("graph", "events", "state")
+            }
+            with self.assertRaises(RuntimeStoreBusy):
+                acquire(root, graph, writer_id="writer:ordinary")
+
+            authority = takeover_authority(old)
+            new = runtime_store.takeover_runtime_writer(root, authority)
+            self.assertEqual("writer:takeover", new.writer_id)
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                release_runtime_writer(old)
+            for name, payload in before.items():
+                self.assertEqual(payload, runtime_paths(root)[name].read_bytes())
+            lock = load_json(runtime_paths(root)["lock"])
+            self.assertEqual(
+                authority.confirmation_id,
+                lock["takeover_authority"]["confirmation_id"],
+            )
+            release_runtime_writer(new)
+
+    def test_old_handle_all_mutations_fail_and_new_writer_can_recover(self):
+        import sagekit.runtime_recovery as recovery
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            old, _ = initialize(root, graph)
+            new = runtime_store.takeover_runtime_writer(
+                root,
+                takeover_authority(old),
+            )
+            paths = runtime_paths(root)
+            event, updated = transition_payloads(root)
+            paths["state"].unlink()
+
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                initialize_runtime_store(old, graph, clock=lambda: FIXED_TIME)
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                append_runtime_event(old, event, updated)
+            self.assertEqual(
+                recovery.RecoveryClassification.LOCK_INTEGRITY_ERROR,
+                recovery.recover_runtime_state(old, clock=lambda: FIXED_TIME).classification,
+            )
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                release_runtime_writer(old)
+
+            recovered = recovery.recover_runtime_state(new, clock=lambda: FIXED_TIME)
+            self.assertEqual(
+                recovery.RecoveryClassification.RECOVERED,
+                recovered.classification,
+            )
+            self.assertTrue(paths["state"].exists())
+            release_runtime_writer(new)
+
+    def test_takeover_is_exact_bound_and_two_contenders_have_one_winner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old, _ = initialize(root)
+            authority = takeover_authority(old)
+            start = threading.Barrier(3)
+            results = []
+
+            def contend():
+                start.wait()
+                try:
+                    results.append(runtime_store.takeover_runtime_writer(root, authority))
+                except Exception as exc:
+                    results.append(exc)
+
+            threads = [threading.Thread(target=contend) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            start.wait()
+            for thread in threads:
+                thread.join(5)
+                self.assertFalse(thread.is_alive())
+            winners = [
+                item for item in results
+                if isinstance(item, runtime_store.RuntimeWriter)
+            ]
+            self.assertEqual(1, len(winners))
+            self.assertEqual(1, len(results) - len(winners))
+            release_runtime_writer(winners[0])
+
+    def test_takeover_mismatch_or_malformed_lock_fails_closed(self):
+        mismatches = (
+            {"expected_prior_writer_id": "writer:wrong"},
+            {"expected_prior_lock_digest": "0" * 64},
+            {"run_id": "run:wrong"},
+            {"graph_digest": "0" * 64},
+            {"authority_id": "authority:wrong"},
+            {"controller_id": "controller:wrong"},
+            {"reason_code": "FORCE"},
+        )
+        for override in mismatches:
+            with (
+                self.subTest(override=override),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                old, _ = initialize(root)
+                before = runtime_paths(root)["lock"].read_bytes()
+                with self.assertRaises(RuntimeStoreIntegrityError):
+                    runtime_store.takeover_runtime_writer(
+                        root,
+                        takeover_authority(old, **override),
+                    )
+                self.assertEqual(before, runtime_paths(root)["lock"].read_bytes())
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old, _ = initialize(root)
+            runtime_paths(root)["lock"].write_bytes(b"{malformed}\n")
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                runtime_store.takeover_runtime_writer(
+                    root,
+                    takeover_authority(old),
+                )
+
+    def test_lock_changed_during_takeover_is_never_replaced(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old, _ = initialize(root)
+            paths = runtime_paths(root)
+            original = runtime_store._write_temp
+            changed = False
+
+            def change_prior_lock(target, payload, owner, **kwargs):
+                nonlocal changed
+                temporary = original(target, payload, owner, **kwargs)
+                if Path(target).name == "writer.lock" and not changed:
+                    changed = True
+                    prior = paths["lock"].read_bytes()
+                    paths["lock"].write_bytes(prior)
+                return temporary
+
+            with patch(
+                "sagekit.runtime_store._write_temp",
+                side_effect=change_prior_lock,
+            ):
+                with self.assertRaises(RuntimeStoreIntegrityError):
+                    runtime_store.takeover_runtime_writer(
+                        root,
+                        takeover_authority(old),
+                    )
+            self.assertEqual(old._lock_bytes, paths["lock"].read_bytes())
+
+    def test_takeover_authority_is_immutable_bounded_and_has_no_inference_controls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old, _ = initialize(root)
+            authority = takeover_authority(old)
+            self.assertTrue(
+                runtime_store.RuntimeTakeoverAuthority.__dataclass_params__.frozen
+            )
+            with self.assertRaises(AttributeError):
+                authority.new_writer_id = "writer:changed"
+            source = inspect.getsource(runtime_store.takeover_runtime_writer).casefold()
+            for forbidden in (
+                "getpid",
+                "timeout",
+                "stale",
+                "force",
+                "sleep",
+                "poll",
+            ):
+                self.assertNotIn(forbidden, source)
+
+
+class SameWriterSerializationCorrectiveTests(unittest.TestCase):
+    def _assert_second_append_is_serialized(self, *, copy_handle):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            writer, _ = initialize(root)
+            equivalent = copy.copy(writer) if copy_handle else writer
+            event, updated = transition_payloads(root)
+            first_entered = threading.Event()
+            allow_first = threading.Event()
+            second_entered = threading.Event()
+            calls = 0
+            original = runtime_store._append_event_bytes
+            outcomes = []
+
+            def block_first(path, payload, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    first_entered.set()
+                    self.assertTrue(allow_first.wait(5))
+                else:
+                    second_entered.set()
+                return original(path, payload, **kwargs)
+
+            def append_with(handle):
+                try:
+                    outcomes.append(append_runtime_event(handle, event, updated))
+                except Exception as exc:
+                    outcomes.append(exc)
+
+            with patch(
+                "sagekit.runtime_store._append_event_bytes",
+                side_effect=block_first,
+            ):
+                first = threading.Thread(target=append_with, args=(writer,))
+                second = threading.Thread(target=append_with, args=(equivalent,))
+                first.start()
+                self.assertTrue(first_entered.wait(5))
+                second.start()
+                self.assertFalse(second_entered.wait(0.2))
+                allow_first.set()
+                first.join(5)
+                second.join(5)
+                self.assertFalse(first.is_alive())
+                self.assertFalse(second.is_alive())
+
+            events = [
+                json.loads(line)
+                for line in runtime_paths(root)["events"]
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            sequences = [item["sequence"] for item in events]
+            self.assertEqual(list(range(1, len(events) + 1)), sequences)
+            self.assertEqual(len(sequences), len(set(sequences)))
+            self.assertEqual(
+                1,
+                sum(isinstance(item, RuntimeStoreInspection) for item in outcomes),
+            )
+            self.assertEqual(
+                1,
+                sum(isinstance(item, RuntimeStoreIntegrityError) for item in outcomes),
+            )
+
+    def test_same_handle_append_calls_are_serialized(self):
+        self._assert_second_append_is_serialized(copy_handle=False)
+
+    def test_copied_equivalent_handle_append_calls_are_serialized(self):
+        self._assert_second_append_is_serialized(copy_handle=True)
+
+    def test_append_and_release_cannot_interleave(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            writer, _ = initialize(root)
+            event, updated = transition_payloads(root)
+            append_entered = threading.Event()
+            allow_append = threading.Event()
+            release_done = threading.Event()
+            outcomes = []
+            original = runtime_store._append_event_bytes
+
+            def block_append(path, payload, **kwargs):
+                append_entered.set()
+                self.assertTrue(allow_append.wait(5))
+                return original(path, payload, **kwargs)
+
+            def append_call():
+                try:
+                    outcomes.append(append_runtime_event(writer, event, updated))
+                except Exception as exc:
+                    outcomes.append(exc)
+
+            def release_call():
+                try:
+                    release_runtime_writer(writer)
+                    outcomes.append("released")
+                except Exception as exc:
+                    outcomes.append(exc)
+                finally:
+                    release_done.set()
+
+            with patch(
+                "sagekit.runtime_store._append_event_bytes",
+                side_effect=block_append,
+            ):
+                append_thread = threading.Thread(target=append_call)
+                release_thread = threading.Thread(target=release_call)
+                append_thread.start()
+                self.assertTrue(append_entered.wait(5))
+                release_thread.start()
+                released_early = release_done.wait(0.2)
+                allow_append.set()
+                append_thread.join(5)
+                release_thread.join(5)
+            self.assertFalse(released_early)
+            self.assertFalse(append_thread.is_alive())
+            self.assertFalse(release_thread.is_alive())
+            self.assertEqual(
+                1,
+                sum(isinstance(item, RuntimeStoreInspection) for item in outcomes),
+            )
+            self.assertIn("released", outcomes)
+            paths = runtime_paths(root)
+            self.assertFalse(paths["lock"].exists())
+            events = [
+                json.loads(line)
+                for line in paths["events"].read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual([1, 2, 3], [item["sequence"] for item in events])
+            self.assertEqual(3, load_json(paths["state"])["last_event_sequence"])
+
+    def test_recovery_and_append_share_the_same_operation_guard(self):
+        import sagekit.runtime_recovery as recovery
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            writer, _ = initialize(root)
+            paths = runtime_paths(root)
+            event, updated = transition_payloads(root)
+            runtime_store._append_event_bytes(
+                paths["events"],
+                canonical_bytes(event),
+                expected_directory_identity=writer._runtime_identity,
+                writer=writer,
+            )
+            recovery_inside = threading.Event()
+            allow_recovery = threading.Event()
+            append_done = threading.Event()
+            outcomes = []
+            original = recovery._assess_with_snapshot
+
+            def block_after_assessment(*args, **kwargs):
+                result = original(*args, **kwargs)
+                recovery_inside.set()
+                self.assertTrue(allow_recovery.wait(5))
+                return result
+
+            def recover_call():
+                outcomes.append(
+                    recovery.recover_runtime_state(writer, clock=lambda: FIXED_TIME)
+                )
+
+            def append_call():
+                try:
+                    outcomes.append(append_runtime_event(writer, event, updated))
+                except Exception as exc:
+                    outcomes.append(exc)
+                finally:
+                    append_done.set()
+
+            with patch(
+                "sagekit.runtime_recovery._assess_with_snapshot",
+                side_effect=block_after_assessment,
+            ):
+                recovery_thread = threading.Thread(target=recover_call)
+                append_thread = threading.Thread(target=append_call)
+                recovery_thread.start()
+                self.assertTrue(recovery_inside.wait(5))
+                append_thread.start()
+                append_finished_early = append_done.wait(0.2)
+                allow_recovery.set()
+                recovery_thread.join(5)
+                append_thread.join(5)
+            self.assertFalse(append_finished_early)
+            self.assertFalse(recovery_thread.is_alive())
+            self.assertFalse(append_thread.is_alive())
+            self.assertTrue(
+                any(
+                    isinstance(item, recovery.RecoveryResult)
+                    and item.classification
+                    is recovery.RecoveryClassification.RECOVERED
+                    for item in outcomes
+                )
+            )
+            self.assertTrue(
+                any(isinstance(item, RuntimeStoreIntegrityError) for item in outcomes)
+            )
+            events = [
+                json.loads(line)
+                for line in paths["events"].read_text(encoding="utf-8").splitlines()
+            ]
+            sequences = [item["sequence"] for item in events]
+            self.assertEqual(list(range(1, len(events) + 1)), sequences)
+            self.assertEqual(
+                sequences[-1],
+                load_json(paths["state"])["last_event_sequence"],
+            )
+
+    def test_operation_guard_is_released_after_exception(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            writer, _ = initialize(root)
+            event, updated = transition_payloads(root)
+            with patch(
+                "sagekit.runtime_store._write_temp",
+                side_effect=OSError("injected pre-append failure"),
+            ):
+                with self.assertRaises(RuntimeStoreIncomplete):
+                    append_runtime_event(writer, event, updated)
+            result = append_runtime_event(writer, event, updated)
+            self.assertEqual(RuntimeStoreStatus.LOCKED, result.status)
 
 
 if __name__ == "__main__":

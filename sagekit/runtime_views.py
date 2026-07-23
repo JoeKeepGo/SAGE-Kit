@@ -277,7 +277,7 @@ def _validate_and_normalize_state(value: Any) -> dict[str, Any]:
             allowed=_store._NODE_STATE_FIELDS,
             label=label,
         )
-        node_id = _store._require_identity(node_state["node_id"], f"{label}.node_id")
+        node_id = _store._require_node_id(node_state["node_id"], f"{label}.node_id")
         if node_id in node_ids:
             raise _store.RuntimeStoreIntegrityError(
                 "source state node identities must be unique"

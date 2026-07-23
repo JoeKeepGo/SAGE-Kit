@@ -484,6 +484,8 @@ def _assess_with_snapshot(
         != _store._canonical_json_bytes(snapshot.state)
     ):
         classification = RecoveryClassification.STATE_DIVERGED
+    elif replay.classification is RecoveryClassification.RECOVERY_IN_PROGRESS:
+        classification = RecoveryClassification.RECOVERY_IN_PROGRESS
     else:
         classification = RecoveryClassification.CONSISTENT
     return (
@@ -549,15 +551,32 @@ def recover_runtime_state(
 ) -> RecoveryResult:
     """Explicitly recover only missing or event-lagging state for a live writer."""
 
-    try:
-        _store._verify_writer(writer)
-    except RuntimeStoreIntegrityError as exc:
+    if type(writer) is not RuntimeWriter:
         return RecoveryResult(
             classification=RecoveryClassification.LOCK_INTEGRITY_ERROR,
             issues=_issues(
-                RecoveryIssue("WRITER_INVALID", str(exc))
+                RecoveryIssue("WRITER_INVALID", "writer handle type is invalid")
             ),
         )
+    with _store._writer_guard(writer):
+        try:
+            _store._verify_writer(writer)
+        except RuntimeStoreIntegrityError as exc:
+            return RecoveryResult(
+                classification=RecoveryClassification.LOCK_INTEGRITY_ERROR,
+                issues=_issues(
+                    RecoveryIssue("WRITER_INVALID", str(exc))
+                ),
+            )
+        return _recover_runtime_state_locked(writer, clock=clock)
+
+
+def _recover_runtime_state_locked(
+    writer: RuntimeWriter,
+    *,
+    clock: Callable[[], Any] | None = None,
+) -> RecoveryResult:
+    _store._verify_writer(writer)
     assessment, snapshot = _assess_with_snapshot(
         writer.root,
         run_id=writer.run_id,
