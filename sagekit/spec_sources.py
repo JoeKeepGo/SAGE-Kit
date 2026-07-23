@@ -49,10 +49,24 @@ _CURRENT_SOURCE_RE = re.compile(
     r"^\s*(?:[-*]\s*)?(?:Active\s+SPEC\s+source|Current\s+SPEC\s+source|Current\s+source)\s*:\s*`?(?P<path>[^`\r\n]+?)`?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+_SEMANTIC_ATTESTATION_SCHEMA_ID = "sagekit-normalized-spec-semantic"
+_SEMANTIC_ATTESTATION_VERSION = 1
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class SourceConfigurationError(ValueError):
     """Fail-closed source selection or semantic input error."""
+
+
+class NormalizedSpecAttestationError(ValueError):
+    """Stable failure for an invalid internal normalized-SPEC attestation."""
+
+    def __init__(self, *reason_codes: str):
+        self.reason_codes = tuple(reason_codes)
+        super().__init__(
+            "normalized SPEC attestation verification failed: "
+            + ", ".join(self.reason_codes)
+        )
 
 
 class DocumentClass(str, Enum):
@@ -103,9 +117,18 @@ class SourceProvenance:
 
 
 @dataclass(frozen=True)
+class _SemanticAttestation:
+    schema_id: str
+    version: int
+    canonical_json: str
+    digest: str
+
+
+@dataclass(frozen=True)
 class NormalizedSpec:
     project: ExecutionProject
     semantic_digest: str
+    semantic_attestation: _SemanticAttestation
     provenance: SourceProvenance
     waves: Mapping[str, "WaveSpec"]
     document_class: DocumentClass
@@ -425,12 +448,17 @@ def load_normalized_spec(
         ) from exc
 
     semantic = _semantic_payload(project, waves, config)
-    digest = hashlib.sha256(
-        json.dumps(semantic, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    canonical_semantic_json = _canonical_semantic_json(semantic)
+    digest = hashlib.sha256(canonical_semantic_json.encode("utf-8")).hexdigest()
     return NormalizedSpec(
         project=project,
         semantic_digest=digest,
+        semantic_attestation=_SemanticAttestation(
+            schema_id=_SEMANTIC_ATTESTATION_SCHEMA_ID,
+            version=_SEMANTIC_ATTESTATION_VERSION,
+            canonical_json=canonical_semantic_json,
+            digest=digest,
+        ),
         provenance=SourceProvenance(
             target_root=str(project_root),
             adapter=display_adapter,
@@ -771,7 +799,10 @@ def _semantic_payload(
                     "permission_mode": gate.permission_mode,
                     "authority_reference": gate.authority_reference,
                 }
-                for gate in milestone.approval_gates
+                for gate in sorted(
+                    milestone.approval_gates,
+                    key=lambda item: item.id,
+                )
             ],
             "phase_ids": list(milestone.phase_ids),
             "acceptance_criteria": list(milestone.acceptance_criteria),
@@ -811,6 +842,82 @@ def _semantic_payload(
             for wave_id, wave in sorted(waves.items())
         },
     }
+
+
+def _canonical_semantic_json(payload: object) -> str:
+    """Preserve the existing Stage 1 semantic-digest JSON projection."""
+
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def verify_normalized_spec_attestation(
+    normalized_spec: object,
+) -> dict[str, Any]:
+    """Return an independent verified semantic payload without consulting state."""
+
+    if type(normalized_spec) is not NormalizedSpec:
+        raise NormalizedSpecAttestationError("invalid-normalized-spec-type")
+    attestation = normalized_spec.semantic_attestation
+    if type(attestation) is not _SemanticAttestation:
+        raise NormalizedSpecAttestationError("invalid-semantic-attestation")
+    if attestation.schema_id != _SEMANTIC_ATTESTATION_SCHEMA_ID:
+        raise NormalizedSpecAttestationError("invalid-semantic-attestation-schema")
+    if attestation.version != _SEMANTIC_ATTESTATION_VERSION:
+        raise NormalizedSpecAttestationError(
+            "unknown-semantic-attestation-version"
+        )
+    if type(attestation.canonical_json) is not str:
+        raise NormalizedSpecAttestationError(
+            "invalid-semantic-attestation-json-type"
+        )
+    try:
+        payload = json.loads(
+            attestation.canonical_json,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError()),
+        )
+    except (json.JSONDecodeError, RecursionError, TypeError, ValueError):
+        raise NormalizedSpecAttestationError(
+            "malformed-semantic-attestation-json"
+        ) from None
+    if type(payload) is not dict:
+        raise NormalizedSpecAttestationError(
+            "invalid-semantic-attestation-payload"
+        )
+    try:
+        canonical_json = _canonical_semantic_json(payload)
+    except (OverflowError, RecursionError, TypeError, ValueError):
+        raise NormalizedSpecAttestationError(
+            "invalid-semantic-attestation-payload"
+        ) from None
+    try:
+        canonical_bytes = canonical_json.encode("utf-8")
+        attested_bytes = attestation.canonical_json.encode("utf-8")
+    except UnicodeError:
+        raise NormalizedSpecAttestationError(
+            "malformed-semantic-attestation-json"
+        ) from None
+    if canonical_bytes != attested_bytes:
+        raise NormalizedSpecAttestationError(
+            "noncanonical-semantic-attestation-json"
+        )
+    digest = hashlib.sha256(canonical_bytes).hexdigest()
+    if (
+        type(attestation.digest) is not str
+        or _SHA256_RE.fullmatch(attestation.digest) is None
+        or digest != attestation.digest
+    ):
+        raise NormalizedSpecAttestationError(
+            "semantic-attestation-digest-mismatch"
+        )
+    if (
+        type(normalized_spec.semantic_digest) is not str
+        or _SHA256_RE.fullmatch(normalized_spec.semantic_digest) is None
+        or normalized_spec.semantic_digest != digest
+    ):
+        raise NormalizedSpecAttestationError(
+            "normalized-spec-semantic-digest-mismatch"
+        )
+    return payload
 
 
 def _infer_adapter(path: Path) -> str:
