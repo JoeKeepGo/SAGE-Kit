@@ -1,0 +1,63 @@
+{
+  "contract_id": "urn:sagekit:ready-resolution:v1",
+  "contract_family": "sagekit-ready-resolution-contract",
+  "version": "v1",
+  "manifest_version": 1,
+  "resources": {
+    "input_schema": {
+      "resource": "input.schema.json",
+      "canonical_sha256": "298e56d3044360458f48b7b36d7d044e646e8de4ca1ac1a58e3f16bbd604edd4"
+    },
+    "result_schema": {
+      "resource": "result.schema.json",
+      "canonical_sha256": "66f78b241d40b948d96bb1df26389e43318c98b4cde62b772ee1a8e83502d3ac"
+    }
+  },
+  "dependencies": {
+    "graph_contract_v1": {
+      "contract_id": "urn:sagekit:graph-contract:v1",
+      "contract_resource": "docs/contracts/graph/v1/contract.json",
+      "canonical_contract_sha256": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
+      "canonical_resource_integrity": {
+        "graph_schema_sha256": "510f9d4a960aba78f80ac0ec35ac37504d992702528acad3c9f96279cab1824e"
+      },
+      "relation": "The resolver input is bound to an immutable valid Graph Contract v1 instance and its Stage 2B semantic graph digest; this contract neither copies nor mutates that Graph."
+    },
+    "node_result_v1": {
+      "schema_id": "urn:sagekit:graph-contract:v1:node-result",
+      "schema_resource": "docs/contracts/graph/v1/node-result.schema.json",
+      "canonical_schema_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
+      "relation": "Node status and terminal meaning remain those of Node Result v1; this contract introduces dispositions without introducing runtime node statuses."
+    },
+    "runtime_state_contract_v1": {
+      "contract_id": "urn:sagekit:runtime-state-contract:v1",
+      "contract_resource": "docs/contracts/runtime-state/v1/contract.json",
+      "canonical_contract_sha256": "a27806a732dbf60b9c38b7f410e62ce6d93a38c9a99d222c27241ac57c6ed976",
+      "canonical_resource_integrity": {
+        "state_schema_sha256": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
+        "event_schema_sha256": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9"
+      },
+      "relation": "Resolver input consumes an observed Runtime State v1-compatible node-state snapshot. Resolver result is not a state snapshot, event, transition, or persisted mutation."
+    }
+  },
+  "semantic_boundaries": {
+    "execution_inertness": "Contract presence does not execute any node, does not grant authority, does not open or satisfy a human gate, does not create a scheduler, does not create runtime state, and does not activate Graph execution. Host retains execution ownership.",
+    "graph_dependency_boundary": "A node depends_on references nodes only. A join is an aggregation and decision boundary, not a hidden scheduler edge. A manual-gate join must not be converted into a downstream node dependency. Stage 4B may calculate node readiness only from depends_on edges truly present in the Graph. A missing manual or corrective decision affects join and overall disposition but must not invent a Graph edge. Optional classification does not override explicit depends_on.",
+    "join_boundary": "Automatic join policy remains binding and cannot be bypassed by an external decision. Manual-gate and corrective-join decisions fail closed without explicit already-authorized host evidence. Filenames, prose, history, and defaults cannot imply SATISFIED.",
+    "input_consistency_boundary": "Each node_id, resource_id, and join_id appears at most once in its identity-scoped input array. Duplicate or conflicting records for one identity are invalid required input and must yield REQUIRED_INPUT_INVALID; a resolver must not select, merge, vote, or apply a default.",
+    "terminal_semantics": "Dependency success uses only existing explicit success meaning. SUCCEEDED is not Project Manager acceptance. NO_ACTION_REQUIRED remains evidence-bound. DONE_WITH_CONCERNS does not satisfy required success. HANDOFF is a nonterminal workflow outcome. BLOCKED cannot be bypassed by majority or optional policy. A failed required dependency cannot make its dependent node READY.",
+    "resource_boundary": "AVAILABLE is a host-observed snapshot, not lock acquisition. BUSY yields WAITING_RESOURCE rather than STOP or BLOCKED. UNAVAILABLE and UNKNOWN remain distinct. Missing resource observations are not AVAILABLE. The contract does not poll, wait, acquire, lock, or schedule.",
+    "result_boundary": "The resolver result is decision output, not runtime mutation. The host decides whether and how an authorized result maps to an event or state update.",
+    "privacy_boundary": "Instances carry only bounded machine-readable reasons, counts, and repository-neutral references. They exclude prompts, private reasoning, transcripts, stdout, stderr, environment dumps, credentials, secrets, process or agent or tool handles, absolute local paths, arbitrary payloads, mutable objects, and complete project history."
+  },
+  "digest_semantics": "SHA-256 over each canonical resource's LF-normalized bytes is resource integrity only, not execution identity, semantic graph identity, runtime state identity, event identity, result identity, authority, or permission.",
+  "compatibility": "Language-neutral Ready Resolution Contract v1 preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation.",
+  "source_authority": {
+    "identity": "SAGE-Kit rebuild Stage 4A",
+    "reference": "Ready Resolution Contract v1 objective"
+  },
+  "packaged_mirror": {
+    "path": "sagekit/resources/contracts/ready-resolution/v1",
+    "expectation": "All resources are byte-identical mirrors of canonical resources in docs/contracts/ready-resolution/v1."
+  }
+}

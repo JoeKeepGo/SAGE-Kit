@@ -1,0 +1,297 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:ready-resolution:v1:result",
+  "title": "SAGE-Kit Ready Resolution Result v1",
+  "description": "A bounded, language-neutral decision output, not runtime mutation. It contains dispositions, stable reason codes, repository-neutral blocking references, and counts only. It contains no command, callback, process handle, agent packet, mutable object, private reasoning, transcript, environment dump, credential, secret, stdout, stderr, or arbitrary payload. The host decides whether and how to map this result to an authorized event or state update.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "graph_digest",
+    "graph_generation",
+    "graph_disposition",
+    "node_decisions",
+    "join_decisions",
+    "summary"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:ready-resolution:v1:result",
+      "description": "Stable identity of the Ready Resolution Result v1 boundary."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of this language-neutral result boundary."
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Graph semantic identity copied from input; resource integrity digests are not execution identity."
+    },
+    "graph_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Observed Graph generation copied from input. It grants no Graph mutation authority."
+    },
+    "graph_disposition": {
+      "type": "string",
+      "enum": [
+        "READY",
+        "IN_PROGRESS",
+        "WAITING",
+        "NEEDS_CORRECTION",
+        "HANDOFF_REQUIRED",
+        "BLOCKED",
+        "COMPLETED"
+      ],
+      "description": "Aggregate decision only. WAITING includes resource or dependency waiting without upgrading it to BLOCKED. HANDOFF_REQUIRED is not completion. COMPLETED is not Project Manager acceptance."
+    },
+    "node_decisions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/node_decision"
+      },
+      "description": "One bounded disposition per considered Graph node. The contract does not apply transitions."
+    },
+    "join_decisions": {
+      "type": "array",
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/join_decision"
+      },
+      "description": "Bounded aggregation/decision outcomes for declared joins, never hidden node dependencies."
+    },
+    "summary": {
+      "$ref": "#/$defs/summary",
+      "description": "Bounded non-negative integer counts only; no executable or mutable payload."
+    }
+  },
+  "$defs": {
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Ii][Ll][Ee]):)(?!.*[\\r\\n]).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "DEPENDENCIES_SATISFIED",
+        "DEPENDENCY_PENDING",
+        "DEPENDENCY_FAILED",
+        "RESOURCE_AVAILABLE",
+        "RESOURCE_BUSY",
+        "RESOURCE_UNAVAILABLE",
+        "RESOURCE_UNKNOWN",
+        "NODE_RUNNING",
+        "NODE_SUCCEEDED",
+        "NODE_NO_ACTION_REQUIRED",
+        "NODE_FAILED",
+        "NODE_NEEDS_CORRECTION",
+        "NODE_HANDOFF",
+        "NODE_BLOCKED",
+        "NODE_CANCELLED",
+        "NODE_DONE_WITH_CONCERNS",
+        "JOIN_SATISFIED",
+        "JOIN_NODE_PENDING",
+        "JOIN_NODE_FAILED",
+        "EXTERNAL_DECISION_MISSING",
+        "EXTERNAL_DECISION_REJECTED",
+        "REQUIRED_INPUT_INVALID"
+      ],
+      "description": "Stable bounded machine-readable reason. Human-readable prose is not required authority."
+    },
+    "node_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A pure disposition for one node. READY may be computed only from Graph nodes truly present in depends_on. A failed required dependency cannot yield READY, optional classification does not override explicit depends_on, DONE_WITH_CONCERNS does not satisfy required success, and HANDOFF remains HANDOFF_REQUIRED rather than COMPLETED.",
+      "required": [
+        "node_id",
+        "disposition",
+        "reason_codes",
+        "blocking_refs"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "#/$defs/node_id",
+          "description": "Opaque non-empty Graph Contract v1 node identity, preserved exactly without an ASCII grammar or 256-character restriction."
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "READY",
+            "WAITING_DEPENDENCY",
+            "WAITING_RESOURCE",
+            "IN_PROGRESS",
+            "NEEDS_CORRECTION",
+            "HANDOFF_REQUIRED",
+            "BLOCKED",
+            "COMPLETED",
+            "CANCELLED"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reason_code"
+          },
+          "description": "Bounded deterministic machine-readable reasons, never unbounded prose."
+        },
+        "blocking_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "description": "Bounded repository-neutral references to blocking dependencies, resources, joins, or evidence."
+        }
+      }
+    },
+    "join_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A pure disposition for one declared join. A join is an aggregation and decision boundary, not a hidden scheduler edge. Missing manual-gate or corrective-join evidence is REQUIRES_EXTERNAL_DECISION, not node success. Automatic join policy cannot be bypassed by an external decision.",
+      "required": [
+        "join_id",
+        "disposition",
+        "reason_codes",
+        "blocking_refs"
+      ],
+      "properties": {
+        "join_id": {
+          "$ref": "#/$defs/graph_id",
+          "description": "Opaque non-empty Graph Contract v1 join identity, preserved exactly without an ASCII grammar or 256-character restriction."
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "SATISFIED",
+            "WAITING_NODE",
+            "REQUIRES_EXTERNAL_DECISION",
+            "REJECTED",
+            "BLOCKED"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reason_code"
+          },
+          "description": "Bounded deterministic machine-readable reasons, never approval prose."
+        },
+        "blocking_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "description": "Bounded repository-neutral references to pending or failed nodes and explicit external-decision evidence."
+        }
+      }
+    },
+    "bounded_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_decision_count",
+        "join_decision_count",
+        "ready_node_count",
+        "waiting_dependency_node_count",
+        "waiting_resource_node_count",
+        "in_progress_node_count",
+        "needs_correction_node_count",
+        "handoff_required_node_count",
+        "blocked_node_count",
+        "completed_node_count",
+        "cancelled_node_count",
+        "satisfied_join_count",
+        "waiting_node_join_count",
+        "requires_external_decision_join_count",
+        "rejected_join_count",
+        "blocked_join_count"
+      ],
+      "properties": {
+        "node_decision_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "join_decision_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "ready_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "waiting_dependency_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "waiting_resource_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "in_progress_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "needs_correction_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "handoff_required_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "blocked_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "completed_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "cancelled_node_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "satisfied_join_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "waiting_node_join_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "requires_external_decision_join_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "rejected_join_count": {
+          "$ref": "#/$defs/bounded_count"
+        },
+        "blocked_join_count": {
+          "$ref": "#/$defs/bounded_count"
+        }
+      }
+    }
+  }
+}

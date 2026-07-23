@@ -1,0 +1,403 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:ready-resolution:v1:input",
+  "title": "SAGE-Kit Ready Resolution Input v1",
+  "description": "A bounded, language-neutral snapshot presented to a future pure resolver. Schema presence does not activate Graph execution, execute nodes, poll or acquire resources, open a human gate, create a scheduler, create runtime state, mutate the Graph, or grant execution or transition authority. The host supplies already-observed facts and retains execution ownership.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "graph_digest",
+    "graph_generation",
+    "node_states",
+    "resource_availability",
+    "external_join_decisions"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:ready-resolution:v1:input",
+      "description": "Stable identity of the Ready Resolution Input v1 boundary."
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Version of this language-neutral input boundary."
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Stage 2B canonical semantic digest of the immutable Graph snapshot. Resource integrity digests are not execution identity."
+    },
+    "graph_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Observed Graph generation. It grants no mutation, scheduling, gate, or execution authority."
+    },
+    "node_states": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/node_state"
+      },
+      "description": "Bounded Runtime State v1-compatible node facts. Each node_id may appear at most once. Duplicate or conflicting records for one node_id are invalid required input and must yield REQUIRED_INPUT_INVALID rather than selection, merging, majority, or a default."
+    },
+    "resource_availability": {
+      "type": "array",
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/resource_snapshot"
+      },
+      "description": "Bounded host-observed resource snapshots. Each resource_id may appear at most once. Duplicate or conflicting records for one resource_id are invalid required input and must yield REQUIRED_INPUT_INVALID rather than selection, merging, majority, or a default. A resource omitted from this array must not be inferred to be AVAILABLE."
+    },
+    "external_join_decisions": {
+      "type": "array",
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/external_join_decision"
+      },
+      "description": "Explicit host-supplied decisions for manual-gate and corrective-join boundaries. Each join_id may appear at most once. Duplicate or conflicting records for one join_id are invalid required input and must yield REQUIRED_INPUT_INVALID rather than selection, merging, majority, or a default. Omission never implies satisfaction."
+    }
+  },
+  "$defs": {
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!(?:[Hh][Tt][Tt][Pp][Ss]?|[Ff][Ii][Ll][Ee]):)(?!.*[\\r\\n]).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "digest_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:+-]{0,255}$"
+    },
+    "availability_reason_code": {
+      "type": "string",
+      "enum": [
+        "RESOURCE_AVAILABLE",
+        "RESOURCE_BUSY",
+        "RESOURCE_UNAVAILABLE",
+        "RESOURCE_UNKNOWN"
+      ],
+      "description": "Stable machine-readable reason paired deterministically with the availability value."
+    },
+    "node_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "#/$defs/node_id",
+          "description": "Opaque non-empty Graph Contract v1 node identity, preserved exactly without an ASCII grammar or 256-character restriction."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "READY",
+            "RUNNING",
+            "WAITING_RESOURCE",
+            "SUCCEEDED",
+            "NO_ACTION_REQUIRED",
+            "FAILED",
+            "NEEDS_CORRECTION",
+            "HANDOFF",
+            "BLOCKED",
+            "CANCELLED",
+            "DONE_WITH_CONCERNS"
+          ],
+          "description": "Existing Graph/Runtime node status only; no new runtime status is introduced. SUCCEEDED is a node outcome, not Project Manager acceptance. NO_ACTION_REQUIRED remains evidence-bound and distinct from SUCCEEDED, PASS, or WAIVED. DONE_WITH_CONCERNS does not satisfy required success. HANDOFF is a nonterminal workflow outcome. BLOCKED cannot be bypassed by majority or optional policy."
+        },
+        "result_digest": {
+          "$ref": "#/$defs/digest_reference",
+          "description": "Conditional bounded reference to an externally defined Node Result; this contract defines no result digest algorithm."
+        },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "description": "Bounded repository-neutral evidence references, never embedded evidence, prose authority, output, or transcripts."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "SUCCEEDED",
+                  "NO_ACTION_REQUIRED",
+                  "FAILED",
+                  "NEEDS_CORRECTION",
+                  "DONE_WITH_CONCERNS"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "result_digest"
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "const": "NO_ACTION_REQUIRED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "evidence_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "resource_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "An AVAILABLE value is only a host-observed snapshot and does not mean lock acquisition. BUSY maps to WAITING_RESOURCE, not STOP or BLOCKED. UNAVAILABLE and UNKNOWN remain distinct. Missing resources are not AVAILABLE. This contract does not poll, wait for, or acquire a resource.",
+      "required": [
+        "resource_id",
+        "availability",
+        "reason_code",
+        "evidence_refs"
+      ],
+      "properties": {
+        "resource_id": {
+          "$ref": "#/$defs/graph_id",
+          "description": "Opaque non-empty Graph Contract v1 resource identity, preserved exactly without an ASCII grammar or 256-character restriction."
+        },
+        "availability": {
+          "type": "string",
+          "enum": [
+            "AVAILABLE",
+            "BUSY",
+            "UNAVAILABLE",
+            "UNKNOWN"
+          ],
+          "description": "Explicit host-observed availability. No value performs acquisition or waiting."
+        },
+        "reason_code": {
+          "$ref": "#/$defs/availability_reason_code"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "description": "Bounded repository-neutral references supporting the observed snapshot."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "const": "AVAILABLE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "const": "RESOURCE_AVAILABLE"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "const": "BUSY"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "const": "RESOURCE_BUSY"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "const": "UNAVAILABLE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "const": "RESOURCE_UNAVAILABLE"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_code": {
+                "const": "RESOURCE_UNKNOWN"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "external_join_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A host-supplied already-authorized evidence boundary, not a weak gate-open flag. The contract does not validate human identity, does not open a gate, and does not grant authority. A resolver must not infer SATISFIED from filenames, prose, historical state, omission, or defaults. Missing explicit manual-gate or corrective-join decisions fail closed as REQUIRES_EXTERNAL_DECISION. Automatic join policy remains independently binding.",
+      "required": [
+        "join_id",
+        "decision"
+      ],
+      "properties": {
+        "join_id": {
+          "$ref": "#/$defs/graph_id",
+          "description": "Opaque non-empty Graph Contract v1 join identity, preserved exactly without an ASCII grammar or 256-character restriction."
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "SATISFIED",
+            "REJECTED"
+          ],
+          "description": "Explicit external decision. PENDING is never approval."
+        },
+        "authority_ref": {
+          "$ref": "#/$defs/reference",
+          "description": "Repository-neutral reference to existing authority; it neither creates nor verifies authority."
+        },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reference"
+          },
+          "description": "Bounded repository-neutral evidence references for a satisfied or rejected decision."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "enum": [
+                  "SATISFIED",
+                  "REJECTED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "authority_ref",
+              "evidence_refs"
+            ],
+            "properties": {
+              "evidence_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "const": "PENDING"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "authority_ref"
+                  ]
+                },
+                {
+                  "required": [
+                    "evidence_refs"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
