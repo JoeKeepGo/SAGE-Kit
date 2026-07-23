@@ -18,7 +18,7 @@ from pathlib import Path
 import re
 import stat
 import tempfile
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 from .graph_contract import (
     NODE_STATUSES as GRAPH_NODE_STATUSES,
@@ -1474,7 +1474,7 @@ def initialize_runtime_store(
 def _parse_event_log(
     data: bytes,
     graph: Mapping[str, Any],
-    state: Mapping[str, Any],
+    binding: Mapping[str, Any],
 ) -> tuple[tuple[dict[str, Any], ...], RuntimeStoreInspection | None]:
     if not data:
         return (), _issue(
@@ -1526,25 +1526,25 @@ def _parse_event_log(
                 f"event line {sequence} is not canonical",
             )
         if type(event) is dict:
-            if event.get("run_id") != state["run_id"]:
+            if event.get("run_id") != binding["run_id"]:
                 return (), _issue(
                     RuntimeStoreStatus.AUTHORITY_MISMATCH,
                     "RUN_MISMATCH",
                     f"event line {sequence} has a different run",
                 )
-            if event.get("authority_id") != state["authority_id"]:
+            if event.get("authority_id") != binding["authority_id"]:
                 return (), _issue(
                     RuntimeStoreStatus.AUTHORITY_MISMATCH,
                     "AUTHORITY_MISMATCH",
                     f"event line {sequence} has a different authority",
                 )
-            if event.get("actor_id") != state["controller_id"]:
+            if event.get("actor_id") != binding["controller_id"]:
                 return (), _issue(
                     RuntimeStoreStatus.AUTHORITY_MISMATCH,
                     "ACTOR_MISMATCH",
                     f"event line {sequence} has a different controller actor",
                 )
-            if event.get("graph_digest") != state["graph_digest"]:
+            if event.get("graph_digest") != binding["graph_digest"]:
                 return (), _issue(
                     RuntimeStoreStatus.CORRUPT,
                     "EVENT_GRAPH_MISMATCH",
@@ -1554,10 +1554,10 @@ def _parse_event_log(
             validate_runtime_event(
                 event,
                 graph,
-                run_id=state["run_id"],
-                graph_digest=state["graph_digest"],
-                authority_id=state["authority_id"],
-                actor_id=state["controller_id"],
+                run_id=binding["run_id"],
+                graph_digest=binding["graph_digest"],
+                authority_id=binding["authority_id"],
+                actor_id=binding["controller_id"],
             )
         except RuntimeStoreIntegrityError as exc:
             return (), _issue(
@@ -1880,6 +1880,10 @@ def _expected_state_after_event(
     expected["last_event_sequence"] = event["sequence"]
     if event_type in _RUN_EVENT_STATUSES:
         expected["run_status"] = _RUN_EVENT_STATUSES[event_type]
+    if event_type == "RECOVERY_STARTED":
+        expected["recovery_status"] = "IN_PROGRESS"
+    elif event_type == "RECOVERY_COMPLETED":
+        expected["recovery_status"] = "RECOVERED"
     if event_type in {"RUN_INITIALIZED", "GRAPH_BOUND"}:
         raise RuntimeStoreIntegrityError(
             "initialization events cannot be appended after initialization"
@@ -2005,10 +2009,60 @@ def _validate_history_consistency(
     state: Mapping[str, Any],
     events: tuple[Mapping[str, Any], ...],
 ) -> tuple[dict[str, Any], dict[str, int]]:
+    expected, attempt_counts, _, _ = _replay_event_history(
+        graph,
+        events,
+        run_id=state["run_id"],
+        graph_digest=state["graph_digest"],
+        authority_id=state["authority_id"],
+        controller_id=state["controller_id"],
+    )
+    if _canonical_json_bytes(expected) != _canonical_json_bytes(state):
+        raise RuntimeStoreIntegrityError(
+            "committed state is not the exact event-supported snapshot"
+        )
+    return expected, attempt_counts
+
+
+def _replay_event_history(
+    graph: Mapping[str, Any],
+    events: Sequence[Mapping[str, Any]],
+    *,
+    run_id: str,
+    graph_digest: str,
+    authority_id: str,
+    controller_id: str,
+) -> tuple[dict[str, Any], dict[str, int], bool, bool]:
+    """Return the one canonical state projection for a complete event history."""
+
+    actual_graph_digest = _validate_graph(graph)
+    if actual_graph_digest != graph_digest:
+        raise RuntimeStoreIntegrityError(
+            "replay graph does not match the expected graph digest"
+        )
+    binding = {
+        "run_id": run_id,
+        "graph_digest": graph_digest,
+        "authority_id": authority_id,
+        "controller_id": controller_id,
+    }
     if len(events) < 2:
         raise RuntimeStoreIntegrityError(
             "event history lacks initialization records"
         )
+    for expected_sequence, event in enumerate(events, start=1):
+        validate_runtime_event(
+            event,
+            graph,
+            run_id=run_id,
+            graph_digest=graph_digest,
+            authority_id=authority_id,
+            actor_id=controller_id,
+        )
+        if event["sequence"] != expected_sequence:
+            raise RuntimeStoreIntegrityError(
+                "event history sequence is duplicate, missing, or out of order"
+            )
     initial_expectations = (
         ("RUN_INITIALIZED", "RUN_CREATED"),
         ("GRAPH_BOUND", "GRAPH_ACCEPTED"),
@@ -2027,19 +2081,47 @@ def _validate_history_consistency(
                 "initialization event facts are not exact"
             )
 
-    expected = _initial_expected_state(graph, state)
+    expected = _initial_expected_state(graph, binding)
     attempt_counts = {item["id"]: 0 for item in graph["nodes"]}
+    recovery_in_progress = False
+    recovery_completed = False
+    pre_recovery_run_status: str | None = None
     for event in events[2:]:
+        if event["event_type"] == "RECOVERY_STARTED":
+            if recovery_in_progress:
+                raise RuntimeStoreIntegrityError(
+                    "recovery start cannot be nested or duplicated"
+                )
+            recovery_in_progress = True
+            pre_recovery_run_status = expected["run_status"]
+        elif event["event_type"] == "RECOVERY_COMPLETED":
+            if not recovery_in_progress:
+                raise RuntimeStoreIntegrityError(
+                    "recovery completion has no matching start"
+                )
+            recovery_in_progress = False
+            recovery_completed = True
         expected = _expected_state_after_event(
             expected,
             event,
             attempt_counts,
         )
-    if _canonical_json_bytes(expected) != _canonical_json_bytes(state):
-        raise RuntimeStoreIntegrityError(
-            "committed state is not the exact event-supported snapshot"
-        )
-    return expected, attempt_counts
+        if event["event_type"] == "RECOVERY_COMPLETED":
+            if pre_recovery_run_status is None:
+                raise RuntimeStoreIntegrityError(
+                    "recovery completion lacks a prior run status"
+                )
+            expected["run_status"] = pre_recovery_run_status
+            pre_recovery_run_status = None
+    validate_runtime_state(
+        expected,
+        graph,
+        run_id=run_id,
+        graph_digest=graph_digest,
+        authority_id=authority_id,
+        controller_id=controller_id,
+    )
+    return expected, attempt_counts, recovery_in_progress, recovery_completed
 
 
 def _validate_state_update(
@@ -2050,15 +2132,18 @@ def _validate_state_update(
     event: Mapping[str, Any],
     updated: Mapping[str, Any],
 ) -> None:
-    _, attempt_counts = _validate_history_consistency(
+    _validate_history_consistency(
         graph,
         current,
         history,
     )
-    expected = _expected_state_after_event(
-        current,
-        event,
-        attempt_counts,
+    expected, _, _, _ = _replay_event_history(
+        graph,
+        history + (event,),
+        run_id=writer.run_id,
+        graph_digest=writer.graph_digest,
+        authority_id=writer.authority_id,
+        controller_id=writer.controller_id,
     )
     if _canonical_json_bytes(expected) != _canonical_json_bytes(updated):
         raise RuntimeStoreIntegrityError(
@@ -2243,6 +2328,172 @@ def append_runtime_event(
             directory_fsync=directory_capability,
         ),
     )
+
+
+def _commit_runtime_recovery(
+    writer: RuntimeWriter,
+    *,
+    expected_graph_bytes: bytes,
+    expected_state_bytes: bytes | None,
+    expected_event_bytes: bytes,
+    recovery_events: Sequence[Mapping[str, Any]],
+    recovered_state: Mapping[str, Any],
+) -> RuntimeStoreInspection:
+    """Commit a pre-assessed recovery with append-only, state-last ordering."""
+
+    paths = _verify_writer(writer)
+    graph_bytes, _ = _read_regular_bytes(paths.graph, maximum=MAX_GRAPH_BYTES)
+    if graph_bytes != expected_graph_bytes:
+        raise RuntimeStoreIntegrityError("graph changed after recovery assessment")
+    event_bytes, _ = _read_regular_bytes(paths.events, maximum=MAX_EVENTS_BYTES)
+    if event_bytes != expected_event_bytes:
+        raise RuntimeStoreIntegrityError("events changed after recovery assessment")
+    state_entry = _entry_lstat(paths.state)
+    if expected_state_bytes is None:
+        if state_entry is not None:
+            raise RuntimeStoreIntegrityError("state changed after recovery assessment")
+    else:
+        state_bytes, _ = _read_regular_bytes(paths.state, maximum=MAX_STATE_BYTES)
+        if state_bytes != expected_state_bytes:
+            raise RuntimeStoreIntegrityError("state changed after recovery assessment")
+
+    graph = _strict_json_loads(graph_bytes, "graph snapshot")
+    binding = {
+        "run_id": writer.run_id,
+        "graph_digest": writer.graph_digest,
+        "authority_id": writer.authority_id,
+        "controller_id": writer.controller_id,
+    }
+    history, event_problem = _parse_event_log(event_bytes, graph, binding)
+    if event_problem is not None:
+        raise RuntimeStoreIntegrityError(
+            f"event history is not recoverable: {event_problem.issues[0].code}"
+        )
+    combined = tuple(history) + tuple(copy.deepcopy(list(recovery_events)))
+    expected, _, _, _ = _replay_event_history(
+        graph,
+        combined,
+        run_id=writer.run_id,
+        graph_digest=writer.graph_digest,
+        authority_id=writer.authority_id,
+        controller_id=writer.controller_id,
+    )
+    if _canonical_json_bytes(expected) != _canonical_json_bytes(recovered_state):
+        raise RuntimeStoreIntegrityError(
+            "recovery state is not the canonical event projection"
+        )
+    state_payload = _canonical_json_bytes(recovered_state)
+    event_payloads = tuple(
+        _canonical_json_bytes(event) for event in recovery_events
+    )
+    if len(event_bytes) + sum(map(len, event_payloads)) > MAX_EVENTS_BYTES:
+        raise RuntimeStoreIntegrityError(
+            "recovery events would exceed the event log size bound"
+        )
+
+    owner = _owner_token(writer.writer_id)
+    state_temp: Path | None = None
+    append_attempted = False
+    committed_event_bytes = event_bytes
+    try:
+        state_temp = _write_temp(
+            paths.state,
+            state_payload,
+            owner,
+            expected_directory_identity=writer._runtime_identity,
+            writer=writer,
+        )
+        _verify_writer(writer)
+        current_graph_bytes, _ = _read_regular_bytes(
+            paths.graph, maximum=MAX_GRAPH_BYTES
+        )
+        current_event_bytes, _ = _read_regular_bytes(
+            paths.events, maximum=MAX_EVENTS_BYTES
+        )
+        if (
+            current_graph_bytes != expected_graph_bytes
+            or current_event_bytes != expected_event_bytes
+        ):
+            raise RuntimeStoreIntegrityError(
+                "graph or events changed during recovery preparation"
+            )
+        for payload in event_payloads:
+            _verify_writer(writer)
+            current_event_bytes, _ = _read_regular_bytes(
+                paths.events, maximum=MAX_EVENTS_BYTES
+            )
+            if current_event_bytes != committed_event_bytes:
+                raise RuntimeStoreIntegrityError(
+                    "events changed during recovery commit"
+                )
+            append_attempted = True
+            _append_event_bytes(
+                paths.events,
+                payload,
+                expected_directory_identity=writer._runtime_identity,
+                writer=writer,
+            )
+            committed_event_bytes += payload
+        _verify_writer(writer)
+        final_graph_bytes, _ = _read_regular_bytes(
+            paths.graph, maximum=MAX_GRAPH_BYTES
+        )
+        final_event_bytes, _ = _read_regular_bytes(
+            paths.events, maximum=MAX_EVENTS_BYTES
+        )
+        if (
+            final_graph_bytes != expected_graph_bytes
+            or final_event_bytes != committed_event_bytes
+        ):
+            raise RuntimeStoreIntegrityError(
+                "graph or events changed before recovery state commit"
+            )
+        final_state_entry = _entry_lstat(paths.state)
+        if expected_state_bytes is None:
+            if final_state_entry is not None:
+                raise RuntimeStoreIntegrityError(
+                    "state changed before recovery state commit"
+                )
+        else:
+            final_state_bytes, _ = _read_regular_bytes(
+                paths.state,
+                maximum=MAX_STATE_BYTES,
+            )
+            if final_state_bytes != expected_state_bytes:
+                raise RuntimeStoreIntegrityError(
+                    "state changed before recovery state commit"
+                )
+        _replace_file(
+            state_temp,
+            paths.state,
+            expected_directory_identity=writer._runtime_identity,
+            writer=writer,
+        )
+        state_temp = None
+        _directory_fsync(paths.runtime, writer._runtime_identity)
+    except Exception as exc:
+        if isinstance(exc, RuntimeStoreIncomplete):
+            raise
+        if append_attempted or isinstance(exc, OSError):
+            raise RuntimeStoreIncomplete(
+                f"runtime recovery did not commit completely: {exc}",
+                status=RuntimeStoreStatus.RECOVERY_REQUIRED,
+            ) from exc
+        raise
+    finally:
+        if state_temp is not None:
+            try:
+                state_temp.unlink()
+            except FileNotFoundError:
+                pass
+
+    result = _inspect_runtime_store(paths.root)
+    if result.report.status is not RuntimeStoreStatus.LOCKED:
+        raise RuntimeStoreIncomplete(
+            "runtime recovery committed but consistency inspection failed",
+            status=result.report.status,
+        )
+    return result.report
 
 
 __all__ = [
