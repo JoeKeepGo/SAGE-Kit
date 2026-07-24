@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:ready-resolution:v1:error",
   "title": "SAGE-Kit Ready Resolution Error v1",
-  "description": "A bounded, language-neutral failure envelope that is mutually exclusive with Ready Resolution Result v1. Invalid required input returns REQUIRED_INPUT_INVALID; invalid Graph, Graph binding mismatch, oversized input, or oversized result uses its corresponding stable error code. Error is not a partial Result and must not generate a fabricated BLOCKED node, ready-node subset, truncated success, HANDOFF, Project Manager decision, or acceptance. The aggregate canonical Error representation is limited to 1048576 bytes under contract.json. Collection stops at no more than 100 deterministic unique issues; an over-limit Error must carry no additional issues and must never respond to oversized input with unbounded error output. Optional graph_digest, graph_generation, and input_digest appear only when safely available. input_digest may appear only after strict validation, identity uniqueness, and canonicalization succeed. Error is not runtime mutation and contains no command, callback, handle, prompt, private reasoning, transcript, stdout, stderr, environment, credential, secret, absolute local path, traceback, or arbitrary payload.",
+  "description": "A bounded, language-neutral failure envelope that is mutually exclusive with Ready Resolution Result v1. Invalid required input returns REQUIRED_INPUT_INVALID; invalid Graph, Graph binding mismatch, oversized input, oversized Graph, resolver structural admission overflow, or oversized result uses its corresponding stable error code. Graph canonical bytes above 8388608 return GRAPH_TOO_LARGE. A Graph that remains valid under Graph Contract v1 but exceeds an optional resolver node, join, dependency, resource, or join.requires admission bound returns RESOLUTION_LIMIT_EXCEEDED, never GRAPH_INVALID. Error is not a partial Result and must not contain node or join decisions, generate a fabricated BLOCKED node, emit a ready-node subset, truncate success, claim resolution success, HANDOFF, Project Manager decision, or acceptance. The aggregate canonical Error representation is limited to 1048576 bytes under contract.json. Collection stops at no more than 100 deterministic unique issues; an over-limit Error must carry no additional issues and must never respond to oversized input with unbounded error output. Optional graph_digest, graph_generation, and input_digest appear only when safely available. input_digest may appear only after strict validation, identity uniqueness, and canonicalization succeed. Error is not runtime mutation and contains no command, callback, handle, prompt, private reasoning, transcript, stdout, stderr, environment, credential, secret, absolute local path, traceback, or arbitrary payload.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -27,6 +27,8 @@
         "GRAPH_INVALID",
         "GRAPH_BINDING_MISMATCH",
         "INPUT_TOO_LARGE",
+        "GRAPH_TOO_LARGE",
+        "RESOLUTION_LIMIT_EXCEEDED",
         "RESULT_TOO_LARGE"
       ],
       "description": "Stable top-level machine-readable error classification."

@@ -10,11 +10,11 @@
     },
     "result_schema": {
       "resource": "result.schema.json",
-      "canonical_sha256": "35fc3245998601bd0d5e4d7cff42a5a1be35dfacd4729668c1286cdb340ddf4b"
+      "canonical_sha256": "9de5f45bf12e0d8b24a7ab802977d677e95d65f2465d59a76cb5e3fb2a07351a"
     },
     "error_schema": {
       "resource": "error.schema.json",
-      "canonical_sha256": "a373a5bd3c136a09bd1f80426fdbf954f8e4d2a5b090a579d327aa90b1e589d7"
+      "canonical_sha256": "14f0c8fd8ce21a713076a925c0434ba2d571f717b9e4983d201ca121ce916964"
     }
   },
   "dependencies": {
@@ -51,9 +51,10 @@
     "input_consistency_boundary": "Each node_id, resource_id, and join_id appears at most once in its identity-scoped input array. Duplicate or conflicting records for one identity are invalid required input and must yield REQUIRED_INPUT_INVALID; a resolver must not select, merge, vote, or apply a default.",
     "terminal_semantics": "Dependency success uses only existing explicit success meaning. SUCCEEDED is not Project Manager acceptance. NO_ACTION_REQUIRED remains evidence-bound. DONE_WITH_CONCERNS does not satisfy required success. HANDOFF is a nonterminal workflow outcome. BLOCKED cannot be bypassed by majority or optional policy. A failed required dependency cannot make its dependent node READY.",
     "resource_boundary": "AVAILABLE is a host-observed snapshot, not lock acquisition. BUSY yields WAITING_RESOURCE rather than STOP or BLOCKED. UNAVAILABLE and UNKNOWN remain distinct. Missing resource observations are not AVAILABLE. The contract does not poll, wait, acquire, lock, or schedule.",
-    "result_boundary": "The resolver Result is decision output, not runtime mutation. It is valid only for a matching input_digest; input_digest mismatch makes it non-reusable, and a host must not reuse a Result from graph_digest alone. The binding covers every validated decision input, including node state status and result digest, resource AVAILABLE, BUSY, UNAVAILABLE, or UNKNOWN snapshots, and external_join_decision authority and evidence. SATISFIED manual or corrective join authority evidence need not be copied into Result because input_digest binds the decision to that original validated input. The host decides whether and how an authorized Result maps to an event or state update.",
-    "error_boundary": "Result and Error are mutually exclusive language-neutral outputs. Invalid or oversized input, invalid Graph, Graph binding mismatch, or oversized result returns Error. Error is not a partial Result and must not generate a fabricated BLOCKED node, partial ready nodes, truncated success, HANDOFF, Project Manager decision, or acceptance. Error is not runtime mutation and has no event, transition, scheduler, or execution effect.",
+    "result_boundary": "The resolver Result is decision output, not runtime mutation. It is valid only for a matching input_digest; input_digest mismatch makes it non-reusable, and a host must not reuse a Result from graph_digest alone. The binding covers every validated decision input, including node state status and result digest, resource AVAILABLE, BUSY, UNAVAILABLE, or UNKNOWN snapshots, and external_join_decision authority and evidence. SATISFIED manual or corrective join authority evidence need not be copied into Result because input_digest binds the decision to that original validated input. WAITING and BLOCKED decisions list every applicable blocker exactly; READY and COMPLETED node decisions and SATISFIED join decisions have empty blocker arrays. The host decides whether and how an authorized Result maps to an event or state update.",
+    "error_boundary": "Result and Error are mutually exclusive language-neutral outputs. Invalid or oversized input, invalid Graph, Graph binding mismatch, oversized Graph, resolver structural admission overflow, or oversized result returns Error. Graph size or resolver admission failure is not Graph validation failure. Error is not a partial Result, contains no node or join decisions, does not masquerade as resolution success, and must not generate a fabricated BLOCKED node, partial ready nodes, truncated success, HANDOFF, Project Manager decision, or acceptance. Error is not runtime mutation and has no event, transition, scheduler, or execution effect.",
     "identity_reference_boundary": "Node, resource, and join IDs are opaque semantic identities. Even when identity text looks like a path, it must be preserved exactly without path normalization, slugging, case-folding, truncation, path-based rejection, or filesystem interpretation. Opaque IDs are carried only in typed identity fields and do not automatically authorize file access; a resolver must not use an opaque ID for a filesystem operation. Evidence_refs, authority_ref, and blocking_refs are separate bounded repository-neutral references and never substitutes for required Graph identities.",
+    "exact_blocker_preservation": "Within resolver admission, every applicable blocking node ID, resource ID, authority reference, and evidence reference is emitted completely and exactly. No blocker collection may be truncated at 100 or 10000, silently omitted, represented as first N plus truncated=true, or replaced by a hash or digest. Opaque blocker identities remain unchanged. A REJECTED external decision emits in blocking_refs the unique union of authority_ref and every evidence_refs value; when authority_ref equals an evidence_ref it appears once, but deduplication never mutates the validated authority/evidence input or its input_digest. If structural admission is exceeded, the whole resolution returns RESOLUTION_LIMIT_EXCEEDED Error. If the complete Result exceeds its byte budget, the whole resolution returns RESULT_TOO_LARGE Error. Error never masquerades as resolution success.",
     "privacy_boundary": "Instances carry only bounded machine-readable reasons, counts, typed opaque Graph identities, and repository-neutral references. Evidence_refs, authority_ref, and blocking_refs reject absolute paths, UNC or rooted paths, file URIs, HTTP(S) URIs, and newline-bearing values. Instances exclude prompts, private reasoning, transcripts, stdout, stderr, environment dumps, credentials, secrets, process or agent or tool handles, absolute local paths, arbitrary payloads, mutable objects, and complete project history. CSV, Markdown, runtime writes, and filesystem access are outside this contract stage."
   },
   "semantic_input_digest": {
@@ -76,6 +77,27 @@
     "distinctions": "Normalized semantic input digest is separate from canonical byte measurement used for 16 MiB admission and separate from Graph semantic digest and canonical resource integrity digests. It is not authority, permission, acceptance, execution identity, or a grant of any kind.",
     "result_binding": "Result is valid only for the exact matching input_digest. input_digest mismatch forbids reuse, and graph_digest or graph_generation alone is insufficient for reuse."
   },
+  "resolver_admission_bounds": {
+    "max_graph_canonical_bytes": 8388608,
+    "max_graph_nodes": 10000,
+    "max_graph_joins": 10000,
+    "max_node_dependencies": 10000,
+    "max_node_resources": 10000,
+    "max_join_requires": 10000,
+    "max_blocking_node_ids": 10000,
+    "max_blocking_resource_ids": 10000,
+    "max_blocking_refs": 101
+  },
+  "resolver_admission_semantics": {
+    "scope": "These are optional Ready Resolver invocation bounds only. They do not change Graph Contract v1 validity, do not change the Graph semantic digest, do not narrow any Graph ID or array domain, and do not require another host or runtime to reject the Graph. A Graph above these bounds may still be processed by another host or runtime.",
+    "input_graph_separation": "max_input_canonical_bytes measures only the Ready Resolution Input instance and does not include the separately supplied Graph argument. The complete Graph argument is independently admitted by max_graph_canonical_bytes before synchronous resolution work.",
+    "graph_measurement": "Measure the complete supplied Graph as canonical strict JSON bytes using exactly canonical_byte_budgets.measurement: UTF-8 without BOM, Unicode code point object-key order, no insignificant whitespace, shortest decimal integers, fixed mandatory JSON escaping, and direct UTF-8 for other Unicode scalars. This admission measurement is separate from Graph semantic digest identity.",
+    "boundary_rule": "Every numeric bound is inclusive. A value exactly at a bound is admitted; boundary plus one is rejected before resolution. The resolver never rewrites, truncates, or partially processes the Graph to meet a bound.",
+    "graph_bytes_overflow": "Graph canonical bytes greater than max_graph_canonical_bytes return GRAPH_TOO_LARGE Error and no partial Result.",
+    "structural_overflow": "After Graph Contract v1 validity is established, any nodes, joins, per-node depends_on, per-node resources, or per-join requires cardinality greater than its corresponding resolver bound returns RESOLUTION_LIMIT_EXCEEDED Error and no partial Result. This is resolver admission failure, not GRAPH_INVALID.",
+    "blocker_alignment": "The Result blocker bounds align with admitted Graph and input cardinality. A candidate that would require more blocking identities or references than these aligned maxima must not truncate or omit them; the structurally over-limit invocation returns RESOLUTION_LIMIT_EXCEEDED before resolution.",
+    "result_rule": "Admission success does not waive the complete Result byte budget. A complete candidate Result over max_result_canonical_bytes returns RESULT_TOO_LARGE Error rather than a partial Result."
+  },
   "canonical_byte_budgets": {
     "max_input_canonical_bytes": 16777216,
     "max_result_canonical_bytes": 16777216,
@@ -85,19 +107,21 @@
     "input_overflow": "Input over max_input_canonical_bytes returns bounded INPUT_TOO_LARGE Error and must not generate a partial Result.",
     "result_overflow": "A resolver must not generate, truncate, or report success for a Result over max_result_canonical_bytes; it returns bounded RESULT_TOO_LARGE Error.",
     "error_overflow": "Error is limited to max_error_canonical_bytes. The deterministic issue collector must stop within 100 issues and omit further issues rather than emit unbounded error output in response to oversized input.",
-    "graph_scope": "The byte budgets do not alter the Graph digest, do not shrink the Graph Contract itself or its opaque identity domain, and limit only the optional resolver invocation."
+    "graph_scope": "The input, Graph, Result, and Error byte budgets do not alter the Graph digest, do not shrink the Graph Contract itself or its opaque identity or array domains, and limit only the optional resolver invocation. A Graph exactly at 8388608 canonical bytes is admitted; 8388609 bytes returns GRAPH_TOO_LARGE."
   },
   "error_semantics": {
     "REQUIRED_INPUT_INVALID": "Strict Input Schema, conditional, unknown-field, reference, or duplicate node/resource/join identity failure.",
     "GRAPH_INVALID": "The supplied Graph fails Graph Contract v1 validation; no Result is produced.",
     "GRAPH_BINDING_MISMATCH": "Input graph_digest or graph_generation does not bind to the validated Graph snapshot; no Result is produced.",
     "INPUT_TOO_LARGE": "Canonical input bytes exceed max_input_canonical_bytes; no partial Result is produced.",
+    "GRAPH_TOO_LARGE": "Canonical Graph bytes exceed max_graph_canonical_bytes; no partial Result is produced and Graph Contract validity is unchanged.",
+    "RESOLUTION_LIMIT_EXCEEDED": "A Graph valid under Graph Contract v1 exceeds an optional resolver nodes, joins, dependencies, resources, or join.requires admission bound; this is not GRAPH_INVALID and no partial Result is produced.",
     "RESULT_TOO_LARGE": "A complete candidate Result would exceed max_result_canonical_bytes; success is not truncated or partially reported.",
     "input_digest_availability": "input_digest may appear in Error only after strict Input validation, identity uniqueness, and canonicalization succeed.",
     "classification_boundary": "Error is not a BLOCKED node, HANDOFF, Project Manager decision, waiver, gate satisfaction, acceptance, runtime mutation, or authority."
   },
   "digest_semantics": "SHA-256 over each canonical resource's LF-normalized bytes is resource integrity only, not execution identity, semantic graph identity, runtime state identity, event identity, result identity, semantic input identity, authority, or permission. semantic_input_digest is separately domain-separated and defined only by semantic_input_digest.",
-  "compatibility": "This pre-implementation compatibility corrective remains Ready Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. It binds successful Results to complete validated semantic input and introduces a mutually exclusive language-neutral Error without narrowing the Graph Contract identity domain. It preserves typed opaque blocking identities, repository-neutral references, summary, privacy boundaries, 16 MiB input and result admission, host execution ownership, no scheduler, and no CLI. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation; Stage 4B resolver implementation remains deferred.",
+  "compatibility": "This pre-implementation cardinality corrective remains Ready Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, and Runtime State Contract v1 semantics. It aligns Result blocker cardinalities with optional Ready Resolver admission, binds successful Results to complete validated semantic input, and preserves a mutually exclusive language-neutral Error without narrowing the Graph Contract identity or array domains. It preserves typed opaque blocking identities, complete blocker output, repository-neutral references, summary, privacy boundaries, 16 MiB input and result admission, host execution ownership, no scheduler, and no CLI. Light remains graph-artifact optional and runtime remains optional. Schema or resource presence does not activate execution. This contract adds no public package export, resolver implementation, reference resolver implementation, scheduler, transition engine, process launch, agent launch, tool launch, resource acquisition, writer lock, filesystem runtime, CLI, network API, database, or Graph mutation; Stage 4B resolver implementation remains deferred.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 4A",
     "reference": "Ready Resolution Contract v1 objective"

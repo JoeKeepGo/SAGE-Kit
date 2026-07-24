@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:ready-resolution:v1:result",
   "title": "SAGE-Kit Ready Resolution Result v1",
-  "description": "A bounded, language-neutral decision output, not runtime mutation. Result and Error are mutually exclusive outputs: invalid, oversized, or Graph-mismatched input produces Error, not a partial Result or fabricated BLOCKED node. The entire result instance has a deterministic canonical strict JSON limit of 16777216 bytes, measured with the complete canonical_byte_budgets algorithm in contract.json: UTF-8 without BOM, object keys lexicographically sorted by Unicode code point sequence, no insignificant whitespace, shortest decimal integers, fixed necessary JSON string escaping, and all other Unicode scalars encoded directly as UTF-8 rather than ASCII escape. Mandatory representation escaping never rewrites identity. This aggregate measurement is admission only, not semantic identity or authority. An individual opaque identity is never rewritten or truncated. A resolver must not generate an over-limit partial or false-success result; it returns RESULT_TOO_LARGE Error and does not truncate success. The byte budget does not alter the Graph digest and does not shrink the Graph Contract or its identity domain, and applies only to the optional resolver invocation. A Result is valid only for the matching input_digest. An input_digest mismatch makes it non-reusable, and a host must not reuse a Result from graph_digest alone. The binding covers node states, AVAILABLE, BUSY, UNAVAILABLE, and UNKNOWN resource snapshots, and external_join_decision authority and evidence even though satisfied manual or corrective join evidence is not copied into the Result. The result separates opaque blocking node and resource identities from bounded repository-neutral authority and evidence references. It contains dispositions, stable reason codes, typed blocking identities, repository-neutral blocking references, and counts only. It contains no command, callback, process handle, agent packet, mutable object, private reasoning, transcript, environment dump, credential, secret, stdout, stderr, or arbitrary payload. The host decides whether and how to map this result to an authorized event or state update.",
+  "description": "A bounded, language-neutral decision output, not runtime mutation. Result and Error are mutually exclusive outputs: invalid, oversized, Graph-mismatched, or resolver-admission-rejected input produces Error, not a partial Result or fabricated BLOCKED node. The entire result instance has a deterministic canonical strict JSON limit of 16777216 bytes, measured with the complete canonical_byte_budgets algorithm in contract.json: UTF-8 without BOM, object keys lexicographically sorted by Unicode code point sequence, no insignificant whitespace, shortest decimal integers, fixed necessary JSON string escaping, and all other Unicode scalars encoded directly as UTF-8 rather than ASCII escape. Mandatory representation escaping never rewrites identity. This aggregate measurement is admission only, not semantic identity or authority. An individual opaque identity is never rewritten or truncated. A resolver must not generate an over-limit partial or false-success result; it returns RESULT_TOO_LARGE Error and does not truncate success. Within resolver admission, every applicable blocking node ID, resource ID, authority reference, and evidence reference must be emitted completely and exactly; no first-N truncation, truncation flag, silent omission, digest substitute, path normalization, or opaque-identity rewrite is permitted. The byte budget does not alter the Graph digest and does not shrink the Graph Contract or its identity domain, and applies only to the optional resolver invocation. A Result is valid only for the matching input_digest. An input_digest mismatch makes it non-reusable, and a host must not reuse a Result from graph_digest alone. The binding covers node states, AVAILABLE, BUSY, UNAVAILABLE, and UNKNOWN resource snapshots, and external_join_decision authority and evidence even though satisfied manual or corrective join evidence is not copied into the Result. For a REJECTED external decision, blocking_refs is the unique union of authority_ref and every evidence_refs value; equality between authority_ref and an evidence reference reduces the output cardinality only and never changes the original input or its digest. The result separates opaque blocking node and resource identities from bounded repository-neutral authority and evidence references. It contains dispositions, stable reason codes, typed blocking identities, repository-neutral blocking references, and counts only. It contains no command, callback, process handle, agent packet, mutable object, private reasoning, transcript, environment dump, credential, secret, stdout, stderr, or arbitrary payload. The host decides whether and how to map this result to an authorized event or state update.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -170,30 +170,30 @@
         },
         "blocking_node_ids": {
           "type": "array",
-          "maxItems": 100,
+          "maxItems": 10000,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/node_id"
           },
-          "description": "Bounded unique opaque Graph node identities that block this node decision. Values are semantic identities, never references or filesystem paths."
+          "description": "All applicable unique opaque Graph node identities that block this node decision, up to the resolver admission bound of 10000. Values are semantic identities, never references or filesystem paths, and must never be truncated, omitted, rewritten, or replaced by a digest."
         },
         "blocking_resource_ids": {
           "type": "array",
-          "maxItems": 100,
+          "maxItems": 10000,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/graph_id"
           },
-          "description": "Bounded unique opaque Graph resource identities that block this node decision. Values are semantic identities, never references or filesystem paths."
+          "description": "All applicable unique opaque Graph resource identities that block this node decision, up to the resolver admission bound of 10000. Values are semantic identities, never references or filesystem paths, and must never be truncated, omitted, rewritten, or replaced by a digest."
         },
         "blocking_refs": {
           "type": "array",
-          "maxItems": 100,
+          "maxItems": 101,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/reference"
           },
-          "description": "Bounded unique repository-neutral authority or evidence references associated with the blocker. Opaque node, resource, and join identities never belong in this field."
+          "description": "All applicable unique repository-neutral authority or evidence references associated with the blocker, bounded at 101 for one authority_ref plus 100 evidence_refs. Opaque node, resource, and join identities never belong in this field. References must never be truncated, silently omitted, or replaced by a digest."
         }
       },
       "oneOf": [
@@ -393,21 +393,21 @@
         },
         "blocking_node_ids": {
           "type": "array",
-          "maxItems": 100,
+          "maxItems": 10000,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/node_id"
           },
-          "description": "Bounded unique opaque Graph node identities that block this join decision. External authority or evidence remains in blocking_refs."
+          "description": "All applicable unique opaque Graph node identities that block this join decision, up to the resolver admission bound of 10000. External authority or evidence remains in blocking_refs. Identities must never be truncated, omitted, rewritten, or replaced by a digest."
         },
         "blocking_refs": {
           "type": "array",
-          "maxItems": 100,
+          "maxItems": 101,
           "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/reference"
           },
-          "description": "Bounded unique repository-neutral authority or evidence references. Opaque node identities never belong in this field, and references cannot replace node identities for an automatic join failure."
+          "description": "All applicable unique repository-neutral authority or evidence references, bounded at 101 for one authority_ref plus 100 evidence_refs. For REJECTED, this is the unique union of authority_ref and every evidence_refs value; a duplicate appears once without changing the authority/evidence input or its digest. Opaque node identities never belong in this field, references cannot replace node identities for an automatic join failure, and values must never be truncated or silently omitted."
         }
       },
       "oneOf": [

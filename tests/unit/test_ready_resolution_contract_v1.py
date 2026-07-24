@@ -8,9 +8,10 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-BASELINE_COMMIT = "6c7f7a97abcea8fe3cb871924c43fdc3dae0b8c6"
+BASELINE_COMMIT = "e571849149d614f4fb365bc2255185f1263ab535"
 CANONICAL = REPOSITORY / "docs/contracts/ready-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/ready-resolution/v1"
+GRAPH_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/graph.schema.json"
 RESOURCE_NAMES = (
     "contract.json",
     "error.schema.json",
@@ -20,11 +21,9 @@ RESOURCE_NAMES = (
 EXPECTED_STAGE4A_PATHS = {
     "docs/contracts/ready-resolution/v1/contract.json",
     "docs/contracts/ready-resolution/v1/error.schema.json",
-    "docs/contracts/ready-resolution/v1/input.schema.json",
     "docs/contracts/ready-resolution/v1/result.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/contract.json",
     "sagekit/resources/contracts/ready-resolution/v1/error.schema.json",
-    "sagekit/resources/contracts/ready-resolution/v1/input.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/result.schema.json",
     "tests/unit/test_ready_resolution_contract_v1.py",
 }
@@ -36,9 +35,24 @@ DEPENDENCY_DIGESTS = {
     "docs/contracts/runtime-state/v1/state.schema.json": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
-PRE_CORRECTIVE_SCHEMA_DIGESTS = {
-    "input.schema.json": "b859ca2e55214b027150e74e32c193be92299fa087476804de09cf6c48b2e313",
-    "result.schema.json": "747ec9575d8b8248e4c31219ae6a39cdb84ad60a0434cfedece47c72c857144e",
+BASELINE_SCHEMA_DIGESTS = {
+    "input.schema.json": "fc6d9edfdd50c66959ed55c59cda6b78cd7ac44b508081ce896aa2efdcc2b481",
+    "result.schema.json": "35fc3245998601bd0d5e4d7cff42a5a1be35dfacd4729668c1286cdb340ddf4b",
+    "error.schema.json": "a373a5bd3c136a09bd1f80426fdbf954f8e4d2a5b090a579d327aa90b1e589d7",
+}
+PROTECTED_GIT_BLOBS = {
+    "docs/contracts/graph/v1/contract.json": "742ce89bb40b32a85fa9075db7c6a18bf88a81b0",
+    "docs/contracts/graph/v1/graph.schema.json": "ac832ee4b0db701fd4cb38581f4e882ea6f9eceb",
+    "docs/contracts/graph/v1/node-result.schema.json": "a64b1aaec02bb6d35d024e12508c2cf40c29ecf8",
+    "docs/contracts/runtime-state/v1/contract.json": "f2c981da36933c53a6aca35bba54c22c63c2103e",
+    "docs/contracts/runtime-state/v1/event.schema.json": "15fb63092c9848b0b81a70bca3ddbb2de145ba39",
+    "docs/contracts/runtime-state/v1/state.schema.json": "1f2484dcc9f1c1a20cbed27e52bef31fa447c5ae",
+    "sagekit/resources/contracts/graph/v1/contract.json": "742ce89bb40b32a85fa9075db7c6a18bf88a81b0",
+    "sagekit/resources/contracts/graph/v1/graph.schema.json": "ac832ee4b0db701fd4cb38581f4e882ea6f9eceb",
+    "sagekit/resources/contracts/graph/v1/node-result.schema.json": "a64b1aaec02bb6d35d024e12508c2cf40c29ecf8",
+    "sagekit/resources/contracts/runtime-state/v1/contract.json": "f2c981da36933c53a6aca35bba54c22c63c2103e",
+    "sagekit/resources/contracts/runtime-state/v1/event.schema.json": "15fb63092c9848b0b81a70bca3ddbb2de145ba39",
+    "sagekit/resources/contracts/runtime-state/v1/state.schema.json": "1f2484dcc9f1c1a20cbed27e52bef31fa447c5ae",
 }
 INPUT_DIGEST_DOMAIN = b"sagekit-ready-resolution-input-v1\0"
 ERROR_CODES = {
@@ -46,6 +60,8 @@ ERROR_CODES = {
     "GRAPH_INVALID",
     "GRAPH_BINDING_MISMATCH",
     "INPUT_TOO_LARGE",
+    "GRAPH_TOO_LARGE",
+    "RESOLUTION_LIMIT_EXCEEDED",
     "RESULT_TOO_LARGE",
 }
 NODE_STATUSES = {
@@ -170,6 +186,61 @@ def canonical_json_bytes(value):
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
+
+
+def minimal_node(node_id="node-0", *, depends_on=None, resources=None):
+    return {
+        "id": node_id,
+        "role": "contract-vector",
+        "depends_on": [] if depends_on is None else depends_on,
+        "permission": "READ_ONLY_REVIEW",
+        "verifier": "focused-contract-vector",
+        "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+        "resources": [] if resources is None else resources,
+        "classification": "required",
+    }
+
+
+def minimal_graph(*, graph_id="graph-vector", nodes=None, joins=None):
+    return {
+        "schema_id": "urn:sagekit:graph-contract:v1:graph",
+        "schema_version": 1,
+        "graph_id": graph_id,
+        "generation": 1,
+        "source_authority": {
+            "identity": "Stage 4A-C4 contract vector",
+            "reference": "ready-resolution/cardinality-corrective",
+        },
+        "governance_level": "Standard",
+        "autonomy_level": "turn-based",
+        "human_gates": [],
+        "nodes": [minimal_node()] if nodes is None else nodes,
+        "joins": [] if joins is None else joins,
+    }
+
+
+def reference_graph_admission_error(graph, graph_canonical_bytes, bounds):
+    """Independent admission-vector logic only; this is not a product resolver."""
+    if graph_canonical_bytes > bounds["max_graph_canonical_bytes"]:
+        return "GRAPH_TOO_LARGE"
+    if len(graph["nodes"]) > bounds["max_graph_nodes"]:
+        return "RESOLUTION_LIMIT_EXCEEDED"
+    if len(graph["joins"]) > bounds["max_graph_joins"]:
+        return "RESOLUTION_LIMIT_EXCEEDED"
+    for node in graph["nodes"]:
+        if len(node["depends_on"]) > bounds["max_node_dependencies"]:
+            return "RESOLUTION_LIMIT_EXCEEDED"
+        if len(node["resources"]) > bounds["max_node_resources"]:
+            return "RESOLUTION_LIMIT_EXCEEDED"
+    for join in graph["joins"]:
+        if len(join["requires"]) > bounds["max_join_requires"]:
+            return "RESOLUTION_LIMIT_EXCEEDED"
+    return None
+
+
+def rejected_blocking_refs(authority_ref, evidence_refs):
+    """Reference union vector; preserves input values and does not resolve a Graph."""
+    return list(dict.fromkeys((authority_ref, *evidence_refs)))
 
 
 def semantic_input_digest(value, schema):
@@ -439,12 +510,316 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
                 + ", ".join(missing)
             )
         cls.manifest = load_json(cls.canonical["contract.json"])
+        cls.graph_schema = load_json(GRAPH_SCHEMA)
         cls.input_schema = load_json(cls.canonical["input.schema.json"])
         cls.result_schema = load_json(cls.canonical["result.schema.json"])
         cls.error_schema = (
             load_json(cls.canonical["error.schema.json"])
             if cls.canonical["error.schema.json"].is_file()
             else None
+        )
+
+    def test_node_dependency_blockers_align_with_graph_cardinality(self):
+        blocking_node_ids = self.result_schema["$defs"]["node_decision"]["properties"]["blocking_node_ids"]
+        self.assertEqual(10000, blocking_node_ids["maxItems"])
+
+    def test_node_resource_blockers_align_with_graph_cardinality(self):
+        blocking_resource_ids = self.result_schema["$defs"]["node_decision"]["properties"][
+            "blocking_resource_ids"
+        ]
+        self.assertEqual(10000, blocking_resource_ids["maxItems"])
+
+    def test_join_node_blockers_align_with_graph_cardinality(self):
+        blocking_node_ids = self.result_schema["$defs"]["join_decision"]["properties"]["blocking_node_ids"]
+        self.assertEqual(10000, blocking_node_ids["maxItems"])
+
+    def test_rejected_authority_and_evidence_refs_fit_without_truncation(self):
+        for decision in ("node_decision", "join_decision"):
+            with self.subTest(decision=decision):
+                blocking_refs = self.result_schema["$defs"][decision]["properties"]["blocking_refs"]
+                self.assertEqual(101, blocking_refs["maxItems"])
+
+    def test_error_contract_includes_graph_too_large(self):
+        self.assertIn("GRAPH_TOO_LARGE", self.error_schema["properties"]["error_code"]["enum"])
+
+    def test_error_contract_includes_resolution_limit_exceeded(self):
+        self.assertIn(
+            "RESOLUTION_LIMIT_EXCEEDED",
+            self.error_schema["properties"]["error_code"]["enum"],
+        )
+
+    def test_contract_declares_resolver_graph_admission_bounds(self):
+        self.assertEqual(
+            {
+                "max_graph_canonical_bytes": 8388608,
+                "max_graph_nodes": 10000,
+                "max_graph_joins": 10000,
+                "max_node_dependencies": 10000,
+                "max_node_resources": 10000,
+                "max_join_requires": 10000,
+                "max_blocking_node_ids": 10000,
+                "max_blocking_resource_ids": 10000,
+                "max_blocking_refs": 101,
+            },
+            self.manifest["resolver_admission_bounds"],
+        )
+
+    def test_blocker_boundaries_are_expressible_without_truncation(self):
+        opaque_ids = [f"阻塞/节点/{index}" for index in range(10000)]
+
+        node_result = valid_result()
+        node_result["node_decisions"][0].update(
+            disposition="BLOCKED",
+            reason_codes=["DEPENDENCY_FAILED"],
+            blocking_node_ids=opaque_ids[:101],
+        )
+        self.assertTrue(is_schema_valid(node_result, self.result_schema))
+        node_result["node_decisions"][0]["blocking_node_ids"] = opaque_ids
+        self.assertTrue(is_schema_valid(node_result, self.result_schema))
+        node_result["node_decisions"][0]["blocking_node_ids"] = opaque_ids + ["boundary-plus-one"]
+        self.assertFalse(is_schema_valid(node_result, self.result_schema))
+        dependency_overflow = minimal_graph(
+            nodes=[
+                minimal_node(
+                    depends_on=opaque_ids + ["boundary-plus-one"],
+                )
+            ]
+        )
+        self.assertEqual(
+            "RESOLUTION_LIMIT_EXCEEDED",
+            reference_graph_admission_error(
+                dependency_overflow,
+                0,
+                self.manifest["resolver_admission_bounds"],
+            ),
+        )
+
+        resource_result = valid_result()
+        resource_result["node_decisions"][0].update(
+            disposition="WAITING_RESOURCE",
+            reason_codes=["RESOURCE_UNKNOWN"],
+            blocking_resource_ids=[f"resource\\path-looking\\{index}" for index in range(10000)],
+        )
+        self.assertTrue(is_schema_valid(resource_result, self.result_schema))
+        resource_result["node_decisions"][0]["blocking_resource_ids"].append("resource-boundary-plus-one")
+        self.assertFalse(is_schema_valid(resource_result, self.result_schema))
+
+        join_result = valid_result()
+        join_result["join_decisions"] = [
+            {
+                "join_id": "汇合/边界",
+                "disposition": "BLOCKED",
+                "reason_codes": ["JOIN_NODE_FAILED"],
+                "blocking_node_ids": opaque_ids,
+                "blocking_refs": [],
+            }
+        ]
+        join_result["summary"]["join_decision_count"] = 1
+        join_result["summary"]["blocked_join_count"] = 1
+        join_result["graph_disposition"] = "BLOCKED"
+        self.assertTrue(is_schema_valid(join_result, self.result_schema))
+        join_result["join_decisions"][0]["blocking_node_ids"] = opaque_ids + ["join-boundary-plus-one"]
+        self.assertFalse(is_schema_valid(join_result, self.result_schema))
+
+    def test_rejected_reference_union_preserves_authority_evidence_and_digest(self):
+        evidence_refs = [f"evidence/rejected/{index}" for index in range(100)]
+        authority_ref = "authority/distinct-review"
+        decision_input = valid_input()
+        decision_input["external_join_decisions"][0].update(
+            decision="REJECTED",
+            authority_ref=authority_ref,
+            evidence_refs=evidence_refs,
+        )
+        digest_before = semantic_input_digest(decision_input, self.input_schema)
+        union = rejected_blocking_refs(authority_ref, evidence_refs)
+        self.assertEqual(101, len(union))
+        self.assertEqual({authority_ref, *evidence_refs}, set(union))
+        self.assertEqual(digest_before, semantic_input_digest(decision_input, self.input_schema))
+
+        rejected_result = valid_result()
+        rejected_result["join_decisions"] = [
+            {
+                "join_id": "manual-review",
+                "disposition": "REJECTED",
+                "reason_codes": ["EXTERNAL_DECISION_REJECTED"],
+                "blocking_node_ids": [],
+                "blocking_refs": union,
+            }
+        ]
+        rejected_result["summary"]["join_decision_count"] = 1
+        rejected_result["summary"]["rejected_join_count"] = 1
+        rejected_result["graph_disposition"] = "BLOCKED"
+        self.assertTrue(is_schema_valid(rejected_result, self.result_schema))
+        rejected_result["join_decisions"][0]["blocking_refs"] = union + ["evidence/overflow"]
+        self.assertFalse(is_schema_valid(rejected_result, self.result_schema))
+
+        duplicate_input = copy.deepcopy(decision_input)
+        duplicate_input["external_join_decisions"][0]["authority_ref"] = evidence_refs[0]
+        duplicate_digest = semantic_input_digest(duplicate_input, self.input_schema)
+        duplicate_union = rejected_blocking_refs(evidence_refs[0], evidence_refs)
+        self.assertEqual(100, len(duplicate_union))
+        self.assertEqual(set(evidence_refs), set(duplicate_union))
+        self.assertEqual(duplicate_digest, semantic_input_digest(duplicate_input, self.input_schema))
+        self.assertEqual(evidence_refs, duplicate_input["external_join_decisions"][0]["evidence_refs"])
+
+    def test_graph_canonical_byte_admission_is_inclusive_and_uses_strict_json(self):
+        bounds = self.manifest["resolver_admission_bounds"]
+        graph = minimal_graph(graph_id="")
+        overhead = len(canonical_json_bytes(graph))
+        graph["graph_id"] = "图" + ("x" * (bounds["max_graph_canonical_bytes"] - overhead - 3))
+        exact_bytes = canonical_json_bytes(graph)
+        self.assertEqual(bounds["max_graph_canonical_bytes"], len(exact_bytes))
+        self.assertTrue(is_schema_valid(graph, self.graph_schema))
+        self.assertIsNone(reference_graph_admission_error(graph, len(exact_bytes), bounds))
+
+        graph["graph_id"] += "x"
+        over_bytes = canonical_json_bytes(graph)
+        self.assertEqual(bounds["max_graph_canonical_bytes"] + 1, len(over_bytes))
+        self.assertTrue(is_schema_valid(graph, self.graph_schema))
+        self.assertEqual(
+            "GRAPH_TOO_LARGE",
+            reference_graph_admission_error(graph, len(over_bytes), bounds),
+        )
+
+    def test_graph_structural_admission_boundaries_are_inclusive(self):
+        bounds = self.manifest["resolver_admission_bounds"]
+
+        node_boundary = minimal_graph(
+            nodes=[minimal_node(f"node-{index}") for index in range(10000)]
+        )
+        self.assertTrue(is_schema_valid(node_boundary, self.graph_schema))
+        self.assertIsNone(reference_graph_admission_error(node_boundary, 0, bounds))
+        node_boundary["nodes"].append(minimal_node("node-10000"))
+        self.assertTrue(is_schema_valid(node_boundary, self.graph_schema))
+        self.assertEqual(
+            "RESOLUTION_LIMIT_EXCEEDED",
+            reference_graph_admission_error(node_boundary, 0, bounds),
+        )
+
+        join_boundary = minimal_graph(
+            joins=[
+                {"id": f"join-{index}", "requires": ["node-0"], "policy": "all-required"}
+                for index in range(10000)
+            ]
+        )
+        self.assertTrue(is_schema_valid(join_boundary, self.graph_schema))
+        self.assertIsNone(reference_graph_admission_error(join_boundary, 0, bounds))
+        join_boundary["joins"].append(
+            {"id": "join-10000", "requires": ["node-0"], "policy": "all-required"}
+        )
+        self.assertTrue(is_schema_valid(join_boundary, self.graph_schema))
+        self.assertEqual(
+            "RESOLUTION_LIMIT_EXCEEDED",
+            reference_graph_admission_error(join_boundary, 0, bounds),
+        )
+
+        for field, bound_name in (
+            ("depends_on", "max_node_dependencies"),
+            ("resources", "max_node_resources"),
+        ):
+            with self.subTest(field=field):
+                values = [f"{field}/opaque/{index}" for index in range(bounds[bound_name])]
+                graph = minimal_graph(nodes=[minimal_node(**{field: values})])
+                self.assertTrue(is_schema_valid(graph, self.graph_schema))
+                self.assertIsNone(reference_graph_admission_error(graph, 0, bounds))
+                values.append(f"{field}/boundary-plus-one")
+                self.assertTrue(is_schema_valid(graph, self.graph_schema))
+                self.assertEqual(
+                    "RESOLUTION_LIMIT_EXCEEDED",
+                    reference_graph_admission_error(graph, 0, bounds),
+                )
+
+        requires = [f"node-reference/{index}" for index in range(bounds["max_join_requires"])]
+        requires_graph = minimal_graph(
+            joins=[{"id": "join-limit", "requires": requires, "policy": "all-required"}]
+        )
+        self.assertTrue(is_schema_valid(requires_graph, self.graph_schema))
+        self.assertIsNone(reference_graph_admission_error(requires_graph, 0, bounds))
+        requires.append("node-reference/boundary-plus-one")
+        self.assertTrue(is_schema_valid(requires_graph, self.graph_schema))
+        self.assertEqual(
+            "RESOLUTION_LIMIT_EXCEEDED",
+            reference_graph_admission_error(requires_graph, 0, bounds),
+        )
+
+    def test_graph_contract_blobs_and_unbounded_domains_are_unchanged(self):
+        for relative_path, expected_blob in PROTECTED_GIT_BLOBS.items():
+            actual_blob = subprocess.run(
+                ["git", "hash-object", relative_path],
+                cwd=REPOSITORY,
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout.strip()
+            self.assertEqual(expected_blob, actual_blob, relative_path)
+        self.assertNotIn("maxItems", self.graph_schema["properties"]["nodes"])
+        self.assertNotIn("maxItems", self.graph_schema["properties"]["joins"])
+        self.assertNotIn("maxItems", self.graph_schema["$defs"]["node"]["properties"]["depends_on"])
+        self.assertNotIn("maxItems", self.graph_schema["$defs"]["node"]["properties"]["resources"])
+        self.assertNotIn("maxItems", self.graph_schema["$defs"]["join"]["properties"]["requires"])
+
+    def test_admission_error_mapping_is_exact_and_not_graph_validation(self):
+        semantics = self.manifest["error_semantics"]
+        self.assertEqual(ERROR_CODES, set(self.error_schema["properties"]["error_code"]["enum"]))
+        self.assertIn("max_graph_canonical_bytes", semantics["GRAPH_TOO_LARGE"])
+        self.assertIn("not GRAPH_INVALID", semantics["RESOLUTION_LIMIT_EXCEEDED"])
+        self.assertIn("max_input_canonical_bytes", semantics["INPUT_TOO_LARGE"])
+        self.assertIn("max_result_canonical_bytes", semantics["RESULT_TOO_LARGE"])
+        text = json.dumps(
+            {
+                "admission": self.manifest["resolver_admission_semantics"],
+                "boundaries": self.manifest["semantic_boundaries"],
+                "error": self.error_schema,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ).lower()
+        for phrase in (
+            "optional ready resolver invocation",
+            "measures only the ready resolution input instance",
+            "does not include the separately supplied graph argument",
+            "independently admitted by max_graph_canonical_bytes",
+            "do not change graph contract v1 validity",
+            "do not change the graph semantic digest",
+            "another host or runtime",
+            "exactly at a bound is admitted",
+            "boundary plus one is rejected",
+            "never rewrites, truncates, or partially processes",
+            "not graph_invalid",
+            "no partial result",
+            "contains no node or join decisions",
+        ):
+            self.assertIn(phrase, text)
+
+    def test_exact_blocker_preservation_forbids_false_success_patterns(self):
+        text = json.dumps(
+            {
+                "contract": self.manifest,
+                "result": self.result_schema,
+                "error": self.error_schema,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ).lower()
+        for phrase in (
+            "every applicable blocking",
+            "emitted completely and exactly",
+            "truncated at 100 or 10000",
+            "silently omitted",
+            "first n plus truncated=true",
+            "hash or digest",
+            "opaque blocker identities remain unchanged",
+            "unique union of authority_ref",
+            "never mutates the validated authority/evidence input",
+            "whole resolution returns resolution_limit_exceeded",
+            "whole resolution returns result_too_large",
+            "error never masquerades as resolution success",
+        ):
+            self.assertIn(phrase, text)
+        self.assertNotIn("truncated", property_names((self.result_schema, self.error_schema)))
+        self.assertIn(
+            "stage 4b resolver implementation remains deferred",
+            self.manifest["compatibility"].lower(),
         )
 
     def test_eight_resources_parse_and_use_stable_identities(self):
@@ -748,6 +1123,8 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "graph_invalid",
             "graph_binding_mismatch",
             "input_too_large",
+            "graph_too_large",
+            "resolution_limit_exceeded",
             "result_too_large",
             "not runtime mutation",
             "not a blocked node",
@@ -1205,7 +1582,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "does not alter the graph digest",
             "does not shrink the graph contract",
             "optional resolver invocation",
-            "pre-implementation compatibility corrective",
+            "pre-implementation cardinality corrective",
             "input_too_large",
             "result_too_large",
             "100",
@@ -1256,8 +1633,10 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         ):
             digest = resources[key]["canonical_sha256"]
             self.assertEqual(canonical_sha256(self.canonical[name]), digest)
-            if name in PRE_CORRECTIVE_SCHEMA_DIGESTS:
-                self.assertNotEqual(PRE_CORRECTIVE_SCHEMA_DIGESTS[name], digest)
+            if name == "input.schema.json":
+                self.assertEqual(BASELINE_SCHEMA_DIGESTS[name], digest)
+            else:
+                self.assertNotEqual(BASELINE_SCHEMA_DIGESTS[name], digest)
 
     def test_node_result_digest_is_conditional_and_no_action_is_evidence_bound(self):
         result_statuses = {
