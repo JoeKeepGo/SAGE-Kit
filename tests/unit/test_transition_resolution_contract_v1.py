@@ -11,7 +11,7 @@ from sagekit.graph_contract import NODE_STATUSES, validate_node_transition
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-BASELINE_COMMIT = "20f209b137b294124b4492f960670716759be2fe"
+BASELINE_COMMIT = "cef1d36bf4e676d531fcb08bebef1c4ef74dfdeb"
 CANONICAL = REPOSITORY / "docs/contracts/transition-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/transition-resolution/v1"
 NODE_RESULT_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/node-result.schema.json"
@@ -24,12 +24,8 @@ RESOURCE_NAMES = (
 EXPECTED_STAGE4C1_PATHS = {
     "docs/contracts/transition-resolution/v1/contract.json",
     "docs/contracts/transition-resolution/v1/error.schema.json",
-    "docs/contracts/transition-resolution/v1/input.schema.json",
-    "docs/contracts/transition-resolution/v1/result.schema.json",
     "sagekit/resources/contracts/transition-resolution/v1/contract.json",
     "sagekit/resources/contracts/transition-resolution/v1/error.schema.json",
-    "sagekit/resources/contracts/transition-resolution/v1/input.schema.json",
-    "sagekit/resources/contracts/transition-resolution/v1/result.schema.json",
     "tests/unit/test_transition_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
@@ -60,6 +56,10 @@ PROTECTED_PATHS = (
     "sagekit/resources/contracts/ready-resolution/v1/input.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/result.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/error.schema.json",
+    "docs/contracts/transition-resolution/v1/input.schema.json",
+    "docs/contracts/transition-resolution/v1/result.schema.json",
+    "sagekit/resources/contracts/transition-resolution/v1/input.schema.json",
+    "sagekit/resources/contracts/transition-resolution/v1/result.schema.json",
 )
 INPUT_REQUIRED = {
     "schema_id",
@@ -106,6 +106,7 @@ RESULT_REQUIRED = {
 ERROR_CODES = {
     "REQUIRED_INPUT_INVALID",
     "INPUT_TOO_LARGE",
+    "GRAPH_INVALID",
     "GRAPH_BINDING_MISMATCH",
     "NODE_BINDING_MISMATCH",
     "NODE_RESULT_INVALID",
@@ -638,6 +639,50 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         self.assertEqual("NODE_BINDING_MISMATCH", rule["error_code"])
         self.assertNotEqual(payload["node_id"], payload["node_result"]["node_id"])
 
+    def test_graph_validation_precedes_binding_with_exclusive_error_taxonomy(self):
+        validation = self.contract["semantic_validation"]
+        graph = validation["graph_validation"]
+        self.assertEqual(
+            "validate_graph_contract",
+            graph["existing_stage_2b_validator"],
+        )
+        self.assertEqual("GRAPH_INVALID", graph["invalid_error_code"])
+        self.assertEqual(
+            "GRAPH_BINDING_MISMATCH",
+            validation["graph_binding"]["mismatch_error_code"],
+        )
+        self.assertNotEqual(
+            graph["invalid_error_code"],
+            validation["graph_binding"]["mismatch_error_code"],
+        )
+        self.assertEqual(
+            [
+                "graph_canonical_byte_admission",
+                "validate_graph_contract",
+                "graph_invalid_error_only",
+                "canonical_graph_digest",
+                "graph_binding_comparison",
+                "graph_binding_mismatch_error_only",
+                "node_result_and_transition_validation",
+            ],
+            validation["deterministic_order"],
+        )
+        self.assertIn(
+            "only through the existing Stage 2B validate_graph_contract",
+            graph["validator_rule"],
+        )
+        self.assertIn("Only after", graph["digest_rule"])
+        self.assertIn("Only a valid Graph", validation["graph_binding"]["mismatch_outcome"])
+        self.assertEqual(
+            {"graph_id", "graph_generation", "graph_digest"},
+            set(validation["graph_binding"]["comparisons"]),
+        )
+        boundary = validation["graph_classification_boundary"]
+        self.assertIn("invalid Graph", boundary)
+        self.assertIn("never GRAPH_BINDING_MISMATCH", boundary)
+        self.assertIn("valid Graph", boundary)
+        self.assertIn("GRAPH_BINDING_MISMATCH", boundary)
+
     def test_nonempty_attempt_and_bool_as_int_rejection(self):
         payload = valid_input()
         payload["attempt_id"] = ""
@@ -935,7 +980,7 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         self.assertIn("pure decision", inert["authority"])
         self.assertNotIn("resolver.py", " ".join(EXPECTED_STAGE4C1_PATHS))
 
-    def test_exact_nine_file_manifest_and_protected_dependency_blobs(self):
+    def test_exact_five_file_manifest_and_protected_dependency_blobs(self):
         committed = subprocess.run(
             [
                 "git",
@@ -957,7 +1002,7 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         ).stdout.splitlines()
         working = [line[3:].replace("\\", "/") for line in status]
         self.assertEqual(EXPECTED_STAGE4C1_PATHS, set(committed) | set(working))
-        self.assertEqual(9, len(EXPECTED_STAGE4C1_PATHS))
+        self.assertEqual(5, len(EXPECTED_STAGE4C1_PATHS))
         for path in PROTECTED_PATHS:
             with self.subTest(path=path):
                 baseline_blob = subprocess.run(

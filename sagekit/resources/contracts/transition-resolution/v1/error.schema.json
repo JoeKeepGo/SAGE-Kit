@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:transition-resolution:v1:error",
   "title": "SAGE-Kit Transition Resolution Error v1",
-  "description": "A closed, language-neutral failure envelope limited to 1048576 canonical bytes under contract.json and strictly mutually exclusive with Transition Resolution Result v1. It contains 1 through 100 bounded deterministic issues. Invalid or oversized input, binding mismatch, invalid Node Result, illegal transition, invalid authority-change status, or oversized would-be Result returns Error with no partial Result, no transition, and no fabricated HANDOFF or BLOCKED substitute. Error contains no private reasoning, transcript, stdout, stderr, secret, credential, environment dump, runtime event, state mutation, Graph mutation, or authority grant.",
+  "description": "A closed, language-neutral failure envelope limited to 1048576 canonical bytes under contract.json and strictly mutually exclusive with Transition Resolution Result v1. It contains 1 through 100 bounded deterministic issues. Invalid or oversized input, invalid Graph, valid-Graph binding mismatch, invalid Node Result, illegal transition, invalid authority-change status, or oversized would-be Result returns Error with no partial Result, no transition, and no fabricated HANDOFF or BLOCKED substitute. Error contains no private reasoning, transcript, stdout, stderr, secret, credential, environment dump, runtime event, state mutation, Graph mutation, or authority grant.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,6 +23,7 @@
       "enum": [
         "REQUIRED_INPUT_INVALID",
         "INPUT_TOO_LARGE",
+        "GRAPH_INVALID",
         "GRAPH_BINDING_MISMATCH",
         "NODE_BINDING_MISMATCH",
         "NODE_RESULT_INVALID",

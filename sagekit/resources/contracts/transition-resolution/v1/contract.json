@@ -17,7 +17,7 @@
     "error_schema": {
       "resource": "error.schema.json",
       "schema_id": "urn:sagekit:transition-resolution:v1:error",
-      "canonical_sha256": "b6fdb5658ed94534d75f3ec601af3163f60f42648452282474ee9ebe7e311a14"
+      "canonical_sha256": "38a9b2971199e91cdd99e01994f57f726dfa329137110d7961f20e63a556c684"
     }
   },
   "dependencies": {
@@ -70,14 +70,41 @@
     "stale_result_rule": "A Result is non-reusable if any binding, attempt identity, revision, sequence, authority/controller identity, input digest, or Node Result digest no longer matches."
   },
   "semantic_validation": {
+    "graph_validation": {
+      "argument": "The future resolver receives the complete supplied Graph separately from Transition Resolution Input and treats it as immutable.",
+      "canonical_byte_admission": "First check the complete supplied Graph against the applicable canonical Graph byte/admission boundary. Never rewrite, truncate, partially process, or auto-correct the Graph to cross that boundary; this ordering rule creates no second Graph Contract rule or validator.",
+      "existing_stage_2b_validator": "validate_graph_contract",
+      "validator_rule": "Second, validate the admitted Graph only through the existing Stage 2B validate_graph_contract owner. Do not copy, replace, narrow, or supplement that validator.",
+      "invalid_error_code": "GRAPH_INVALID",
+      "invalid_outcome": "If validate_graph_contract reports that the Graph is invalid, return only GRAPH_INVALID Error. Never classify an invalid Graph as GRAPH_BINDING_MISMATCH, calculate a digest for it, emit Result, or emit a partial transition.",
+      "digest_owner": "canonical_graph_digest",
+      "digest_rule": "Only after validate_graph_contract succeeds, calculate the existing Stage 2B canonical Graph digest without changing the Graph."
+    },
     "graph_binding": {
       "fields": [
         "graph_id",
         "graph_generation",
         "graph_digest"
       ],
-      "mismatch_error_code": "GRAPH_BINDING_MISMATCH"
+      "precondition": "Graph Contract v1 validation has succeeded and the existing canonical Graph digest has been calculated.",
+      "comparisons": {
+        "graph_id": "Input graph_id equals the validated Graph graph_id.",
+        "graph_generation": "Input graph_generation equals the validated Graph generation.",
+        "graph_digest": "Input graph_digest equals the existing canonical Graph digest."
+      },
+      "mismatch_error_code": "GRAPH_BINDING_MISMATCH",
+      "mismatch_outcome": "Only a valid Graph whose graph ID, generation, or digest does not match Transition Resolution Input yields GRAPH_BINDING_MISMATCH Error and no Result."
     },
+    "deterministic_order": [
+      "graph_canonical_byte_admission",
+      "validate_graph_contract",
+      "graph_invalid_error_only",
+      "canonical_graph_digest",
+      "graph_binding_comparison",
+      "graph_binding_mismatch_error_only",
+      "node_result_and_transition_validation"
+    ],
+    "graph_classification_boundary": "An invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to a valid Graph after structural validation and canonical digest calculation when graph ID, generation, or digest differs. Node Result and transition validation begin only after Graph validity and binding succeed.",
     "node_binding": {
       "left": "$.node_id",
       "right": "$.node_result.node_id",
@@ -95,7 +122,7 @@
       "error_code": "AUTHORITY_CHANGE_STATUS_INVALID"
     },
     "status_projection": "For ordinary input, next_status equals node_result.status exactly. For authority change, both node_result.status and next_status are HANDOFF. No status is trimmed, mapped, promoted, or synthesized.",
-    "validation_failure": "Any structural, binding, Node Result, transition, authority-change, or size failure yields only Error. Invalid input has no input digest, no Result, no partial transition, and no fabricated HANDOFF or BLOCKED substitute."
+    "validation_failure": "Any structural Input or Graph, binding, Node Result, transition, authority-change, or size failure yields only Error. Invalid input or Graph has no Result, no partial transition, and no fabricated HANDOFF or BLOCKED substitute."
   },
   "transition_legality": {
     "owner": "validate_node_transition",
@@ -136,7 +163,7 @@
       "domain_separator_utf8_hex": "736167656b69742d7472616e736974696f6e2d7265736f6c7574696f6e2d696e7075742d763100",
       "construction": "SHA-256(UTF-8 domain separator bytes followed by canonical JSON bytes of the complete valid Transition Resolution Input v1 instance)."
     },
-    "validation_order": "Parse strict JSON while rejecting duplicate object names, validate the complete referenced schema and semantic bindings, enforce the canonical byte budget, reject non-JSON numbers and invalid Unicode scalar sequences, then calculate digests. No digest exists for invalid input.",
+    "validation_order": "Resolver-wide Graph validation and binding follow semantic_validation.deterministic_order. For Transition Resolution Input, parse strict JSON while rejecting duplicate object names, validate the complete referenced schema and semantic bindings, enforce the canonical byte budget, reject non-JSON numbers and invalid Unicode scalar sequences, then calculate input and Node Result digests. No input or Node Result digest exists for invalid input.",
     "canonical_json": {
       "encoding": "UTF-8 without BOM",
       "object_keys": "Recursively sort object keys lexicographically by Unicode scalar value sequence.",
