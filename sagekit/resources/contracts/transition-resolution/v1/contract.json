@@ -1,0 +1,260 @@
+{
+  "contract_id": "urn:sagekit:transition-resolution:v1",
+  "contract_family": "sagekit-transition-resolution-contract",
+  "version": "v1",
+  "manifest_version": 1,
+  "resources": {
+    "input_schema": {
+      "resource": "input.schema.json",
+      "schema_id": "urn:sagekit:transition-resolution:v1:input",
+      "canonical_sha256": "4af10539b2f67b5342a77b831bcfbc0d44f96782606d0a2c69a8cb0e8756d968"
+    },
+    "result_schema": {
+      "resource": "result.schema.json",
+      "schema_id": "urn:sagekit:transition-resolution:v1:result",
+      "canonical_sha256": "488405d59e94730ad209bb91acd0d366645f6cecf186b0537acb49b7bc2c3619"
+    },
+    "error_schema": {
+      "resource": "error.schema.json",
+      "schema_id": "urn:sagekit:transition-resolution:v1:error",
+      "canonical_sha256": "b6fdb5658ed94534d75f3ec601af3163f60f42648452282474ee9ebe7e311a14"
+    }
+  },
+  "dependencies": {
+    "graph_contract_v1": {
+      "contract_id": "urn:sagekit:graph-contract:v1",
+      "resource": "docs/contracts/graph/v1/contract.json",
+      "canonical_sha256": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
+      "relation": "Supplies the immutable Graph identity and generation boundary; this contract neither copies nor mutates the Graph."
+    },
+    "node_result_v1": {
+      "schema_id": "urn:sagekit:graph-contract:v1:node-result",
+      "resource": "docs/contracts/graph/v1/node-result.schema.json",
+      "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
+      "relation": "The complete proposed Node Result is validated through its existing stable URN and content-digest bound without defining a second Node Result shape."
+    },
+    "runtime_state_contract_v1": {
+      "contract_id": "urn:sagekit:runtime-state-contract:v1",
+      "resource": "docs/contracts/runtime-state/v1/contract.json",
+      "canonical_sha256": "a27806a732dbf60b9c38b7f410e62ce6d93a38c9a99d222c27241ac57c6ed976",
+      "relation": "Defines the language-neutral snapshot and writer boundary; this contract consumes observed identity labels only."
+    },
+    "runtime_state_v1": {
+      "schema_id": "urn:sagekit:runtime-state-contract:v1:state",
+      "resource": "docs/contracts/runtime-state/v1/state.schema.json",
+      "canonical_sha256": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
+      "relation": "Supplies graph, run, authority, controller, revision, sequence, node, attempt, and previous-status snapshot identities."
+    },
+    "runtime_event_v1": {
+      "schema_id": "urn:sagekit:runtime-state-contract:v1:event",
+      "resource": "docs/contracts/runtime-state/v1/event.schema.json",
+      "canonical_sha256": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
+      "relation": "Supplies the last-event sequence correlation boundary. A transition Result is not a Runtime Event."
+    }
+  },
+  "snapshot_binding": {
+    "input_meaning": "Input is an observed snapshot only. Contract validation does not prove that the snapshot is still current.",
+    "result_revalidation_fields": [
+      "graph_id",
+      "graph_generation",
+      "graph_digest",
+      "run_id",
+      "authority_id",
+      "controller_id",
+      "node_id",
+      "attempt_id",
+      "state_revision",
+      "last_event_sequence"
+    ],
+    "node_result_binding": "The complete Node Result is bound by node_result_digest; its node_id must equal the input node_id and the exact proposed status must become next_status only when the existing transition owner allows the pair.",
+    "stale_result_rule": "A Result is non-reusable if any binding, attempt identity, revision, sequence, authority/controller identity, input digest, or Node Result digest no longer matches."
+  },
+  "semantic_validation": {
+    "graph_binding": {
+      "fields": [
+        "graph_id",
+        "graph_generation",
+        "graph_digest"
+      ],
+      "mismatch_error_code": "GRAPH_BINDING_MISMATCH"
+    },
+    "node_binding": {
+      "left": "$.node_id",
+      "right": "$.node_result.node_id",
+      "comparison": "exact Unicode scalar sequence equality",
+      "error_code": "NODE_BINDING_MISMATCH"
+    },
+    "node_result": {
+      "schema_id": "urn:sagekit:graph-contract:v1:node-result",
+      "invalid_error_code": "NODE_RESULT_INVALID"
+    },
+    "authority_change_status": {
+      "when": "$.node_result.authority_change is true",
+      "required_status": "HANDOFF",
+      "required_decision": "existing Node Result v1 non-empty bounded decision",
+      "error_code": "AUTHORITY_CHANGE_STATUS_INVALID"
+    },
+    "status_projection": "For ordinary input, next_status equals node_result.status exactly. For authority change, both node_result.status and next_status are HANDOFF. No status is trimmed, mapped, promoted, or synthesized.",
+    "validation_failure": "Any structural, binding, Node Result, transition, authority-change, or size failure yields only Error. Invalid input has no input digest, no Result, no partial transition, and no fabricated HANDOFF or BLOCKED substitute."
+  },
+  "transition_legality": {
+    "owner": "validate_node_transition",
+    "owner_stage": "Stage 2B",
+    "rule": "The pair previous_status and the exact Node Result status must be allowed by the existing owner. This contract's Result schema mirrors that table only as a success-envelope constraint and does not create a different state machine.",
+    "terminal_rule": "A terminal previous status cannot produce Result.",
+    "distinct_outcomes": "NO_ACTION_REQUIRED and DONE_WITH_CONCERNS remain their exact proposed statuses and are never mapped to SUCCEEDED.",
+    "not_allowed_error_code": "TRANSITION_NOT_ALLOWED"
+  },
+  "authority_change": {
+    "ordinary": {
+      "node_result_authority_change": false,
+      "disposition": "APPLY_TRANSITION",
+      "authority_decision_required": false,
+      "next_status_rule": "exact Node Result status"
+    },
+    "request": {
+      "node_result_authority_change": true,
+      "required_node_result_status": "HANDOFF",
+      "disposition": "APPLY_HANDOFF_AND_REQUEST_AUTHORITY",
+      "next_status": "HANDOFF",
+      "authority_decision_required": true
+    },
+    "false_green_rule": "authority_change true with SUCCEEDED, NO_ACTION_REQUIRED, DONE_WITH_CONCERNS, or any non-HANDOFF status is invalid and yields AUTHORITY_CHANGE_STATUS_INVALID Error, never Result.",
+    "permission_boundary": "An authority request does not modify permission, a gate, the Graph, project authority, or runtime authority."
+  },
+  "canonical_digests": {
+    "algorithm": "SHA-256",
+    "purpose": "Canonical content identity for Stage 4C1 transition decisions. It is not a Stage 5 semantic evidence fingerprint.",
+    "node_result_digest": {
+      "domain_separator": "sagekit-node-result-v1\u0000",
+      "domain_separator_utf8_hex": "736167656b69742d6e6f64652d726573756c742d763100",
+      "construction": "SHA-256(UTF-8 domain separator bytes followed by canonical JSON bytes of the complete valid Node Result v1 instance)."
+    },
+    "transition_input_digest": {
+      "result_field": "input_digest",
+      "domain_separator": "sagekit-transition-resolution-input-v1\u0000",
+      "domain_separator_utf8_hex": "736167656b69742d7472616e736974696f6e2d7265736f6c7574696f6e2d696e7075742d763100",
+      "construction": "SHA-256(UTF-8 domain separator bytes followed by canonical JSON bytes of the complete valid Transition Resolution Input v1 instance)."
+    },
+    "validation_order": "Parse strict JSON while rejecting duplicate object names, validate the complete referenced schema and semantic bindings, enforce the canonical byte budget, reject non-JSON numbers and invalid Unicode scalar sequences, then calculate digests. No digest exists for invalid input.",
+    "canonical_json": {
+      "encoding": "UTF-8 without BOM",
+      "object_keys": "Recursively sort object keys lexicographically by Unicode scalar value sequence.",
+      "arrays": "Preserve every array in its original order.",
+      "separators": "Use comma and colon with no insignificant whitespace.",
+      "numbers": "Only mathematical JSON integer values are admitted by these schemas, following JSON Schema 2020-12 integer semantics. Lexically distinct but mathematically equal forms such as 1, 1.0, and 1e0 canonicalize identically to the shortest base-10 integer 1; negative zero canonicalizes to 0. Encode with no leading plus, leading zero, decimal point, or exponent. JSON booleans are not integers. Reject non-integral numbers, NaN, positive Infinity, and negative Infinity before a digest exists.",
+      "string_escaping": "Escape quotation mark and reverse solidus. Use the fixed short escapes for backspace, tab, line feed, form feed, and carriage return; encode remaining U+0000 through U+001F controls as lowercase \\u00xx. Encode every other Unicode scalar directly as UTF-8, including non-BMP scalars.",
+      "surrogates": "A valid paired UTF-16 JSON escape denotes its single non-BMP Unicode scalar and canonicalizes to that scalar's direct UTF-8 bytes. Reject every unpaired escape and every lone surrogate code point.",
+      "opaque_strings": "Preserve the original Unicode scalar sequence and its UTF-8 bytes; never trim, normalize, case-fold, parse as a filesystem path, or otherwise rewrite it."
+    },
+    "opaque_string_rule": "Opaque strings undergo no trim, case-fold, path normalization, or Unicode normalization; slash, leading punctuation, non-BMP scalars, and long identities are preserved exactly within the aggregate limit.",
+    "test_vectors": {
+      "node_result": {
+        "value": {
+          "schema_id": "urn:sagekit:graph-contract:v1:node-result",
+          "schema_version": 1,
+          "node_id": "./阶段/😀",
+          "status": "DONE_WITH_CONCERNS",
+          "changed_paths": [
+            "src/z",
+            "src/a"
+          ],
+          "evidence_refs": [
+            "evidence/β",
+            "evidence/α"
+          ],
+          "findings": [
+            {
+              "finding_id": "finding/😀",
+              "severity": "P2",
+              "summary": "Concern β",
+              "evidence_refs": [
+                "evidence/β"
+              ]
+            }
+          ],
+          "authority_change": false,
+          "proposed_next_nodes": [
+            "节点/二",
+            "节点/一"
+          ]
+        },
+        "expected_sha256": "bec9a2c92f462c99ee6a5389edf8a06cb2479433e89fd7286d8ea0702a90efb6"
+      },
+      "transition_input": {
+        "value": {
+          "schema_id": "urn:sagekit:transition-resolution:v1:input",
+          "schema_version": 1,
+          "graph_id": "../图/alpha",
+          "graph_generation": 7,
+          "graph_digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          "run_id": ".run/运行/001",
+          "authority_id": "~authority/权限",
+          "controller_id": "_controller/β",
+          "node_id": "!node/𐀀/é",
+          "attempt_id": ".attempt/001",
+          "state_revision": 0,
+          "last_event_sequence": 9,
+          "previous_status": "RUNNING",
+          "node_result": {
+            "schema_id": "urn:sagekit:graph-contract:v1:node-result",
+            "schema_version": 1,
+            "node_id": "!node/𐀀/é",
+            "status": "HANDOFF",
+            "changed_paths": [],
+            "evidence_refs": [
+              "evidence/handoff"
+            ],
+            "findings": [],
+            "authority_change": true,
+            "proposed_next_nodes": [
+              "下一步/β",
+              "下一步/α"
+            ],
+            "decision": "Request authority without mutating the graph."
+          }
+        },
+        "expected_sha256": "e6ec15448d9c77ec74a77b430d9c7bfa2fd2b750c523f44fcfa1eafb3da1cd69"
+      }
+    }
+  },
+  "canonical_byte_budgets": {
+    "input_max_canonical_bytes": 16777216,
+    "result_max_canonical_bytes": 16777216,
+    "error_max_canonical_bytes": 1048576
+  },
+  "output_contract": {
+    "exclusivity": "one_of_result_or_error",
+    "result_meaning": "A complete pure success decision for one exact snapshot and Node Result only.",
+    "error_meaning": "A complete bounded failure only, containing no success fields or partial Result.",
+    "oversized_result": "Return RESULT_TOO_LARGE Error; never truncate or emit a partial Result."
+  },
+  "race_and_apply_boundary": {
+    "resolver_scope": "The future resolver may decide only the supplied snapshot and performs no compare-and-swap or current-state proof.",
+    "revalidation_owner": "host_runtime_writer",
+    "required_before_apply": "Revalidate graph identity, generation and digest; run, authority and controller identity; node and attempt identity; state revision; last event sequence; input digest; and Node Result digest against the current authorized state.",
+    "snapshot_changed_action": "reject_stale_result",
+    "apply_effect": "Contract presence and Result presence perform no apply. Only an independently authorized host/runtime writer may map an unchanged decision to later runtime behavior."
+  },
+  "semantic_boundaries": {
+    "runtime_mutation": "Contract presence does not create, and a transition decision does not create, an event, state, write, lock, lease, scheduler, agent, execution packet, or runtime-store mutation.",
+    "graph_mutation": "proposed_next_nodes is digest-bound proposal content only; it does not activate, create, execute, or schedule a node and grants no Graph mutation. Graph evolution remains deferred to Stage 6.",
+    "authority": "Result is a pure decision and grants no execution, write, gate, Graph-mutation, project-authority, controller, or writer authority. An authority request changes no permission or gate.",
+    "ready_resolver": "This contract does not call the Ready Resolver and creates no readiness, resource-acquisition, join, scheduling, or agent behavior.",
+    "privacy": "Input, Result, and Error exclude private reasoning, prompt or transcript content, stdout, stderr, secret or credential material, environment dump content, arbitrary payloads, complete project history, and runtime handles. Error messages remain bounded observable text."
+  },
+  "deferred": {
+    "stage_4c2": "Resolver implementation is not part of this contract stage.",
+    "stage_5": "Semantic evidence fingerprinting is not part of these canonical content digests.",
+    "stage_6": "Graph evolution and proposal application remain outside this contract."
+  },
+  "compatibility": "Language-neutral Transition Resolution Contract v1 connecting Graph Contract v1, Node Result v1, and Runtime State/Event v1 snapshot identities to a pure decision. No Python resolver, CLI, scheduler, daemon, network API, runtime mutation, package initializer change, or consumer behavior is introduced.",
+  "source_authority": {
+    "identity": "SAGE-Kit rebuild Stage 4C1",
+    "reference": "Rebuild Stage 4C1 — Transition Resolution Contract v1"
+  },
+  "packaged_mirror": {
+    "path": "sagekit/resources/contracts/transition-resolution/v1",
+    "expectation": "All four resources are byte-identical mirrors of canonical resources in docs/contracts/transition-resolution/v1."
+  }
+}

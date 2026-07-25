@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:transition-resolution:v1:input",
+  "title": "SAGE-Kit Transition Resolution Input v1",
+  "description": "A closed, language-neutral snapshot presented to a future pure transition resolver. The canonical representation is limited to 16777216 bytes under contract.json. It binds the exact Graph, run, authority, controller, node, attempt, state revision, last event sequence, previous status, and complete Node Result content supplied by the host. It describes only an observed snapshot and does not prove that the snapshot remains current. Unknown fields are invalid. Schema presence does not mutate state or Graph data, create an event, lock, lease, scheduler, or agent, call the Ready Resolver, or grant execution, transition, gate, write, Graph-mutation, or authority permission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "graph_id",
+    "graph_generation",
+    "graph_digest",
+    "run_id",
+    "authority_id",
+    "controller_id",
+    "node_id",
+    "attempt_id",
+    "state_revision",
+    "last_event_sequence",
+    "previous_status",
+    "node_result"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:transition-resolution:v1:input"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "graph_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "Exact opaque Graph identity; it is not normalized or interpreted as a path."
+    },
+    "graph_generation": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647,
+      "description": "Observed immutable Graph generation; it grants no Graph mutation authority."
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Stage 2B canonical semantic digest of the bound Graph snapshot."
+    },
+    "run_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "Exact opaque run identity from the observed snapshot."
+    },
+    "authority_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "Exact opaque authority identity reference; it neither proves nor changes authority."
+    },
+    "controller_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "Exact opaque controller identity reference; it grants no writer authority."
+    },
+    "node_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "Exact opaque Graph node identity. Semantic validation requires equality with node_result.node_id."
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "Exact non-empty opaque attempt identity bound to the run and node."
+    },
+    "state_revision": {
+      "$ref": "#/$defs/nonnegative_sequence",
+      "description": "Observed Runtime State revision. A JSON boolean is not an integer."
+    },
+    "last_event_sequence": {
+      "$ref": "#/$defs/nonnegative_sequence",
+      "description": "Observed last Runtime Event sequence. A JSON boolean is not an integer."
+    },
+    "previous_status": {
+      "$ref": "#/$defs/node_status",
+      "description": "Exact previous node status from the supplied snapshot."
+    },
+    "node_result": {
+      "$ref": "urn:sagekit:graph-contract:v1:node-result",
+      "description": "A complete existing Node Result v1 instance by stable URN reference. This contract does not copy or redefine Node Result v1."
+    }
+  },
+  "$defs": {
+    "opaque_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque non-empty identity preserved exactly, including Unicode, slash, leading punctuation, and long values within the aggregate byte budget. No trim, case-fold, path normalization, filesystem interpretation, or Unicode normalization is permitted."
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nonnegative_sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "node_status": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "READY",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "SUCCEEDED",
+        "NO_ACTION_REQUIRED",
+        "FAILED",
+        "NEEDS_CORRECTION",
+        "HANDOFF",
+        "BLOCKED",
+        "CANCELLED",
+        "DONE_WITH_CONCERNS"
+      ],
+      "description": "The existing twelve Stage 2 node statuses. This enum does not define a second transition table."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "node_result"
+        ],
+        "properties": {
+          "node_result": {
+            "required": [
+              "authority_change"
+            ],
+            "properties": {
+              "authority_change": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "node_result": {
+            "required": [
+              "status",
+              "decision"
+            ],
+            "properties": {
+              "status": {
+                "const": "HANDOFF"
+              },
+              "decision": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
