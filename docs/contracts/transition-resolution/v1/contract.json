@@ -17,7 +17,7 @@
     "error_schema": {
       "resource": "error.schema.json",
       "schema_id": "urn:sagekit:transition-resolution:v1:error",
-      "canonical_sha256": "38a9b2971199e91cdd99e01994f57f726dfa329137110d7961f20e63a556c684"
+      "canonical_sha256": "e050cc8d44d130177a4510f37d088ab89be259dd4f7e28081963a77a933d9a84"
     }
   },
   "dependencies": {
@@ -52,6 +52,27 @@
       "relation": "Supplies the last-event sequence correlation boundary. A transition Result is not a Runtime Event."
     }
   },
+  "resolver_admission_bounds": {
+    "max_graph_canonical_bytes": 8388608,
+    "max_graph_nodes": 10000,
+    "max_graph_joins": 10000,
+    "max_node_dependencies": 10000,
+    "max_node_resources": 10000,
+    "max_join_requires": 10000
+  },
+  "resolver_admission_semantics": {
+    "scope": "These limits constrain only the future Transition Resolver invocation. Resolver admission does not change Graph Contract v1 validity, does not narrow any Graph identity or array domain, does not require another host or runtime to reject the Graph, and grants no execution authority.",
+    "graph_contract_non_narrowing": "A Graph above a Transition Resolver admission limit may still be valid under Graph Contract v1 and is not automatically an invalid Graph. Resolver admission failure does not shrink, replace, or modify the Graph Contract.",
+    "ready_alignment": "The numeric Graph admission limits intentionally equal the existing Ready Resolver limits, but the Transition Resolver and Ready Resolver execute their contracts independently. Transition resolution does not call the Ready Resolver and does not reuse a Ready Resolver admission decision.",
+    "graph_measurement": "First measure the complete supplied Graph as canonical strict JSON bytes using canonical_digests.canonical_json. Use a bounded counter that stops as soon as byte 8388609 would be emitted; an implementation need not materialize or retain an unbounded canonical byte string. Exactly 8388608 bytes is admitted. More than 8388608 bytes returns GRAPH_TOO_LARGE before structural or semantic Graph validation.",
+    "boundary_rule": "Every numeric admission bound is inclusive. A value exactly at its bound is admitted; boundary plus one is rejected before Graph validation or transition resolution.",
+    "structural_preflight": "After byte admission, perform only a cheap structural cardinality preflight over top-level nodes and joins and each directly contained node depends_on and resources array and join requires array. Stop counting a collection at its bound plus one. Missing, mistyped, or otherwise malformed structures are not repaired or classified by this preflight and remain for validate_graph_contract after admission.",
+    "pre_admission_resource_rule": "Before byte and structural admission succeed, do not run unbounded cycle traversal, dependency traversal, join resolution, referential-integrity traversal, or construct an unbounded issue collection. Admission failure returns one bounded Error classification without collecting every downstream defect.",
+    "graph_bytes_overflow": "Canonical Graph bytes greater than max_graph_canonical_bytes return only GRAPH_TOO_LARGE Error and no Result or partial transition.",
+    "structural_overflow": "Any nodes, joins, per-node depends_on, per-node resources, or per-join requires cardinality greater than its corresponding Transition Resolver bound returns only RESOLUTION_LIMIT_EXCEEDED before validate_graph_contract. This admission classification is not GRAPH_INVALID; Graph Contract validity has not been narrowed or decided by the preflight.",
+    "no_partial_processing": "The Transition Resolver never rewrites, truncates, splits, samples, or partially processes a Graph to cross an admission limit and never disguises an admission overflow as Graph invalid.",
+    "classification_boundary": "The ordered Graph outcomes are mutually exclusive: byte overflow is GRAPH_TOO_LARGE; admitted bytes with structural overflow is RESOLUTION_LIMIT_EXCEEDED; fully admitted Graph Contract failure is GRAPH_INVALID; fully admitted valid Graph with graph ID, generation, or digest mismatch is GRAPH_BINDING_MISMATCH."
+  },
   "snapshot_binding": {
     "input_meaning": "Input is an observed snapshot only. Contract validation does not prove that the snapshot is still current.",
     "result_revalidation_fields": [
@@ -72,9 +93,10 @@
   "semantic_validation": {
     "graph_validation": {
       "argument": "The future resolver receives the complete supplied Graph separately from Transition Resolution Input and treats it as immutable.",
-      "canonical_byte_admission": "First check the complete supplied Graph against the applicable canonical Graph byte/admission boundary. Never rewrite, truncate, partially process, or auto-correct the Graph to cross that boundary; this ordering rule creates no second Graph Contract rule or validator.",
+      "canonical_byte_admission": "First perform resolver_admission_semantics.graph_measurement and return only GRAPH_TOO_LARGE if the bounded canonical byte counter exceeds max_graph_canonical_bytes.",
+      "structural_cardinality_preflight": "Second perform resolver_admission_semantics.structural_preflight and return only RESOLUTION_LIMIT_EXCEEDED if any resolver cardinality bound is exceeded.",
       "existing_stage_2b_validator": "validate_graph_contract",
-      "validator_rule": "Second, validate the admitted Graph only through the existing Stage 2B validate_graph_contract owner. Do not copy, replace, narrow, or supplement that validator.",
+      "validator_rule": "After both admission checks succeed, validate the admitted Graph only through the existing Stage 2B validate_graph_contract owner. Do not copy, replace, narrow, or supplement that validator.",
       "invalid_error_code": "GRAPH_INVALID",
       "invalid_outcome": "If validate_graph_contract reports that the Graph is invalid, return only GRAPH_INVALID Error. Never classify an invalid Graph as GRAPH_BINDING_MISMATCH, calculate a digest for it, emit Result, or emit a partial transition.",
       "digest_owner": "canonical_graph_digest",
@@ -96,7 +118,10 @@
       "mismatch_outcome": "Only a valid Graph whose graph ID, generation, or digest does not match Transition Resolution Input yields GRAPH_BINDING_MISMATCH Error and no Result."
     },
     "deterministic_order": [
-      "graph_canonical_byte_admission",
+      "bounded_canonical_graph_byte_calculation",
+      "graph_too_large_error_only",
+      "cheap_structural_cardinality_preflight",
+      "resolution_limit_exceeded_error_only",
       "validate_graph_contract",
       "graph_invalid_error_only",
       "canonical_graph_digest",
@@ -104,7 +129,7 @@
       "graph_binding_mismatch_error_only",
       "node_result_and_transition_validation"
     ],
-    "graph_classification_boundary": "An invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to a valid Graph after structural validation and canonical digest calculation when graph ID, generation, or digest differs. Node Result and transition validation begin only after Graph validity and binding succeed.",
+    "graph_classification_boundary": "GRAPH_TOO_LARGE applies only when the bounded canonical Graph byte calculation exceeds 8388608. RESOLUTION_LIMIT_EXCEEDED applies only after byte admission when a Transition Resolver structural cardinality exceeds its bound, is not GRAPH_INVALID, and does not decide Graph Contract validity. An admitted invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to an admitted valid Graph after validate_graph_contract and canonical digest calculation when graph ID, generation, or digest differs. Node Result and transition validation begin only after Graph admission, validity, and binding succeed.",
     "node_binding": {
       "left": "$.node_id",
       "right": "$.node_result.node_id",
@@ -163,7 +188,7 @@
       "domain_separator_utf8_hex": "736167656b69742d7472616e736974696f6e2d7265736f6c7574696f6e2d696e7075742d763100",
       "construction": "SHA-256(UTF-8 domain separator bytes followed by canonical JSON bytes of the complete valid Transition Resolution Input v1 instance)."
     },
-    "validation_order": "Resolver-wide Graph validation and binding follow semantic_validation.deterministic_order. For Transition Resolution Input, parse strict JSON while rejecting duplicate object names, validate the complete referenced schema and semantic bindings, enforce the canonical byte budget, reject non-JSON numbers and invalid Unicode scalar sequences, then calculate input and Node Result digests. No input or Node Result digest exists for invalid input.",
+    "validation_order": "Resolver-wide Graph admission, validation, and binding follow semantic_validation.deterministic_order. For Transition Resolution Input, parse strict JSON while rejecting duplicate object names, validate the complete referenced schema and semantic bindings, enforce the canonical byte budget, reject non-JSON numbers and invalid Unicode scalar sequences, then calculate input and Node Result digests. No input or Node Result digest exists for invalid input.",
     "canonical_json": {
       "encoding": "UTF-8 without BOM",
       "object_keys": "Recursively sort object keys lexicographically by Unicode scalar value sequence.",
@@ -275,7 +300,7 @@
     "stage_5": "Semantic evidence fingerprinting is not part of these canonical content digests.",
     "stage_6": "Graph evolution and proposal application remain outside this contract."
   },
-  "compatibility": "Language-neutral Transition Resolution Contract v1 connecting Graph Contract v1, Node Result v1, and Runtime State/Event v1 snapshot identities to a pure decision. No Python resolver, CLI, scheduler, daemon, network API, runtime mutation, package initializer change, or consumer behavior is introduced.",
+  "compatibility": "This final pre-implementation corrective remains language-neutral Transition Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, Runtime State/Event v1, Transition Input v1, and Transition Result v1 semantics and digests. It adds only independently enforced Transition Resolver Graph admission bounds and two mutually exclusive Error classifications without narrowing Graph Contract validity. No Python resolver, Ready Resolver call, CLI, scheduler, daemon, network API, runtime mutation, package initializer change, or consumer behavior is introduced; Stage 4C2 resolver implementation remains deferred.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 4C1",
     "reference": "Rebuild Stage 4C1 — Transition Resolution Contract v1"

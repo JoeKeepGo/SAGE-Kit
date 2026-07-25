@@ -106,6 +106,8 @@ RESULT_REQUIRED = {
 ERROR_CODES = {
     "REQUIRED_INPUT_INVALID",
     "INPUT_TOO_LARGE",
+    "GRAPH_TOO_LARGE",
+    "RESOLUTION_LIMIT_EXCEEDED",
     "GRAPH_INVALID",
     "GRAPH_BINDING_MISMATCH",
     "NODE_BINDING_MISMATCH",
@@ -193,6 +195,54 @@ def canonical_json_bytes(value):
 
 def content_digest(domain, value):
     return hashlib.sha256(domain + canonical_json_bytes(value)).hexdigest()
+
+
+def reference_graph_admission_outcome(
+    graph,
+    graph_canonical_bytes,
+    bounds,
+    *,
+    graph_valid=True,
+    graph_binding_matches=True,
+):
+    """Independent admission vectors only; this is not a product resolver."""
+    if graph_canonical_bytes > bounds["max_graph_canonical_bytes"]:
+        return "GRAPH_TOO_LARGE"
+    nodes = graph.get("nodes", ()) if isinstance(graph, dict) else ()
+    joins = graph.get("joins", ()) if isinstance(graph, dict) else ()
+    if isinstance(nodes, list) and len(nodes) > bounds["max_graph_nodes"]:
+        return "RESOLUTION_LIMIT_EXCEEDED"
+    if isinstance(joins, list) and len(joins) > bounds["max_graph_joins"]:
+        return "RESOLUTION_LIMIT_EXCEEDED"
+    for node in nodes if isinstance(nodes, list) else ():
+        if not isinstance(node, dict):
+            continue
+        depends_on = node.get("depends_on", ())
+        resources = node.get("resources", ())
+        if (
+            isinstance(depends_on, list)
+            and len(depends_on) > bounds["max_node_dependencies"]
+        ):
+            return "RESOLUTION_LIMIT_EXCEEDED"
+        if (
+            isinstance(resources, list)
+            and len(resources) > bounds["max_node_resources"]
+        ):
+            return "RESOLUTION_LIMIT_EXCEEDED"
+    for join in joins if isinstance(joins, list) else ():
+        if not isinstance(join, dict):
+            continue
+        requires = join.get("requires", ())
+        if (
+            isinstance(requires, list)
+            and len(requires) > bounds["max_join_requires"]
+        ):
+            return "RESOLUTION_LIMIT_EXCEEDED"
+    if not graph_valid:
+        return "GRAPH_INVALID"
+    if not graph_binding_matches:
+        return "GRAPH_BINDING_MISMATCH"
+    return None
 
 
 def resolve_local_ref(root, reference):
@@ -657,7 +707,10 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         )
         self.assertEqual(
             [
-                "graph_canonical_byte_admission",
+                "bounded_canonical_graph_byte_calculation",
+                "graph_too_large_error_only",
+                "cheap_structural_cardinality_preflight",
+                "resolution_limit_exceeded_error_only",
                 "validate_graph_contract",
                 "graph_invalid_error_only",
                 "canonical_graph_digest",
@@ -682,6 +735,189 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         self.assertIn("never GRAPH_BINDING_MISMATCH", boundary)
         self.assertIn("valid Graph", boundary)
         self.assertIn("GRAPH_BINDING_MISMATCH", boundary)
+
+    def test_transition_resolver_declares_exact_graph_admission_bounds(self):
+        self.assertEqual(
+            {
+                "max_graph_canonical_bytes": 8388608,
+                "max_graph_nodes": 10000,
+                "max_graph_joins": 10000,
+                "max_node_dependencies": 10000,
+                "max_node_resources": 10000,
+                "max_join_requires": 10000,
+            },
+            self.contract["resolver_admission_bounds"],
+        )
+
+    def test_graph_admission_boundaries_are_inclusive_and_plus_one_is_rejected(self):
+        bounds = self.contract["resolver_admission_bounds"]
+        self.assertIsNone(
+            reference_graph_admission_outcome(
+                {"nodes": [], "joins": []},
+                bounds["max_graph_canonical_bytes"],
+                bounds,
+            )
+        )
+        self.assertEqual(
+            "GRAPH_TOO_LARGE",
+            reference_graph_admission_outcome(
+                {"nodes": [], "joins": []},
+                bounds["max_graph_canonical_bytes"] + 1,
+                bounds,
+            ),
+        )
+
+        vectors = (
+            ("max_graph_nodes", "nodes", {"depends_on": [], "resources": []}),
+            ("max_graph_joins", "joins", {"requires": []}),
+        )
+        for bound_name, field, value in vectors:
+            with self.subTest(bound=bound_name):
+                graph = {"nodes": [], "joins": []}
+                graph[field] = [value] * bounds[bound_name]
+                self.assertIsNone(
+                    reference_graph_admission_outcome(graph, 0, bounds)
+                )
+                graph[field].append(value)
+                self.assertEqual(
+                    "RESOLUTION_LIMIT_EXCEEDED",
+                    reference_graph_admission_outcome(graph, 0, bounds),
+                )
+
+        per_item_vectors = (
+            ("max_node_dependencies", "nodes", "depends_on"),
+            ("max_node_resources", "nodes", "resources"),
+            ("max_join_requires", "joins", "requires"),
+        )
+        for bound_name, collection, field in per_item_vectors:
+            with self.subTest(bound=bound_name):
+                item = {field: ["opaque"] * bounds[bound_name]}
+                graph = {"nodes": [], "joins": [], collection: [item]}
+                self.assertIsNone(
+                    reference_graph_admission_outcome(graph, 0, bounds)
+                )
+                item[field].append("opaque")
+                self.assertEqual(
+                    "RESOLUTION_LIMIT_EXCEEDED",
+                    reference_graph_admission_outcome(graph, 0, bounds),
+                )
+
+    def test_graph_admission_error_classes_are_mutually_exclusive_and_ordered(self):
+        bounds = self.contract["resolver_admission_bounds"]
+        admitted = {"nodes": [], "joins": []}
+        structural_overflow = {
+            "nodes": [{"depends_on": [], "resources": []}]
+            * (bounds["max_graph_nodes"] + 1),
+            "joins": [],
+        }
+        vectors = (
+            (
+                "GRAPH_TOO_LARGE",
+                structural_overflow,
+                bounds["max_graph_canonical_bytes"] + 1,
+                False,
+                False,
+            ),
+            (
+                "RESOLUTION_LIMIT_EXCEEDED",
+                structural_overflow,
+                0,
+                False,
+                False,
+            ),
+            ("GRAPH_INVALID", admitted, 0, False, False),
+            ("GRAPH_BINDING_MISMATCH", admitted, 0, True, False),
+        )
+        self.assertEqual(
+            {
+                "GRAPH_TOO_LARGE",
+                "RESOLUTION_LIMIT_EXCEEDED",
+                "GRAPH_INVALID",
+                "GRAPH_BINDING_MISMATCH",
+            },
+            {
+                reference_graph_admission_outcome(
+                    graph,
+                    byte_count,
+                    bounds,
+                    graph_valid=graph_valid,
+                    graph_binding_matches=binding_matches,
+                )
+                for _, graph, byte_count, graph_valid, binding_matches in vectors
+            },
+        )
+        for expected, graph, byte_count, graph_valid, binding_matches in vectors:
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    expected,
+                    reference_graph_admission_outcome(
+                        graph,
+                        byte_count,
+                        bounds,
+                        graph_valid=graph_valid,
+                        graph_binding_matches=binding_matches,
+                    ),
+                )
+        malformed_vectors = (
+            {"nodes": "x" * (bounds["max_graph_nodes"] + 1), "joins": []},
+            {"nodes": ["not-an-object"], "joins": []},
+            {
+                "nodes": [
+                    {
+                        "depends_on": "x"
+                        * (bounds["max_node_dependencies"] + 1),
+                        "resources": [],
+                    }
+                ],
+                "joins": [],
+            },
+            {"nodes": [], "joins": [{"requires": "not-an-array"}]},
+        )
+        for malformed in malformed_vectors:
+            with self.subTest(malformed=malformed):
+                self.assertEqual(
+                    "GRAPH_INVALID",
+                    reference_graph_admission_outcome(
+                        malformed,
+                        0,
+                        bounds,
+                        graph_valid=False,
+                    ),
+                )
+
+    def test_graph_admission_is_bounded_resolver_only_and_does_not_shrink_graph_contract(self):
+        semantics = self.contract["resolver_admission_semantics"]
+        for phrase in (
+            "Transition Resolver",
+            "does not change Graph Contract v1 validity",
+            "does not narrow",
+            "may still be valid",
+            "never rewrites",
+            "truncates",
+            "splits",
+            "samples",
+            "partially processes",
+            "not GRAPH_INVALID",
+            "does not call the Ready Resolver",
+            "independently",
+        ):
+            self.assertIn(phrase, " ".join(semantics.values()))
+        self.assertIn(
+            "bounded counter",
+            semantics["graph_measurement"],
+        )
+        self.assertIn(
+            "8388609",
+            semantics["graph_measurement"],
+        )
+        self.assertIn(
+            "unbounded cycle traversal",
+            semantics["pre_admission_resource_rule"],
+        )
+        self.assertIn(
+            "unbounded issue",
+            semantics["pre_admission_resource_rule"],
+        )
 
     def test_nonempty_attempt_and_bool_as_int_rejection(self):
         payload = valid_input()
@@ -917,6 +1153,7 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
     def test_error_contract_is_closed_bounded_and_has_stable_codes(self):
         self.assertFalse(self.error_schema["additionalProperties"])
         self.assertEqual(ERROR_CODES, set(self.error_schema["properties"]["error_code"]["enum"]))
+        self.assertEqual(11, len(self.error_schema["properties"]["error_code"]["enum"]))
         issues = self.error_schema["properties"]["issues"]
         self.assertEqual(1, issues["minItems"])
         self.assertEqual(100, issues["maxItems"])
