@@ -436,8 +436,39 @@ class TransitionResolverAdmissionAndValidationTests(unittest.TestCase):
         candidate_graph = graph(generation=huge_integer)
         candidate = transition_input(candidate_graph)
         outcome = resolve_node_transition(candidate_graph, candidate)
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(huge_integer, outcome.result["graph_generation"])
+        self.assertIsNotNone(canonical_transition_input_digest(candidate_graph, candidate))
+
+    def test_unknown_non_string_key_never_invokes_user_dunder(self) -> None:
+        class HostileKey:
+            def __str__(self):
+                raise AssertionError("__str__ must not run before strict JSON admission")
+
+        candidate_graph = graph()
+        candidate = transition_input(candidate_graph)
+        candidate[HostileKey()] = "restricted"
+
+        outcome = resolve_node_transition(candidate_graph, candidate)
+
         self.assertEqual("REQUIRED_INPUT_INVALID", error_code(outcome))
-        self.assertIsNone(canonical_transition_input_digest(candidate_graph, candidate))
+        self.assertEqual("STRICT_JSON_REQUIRED", outcome.error["issues"][0]["code"])
+
+    def test_success_path_runs_graph_owner_validation_at_most_twice(self) -> None:
+        from sagekit import transition_resolver
+
+        candidate_graph = graph()
+        candidate = transition_input(candidate_graph)
+        with mock.patch.object(
+            transition_resolver,
+            "validate_graph_contract",
+            wraps=transition_resolver.validate_graph_contract,
+        ) as validator:
+            outcome = resolve_node_transition(candidate_graph, candidate)
+
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertGreaterEqual(validator.call_count, 1)
+        self.assertLessEqual(validator.call_count, 2)
 
     def test_structural_cardinality_boundaries_are_inclusive(self) -> None:
         from sagekit import transition_resolver

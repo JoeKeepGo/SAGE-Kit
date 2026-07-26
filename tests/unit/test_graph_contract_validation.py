@@ -154,6 +154,57 @@ class GraphStructuralValidationTests(unittest.TestCase):
         self.assertFalse(result.valid)
         self.assertIn("invalid-type", issue_codes(result))
 
+    def test_generation_uses_json_schema_mathematical_integer_domain(self):
+        integer = minimal_graph()
+        floating = minimal_graph()
+        floating["generation"] = 1.0
+
+        self.assertTrue(validate_graph_contract(floating).valid)
+        self.assertEqual(
+            canonical_graph_digest(integer),
+            canonical_graph_digest(floating),
+        )
+
+        for value in (1.5, float("nan"), float("inf"), -float("inf")):
+            with self.subTest(value=value):
+                payload = minimal_graph()
+                payload["generation"] = value
+                self.assertFalse(validate_graph_contract(payload).valid)
+
+    def test_surrogate_contract_rejects_lone_and_canonicalizes_pairs(self):
+        scalar = minimal_graph()
+        scalar["graph_id"] = "graph/😀"
+        scalar["nodes"][0]["id"] = "node/😀"
+        scalar["joins"][0]["requires"] = ["node/😀"]
+        paired = copy.deepcopy(scalar)
+        paired["graph_id"] = "graph/\ud83d\ude00"
+        paired["nodes"][0]["id"] = "node/\ud83d\ude00"
+        paired["joins"][0]["requires"] = ["node/\ud83d\ude00"]
+
+        paired_result = validate_graph_contract(paired)
+        self.assertTrue(paired_result.valid, paired_result.to_json())
+        self.assertEqual(
+            canonical_graph_digest(scalar),
+            canonical_graph_digest(paired),
+        )
+
+        for path, mutate in (
+            ("$.graph_id", lambda value: value.__setitem__("graph_id", "\ud800")),
+            (
+                "$.nodes[0].id",
+                lambda value: value["nodes"][0].__setitem__("id", "\udfff"),
+            ),
+        ):
+            with self.subTest(path=path):
+                lone = minimal_graph()
+                mutate(lone)
+                result = validate_graph_contract(lone)
+                self.assertFalse(result.valid)
+                self.assertIn(
+                    (path, "invalid-unicode-scalar"),
+                    [(issue.path, issue.code) for issue in result.issues],
+                )
+
     def test_json_primitive_subclasses_are_rejected(self):
         class StringSubclass(str):
             pass
@@ -588,6 +639,56 @@ class JoinValidationTests(unittest.TestCase):
                 ]
                 self.assertEqual(1, len(matching), result.to_json())
                 self.assertEqual("$.nodes[1].depends_on[0]", matching[0].path)
+
+    def test_external_gate_allows_dependency_edges_inside_its_requires_set(self):
+        for policy in ("manual-gate", "corrective-join"):
+            with self.subTest(policy=policy):
+                payload = minimal_graph()
+                payload["nodes"] = [
+                    node("first"),
+                    node("second", depends_on=["first"]),
+                ]
+                payload["joins"] = [
+                    {
+                        "id": "gate",
+                        "requires": ["first", "second"],
+                        "policy": policy,
+                    }
+                ]
+                payload["human_gates"] = ["gate"] if policy == "manual-gate" else []
+
+                result = validate_graph_contract(payload)
+
+                self.assertTrue(result.valid, result.to_json())
+
+    def test_shared_external_prerequisite_must_be_safe_for_every_member_gate(self):
+        payload = minimal_graph()
+        payload["nodes"] = [
+            node("shared"),
+            node("manual-member", depends_on=["shared"]),
+        ]
+        payload["joins"] = [
+            {
+                "id": "manual",
+                "requires": ["shared", "manual-member"],
+                "policy": "manual-gate",
+            },
+            {
+                "id": "corrective",
+                "requires": ["shared"],
+                "policy": "corrective-join",
+            },
+        ]
+        payload["human_gates"] = ["manual"]
+
+        result = validate_graph_contract(payload)
+
+        matching = [
+            issue
+            for issue in result.issues
+            if issue.code == "nonterminal-external-join-prerequisite"
+        ]
+        self.assertEqual(["$.nodes[1].depends_on[0]"], [issue.path for issue in matching])
 
     def test_external_gate_transitive_successor_is_rejected_at_first_edge(self):
         payload = minimal_graph()

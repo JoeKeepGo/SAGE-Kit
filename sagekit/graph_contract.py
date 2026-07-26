@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib
 import heapq
 import json
+import math
 import re
 from typing import Any, Mapping
 
@@ -211,6 +212,116 @@ class GraphContractError(ValueError):
         if len(issues) > 5:
             summary += ", ..."
         super().__init__(f"graph contract is invalid: {summary}")
+
+
+class _GraphAdmissionError(ValueError):
+    def __init__(self, path: str, code: str, message: str):
+        self.path = path
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
+def _normalized_string(value: str, path: str) -> str:
+    if not any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        return value
+    output: list[str] = []
+    index = 0
+    while index < len(value):
+        codepoint = ord(value[index])
+        if 0xD800 <= codepoint <= 0xDBFF:
+            if index + 1 >= len(value):
+                raise _GraphAdmissionError(
+                    path,
+                    "invalid-unicode-scalar",
+                    "String contains an unpaired UTF-16 surrogate.",
+                )
+            low = ord(value[index + 1])
+            if not 0xDC00 <= low <= 0xDFFF:
+                raise _GraphAdmissionError(
+                    path,
+                    "invalid-unicode-scalar",
+                    "String contains an unpaired UTF-16 surrogate.",
+                )
+            output.append(
+                chr(0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00))
+            )
+            index += 2
+            continue
+        if 0xDC00 <= codepoint <= 0xDFFF:
+            raise _GraphAdmissionError(
+                path,
+                "invalid-unicode-scalar",
+                "String contains an unpaired UTF-16 surrogate.",
+            )
+        output.append(value[index])
+        index += 1
+    return "".join(output)
+
+
+def _normalized_graph_value(
+    value: Any,
+    path: str,
+    active: set[int] | None = None,
+) -> Any:
+    """Defensively copy the JSON model and normalize its scalar equivalents."""
+
+    if active is None:
+        active = set()
+    if value is None or type(value) is bool or type(value) is int:
+        return value
+    if type(value) is float:
+        if math.isfinite(value) and value.is_integer():
+            return int(value)
+        return value
+    if type(value) is str:
+        return _normalized_string(value, path)
+    if type(value) is list:
+        identity = id(value)
+        if identity in active:
+            raise _GraphAdmissionError(
+                path, "cyclic-value", "Graph values must not be cyclic."
+            )
+        active.add(identity)
+        try:
+            return [
+                _normalized_graph_value(item, _path(path, index), active)
+                for index, item in enumerate(value)
+            ]
+        finally:
+            active.remove(identity)
+    if type(value) is dict:
+        identity = id(value)
+        if identity in active:
+            raise _GraphAdmissionError(
+                path, "cyclic-value", "Graph values must not be cyclic."
+            )
+        active.add(identity)
+        normalized: dict[str, Any] = {}
+        try:
+            for key, item in value.items():
+                if type(key) is not str:
+                    raise _GraphAdmissionError(
+                        path,
+                        "invalid-field-name",
+                        "Object field names must be strings.",
+                    )
+                normalized_key = _normalized_string(key, path)
+                if normalized_key in normalized:
+                    raise _GraphAdmissionError(
+                        path,
+                        "duplicate-field",
+                        "Object field names collapse to one Unicode scalar sequence.",
+                    )
+                normalized[normalized_key] = _normalized_graph_value(
+                    item,
+                    _path(path, normalized_key),
+                    active,
+                )
+        finally:
+            active.remove(identity)
+        return normalized
+    return value
 
 
 class _IssueCollector:
@@ -660,15 +771,17 @@ def _validate_external_join_prerequisite_sinks(
     node_paths: dict[str, str],
     issues: _IssueCollector,
 ) -> None:
-    external_prerequisites: set[str] = set()
+    prerequisite_memberships: dict[str, list[frozenset[str]]] = {}
     for _, join in joins:
         if join.get("policy") not in {"manual-gate", "corrective-join"}:
             continue
         requires = join.get("requires")
         if _valid_string_list(requires):
-            external_prerequisites.update(requires)
+            members = frozenset(requires)
+            for prerequisite in members:
+                prerequisite_memberships.setdefault(prerequisite, []).append(members)
 
-    if not external_prerequisites:
+    if not prerequisite_memberships:
         return
 
     for node_id, node in nodes.items():
@@ -676,13 +789,14 @@ def _validate_external_join_prerequisite_sinks(
         if not _valid_string_list(dependencies):
             continue
         for index, dependency in enumerate(dependencies):
-            if dependency in external_prerequisites:
+            memberships = prerequisite_memberships.get(dependency, ())
+            if memberships and any(node_id not in members for members in memberships):
                 issues.add(
                     _path(_path(node_paths[node_id], "depends_on"), index),
                     "nonterminal-external-join-prerequisite",
                     (
-                        "Manual-gate and corrective-join prerequisites must be "
-                        "dependency sinks in the current Graph generation."
+                        "An external-gate prerequisite may have successors only "
+                        "inside every external gate that contains it."
                     ),
                 )
 
@@ -833,6 +947,14 @@ def validate_graph_contract(payload: Any) -> GraphValidationResult:
     """Validate a Graph Contract v1 payload without reading or changing state."""
 
     issues = _IssueCollector()
+    try:
+        payload = _normalized_graph_value(payload, "$")
+    except _GraphAdmissionError as exc:
+        issues.add(exc.path, exc.code, exc.message)
+        return issues.result()
+    except RecursionError:
+        issues.add("$", "nesting-too-deep", "Graph nesting exceeds the validation limit.")
+        return issues.result()
     graph = _object(
         payload,
         "$",

@@ -175,15 +175,65 @@ def join_decision(outcome: ReadyResolutionOutcome, join_id: str) -> dict[str, ob
 class ReadyResolverInterfaceAndDigestTests(unittest.TestCase):
     def test_internal_interface_types_and_success_error_exclusivity(self) -> None:
         self.assertTrue(hasattr(ReadyResolutionIssue, "__dataclass_fields__"))
-        self.assertTrue(hasattr(ReadyResolutionOutcome, "__dataclass_fields__"))
         candidate_graph = graph()
-        outcome = resolve_ready_nodes(candidate_graph, resolution_input(candidate_graph))
+        candidate_input = resolution_input(candidate_graph)
+        outcome = resolve_ready_nodes(candidate_graph, candidate_input)
         self.assertIsNotNone(outcome.result)
         self.assertIsNone(outcome.error)
+        for result, error in (
+            (None, None),
+            ({"ok": True}, None),
+            (None, {"error": True}),
+            ({"ok": True}, {"error": True}),
+        ):
+            with self.subTest(result=result, error=error):
+                with self.assertRaises(ValueError):
+                    ReadyResolutionOutcome(result=result, error=error)
+
+        original = outcome.result
+        assert original is not None
+        forged = copy.deepcopy(original)
+        forged["graph_disposition"] = "COMPLETED"
         with self.assertRaises(ValueError):
-            ReadyResolutionOutcome(result={}, error={})
-        with self.assertRaises(ValueError):
-            ReadyResolutionOutcome(result=None, error=None)
+            ReadyResolutionOutcome._from_validated_source(
+                candidate_graph,
+                candidate_input,
+                forged,
+            )
+        rebound = ReadyResolutionOutcome._from_validated_source(
+            candidate_graph,
+            candidate_input,
+            original,
+        )
+        self.assertEqual(original, rebound.result)
+        original["graph_disposition"] = "COMPLETED"
+        self.assertNotEqual("COMPLETED", outcome.result["graph_disposition"])
+        with self.assertRaises(AttributeError):
+            outcome._result_snapshot = {}
+
+    def test_huge_and_equivalent_graph_generation_is_stable(self) -> None:
+        huge = 10**5000
+        candidate_graph = graph(generation=huge)
+        integer_input = resolution_input(candidate_graph)
+        floating_graph = graph(generation=1.0)
+        floating_input = resolution_input(floating_graph)
+
+        huge_outcome = resolve_ready_nodes(candidate_graph, integer_input)
+        self.assertTrue(huge_outcome.succeeded, huge_outcome.error)
+        self.assertEqual(huge, huge_outcome.result["graph_generation"])
+        self.assertEqual(
+            canonical_ready_input_digest(resolution_input(graph())),
+            canonical_ready_input_digest(floating_input),
+        )
+        self.assertTrue(
+            resolve_ready_nodes(floating_graph, floating_input).succeeded
+        )
+
+        for value in (True, 1.5, float("nan"), float("inf")):
+            with self.subTest(value=value):
+                invalid = resolution_input(graph())
+                invalid["graph_generation"] = value
+                self.assertIsNone(canonical_ready_input_digest(invalid))
 
     def test_fixed_input_digest_vector(self) -> None:
         candidate = {
@@ -1027,6 +1077,37 @@ class ReadyResolverBindingAndAdmissionTests(unittest.TestCase):
 
 
 class ReadyResolverDeterminismPrivacyAndDispositionTests(unittest.TestCase):
+    def test_graph_disposition_indexes_node_classification_once(self) -> None:
+        from sagekit import ready_resolver
+
+        class CountingNodes(list):
+            iterations = 0
+
+            def __iter__(self):
+                type(self).iterations += 1
+                return super().__iter__()
+
+        nodes = CountingNodes(
+            node(f"n-{index}", classification="required") for index in range(1000)
+        )
+        decisions = [
+            {
+                "node_id": item["id"],
+                "disposition": "CANCELLED",
+            }
+            for item in nodes
+        ]
+        CountingNodes.iterations = 0
+
+        disposition = ready_resolver._graph_disposition(
+            {"nodes": nodes},
+            decisions,
+            [],
+        )
+
+        self.assertEqual("BLOCKED", disposition)
+        self.assertLessEqual(CountingNodes.iterations, 2)
+
     def test_input_immutability_and_repeated_determinism(self) -> None:
         candidate_graph = graph(
             nodes=[node("b"), node("a", resources=["cpu"])],

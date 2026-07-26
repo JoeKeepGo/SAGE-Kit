@@ -34,10 +34,10 @@ EXPECTED_STAGE4C1_PATHS = {
     "tests/unit/test_transition_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
-    "docs/contracts/graph/v1/contract.json": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
+    "docs/contracts/graph/v1/contract.json": "2de042291ee90e6051d5dfbff9901d38d114f5c6bcf225b37bf8338a36be67ef",
     "docs/contracts/graph/v1/node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-    "docs/contracts/runtime-state/v1/contract.json": "a6a6ecf0bde382a5a9bcebae315fec37c0215268bf24b01bbb2f6057d94f1090",
-    "docs/contracts/runtime-state/v1/state.schema.json": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
+    "docs/contracts/runtime-state/v1/contract.json": "bb4962b0b2281524a9dd5790b23289f05aa2879cb9fcd9bdc92c143164a89902",
+    "docs/contracts/runtime-state/v1/state.schema.json": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
 PROTECTED_PATHS = (
@@ -715,10 +715,11 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
 
     def test_transition_classifies_terminal_gate_successors_as_graph_invalid(self):
         relation = self.contract["dependencies"]["graph_contract_v1"]["relation"]
-        self.assertIn("terminal external-gate topology", relation)
+        self.assertIn("external-gate topology", relation)
+        self.assertIn("Dependencies within one external join", relation)
         self.assertIn("GRAPH_INVALID", relation)
         compatibility = self.contract["compatibility"]
-        self.assertIn("terminal external-gate topology", compatibility)
+        self.assertIn("external-gate topology", compatibility)
         self.assertIn("no partial Result", compatibility)
         self.assertIn("no join-to-node edge", compatibility)
         self.assertIn("scheduler", compatibility)
@@ -802,13 +803,13 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                 "resolution_limit_exceeded_error_only",
                 "validate_graph_contract",
                 "graph_invalid_error_only",
-                "canonical_graph_digest",
-                "graph_binding_comparison",
-                "graph_binding_mismatch_error_only",
-                "basic_transition_input_envelope_structural_admission",
-                "required_input_invalid_error_only",
                 "bounded_canonical_input_byte_calculation",
                 "input_too_large_error_only",
+                "strict_json_invalid_error_only",
+                "basic_transition_input_envelope_structural_admission",
+                "required_input_invalid_error_only",
+                "graph_binding_comparison",
+                "graph_binding_mismatch_error_only",
                 "graph_aware_validate_node_result",
                 "node_result_invalid_error_only",
                 "node_binding_comparison",
@@ -823,10 +824,10 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
             validation["deterministic_order"],
         )
         self.assertIn(
-            "only through the existing Stage 2B validate_graph_contract",
+            "through the existing Stage 2B validate_graph_contract",
             graph["validator_rule"],
         )
-        self.assertIn("Only after", graph["digest_rule"])
+        self.assertIn("single successful Stage 2B owner validation", graph["digest_rule"])
         self.assertIn("Only a valid Graph", validation["graph_binding"]["mismatch_outcome"])
         self.assertEqual(
             {"graph_id", "graph_generation", "graph_digest"},
@@ -1263,7 +1264,7 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         contract_text = json.dumps(self.contract, ensure_ascii=False)
         for phrase in (
             "basic envelope structural admission",
-            "bounded canonical byte count with INPUT_TOO_LARGE",
+            "bounded strict-JSON admission",
             "No input or Node Result digest exists for invalid or oversized input.",
         ):
             self.assertIn(phrase, contract_text)

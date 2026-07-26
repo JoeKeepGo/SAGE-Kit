@@ -17,7 +17,6 @@ from typing import Any, Mapping
 
 from .graph_contract import (
     NODE_STATUSES,
-    canonical_graph_digest,
     validate_graph_contract,
     validate_node_result,
     validate_node_transition,
@@ -151,7 +150,6 @@ class TransitionResolutionOutcome:
         ):
             raise ValueError("success source is not a valid transition")
         expected = _build_transition_result(
-            graph,
             validation.normalized_input,
         )
         _canonical_json_size(expected, limit=MAX_RESULT_CANONICAL_BYTES)
@@ -159,6 +157,17 @@ class TransitionResolutionOutcome:
             raise ValueError("result does not match its validated source")
         instance = object.__new__(cls)
         object.__setattr__(instance, "_result_snapshot", _freeze_json(expected))
+        object.__setattr__(instance, "_error_snapshot", None)
+        object.__setattr__(instance, "_sealed", True)
+        return instance
+
+    @classmethod
+    def _from_result(
+        cls,
+        result: Mapping[str, Any],
+    ) -> TransitionResolutionOutcome:
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "_result_snapshot", _freeze_json(result))
         object.__setattr__(instance, "_error_snapshot", None)
         object.__setattr__(instance, "_sealed", True)
         return instance
@@ -783,8 +792,9 @@ def _input_structure_issues(
             "A required transition input field is missing.",
         )
     for field in sorted(
-        (key for key in transition_input if key not in _INPUT_FIELDS),
-        key=lambda item: (type(item).__name__, str(item)),
+        key
+        for key in transition_input
+        if type(key) is str and key not in _INPUT_FIELDS
     ):
         issues.add(
             _field_path(field),
@@ -827,7 +837,7 @@ def _input_structure_issues(
             )
     if "graph_generation" in transition_input:
         generation = _mathematical_integer(transition_input["graph_generation"])
-        if generation is None or not 1 <= generation <= 2147483647:
+        if generation is None or generation < 1:
             issues.add(
                 "$.graph_generation",
                 "VALUE_NOT_ALLOWED",
@@ -1003,9 +1013,8 @@ def _admit_graph(graph: Any) -> _ResolutionValidation:
                 message="The supplied Graph does not satisfy Graph Contract v1.",
             ),
         )
-    try:
-        graph_digest = canonical_graph_digest(graph)
-    except (KeyError, TypeError, ValueError, RecursionError):
+    graph_digest = graph_validation.semantic_digest
+    if graph_digest is None:
         return _ResolutionValidation(
             "GRAPH_INVALID",
             (
@@ -1204,7 +1213,9 @@ def _graph_binding_issues(
             "GRAPH_ID_MISMATCH",
             "Transition input Graph identity does not match the supplied Graph.",
         )
-    if values[1] != graph.get("generation"):
+    if _mathematical_integer(values[1]) != _mathematical_integer(
+        graph.get("generation")
+    ):
         issues.add(
             "$.graph_generation",
             "GRAPH_GENERATION_MISMATCH",
@@ -1230,25 +1241,6 @@ def _validate_transition_resolution(
     if graph_digest is None:
         raise AssertionError("successful Graph admission must retain its digest")
 
-    binding_issues = _graph_binding_issues(
-        graph,
-        graph_digest,
-        transition_input,
-    )
-    if binding_issues:
-        return _ResolutionValidation(
-            "GRAPH_BINDING_MISMATCH",
-            binding_issues,
-            graph_digest=graph_digest,
-        )
-
-    input_issues = _input_structure_issues(transition_input)
-    if input_issues:
-        return _ResolutionValidation(
-            "REQUIRED_INPUT_INVALID",
-            input_issues,
-            graph_digest=graph_digest,
-        )
     try:
         _canonical_json_size(
             transition_input,
@@ -1276,6 +1268,25 @@ def _validate_transition_resolution(
                     "Transition input must contain only strict canonical JSON values.",
                 ),
             ),
+            graph_digest=graph_digest,
+        )
+
+    input_issues = _input_structure_issues(transition_input)
+    if input_issues:
+        return _ResolutionValidation(
+            "REQUIRED_INPUT_INVALID",
+            input_issues,
+            graph_digest=graph_digest,
+        )
+    binding_issues = _graph_binding_issues(
+        graph,
+        graph_digest,
+        transition_input,
+    )
+    if binding_issues:
+        return _ResolutionValidation(
+            "GRAPH_BINDING_MISMATCH",
+            binding_issues,
             graph_digest=graph_digest,
         )
 
@@ -1402,16 +1413,15 @@ def validate_transition_resolution_input(
 
 
 def _build_transition_result(
-    graph: Any,
     normalized_input: dict[str, Any],
 ) -> dict[str, Any]:
     node_payload = normalized_input["node_result"]
     input_digest = _canonical_transition_input_digest_raw(normalized_input)
-    node_result_digest = canonical_node_result_digest(graph, node_payload)
-    if node_result_digest is None:
-        raise _CanonicalJSONError(
-            "validated Node Result digest was unavailable"
-        )
+    node_result_digest = _canonical_json_digest(
+        node_payload,
+        domain=NODE_RESULT_DIGEST_DOMAIN,
+        limit=MAX_INPUT_CANONICAL_BYTES,
+    )
 
     authority_change = node_payload["authority_change"]
     if authority_change is True:
@@ -1465,7 +1475,7 @@ def resolve_node_transition(
     normalized_input = validation.normalized_input
 
     try:
-        result = _build_transition_result(graph, normalized_input)
+        result = _build_transition_result(normalized_input)
     except (_CanonicalJSONError, RecursionError):
         return _failure(
             "REQUIRED_INPUT_INVALID",
@@ -1502,11 +1512,7 @@ def resolve_node_transition(
             ],
         )
     try:
-        return TransitionResolutionOutcome._from_validated_source(
-            graph,
-            transition_input,
-            result,
-        )
+        return TransitionResolutionOutcome._from_result(result)
     except (KeyError, TypeError, ValueError, _CanonicalJSONError):
         return _failure(
             "REQUIRED_INPUT_INVALID",

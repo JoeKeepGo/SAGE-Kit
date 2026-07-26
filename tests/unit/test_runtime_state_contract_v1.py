@@ -33,8 +33,8 @@ EXPECTED_STAGE3D_PATHS = {
     "tests/unit/test_runtime_views.py",
 }
 GRAPH_RESOURCE_DIGESTS = {
-    "contract.json": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
-    "graph.schema.json": "fe3a9b58f7c50852d4f8e76c12dbdf1662b0811899b3c028ca6853e3da166d72",
+    "contract.json": "2de042291ee90e6051d5dfbff9901d38d114f5c6bcf225b37bf8338a36be67ef",
+    "graph.schema.json": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
     "node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
 }
 STAGE3D_GRAPH_RESOURCE_DIGESTS = {
@@ -249,7 +249,15 @@ def is_schema_valid(instance, schema, root=None):
             "object": lambda value: isinstance(value, dict),
             "array": lambda value: isinstance(value, list),
             "string": lambda value: isinstance(value, str),
-            "integer": lambda value: type(value) is int,
+            "integer": lambda value: (
+                type(value) is int
+                or (
+                    type(value) is float
+                    and value == value
+                    and value not in (float("inf"), -float("inf"))
+                    and value.is_integer()
+                )
+            ),
             "number": lambda value: type(value) in (int, float),
             "boolean": lambda value: isinstance(value, bool),
             "null": lambda value: value is None,
@@ -409,10 +417,11 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
 
     def test_runtime_consumes_terminal_external_gate_topology_without_new_state(self):
         dependency = self.manifest["dependencies"]["graph_contract_v1"]
-        self.assertIn("terminal external-gate topology", dependency["relation"])
+        self.assertIn("external-gate topology", dependency["relation"])
+        self.assertIn("Dependencies within one external join", dependency["relation"])
         self.assertIn("rejected before runtime initialization", dependency["relation"])
         compatibility = self.manifest["compatibility"]
-        self.assertIn("terminal external-gate topology", compatibility)
+        self.assertIn("external-gate topology", compatibility)
         self.assertIn("scheduler", compatibility)
         self.assertIn("WAITING_GATE", compatibility)
         self.assertIn("SKIPPED", compatibility)
@@ -510,6 +519,21 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertFalse(is_schema_valid(payload, self.event))
         payload = valid_state()
         payload["revision"] = -1
+        self.assertFalse(is_schema_valid(payload, self.state))
+
+    def test_graph_generation_has_unbounded_positive_integer_domain(self):
+        generation = self.state["properties"]["graph_generation"]
+        self.assertEqual("integer", generation["type"])
+        self.assertEqual(1, generation["minimum"])
+        self.assertNotIn("maximum", generation)
+
+        for value in (1, 1.0, 10**5000):
+            with self.subTest(value=value):
+                payload = valid_state()
+                payload["graph_generation"] = value
+                self.assertTrue(is_schema_valid(payload, self.state))
+        payload = valid_state()
+        payload["graph_generation"] = True
         self.assertFalse(is_schema_valid(payload, self.state))
 
     def test_attempt_identity_is_run_node_scoped_without_granting_authority(self):

@@ -8,11 +8,14 @@ either argument.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 import hashlib
+import math
 import re
+from types import MappingProxyType
 from typing import Any, Mapping
 
-from .graph_contract import canonical_graph_digest, validate_graph_contract
+from .graph_contract import validate_graph_contract
 
 
 INPUT_SCHEMA_ID = "urn:sagekit:ready-resolution:v1:input"
@@ -185,20 +188,87 @@ class ReadyResolutionIssue:
         return {"path": self.path, "code": self.code}
 
 
-@dataclass(frozen=True)
 class ReadyResolutionOutcome:
-    """Exactly one Ready Resolution Result or Error."""
+    """Resolver-created immutable snapshot of one complete Result or Error."""
 
-    result: Mapping[str, Any] | None
-    error: Mapping[str, Any] | None
+    __slots__ = ("_result_snapshot", "_error_snapshot")
 
-    def __post_init__(self) -> None:
-        if (self.result is None) == (self.error is None):
-            raise ValueError("exactly one of result or error is required")
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        raise ValueError("ReadyResolutionOutcome is resolver-created")
+
+    def __setattr__(self, _name: str, _value: Any) -> None:
+        raise AttributeError("ReadyResolutionOutcome is immutable")
+
+    def __delattr__(self, _name: str) -> None:
+        raise AttributeError("ReadyResolutionOutcome is immutable")
+
+    @classmethod
+    def _from_result(cls, result: Mapping[str, Any]) -> ReadyResolutionOutcome:
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "_result_snapshot", _freeze_json(result))
+        object.__setattr__(instance, "_error_snapshot", None)
+        return instance
+
+    @classmethod
+    def _from_error(cls, error: Mapping[str, Any]) -> ReadyResolutionOutcome:
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "_result_snapshot", None)
+        object.__setattr__(instance, "_error_snapshot", _freeze_json(error))
+        return instance
+
+    @classmethod
+    def _from_validated_source(
+        cls,
+        graph: Any,
+        resolution_input: Any,
+        result: Mapping[str, Any],
+    ) -> ReadyResolutionOutcome:
+        expected = resolve_ready_nodes(graph, resolution_input)
+        if not expected.succeeded or type(result) is not dict or result != expected.result:
+            raise ValueError("result does not match its validated source")
+        return expected
+
+    @property
+    def result(self) -> dict[str, Any] | None:
+        return _thaw_json(self._result_snapshot)
+
+    @property
+    def error(self) -> dict[str, Any] | None:
+        return _thaw_json(self._error_snapshot)
 
     @property
     def succeeded(self) -> bool:
-        return self.result is not None
+        return self._result_snapshot is not None
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ReadyResolutionOutcome):
+            return NotImplemented
+        return (
+            self._result_snapshot == other._result_snapshot
+            and self._error_snapshot == other._error_snapshot
+        )
+
+
+def _freeze_json(value: Any) -> Any:
+    if value is None:
+        return None
+    if type(value) is dict:
+        return MappingProxyType(
+            {key: _freeze_json(item) for key, item in value.items()}
+        )
+    if type(value) is list:
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+def _thaw_json(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if type(value) is tuple:
+        return [_thaw_json(item) for item in value]
+    return value
 
 
 class _CanonicalJSONError(ValueError):
@@ -233,6 +303,7 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
             raise _CanonicalSizeExceeded
 
     def emit_string(value: str) -> None:
+        value = _normalized_string(value)
         emit(b'"')
         index = 0
         while index < len(value):
@@ -253,19 +324,6 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
                 emit(b"\\r")
             elif codepoint <= 0x1F:
                 emit(f"\\u{codepoint:04x}".encode("ascii"))
-            elif 0xD800 <= codepoint <= 0xDBFF:
-                if index + 1 < len(value):
-                    low = ord(value[index + 1])
-                    if 0xDC00 <= low <= 0xDFFF:
-                        scalar = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00)
-                        emit(chr(scalar).encode("utf-8"))
-                        index += 1
-                    else:
-                        emit(f"\\u{codepoint:04x}".encode("ascii"))
-                else:
-                    emit(f"\\u{codepoint:04x}".encode("ascii"))
-            elif 0xDC00 <= codepoint <= 0xDFFF:
-                emit(f"\\u{codepoint:04x}".encode("ascii"))
             else:
                 emit(value[index].encode("utf-8"))
             index += 1
@@ -278,8 +336,10 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
             emit(b"true")
         elif item is False:
             emit(b"false")
-        elif type(item) is int:
-            emit(str(item).encode("ascii"))
+        elif _mathematical_integer(item) is not None:
+            emit(_integer_text(_mathematical_integer(item)).encode("ascii"))
+        elif type(item) is float:
+            raise _CanonicalJSONError("only finite mathematical integers are admitted")
         elif type(item) is str:
             emit_string(item)
         elif type(item) is list:
@@ -322,6 +382,45 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
     except RecursionError as exc:
         raise _CanonicalJSONError("value nesting is too deep") from exc
     return bytes(output)
+
+
+def _normalized_string(value: str) -> str:
+    if not any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        return value
+    output: list[str] = []
+    index = 0
+    while index < len(value):
+        codepoint = ord(value[index])
+        if 0xD800 <= codepoint <= 0xDBFF:
+            if index + 1 >= len(value):
+                raise _CanonicalJSONError("unpaired high surrogate")
+            low = ord(value[index + 1])
+            if not 0xDC00 <= low <= 0xDFFF:
+                raise _CanonicalJSONError("unpaired high surrogate")
+            output.append(
+                chr(0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00))
+            )
+            index += 2
+            continue
+        if 0xDC00 <= codepoint <= 0xDFFF:
+            raise _CanonicalJSONError("unpaired low surrogate")
+        output.append(value[index])
+        index += 1
+    return "".join(output)
+
+
+def _mathematical_integer(value: Any) -> int | None:
+    if type(value) is int:
+        return value
+    if type(value) is float and math.isfinite(value) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _integer_text(value: int | None) -> str:
+    if value is None:
+        raise _CanonicalJSONError("integer value is unavailable")
+    return format(Decimal(value), "f")
 
 
 def _validate_exact_object(
@@ -572,11 +671,8 @@ def validate_ready_resolution_input(
     if type(graph_digest) is not str or _DIGEST_PATTERN.fullmatch(graph_digest) is None:
         issues.add("$.graph_digest", "VALUE_NOT_ALLOWED")
     generation = value.get("graph_generation")
-    if (
-        type(generation) is not int
-        or generation < 1
-        or generation > 2147483647
-    ):
+    generation = _mathematical_integer(generation)
+    if generation is None or generation < 1:
         issues.add("$.graph_generation", "VALUE_NOT_ALLOWED")
 
     _validate_identity_array(
@@ -611,7 +707,9 @@ def _normalized_ready_input(resolution_input: Mapping[str, Any]) -> dict[str, An
         "schema_id": resolution_input["schema_id"],
         "schema_version": resolution_input["schema_version"],
         "graph_digest": resolution_input["graph_digest"],
-        "graph_generation": resolution_input["graph_generation"],
+        "graph_generation": _mathematical_integer(
+            resolution_input["graph_generation"]
+        ),
     }
     for array_name, identity_name in (
         ("node_states", "node_id"),
@@ -648,7 +746,8 @@ def _safe_graph_metadata(
         return None, None
     digest = None
     generation = graph.get("generation")
-    if type(generation) is not int or generation < 1 or generation > 2147483647:
+    generation = _mathematical_integer(generation)
+    if generation is None or generation < 1:
         generation = None
     return digest, generation
 
@@ -677,7 +776,7 @@ def _failure(
     if (
         graph_generation is not None
         and type(graph_generation) is int
-        and 1 <= graph_generation <= 2147483647
+        and graph_generation >= 1
     ):
         error["graph_generation"] = graph_generation
     if (
@@ -697,7 +796,7 @@ def _failure(
             "error_code": error_code,
             "issues": [{"path": "$", "code": "ERROR_SIZE_LIMIT"}],
         }
-    return ReadyResolutionOutcome(result=None, error=error)
+    return ReadyResolutionOutcome._from_error(error)
 
 
 def _graph_admission_issues(graph: Any) -> tuple[ReadyResolutionIssue, ...]:
@@ -1027,6 +1126,9 @@ def _graph_disposition(
     join_decisions: list[dict[str, Any]],
 ) -> str:
     node_dispositions = {item["node_id"]: item["disposition"] for item in node_decisions}
+    node_classifications = {
+        node["id"]: node["classification"] for node in graph["nodes"]
+    }
     values = set(node_dispositions.values())
     if "IN_PROGRESS" in values:
         return "IN_PROGRESS"
@@ -1047,12 +1149,7 @@ def _graph_disposition(
         item["disposition"] == "BLOCKED"
         or (
             item["disposition"] == "CANCELLED"
-            and next(
-                node
-                for node in graph["nodes"]
-                if node["id"] == item["node_id"]
-            )["classification"]
-            == "required"
+            and node_classifications[item["node_id"]] == "required"
         )
         for item in node_decisions
     ):
@@ -1152,7 +1249,7 @@ def _result_is_structurally_valid(result: Any) -> bool:
         or type(result["input_digest"]) is not str
         or _DIGEST_PATTERN.fullmatch(result["input_digest"]) is None
         or type(result["graph_generation"]) is not int
-        or not 1 <= result["graph_generation"] <= 2147483647
+        or result["graph_generation"] < 1
         or result["graph_disposition"] not in _GRAPH_DISPOSITIONS
     ):
         return False
@@ -1306,13 +1403,18 @@ def resolve_ready_nodes(
         return _failure("GRAPH_INVALID", _graph_validation_issues(graph_validation))
 
     try:
-        graph_digest = canonical_graph_digest(graph)
+        graph_digest = graph_validation.semantic_digest
     except (KeyError, TypeError, ValueError, RecursionError):
         return _failure(
             "GRAPH_INVALID",
             [ReadyResolutionIssue("$", "GRAPH_DIGEST_FAILED")],
         )
-    graph_generation = graph["generation"]
+    graph_generation = _mathematical_integer(graph["generation"])
+    if graph_digest is None or graph_generation is None:
+        return _failure(
+            "GRAPH_INVALID",
+            [ReadyResolutionIssue("$", "GRAPH_DIGEST_FAILED")],
+        )
     binding_issues = _IssueCollector()
     if resolution_input["graph_digest"] != graph_digest:
         binding_issues.add("$.graph_digest", "GRAPH_DIGEST_MISMATCH")
@@ -1433,7 +1535,7 @@ def resolve_ready_nodes(
             graph_generation=graph_generation,
             input_digest=input_digest,
         )
-    return ReadyResolutionOutcome(result=result, error=None)
+    return ReadyResolutionOutcome._from_result(result)
 
 
 __all__ = [

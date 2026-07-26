@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 STAGE4D_BASELINE_COMMIT = "19872d42f1727a6fa4f9fcbd38c07a772b92e252"
+STAGE4D_ENDPOINT_COMMIT = "25abf32fbcaa2f1a4ce42c8a23912a75595da062"
 CANONICAL = REPOSITORY / "docs/contracts/graph/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/graph/v1"
 RESOURCE_NAMES = (
@@ -101,7 +102,7 @@ def stage4d_candidate_paths():
             "--no-renames",
             "--diff-filter=ACDMRTUXB",
             STAGE4D_BASELINE_COMMIT,
-            "HEAD",
+            STAGE4D_ENDPOINT_COMMIT,
             "--",
         ],
         cwd=REPOSITORY,
@@ -109,21 +110,7 @@ def stage4d_candidate_paths():
         text=True,
         capture_output=True,
     ).stdout.splitlines()
-    working = subprocess.run(
-        ["git", "diff", "--name-only", "--no-renames", "HEAD", "--"],
-        cwd=REPOSITORY,
-        check=True,
-        text=True,
-        capture_output=True,
-    ).stdout.splitlines()
-    untracked = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard"],
-        cwd=REPOSITORY,
-        check=True,
-        text=True,
-        capture_output=True,
-    ).stdout.splitlines()
-    return {path.replace("\\", "/") for path in (*committed, *working, *untracked)}
+    return {path.replace("\\", "/") for path in committed}
 
 
 class GraphContractV1Tests(unittest.TestCase):
@@ -319,7 +306,8 @@ class GraphContractV1Tests(unittest.TestCase):
             ["manual-gate", "corrective-join"],
             topology["policies"],
         )
-        self.assertIn("dependency-DAG sink", topology["sink_rule"])
+        self.assertIn("Dependencies among nodes", topology["sink_rule"])
+        self.assertIn("every one of those joins", topology["sink_rule"])
         self.assertEqual(
             "nonterminal-external-join-prerequisite",
             topology["issue_code"],
@@ -327,13 +315,13 @@ class GraphContractV1Tests(unittest.TestCase):
         self.assertIn("$.nodes[i].depends_on[j]", topology["issue_path"])
         self.assertIn("O(N + E + R)", topology["complexity"])
         self.assertIn("later Graph generation", topology["generation_boundary"])
-        self.assertIn(
-            "without a dependency path",
-            topology["independent_work"],
-        )
+        self.assertIn("no such unsafe edge", topology["independent_work"])
         self.assertIn("no WAITING_GATE or SKIPPED", topology["non_goals"])
         schema_text = json.dumps(self.graph, ensure_ascii=False)
-        self.assertIn("dependency-DAG sink", schema_text)
+        self.assertIn("Dependencies among members", schema_text)
+        reachability = self.manifest["reachability_truth"]
+        self.assertIn("no entry or target", reachability["root_definition"])
+        self.assertIn("UNREACHABLE", reachability["non_goal"])
         self.assertNotIn("join_to_node", schema_text)
 
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:transition-resolution:v1:input",
   "title": "SAGE-Kit Transition Resolution Input v1",
-  "description": "A closed, language-neutral structural snapshot presented to a future pure transition resolver. The canonical representation is limited to 16777216 bytes under contract.json. It binds the exact Graph, run, authority, controller, node, attempt, state revision, last event sequence, previous status, and a Node Result object envelope supplied by the host. Complete graph-aware Node Result validation, authority-change status classification, and decision classification remain semantic resolver contract validation, not Input schema conditionals. It describes only an observed snapshot and does not prove that the snapshot remains current. Unknown Input fields are invalid. Schema presence does not mutate state or Graph data, create an event, lock, lease, scheduler, or agent, call the Ready Resolver, or grant execution, transition, gate, write, Graph-mutation, or authority permission.",
+  "description": "A closed, language-neutral structural snapshot presented to the pure transition resolver. The canonical representation is limited to 16777216 bytes under contract.json. It binds the exact Graph, run, authority, controller, node, attempt, state revision, last event sequence, previous status, and a Node Result object envelope supplied by the host. Complete graph-aware Node Result validation, authority-change status classification, and decision classification remain semantic resolver contract validation, not Input schema conditionals. It describes only an observed snapshot and does not prove that the snapshot remains current. Unknown Input fields are invalid. Schema and resolver presence do not mutate state or Graph data, create an event, lock, lease, scheduler, or agent, call the Ready Resolver, or grant execution, transition, gate, write, Graph-mutation, or authority permission.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -35,7 +35,6 @@
     "graph_generation": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 2147483647,
       "description": "Observed immutable Graph generation; it grants no Graph mutation authority."
     },
     "graph_digest": {

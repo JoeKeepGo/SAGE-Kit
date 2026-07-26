@@ -30,7 +30,6 @@
     "graph_generation": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 2147483647,
       "description": "Observed Graph generation. It grants no mutation, scheduling, gate, or execution authority."
     },
     "node_states": {

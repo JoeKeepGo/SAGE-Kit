@@ -656,6 +656,43 @@ class InitializationAndSchemaTests(unittest.TestCase):
                 validate_runtime_event(invalid_event, graph)
             release_runtime_writer(writer)
 
+    def test_runtime_state_generation_matches_graph_mathematical_integer_domain(self):
+        candidate_graph = minimal_graph()
+        state = {
+            "schema_id": runtime_store.STATE_SCHEMA_ID,
+            "schema_version": 1,
+            "run_id": "run:contract",
+            "graph_digest": canonical_graph_digest(candidate_graph),
+            "graph_generation": 1,
+            "revision": 0,
+            "last_event_sequence": 0,
+            "run_status": "INITIALIZED",
+            "authority_id": "authority:accepted",
+            "controller_id": "controller:root",
+            "node_states": [
+                {
+                    "node_id": "build",
+                    "status": "PENDING",
+                    "attempt_id": None,
+                    "last_event_sequence": 0,
+                    "evidence_refs": [],
+                }
+            ],
+        }
+        candidate_graph["generation"] = 1.0
+        state["graph_generation"] = 1.0
+        validate_runtime_state(state, candidate_graph)
+
+        huge = 10**5000
+        candidate_graph["generation"] = huge
+        state["graph_generation"] = huge
+        state["graph_digest"] = canonical_graph_digest(candidate_graph)
+        validate_runtime_state(state, candidate_graph)
+
+        state["graph_generation"] = True
+        with self.assertRaises(RuntimeStoreIntegrityError):
+            validate_runtime_state(state, candidate_graph)
+
     def test_node_membership_and_event_conditionals_are_enforced(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

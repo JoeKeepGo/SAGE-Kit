@@ -9,11 +9,13 @@ from __future__ import annotations
 import copy
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from decimal import Decimal
 from datetime import datetime, timezone
 from enum import Enum
 import errno
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -36,7 +38,6 @@ LOCK_SCHEMA_ID = "urn:sagekit:runtime-store:v1:writer-lock"
 SCHEMA_VERSION = 1
 
 MAX_SAFE_INTEGER = 9007199254740991
-MAX_GRAPH_GENERATION = 2147483647
 MAX_EVENT_BYTES = 128 * 1024
 MAX_GRAPH_BYTES = 8 * 1024 * 1024
 MAX_STATE_BYTES = 16 * 1024 * 1024
@@ -315,17 +316,108 @@ def _issue(
 
 
 def _canonical_json_bytes(payload: Any) -> bytes:
+    output = bytearray()
+    active: set[int] = set()
+
+    def emit_string(value: str) -> None:
+        output.extend(b'"')
+        index = 0
+        while index < len(value):
+            codepoint = ord(value[index])
+            if value[index] == '"':
+                output.extend(b'\\"')
+            elif value[index] == "\\":
+                output.extend(b"\\\\")
+            elif codepoint == 0x08:
+                output.extend(b"\\b")
+            elif codepoint == 0x09:
+                output.extend(b"\\t")
+            elif codepoint == 0x0A:
+                output.extend(b"\\n")
+            elif codepoint == 0x0C:
+                output.extend(b"\\f")
+            elif codepoint == 0x0D:
+                output.extend(b"\\r")
+            elif codepoint <= 0x1F:
+                output.extend(f"\\u{codepoint:04x}".encode("ascii"))
+            elif 0xD800 <= codepoint <= 0xDBFF:
+                if index + 1 >= len(value):
+                    raise RuntimeStoreIntegrityError(
+                        "payload contains an unpaired UTF-16 surrogate"
+                    )
+                low = ord(value[index + 1])
+                if not 0xDC00 <= low <= 0xDFFF:
+                    raise RuntimeStoreIntegrityError(
+                        "payload contains an unpaired UTF-16 surrogate"
+                    )
+                scalar = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00)
+                output.extend(chr(scalar).encode("utf-8"))
+                index += 1
+            elif 0xDC00 <= codepoint <= 0xDFFF:
+                raise RuntimeStoreIntegrityError(
+                    "payload contains an unpaired UTF-16 surrogate"
+                )
+            else:
+                output.extend(value[index].encode("utf-8"))
+            index += 1
+        output.extend(b'"')
+
+    def encode(value: Any) -> None:
+        if value is None:
+            output.extend(b"null")
+        elif value is True:
+            output.extend(b"true")
+        elif value is False:
+            output.extend(b"false")
+        elif type(value) is int:
+            output.extend(format(Decimal(value), "f").encode("ascii"))
+        elif type(value) is float and math.isfinite(value) and value.is_integer():
+            output.extend(format(Decimal(int(value)), "f").encode("ascii"))
+        elif type(value) is str:
+            emit_string(value)
+        elif type(value) is list:
+            identity = id(value)
+            if identity in active:
+                raise RuntimeStoreIntegrityError("payload contains a cyclic array")
+            active.add(identity)
+            try:
+                output.extend(b"[")
+                for index, item in enumerate(value):
+                    if index:
+                        output.extend(b",")
+                    encode(item)
+                output.extend(b"]")
+            finally:
+                active.remove(identity)
+        elif type(value) is dict:
+            if any(type(key) is not str for key in value):
+                raise RuntimeStoreIntegrityError(
+                    "payload object keys must be strings"
+                )
+            identity = id(value)
+            if identity in active:
+                raise RuntimeStoreIntegrityError("payload contains a cyclic object")
+            active.add(identity)
+            try:
+                output.extend(b"{")
+                for index, key in enumerate(sorted(value)):
+                    if index:
+                        output.extend(b",")
+                    emit_string(key)
+                    output.extend(b":")
+                    encode(value[key])
+                output.extend(b"}")
+            finally:
+                active.remove(identity)
+        else:
+            raise RuntimeStoreIntegrityError("payload is not canonical JSON")
+
     try:
-        text = json.dumps(
-            payload,
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-    except (TypeError, ValueError) as exc:
-        raise RuntimeStoreIntegrityError(f"payload is not canonical JSON: {exc}") from exc
-    return (text + "\n").encode("utf-8")
+        encode(payload)
+    except RecursionError as exc:
+        raise RuntimeStoreIntegrityError("payload nesting is too deep") from exc
+    output.extend(b"\n")
+    return bytes(output)
 
 
 def _reject_json_constant(value: str) -> None:
@@ -423,13 +515,30 @@ def _require_integer(
     label: str,
     *,
     minimum: int,
-    maximum: int,
+    maximum: int | None = None,
 ) -> int:
     if type(value) is not int:
         raise RuntimeStoreIntegrityError(f"{label} must be an integer")
-    if not minimum <= value <= maximum:
+    if value < minimum or (maximum is not None and value > maximum):
         raise RuntimeStoreIntegrityError(f"{label} is outside its bound")
     return value
+
+
+def _require_mathematical_integer(
+    value: Any,
+    label: str,
+    *,
+    minimum: int,
+) -> int:
+    if type(value) is int:
+        integer = value
+    elif type(value) is float and math.isfinite(value) and value.is_integer():
+        integer = int(value)
+    else:
+        raise RuntimeStoreIntegrityError(f"{label} must be an integer")
+    if integer < minimum:
+        raise RuntimeStoreIntegrityError(f"{label} is outside its bound")
+    return integer
 
 
 def _require_reference(value: Any, label: str) -> str:
@@ -739,11 +848,10 @@ def validate_runtime_state(
         raise RuntimeStoreIntegrityError("runtime state schema version is invalid")
     _require_identity(state["run_id"], "state.run_id")
     _require_sha256(state["graph_digest"], "state.graph_digest")
-    _require_integer(
+    _require_mathematical_integer(
         state["graph_generation"],
         "state.graph_generation",
         minimum=1,
-        maximum=MAX_GRAPH_GENERATION,
     )
     _require_integer(
         state["revision"],
