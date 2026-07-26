@@ -7,7 +7,7 @@
     "input_schema": {
       "resource": "input.schema.json",
       "schema_id": "urn:sagekit:transition-resolution:v1:input",
-      "canonical_sha256": "4af10539b2f67b5342a77b831bcfbc0d44f96782606d0a2c69a8cb0e8756d968"
+      "canonical_sha256": "ea449827159b99c13a872163490109eb7794ae450f5304ce0cd8a7b53b396c76"
     },
     "result_schema": {
       "resource": "result.schema.json",
@@ -31,7 +31,7 @@
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
       "resource": "docs/contracts/graph/v1/node-result.schema.json",
       "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-      "relation": "The complete proposed Node Result is validated through its existing stable URN and content-digest bound without defining a second Node Result shape."
+      "relation": "The Input schema carries only a Node Result object envelope. The complete proposed Node Result is validated through the existing validate_node_result owner and content-digest bound without defining a second Node Result shape."
     },
     "runtime_state_contract_v1": {
       "contract_id": "urn:sagekit:runtime-state-contract:v1",
@@ -117,6 +117,12 @@
       "mismatch_error_code": "GRAPH_BINDING_MISMATCH",
       "mismatch_outcome": "Only a valid Graph whose graph ID, generation, or digest does not match Transition Resolution Input yields GRAPH_BINDING_MISMATCH Error and no Result."
     },
+    "transition_input": {
+      "structural_owner": "input.schema.json",
+      "structure_rule": "Only after Graph admission, validation, and binding succeed, validate the complete Transition Resolution Input envelope and canonical byte size. The Input schema remains an envelope validator and does not validate complete Node Result v1 semantics, authority-change status, decision semantics, graph-aware node/proposal references, read-only changed paths, node binding, or transition legality.",
+      "invalid_error_code": "REQUIRED_INPUT_INVALID",
+      "invalid_outcome": "A missing, mistyped, malformed, oversized, or otherwise structurally invalid Input envelope returns only REQUIRED_INPUT_INVALID Error and does not reach Node Result, binding, authority-change, or transition classification."
+    },
     "deterministic_order": [
       "bounded_canonical_graph_byte_calculation",
       "graph_too_large_error_only",
@@ -127,24 +133,48 @@
       "canonical_graph_digest",
       "graph_binding_comparison",
       "graph_binding_mismatch_error_only",
-      "node_result_and_transition_validation"
+      "complete_transition_input_envelope_validation",
+      "required_input_invalid_error_only",
+      "graph_aware_validate_node_result",
+      "node_result_invalid_error_only",
+      "node_binding_comparison",
+      "node_binding_mismatch_error_only",
+      "authority_change_status_validation",
+      "authority_change_status_invalid_error_only",
+      "validate_node_transition",
+      "transition_not_allowed_error_only"
     ],
-    "graph_classification_boundary": "GRAPH_TOO_LARGE applies only when the bounded canonical Graph byte calculation exceeds 8388608. RESOLUTION_LIMIT_EXCEEDED applies only after byte admission when a Transition Resolver structural cardinality exceeds its bound, is not GRAPH_INVALID, and does not decide Graph Contract validity. An admitted invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to an admitted valid Graph after validate_graph_contract and canonical digest calculation when graph ID, generation, or digest differs. Node Result and transition validation begin only after Graph admission, validity, and binding succeed.",
+    "failure_precedence": [
+      "GRAPH_ADMISSION_VALIDATION_BINDING",
+      "REQUIRED_INPUT_INVALID",
+      "NODE_RESULT_INVALID",
+      "NODE_BINDING_MISMATCH",
+      "AUTHORITY_CHANGE_STATUS_INVALID",
+      "TRANSITION_NOT_ALLOWED"
+    ],
+    "graph_classification_boundary": "GRAPH_TOO_LARGE applies only when the bounded canonical Graph byte calculation exceeds 8388608. RESOLUTION_LIMIT_EXCEEDED applies only after byte admission when a Transition Resolver structural cardinality exceeds its bound, is not GRAPH_INVALID, and does not decide Graph Contract validity. An admitted invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to an admitted valid Graph after validate_graph_contract and canonical digest calculation when graph ID, generation, or digest differs. Complete Input envelope validation, graph-aware Node Result validation, node binding, authority-change status classification, and transition legality begin only after Graph admission, validity, and binding succeed in that order.",
     "node_binding": {
       "left": "$.node_id",
       "right": "$.node_result.node_id",
       "comparison": "exact Unicode scalar sequence equality",
+      "precondition": "Evaluate only after Graph admission, validation, and binding, complete Input envelope validation, and graph-aware validate_node_result have succeeded.",
       "error_code": "NODE_BINDING_MISMATCH"
     },
     "node_result": {
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
-      "invalid_error_code": "NODE_RESULT_INVALID"
+      "existing_validator": "validate_node_result",
+      "validation_rule": "After complete Transition Resolution Input envelope validation succeeds, validate the complete Node Result through its existing graph-aware owner before node binding, authority-change status, or transition legality classification. Do not copy or redefine Node Result v1 validation in the Input schema.",
+      "graph_aware_scope": "validate_node_result owns complete Node Result semantics for missing required Node Result fields, invalid status, missing or invalid authority decision, unknown graph node, unknown proposed_next_nodes targets, read-only node changed_paths, bounded findings, no-action evidence, and all other Node Result v1 structural and semantic failures.",
+      "invalid_error_code": "NODE_RESULT_INVALID",
+      "invalid_outcome": "A supplied Node Result object that fails existing graph-aware validate_node_result returns only NODE_RESULT_INVALID Error and never NODE_BINDING_MISMATCH, AUTHORITY_CHANGE_STATUS_INVALID, TRANSITION_NOT_ALLOWED, or Result."
     },
     "authority_change_status": {
       "when": "$.node_result.authority_change is true",
+      "precondition": "Evaluate only after Graph admission, validation, and binding, complete Input envelope validation, graph-aware validate_node_result, and node binding have succeeded. Missing or invalid authority decision remains NODE_RESULT_INVALID because it is owned by valid Node Result validation.",
       "required_status": "HANDOFF",
       "required_decision": "existing Node Result v1 non-empty bounded decision",
-      "error_code": "AUTHORITY_CHANGE_STATUS_INVALID"
+      "error_code": "AUTHORITY_CHANGE_STATUS_INVALID",
+      "classification_rule": "For an otherwise valid Node Result with authority_change true, any non-HANDOFF status returns AUTHORITY_CHANGE_STATUS_INVALID before transition legality is evaluated. Missing, empty, too-long, or otherwise invalid decision remains NODE_RESULT_INVALID, not AUTHORITY_CHANGE_STATUS_INVALID."
     },
     "status_projection": "For ordinary input, next_status equals node_result.status exactly. For authority change, both node_result.status and next_status are HANDOFF. No status is trimmed, mapped, promoted, or synthesized.",
     "validation_failure": "Any structural Input or Graph, binding, Node Result, transition, authority-change, or size failure yields only Error. Invalid input or Graph has no Result, no partial transition, and no fabricated HANDOFF or BLOCKED substitute."
@@ -152,7 +182,7 @@
   "transition_legality": {
     "owner": "validate_node_transition",
     "owner_stage": "Stage 2B",
-    "rule": "The pair previous_status and the exact Node Result status must be allowed by the existing owner. This contract's Result schema mirrors that table only as a success-envelope constraint and does not create a different state machine.",
+    "rule": "After Graph admission/validation/binding, Input envelope validation, graph-aware Node Result validation, node binding, and authority-change status validation have succeeded, the pair previous_status and the exact Node Result status must be allowed by the existing owner. This contract's Result schema mirrors that table only as a success-envelope constraint and does not create a different state machine.",
     "terminal_rule": "A terminal previous status cannot produce Result.",
     "distinct_outcomes": "NO_ACTION_REQUIRED and DONE_WITH_CONCERNS remain their exact proposed statuses and are never mapped to SUCCEEDED.",
     "not_allowed_error_code": "TRANSITION_NOT_ALLOWED"

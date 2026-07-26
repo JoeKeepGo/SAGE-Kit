@@ -7,11 +7,15 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from sagekit.graph_contract import NODE_STATUSES, validate_node_transition
+from sagekit.graph_contract import (
+    NODE_STATUSES,
+    validate_node_result,
+    validate_node_transition,
+)
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-BASELINE_COMMIT = "cef1d36bf4e676d531fcb08bebef1c4ef74dfdeb"
+BASELINE_COMMIT = "3fea7f3654838ff841a0f04203039de80657b3cd"
 CANONICAL = REPOSITORY / "docs/contracts/transition-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/transition-resolution/v1"
 NODE_RESULT_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/node-result.schema.json"
@@ -23,9 +27,9 @@ RESOURCE_NAMES = (
 )
 EXPECTED_STAGE4C1_PATHS = {
     "docs/contracts/transition-resolution/v1/contract.json",
-    "docs/contracts/transition-resolution/v1/error.schema.json",
+    "docs/contracts/transition-resolution/v1/input.schema.json",
     "sagekit/resources/contracts/transition-resolution/v1/contract.json",
-    "sagekit/resources/contracts/transition-resolution/v1/error.schema.json",
+    "sagekit/resources/contracts/transition-resolution/v1/input.schema.json",
     "tests/unit/test_transition_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
@@ -56,9 +60,7 @@ PROTECTED_PATHS = (
     "sagekit/resources/contracts/ready-resolution/v1/input.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/result.schema.json",
     "sagekit/resources/contracts/ready-resolution/v1/error.schema.json",
-    "docs/contracts/transition-resolution/v1/input.schema.json",
     "docs/contracts/transition-resolution/v1/result.schema.json",
-    "sagekit/resources/contracts/transition-resolution/v1/input.schema.json",
     "sagekit/resources/contracts/transition-resolution/v1/result.schema.json",
 )
 INPUT_REQUIRED = {
@@ -545,6 +547,65 @@ def valid_error():
     }
 
 
+def transition_graph(*, read_only_node=False):
+    def node(node_id, permission="WRITE_AUTHORIZED"):
+        return {
+            "id": node_id,
+            "role": "worker",
+            "depends_on": [],
+            "permission": permission,
+            "verifier": "focused-tests",
+            "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+            "resources": [],
+            "classification": "required",
+        }
+
+    return {
+        "schema_id": "urn:sagekit:graph-contract:v1:graph",
+        "schema_version": 1,
+        "graph_id": "graph/alpha",
+        "generation": 1,
+        "source_authority": {
+            "identity": "transition-resolution-tests",
+            "reference": "unit taxonomy",
+        },
+        "governance_level": "Standard",
+        "autonomy_level": "turn-based",
+        "human_gates": [],
+        "nodes": [
+            node(
+                "node/α",
+                "READ_ONLY_REVIEW" if read_only_node else "WRITE_AUTHORIZED",
+            ),
+            node("node/β"),
+            node("next/α"),
+        ],
+        "joins": [],
+    }
+
+
+def reference_transition_taxonomy(input_payload, input_schema, registry, graph):
+    if not is_schema_valid(input_payload, input_schema, registry=registry):
+        return "REQUIRED_INPUT_INVALID"
+    node_result = validate_node_result(input_payload["node_result"], graph)
+    if not node_result.valid:
+        return "NODE_RESULT_INVALID"
+    if input_payload["node_id"] != input_payload["node_result"]["node_id"]:
+        return "NODE_BINDING_MISMATCH"
+    if (
+        input_payload["node_result"]["authority_change"] is True
+        and input_payload["node_result"]["status"] != "HANDOFF"
+    ):
+        return "AUTHORITY_CHANGE_STATUS_INVALID"
+    transition = validate_node_transition(
+        input_payload["previous_status"],
+        input_payload["node_result"]["status"],
+    )
+    if not transition.allowed:
+        return "TRANSITION_NOT_ALLOWED"
+    return None
+
+
 class TransitionResolutionContractV1Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -639,16 +700,21 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         for path, digest in DEPENDENCY_DIGESTS.items():
             self.assertEqual(digest, canonical_sha256(REPOSITORY / path))
 
-    def test_input_exact_fields_closed_shape_and_existing_node_result_reference(self):
+    def test_input_exact_fields_closed_shape_and_node_result_envelope_only(self):
         self.assertEqual(INPUT_REQUIRED, set(self.input_schema["required"]))
         self.assertEqual(INPUT_REQUIRED, set(self.input_schema["properties"]))
         self.assertFalse(self.input_schema["additionalProperties"])
-        self.assertEqual(
-            "urn:sagekit:graph-contract:v1:node-result",
-            self.input_schema["properties"]["node_result"]["$ref"],
-        )
+        node_result_schema = self.input_schema["properties"]["node_result"]
+        self.assertEqual("object", node_result_schema["type"])
+        self.assertNotIn("$ref", node_result_schema)
+        self.assertNotIn("required", node_result_schema)
         payload = valid_input()
         self.assertTrue(self.input_valid(payload))
+        del payload["node_result"]["status"]
+        self.assertTrue(self.input_valid(payload))
+        payload["node_result"] = "not-an-object"
+        self.assertFalse(self.input_valid(payload))
+        payload = valid_input()
         payload["unknown"] = True
         self.assertFalse(self.input_valid(payload))
 
@@ -716,7 +782,16 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                 "canonical_graph_digest",
                 "graph_binding_comparison",
                 "graph_binding_mismatch_error_only",
-                "node_result_and_transition_validation",
+                "complete_transition_input_envelope_validation",
+                "required_input_invalid_error_only",
+                "graph_aware_validate_node_result",
+                "node_result_invalid_error_only",
+                "node_binding_comparison",
+                "node_binding_mismatch_error_only",
+                "authority_change_status_validation",
+                "authority_change_status_invalid_error_only",
+                "validate_node_transition",
+                "transition_not_allowed_error_only",
             ],
             validation["deterministic_order"],
         )
@@ -968,18 +1043,154 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         self.assertEqual("HANDOFF", result["next_status"])
         self.assertTrue(result["authority_decision_required"])
 
-    def test_authority_change_success_false_green_is_rejected(self):
-        for status in (
-            "SUCCEEDED",
-            "NO_ACTION_REQUIRED",
-            "DONE_WITH_CONCERNS",
-        ):
-            with self.subTest(status=status):
-                payload = valid_input(status, authority_change=True)
-                self.assertFalse(self.input_valid(payload))
+    def test_node_result_invalid_precedes_authority_and_binding_taxonomy(self):
+        graph = transition_graph()
+        vectors = (
+            ("missing-status", lambda payload: payload["node_result"].pop("status")),
+            (
+                "invalid-status",
+                lambda payload: payload["node_result"].update(status="NOT_A_STATUS"),
+            ),
+            (
+                "missing-authority-decision",
+                lambda payload: (
+                    payload["node_result"].update(
+                        status="HANDOFF",
+                        authority_change=True,
+                    ),
+                    payload["node_result"].pop("decision", None),
+                ),
+            ),
+        )
+        for label, mutate in vectors:
+            with self.subTest(label=label):
+                payload = valid_input()
+                mutate(payload)
+                self.assertTrue(self.input_valid(payload))
+                self.assertEqual(
+                    "NODE_RESULT_INVALID",
+                    reference_transition_taxonomy(
+                        payload,
+                        self.input_schema,
+                        self.registry,
+                        graph,
+                    ),
+                )
+
+    def test_valid_authority_change_non_handoff_classifies_after_node_result(self):
+        graph = transition_graph()
+        payload = valid_input("SUCCEEDED", authority_change=True)
+        payload["node_result"]["decision"] = "Request authority for this result."
+        self.assertTrue(self.input_valid(payload))
+        self.assertTrue(validate_node_result(payload["node_result"], graph).valid)
+        self.assertEqual(
+            "AUTHORITY_CHANGE_STATUS_INVALID",
+            reference_transition_taxonomy(
+                payload,
+                self.input_schema,
+                self.registry,
+                graph,
+            ),
+        )
         rule = self.contract["semantic_validation"]["authority_change_status"]
         self.assertEqual("HANDOFF", rule["required_status"])
         self.assertEqual("AUTHORITY_CHANGE_STATUS_INVALID", rule["error_code"])
+        self.assertIn("valid Node Result", rule["precondition"])
+        self.assertIn("non-HANDOFF", rule["classification_rule"])
+
+    def test_valid_node_result_binding_mismatch_is_distinct(self):
+        graph = transition_graph()
+        payload = valid_input()
+        payload["node_result"]["node_id"] = "node/β"
+        self.assertTrue(self.input_valid(payload))
+        self.assertTrue(validate_node_result(payload["node_result"], graph).valid)
+        self.assertEqual(
+            "NODE_BINDING_MISMATCH",
+            reference_transition_taxonomy(
+                payload,
+                self.input_schema,
+                self.registry,
+                graph,
+            ),
+        )
+
+    def test_graph_aware_node_result_failures_are_node_result_invalid(self):
+        vectors = []
+
+        unknown_node = valid_input()
+        unknown_node["node_result"]["node_id"] = "node/unknown"
+        vectors.append(("unknown-node", unknown_node, transition_graph()))
+
+        unknown_proposal = valid_input()
+        unknown_proposal["node_result"]["proposed_next_nodes"] = ["node/missing"]
+        vectors.append(("unknown-proposal", unknown_proposal, transition_graph()))
+
+        read_only_changed = valid_input()
+        read_only_changed["node_result"]["changed_paths"] = ["docs/file.md"]
+        vectors.append(
+            ("read-only-changed-paths", read_only_changed, transition_graph(read_only_node=True))
+        )
+
+        for label, payload, graph in vectors:
+            with self.subTest(label=label):
+                self.assertTrue(self.input_valid(payload))
+                self.assertFalse(validate_node_result(payload["node_result"], graph).valid)
+                self.assertEqual(
+                    "NODE_RESULT_INVALID",
+                    reference_transition_taxonomy(
+                        payload,
+                        self.input_schema,
+                        self.registry,
+                        graph,
+                    ),
+                )
+
+    def test_transition_taxonomy_is_ordered_and_mutually_exclusive(self):
+        graph = transition_graph()
+        structural_invalid = valid_input()
+        structural_invalid["node_result"] = []
+
+        node_result_invalid = valid_input()
+        node_result_invalid["node_result"].pop("schema_id")
+
+        binding_mismatch = valid_input()
+        binding_mismatch["node_result"]["node_id"] = "node/β"
+
+        authority_invalid = valid_input("SUCCEEDED", authority_change=True)
+        authority_invalid["node_result"]["decision"] = "Escalate authority."
+
+        transition_invalid = valid_input("SUCCEEDED")
+        transition_invalid["previous_status"] = "PENDING"
+
+        cases = (
+            ("REQUIRED_INPUT_INVALID", structural_invalid),
+            ("NODE_RESULT_INVALID", node_result_invalid),
+            ("NODE_BINDING_MISMATCH", binding_mismatch),
+            ("AUTHORITY_CHANGE_STATUS_INVALID", authority_invalid),
+            ("TRANSITION_NOT_ALLOWED", transition_invalid),
+        )
+        self.assertEqual(
+            [
+                "GRAPH_ADMISSION_VALIDATION_BINDING",
+                "REQUIRED_INPUT_INVALID",
+                "NODE_RESULT_INVALID",
+                "NODE_BINDING_MISMATCH",
+                "AUTHORITY_CHANGE_STATUS_INVALID",
+                "TRANSITION_NOT_ALLOWED",
+            ],
+            self.contract["semantic_validation"]["failure_precedence"],
+        )
+        outcomes = [
+            reference_transition_taxonomy(
+                payload,
+                self.input_schema,
+                self.registry,
+                graph,
+            )
+            for _, payload in cases
+        ]
+        self.assertEqual([expected for expected, _ in cases], outcomes)
+        self.assertEqual(len(outcomes), len(set(outcomes)))
 
     def test_result_required_fields_dispositions_and_authority_constants(self):
         self.assertEqual(RESULT_REQUIRED, set(self.result_schema["required"]))

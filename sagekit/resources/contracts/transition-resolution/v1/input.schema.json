@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:transition-resolution:v1:input",
   "title": "SAGE-Kit Transition Resolution Input v1",
-  "description": "A closed, language-neutral snapshot presented to a future pure transition resolver. The canonical representation is limited to 16777216 bytes under contract.json. It binds the exact Graph, run, authority, controller, node, attempt, state revision, last event sequence, previous status, and complete Node Result content supplied by the host. It describes only an observed snapshot and does not prove that the snapshot remains current. Unknown fields are invalid. Schema presence does not mutate state or Graph data, create an event, lock, lease, scheduler, or agent, call the Ready Resolver, or grant execution, transition, gate, write, Graph-mutation, or authority permission.",
+  "description": "A closed, language-neutral structural snapshot presented to a future pure transition resolver. The canonical representation is limited to 16777216 bytes under contract.json. It binds the exact Graph, run, authority, controller, node, attempt, state revision, last event sequence, previous status, and a Node Result object envelope supplied by the host. Complete graph-aware Node Result validation, authority-change status classification, and decision classification remain semantic resolver contract validation, not Input schema conditionals. It describes only an observed snapshot and does not prove that the snapshot remains current. Unknown Input fields are invalid. Schema presence does not mutate state or Graph data, create an event, lock, lease, scheduler, or agent, call the Ready Resolver, or grant execution, transition, gate, write, Graph-mutation, or authority permission.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -75,8 +75,8 @@
       "description": "Exact previous node status from the supplied snapshot."
     },
     "node_result": {
-      "$ref": "urn:sagekit:graph-contract:v1:node-result",
-      "description": "A complete existing Node Result v1 instance by stable URN reference. This contract does not copy or redefine Node Result v1."
+      "type": "object",
+      "description": "A required Node Result object envelope. The Input schema intentionally does not validate complete Node Result v1 semantics, required Node Result fields, authority-change decision rules, graph-aware node/proposal references, read-only changed paths, or node binding. Those classifications belong to resolver semantic validation through validate_node_result and the ordered transition contract."
     }
   },
   "$defs": {
@@ -114,46 +114,5 @@
       ],
       "description": "The existing twelve Stage 2 node statuses. This enum does not define a second transition table."
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "required": [
-          "node_result"
-        ],
-        "properties": {
-          "node_result": {
-            "required": [
-              "authority_change"
-            ],
-            "properties": {
-              "authority_change": {
-                "const": true
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "node_result": {
-            "required": [
-              "status",
-              "decision"
-            ],
-            "properties": {
-              "status": {
-                "const": "HANDOFF"
-              },
-              "decision": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4096
-              }
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }
