@@ -203,9 +203,45 @@ class ReadyResolutionOutcome:
         raise AttributeError("ReadyResolutionOutcome is immutable")
 
     @classmethod
-    def _from_result(cls, result: Mapping[str, Any]) -> ReadyResolutionOutcome:
+    def _from_result(
+        cls,
+        graph: Any,
+        resolution_input: Any = None,
+        result: Any = None,
+    ) -> ReadyResolutionOutcome:
+        if (
+            type(graph) is not dict
+            or type(resolution_input) is not dict
+            or type(result) is not dict
+        ):
+            raise ValueError("successful outcome requires Graph, Input, and Result")
+        try:
+            graph_snapshot = _normalized_json_value(graph)
+            input_snapshot = _normalized_json_value(resolution_input)
+            result_snapshot = _normalized_json_value(result)
+        except (_CanonicalJSONError, RecursionError) as exc:
+            raise ValueError("successful outcome source is not strict JSON") from exc
+
+        expected = _resolve_ready_payload(graph_snapshot, input_snapshot)
+        if isinstance(expected, ReadyResolutionOutcome):
+            raise ValueError("successful outcome source does not resolve")
+
+        graph_validation = validate_graph_contract(graph_snapshot)
+        input_digest = canonical_ready_input_digest(input_snapshot)
+        if (
+            not graph_validation.valid
+            or graph_validation.semantic_digest is None
+            or input_digest is None
+            or result_snapshot.get("graph_digest")
+            != graph_validation.semantic_digest
+            or result_snapshot.get("input_digest") != input_digest
+            or not _result_is_structurally_valid(result_snapshot)
+            or result_snapshot != expected
+        ):
+            raise ValueError("result does not match its validated source")
+
         instance = object.__new__(cls)
-        object.__setattr__(instance, "_result_snapshot", _freeze_json(result))
+        object.__setattr__(instance, "_result_snapshot", _freeze_json(result_snapshot))
         object.__setattr__(instance, "_error_snapshot", None)
         return instance
 
@@ -223,10 +259,7 @@ class ReadyResolutionOutcome:
         resolution_input: Any,
         result: Mapping[str, Any],
     ) -> ReadyResolutionOutcome:
-        expected = resolve_ready_nodes(graph, resolution_input)
-        if not expected.succeeded or type(result) is not dict or result != expected.result:
-            raise ValueError("result does not match its validated source")
-        return expected
+        return cls._from_result(graph, resolution_input, result)
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -272,6 +305,10 @@ def _thaw_json(value: Any) -> Any:
 
 
 class _CanonicalJSONError(ValueError):
+    pass
+
+
+class _InvalidUnicodeScalar(_CanonicalJSONError):
     pass
 
 
@@ -365,12 +402,20 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
             active.add(identity)
             try:
                 emit(b"{")
-                for index, key in enumerate(sorted(item)):
+                normalized_items: dict[str, Any] = {}
+                for key, child in item.items():
+                    normalized_key = _normalized_string(key)
+                    if normalized_key in normalized_items:
+                        raise _CanonicalJSONError(
+                            "duplicate object key after Unicode scalar normalization"
+                        )
+                    normalized_items[normalized_key] = child
+                for index, key in enumerate(sorted(normalized_items)):
                     if index:
                         emit(b",")
                     emit_string(key)
                     emit(b":")
-                    encode(item[key])
+                    encode(normalized_items[key])
                 emit(b"}")
             finally:
                 active.remove(identity)
@@ -393,20 +438,58 @@ def _normalized_string(value: str) -> str:
         codepoint = ord(value[index])
         if 0xD800 <= codepoint <= 0xDBFF:
             if index + 1 >= len(value):
-                raise _CanonicalJSONError("unpaired high surrogate")
+                raise _InvalidUnicodeScalar("unpaired high surrogate")
             low = ord(value[index + 1])
             if not 0xDC00 <= low <= 0xDFFF:
-                raise _CanonicalJSONError("unpaired high surrogate")
+                raise _InvalidUnicodeScalar("unpaired high surrogate")
             output.append(
                 chr(0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00))
             )
             index += 2
             continue
         if 0xDC00 <= codepoint <= 0xDFFF:
-            raise _CanonicalJSONError("unpaired low surrogate")
+            raise _InvalidUnicodeScalar("unpaired low surrogate")
         output.append(value[index])
         index += 1
     return "".join(output)
+
+
+def _normalized_json_value(value: Any, active: set[int] | None = None) -> Any:
+    if active is None:
+        active = set()
+    if value is None or type(value) in {bool, int, float}:
+        return value
+    if type(value) is str:
+        return _normalized_string(value)
+    if type(value) is list:
+        identity = id(value)
+        if identity in active:
+            raise _CanonicalJSONError("cyclic array")
+        active.add(identity)
+        try:
+            return [_normalized_json_value(item, active) for item in value]
+        finally:
+            active.remove(identity)
+    if type(value) is dict:
+        identity = id(value)
+        if identity in active:
+            raise _CanonicalJSONError("cyclic object")
+        active.add(identity)
+        try:
+            normalized: dict[str, Any] = {}
+            for key, item in value.items():
+                if type(key) is not str:
+                    raise _CanonicalJSONError("object keys must be strings")
+                normalized_key = _normalized_string(key)
+                if normalized_key in normalized:
+                    raise _CanonicalJSONError(
+                        "duplicate object key after Unicode scalar normalization"
+                    )
+                normalized[normalized_key] = _normalized_json_value(item, active)
+            return normalized
+        finally:
+            active.remove(identity)
+    raise _CanonicalJSONError("value is not strict JSON")
 
 
 def _mathematical_integer(value: Any) -> int | None:
@@ -444,6 +527,54 @@ def _validate_exact_object(
     return value
 
 
+def _validate_unicode_scalars(
+    value: Any,
+    path: str,
+    issues: _IssueCollector,
+    active: set[int] | None = None,
+) -> None:
+    if active is None:
+        active = set()
+    if type(value) is str:
+        try:
+            _normalized_string(value)
+        except _InvalidUnicodeScalar:
+            issues.add(path, "INVALID_UNICODE_SCALAR")
+        return
+    if type(value) is list:
+        identity = id(value)
+        if identity in active:
+            return
+        active.add(identity)
+        try:
+            for index, item in enumerate(value[: MAX_GRAPH_NODES + 1]):
+                _validate_unicode_scalars(item, f"{path}[{index}]", issues, active)
+        finally:
+            active.remove(identity)
+        return
+    if type(value) is dict:
+        identity = id(value)
+        if identity in active:
+            return
+        active.add(identity)
+        try:
+            for key, item in value.items():
+                if type(key) is not str:
+                    continue
+                child_path = (
+                    f"{path}.{key}"
+                    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key)
+                    else path
+                )
+                try:
+                    _normalized_string(key)
+                except _InvalidUnicodeScalar:
+                    issues.add(path, "INVALID_UNICODE_SCALAR")
+                _validate_unicode_scalars(item, child_path, issues, active)
+        finally:
+            active.remove(identity)
+
+
 def _validate_string(
     value: Any,
     path: str,
@@ -454,7 +585,12 @@ def _validate_string(
     if type(value) is not str:
         issues.add(path, "INVALID_TYPE")
         return False
-    if nonempty and not value:
+    try:
+        normalized = _normalized_string(value)
+    except _CanonicalJSONError:
+        issues.add(path, "INVALID_UNICODE_SCALAR")
+        return False
+    if nonempty and not normalized:
         issues.add(path, "VALUE_TOO_SHORT")
         return False
     return True
@@ -505,11 +641,13 @@ def _validate_reference_array(
     for index, reference in enumerate(value[:101]):
         if not _validate_reference(reference, f"{path}[{index}]", issues):
             valid = False
-        elif reference in seen:
-            issues.add(path, "DUPLICATE_VALUE")
-            valid = False
         else:
-            seen.add(reference)
+            normalized = _normalized_string(reference)
+            if normalized in seen:
+                issues.add(path, "DUPLICATE_VALUE")
+                valid = False
+            else:
+                seen.add(normalized)
     return valid
 
 
@@ -528,7 +666,11 @@ def _validate_node_state(
     if item is None:
         return None
     node_id = item.get("node_id")
-    identity = node_id if _validate_string(node_id, f"{path}.node_id", issues) else None
+    identity = (
+        _normalized_string(node_id)
+        if _validate_string(node_id, f"{path}.node_id", issues)
+        else None
+    )
     status = item.get("status")
     status_valid = type(status) is str and status in _NODE_STATUSES
     if not status_valid:
@@ -566,7 +708,7 @@ def _validate_resource_snapshot(
         return None
     resource_id = item.get("resource_id")
     identity = (
-        resource_id
+        _normalized_string(resource_id)
         if _validate_string(resource_id, f"{path}.resource_id", issues)
         else None
     )
@@ -595,7 +737,11 @@ def _validate_external_decision(
     if item is None:
         return None
     join_id = item.get("join_id")
-    identity = join_id if _validate_string(join_id, f"{path}.join_id", issues) else None
+    identity = (
+        _normalized_string(join_id)
+        if _validate_string(join_id, f"{path}.join_id", issues)
+        else None
+    )
     decision = item.get("decision")
     if type(decision) is not str or decision not in _EXTERNAL_DECISIONS:
         issues.add(f"{path}.decision", "VALUE_NOT_ALLOWED")
@@ -653,6 +799,10 @@ def validate_ready_resolution_input(
     """Strictly validate Input v1 and identity uniqueness without mutation."""
 
     issues = _IssueCollector()
+    try:
+        _validate_unicode_scalars(resolution_input, "$", issues)
+    except RecursionError:
+        issues.add("$", "VALUE_NESTING_TOO_DEEP")
     value = _validate_exact_object(
         resolution_input,
         "$",
@@ -703,6 +853,7 @@ def validate_ready_resolution_input(
 
 
 def _normalized_ready_input(resolution_input: Mapping[str, Any]) -> dict[str, Any]:
+    resolution_input = _normalized_json_value(resolution_input)
     normalized: dict[str, Any] = {
         "schema_id": resolution_input["schema_id"],
         "schema_version": resolution_input["schema_version"],
@@ -1352,18 +1503,21 @@ def _result_is_structurally_valid(result: Any) -> bool:
     return result["summary"] == _summary(nodes, joins)
 
 
-def resolve_ready_nodes(
+def _resolve_ready_payload(
     graph: Any,
     resolution_input: Any,
-) -> ReadyResolutionOutcome:
-    """Resolve node and join readiness without side effects or runtime mutation."""
-
+) -> dict[str, Any] | ReadyResolutionOutcome:
     try:
         _canonical_json_bytes(resolution_input, limit=MAX_INPUT_CANONICAL_BYTES)
     except _CanonicalSizeExceeded:
         return _failure(
             "INPUT_TOO_LARGE",
             [ReadyResolutionIssue("$", "CANONICAL_SIZE_EXCEEDED")],
+        )
+    except _InvalidUnicodeScalar:
+        return _failure(
+            "REQUIRED_INPUT_INVALID",
+            [ReadyResolutionIssue("$", "INVALID_UNICODE_SCALAR")],
         )
     except _CanonicalJSONError:
         return _failure(
@@ -1381,6 +1535,11 @@ def resolve_ready_nodes(
         return _failure(
             "GRAPH_TOO_LARGE",
             [ReadyResolutionIssue("$", "CANONICAL_SIZE_EXCEEDED")],
+        )
+    except _InvalidUnicodeScalar:
+        return _failure(
+            "GRAPH_INVALID",
+            [ReadyResolutionIssue("$", "INVALID_UNICODE_SCALAR")],
         )
     except _CanonicalJSONError:
         return _failure(
@@ -1428,14 +1587,32 @@ def resolve_ready_nodes(
             graph_generation=graph_generation,
         )
 
-    graph_nodes = {item["id"]: item for item in graph["nodes"]}
-    states = {item["node_id"]: item for item in resolution_input["node_states"]}
+    try:
+        semantic_graph = _normalized_json_value(graph)
+        semantic_input = _normalized_json_value(resolution_input)
+    except _InvalidUnicodeScalar:
+        return _failure(
+            "REQUIRED_INPUT_INVALID",
+            [ReadyResolutionIssue("$", "INVALID_UNICODE_SCALAR")],
+            graph_digest=graph_digest,
+            graph_generation=graph_generation,
+        )
+    except _CanonicalJSONError:
+        return _failure(
+            "REQUIRED_INPUT_INVALID",
+            [ReadyResolutionIssue("$", "STRICT_JSON_REQUIRED")],
+            graph_digest=graph_digest,
+            graph_generation=graph_generation,
+        )
+
+    graph_nodes = {item["id"]: item for item in semantic_graph["nodes"]}
+    states = {item["node_id"]: item for item in semantic_input["node_states"]}
     coverage_issues = _IssueCollector()
     missing = set(graph_nodes) - set(states)
     unknown = set(states) - set(graph_nodes)
     if missing:
         coverage_issues.add("$.node_states", "NODE_STATE_MISSING")
-    for index, item in enumerate(resolution_input["node_states"]):
+    for index, item in enumerate(semantic_input["node_states"]):
         if item["node_id"] in unknown:
             coverage_issues.add(
                 f"$.node_states[{index}].node_id",
@@ -1449,9 +1626,9 @@ def resolve_ready_nodes(
             graph_generation=graph_generation,
         )
 
-    graph_joins = {item["id"]: item for item in graph["joins"]}
+    graph_joins = {item["id"]: item for item in semantic_graph["joins"]}
     external_issues = _IssueCollector()
-    for index, item in enumerate(resolution_input["external_join_decisions"]):
+    for index, item in enumerate(semantic_input["external_join_decisions"]):
         declared = graph_joins.get(item["join_id"])
         if declared is None:
             external_issues.add(
@@ -1482,11 +1659,11 @@ def resolve_ready_nodes(
 
     resources = {
         item["resource_id"]: item
-        for item in resolution_input["resource_availability"]
+        for item in semantic_input["resource_availability"]
     }
     external_decisions = {
         item["join_id"]: item
-        for item in resolution_input["external_join_decisions"]
+        for item in semantic_input["external_join_decisions"]
     }
     node_decisions = [
         _resolve_node(graph_nodes[node_id], states, resources)
@@ -1503,7 +1680,7 @@ def resolve_ready_nodes(
         "graph_generation": graph_generation,
         "input_digest": input_digest,
         "graph_disposition": _graph_disposition(
-            graph, node_decisions, join_decisions
+            semantic_graph, node_decisions, join_decisions
         ),
         "node_decisions": node_decisions,
         "join_decisions": join_decisions,
@@ -1535,7 +1712,19 @@ def resolve_ready_nodes(
             graph_generation=graph_generation,
             input_digest=input_digest,
         )
-    return ReadyResolutionOutcome._from_result(result)
+    return result
+
+
+def resolve_ready_nodes(
+    graph: Any,
+    resolution_input: Any,
+) -> ReadyResolutionOutcome:
+    """Resolve node and join readiness without side effects or runtime mutation."""
+
+    resolved = _resolve_ready_payload(graph, resolution_input)
+    if isinstance(resolved, ReadyResolutionOutcome):
+        return resolved
+    return ReadyResolutionOutcome._from_result(graph, resolution_input, resolved)
 
 
 __all__ = [

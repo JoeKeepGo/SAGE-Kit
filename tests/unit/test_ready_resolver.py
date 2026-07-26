@@ -192,22 +192,41 @@ class ReadyResolverInterfaceAndDigestTests(unittest.TestCase):
 
         original = outcome.result
         assert original is not None
-        forged = copy.deepcopy(original)
-        forged["graph_disposition"] = "COMPLETED"
         with self.assertRaises(ValueError):
-            ReadyResolutionOutcome._from_validated_source(
+            ReadyResolutionOutcome._from_result(original)
+        for field, value in (
+            ("graph_digest", "0" * 64),
+            ("input_digest", "0" * 64),
+            ("graph_disposition", "COMPLETED"),
+        ):
+            with self.subTest(field=field):
+                forged = copy.deepcopy(original)
+                forged[field] = value
+                with self.assertRaises(ValueError):
+                    ReadyResolutionOutcome._from_result(
+                        candidate_graph,
+                        candidate_input,
+                        forged,
+                    )
+        changed_source = copy.deepcopy(candidate_input)
+        changed_source["node_states"][0]["status"] = "RUNNING"
+        with self.assertRaises(ValueError):
+            ReadyResolutionOutcome._from_result(
                 candidate_graph,
-                candidate_input,
-                forged,
+                changed_source,
+                original,
             )
-        rebound = ReadyResolutionOutcome._from_validated_source(
+        rebound = ReadyResolutionOutcome._from_result(
             candidate_graph,
             candidate_input,
             original,
         )
         self.assertEqual(original, rebound.result)
+        candidate_graph["graph_id"] = "mutated-after-binding"
+        candidate_input["node_states"][0]["status"] = "RUNNING"
         original["graph_disposition"] = "COMPLETED"
         self.assertNotEqual("COMPLETED", outcome.result["graph_disposition"])
+        self.assertNotEqual("COMPLETED", rebound.result["graph_disposition"])
         with self.assertRaises(AttributeError):
             outcome._result_snapshot = {}
 
@@ -273,6 +292,79 @@ class ReadyResolverInterfaceAndDigestTests(unittest.TestCase):
             expected,
         )
         self.assertEqual(expected, canonical_ready_input_digest(candidate))
+
+    def test_unicode_scalar_surrogate_pair_and_lone_surrogate_contract(self) -> None:
+        scalar_graph = graph(nodes=[node("node/😀")])
+        scalar_input = resolution_input(scalar_graph)
+        paired_graph = graph(nodes=[node("node/\ud83d\ude00")])
+        paired_input = resolution_input(paired_graph)
+
+        self.assertEqual(
+            canonical_ready_input_digest(scalar_input),
+            canonical_ready_input_digest(paired_input),
+        )
+        self.assertEqual(
+            resolve_ready_nodes(scalar_graph, scalar_input),
+            resolve_ready_nodes(paired_graph, paired_input),
+        )
+
+        cross_representation = resolution_input(paired_graph)
+        cross_representation["node_states"][0]["node_id"] = "node/😀"
+        cross_outcome = resolve_ready_nodes(paired_graph, cross_representation)
+        self.assertTrue(cross_outcome.succeeded, cross_outcome.error)
+        self.assertEqual(
+            "node/😀",
+            cross_outcome.result["node_decisions"][0]["node_id"],
+        )
+
+        duplicate = resolution_input(
+            scalar_graph,
+            node_states=[
+                state("node/😀"),
+                state("node/\ud83d\ude00"),
+            ],
+        )
+        self.assertIn(
+            ReadyResolutionIssue("$.node_states", "DUPLICATE_IDENTITY"),
+            validate_ready_resolution_input(duplicate),
+        )
+        self.assertIsNone(canonical_ready_input_digest(duplicate))
+
+        for field, mutate, expected_path in (
+            (
+                "node_id",
+                lambda value: value["node_states"][0].__setitem__(
+                    "node_id", "node/\ud800"
+                ),
+                "$.node_states[0].node_id",
+            ),
+            (
+                "resource_id",
+                lambda value: value["resource_availability"].append(
+                    resource("resource/\udfff", "AVAILABLE")
+                ),
+                "$.resource_availability[0].resource_id",
+            ),
+            (
+                "evidence_ref",
+                lambda value: value["node_states"][0].__setitem__(
+                    "evidence_refs", ["evidence/\ud800"]
+                ),
+                "$.node_states[0].evidence_refs[0]",
+            ),
+        ):
+            with self.subTest(field=field):
+                invalid = resolution_input(scalar_graph)
+                mutate(invalid)
+                issues = validate_ready_resolution_input(invalid)
+                self.assertIn(
+                    ReadyResolutionIssue(expected_path, "INVALID_UNICODE_SCALAR"),
+                    issues,
+                )
+                self.assertIsNone(canonical_ready_input_digest(invalid))
+                outcome = resolve_ready_nodes(scalar_graph, invalid)
+                self.assertFalse(outcome.succeeded)
+                self.assertEqual("REQUIRED_INPUT_INVALID", outcome.error["error_code"])
 
     def test_input_ordering_does_not_change_digest_or_result(self) -> None:
         candidate_graph = graph(

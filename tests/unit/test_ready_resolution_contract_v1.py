@@ -179,9 +179,48 @@ def canonical_sha256(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
+def normalize_unicode_scalars(item):
+    if isinstance(item, str):
+        output = []
+        index = 0
+        while index < len(item):
+            codepoint = ord(item[index])
+            if 0xD800 <= codepoint <= 0xDBFF:
+                if index + 1 >= len(item):
+                    raise ValueError("unpaired high surrogate")
+                low = ord(item[index + 1])
+                if not 0xDC00 <= low <= 0xDFFF:
+                    raise ValueError("unpaired high surrogate")
+                output.append(
+                    chr(
+                        0x10000
+                        + ((codepoint - 0xD800) << 10)
+                        + (low - 0xDC00)
+                    )
+                )
+                index += 2
+                continue
+            if 0xDC00 <= codepoint <= 0xDFFF:
+                raise ValueError("unpaired low surrogate")
+            output.append(item[index])
+            index += 1
+        return "".join(output)
+    if isinstance(item, list):
+        return [normalize_unicode_scalars(child) for child in item]
+    if isinstance(item, dict):
+        normalized = {}
+        for key, child in item.items():
+            normalized_key = normalize_unicode_scalars(key)
+            if normalized_key in normalized:
+                raise ValueError("duplicate normalized object key")
+            normalized[normalized_key] = normalize_unicode_scalars(child)
+        return normalized
+    return item
+
+
 def canonical_json_bytes(value):
     return json.dumps(
-        value,
+        normalize_unicode_scalars(value),
         allow_nan=False,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -248,16 +287,16 @@ def semantic_input_digest(value, schema):
     """Independent contract-vector implementation; this is not a product resolver."""
     if not is_schema_valid(value, schema):
         raise ValueError("strict input validation must succeed before digest")
+    normalized = normalize_unicode_scalars(copy.deepcopy(value))
     for array_name, identity_name in (
         ("node_states", "node_id"),
         ("resource_availability", "resource_id"),
         ("external_join_decisions", "join_id"),
     ):
-        identities = [item[identity_name] for item in value[array_name]]
+        identities = [item[identity_name] for item in normalized[array_name]]
         if len(identities) != len(set(identities)):
             raise ValueError(f"duplicate {identity_name}")
 
-    normalized = copy.deepcopy(value)
     for array_name, identity_name in (
         ("node_states", "node_id"),
         ("resource_availability", "resource_id"),
@@ -770,7 +809,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             sort_keys=True,
         ).lower()
         for phrase in (
-            "optional ready resolver invocation",
+            "admission bounds for the implemented pure ready resolver",
             "measures only the ready resolution input instance",
             "does not include the separately supplied graph argument",
             "independently admitted by max_graph_canonical_bytes",
@@ -813,12 +852,8 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             self.assertIn(phrase, text)
         self.assertNotIn("truncated", property_names((self.result_schema, self.error_schema)))
         compatibility = self.manifest["compatibility"].lower()
-        self.assertNotIn("stage 4b resolver implementation remains deferred", compatibility)
-        self.assertIn(
-            "former stage 4b deferral statement is obsolete and intentionally removed",
-            compatibility,
-        )
-        self.assertIn("stage 4b is implemented", compatibility)
+        self.assertNotIn("defer", compatibility)
+        self.assertIn("pure resolver is implemented", compatibility)
 
     def test_eight_resources_parse_and_use_stable_identities(self):
         self.assertTrue(
@@ -933,7 +968,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "duplicate",
             "unknown",
             "canonical normalized input bytes",
-            "unicode code point",
+            "logical unicode scalar",
             "node_states",
             "node_id",
             "resource_availability",
@@ -1592,9 +1627,8 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "partial or false-success",
             "does not alter the graph digest",
             "does not shrink the graph contract",
-            "optional resolver invocation",
-            "stage 4b is implemented",
-            "graph that remains valid under graph contract v1 but exceeds an optional resolver",
+            "pure resolver is implemented",
+            "graph that remains valid under graph contract v1 but exceeds the ready resolver",
             "returns resolution_limit_exceeded",
             "input_too_large",
             "result_too_large",
@@ -1604,7 +1638,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         measurement = bounds["measurement"].lower()
         for phrase in (
             "without a byte-order mark",
-            "unicode code point sequence",
+            "logical unicode scalar sequence",
             "duplicate object names",
             "shortest base-10 form",
             "quotation mark",
@@ -1612,7 +1646,9 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "u+0000 through u+001f",
             "do not escape solidus",
             "non-bmp",
-            "unpaired utf-16 surrogate",
+            "valid utf-16 surrogate pair",
+            "lone utf-16 surrogate",
+            "invalid required input",
             "mandatory json escapes",
         ):
             self.assertIn(phrase, measurement)
@@ -1627,6 +1663,31 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             + b'"}'
         )
         self.assertEqual(expected, canonical_json_bytes(vector))
+        self.assertEqual(
+            canonical_json_bytes({"id": "node/😀"}),
+            canonical_json_bytes({"id": "node/\ud83d\ude00"}),
+        )
+        scalar_input = valid_input()
+        scalar_input["node_states"][0]["node_id"] = "node/😀"
+        paired_input = copy.deepcopy(scalar_input)
+        paired_input["node_states"][0]["node_id"] = "node/\ud83d\ude00"
+        self.assertEqual(
+            semantic_input_digest(scalar_input, self.input_schema),
+            semantic_input_digest(paired_input, self.input_schema),
+        )
+        duplicate_identity = copy.deepcopy(scalar_input)
+        duplicate_identity["node_states"].append(
+            {
+                "node_id": "node/\ud83d\ude00",
+                "status": "PENDING",
+                "evidence_refs": [],
+            }
+        )
+        with self.assertRaises(ValueError):
+            semantic_input_digest(duplicate_identity, self.input_schema)
+        for lone in ("\ud800", "\udfff"):
+            with self.assertRaises(ValueError):
+                canonical_json_bytes({"id": lone})
 
         boundary_overhead = len(canonical_json_bytes({"id": ""}))
         exact_boundary = {"id": "x" * (bounds["max_input_canonical_bytes"] - boundary_overhead)}
@@ -1843,7 +1904,8 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "succeeded is not project manager acceptance",
             "no_action_required remains evidence-bound",
             "blocked cannot be bypassed by majority or optional policy",
-            "decision output, not runtime mutation",
+            "decision output from the implemented pure ready resolver",
+            "not runtime mutation",
             "host decides whether",
         ):
             self.assertIn(phrase, text)
@@ -1851,7 +1913,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
     def test_contract_presence_is_inert_and_light_runtime_optionality_is_preserved(self):
         text = json.dumps(self.manifest, sort_keys=True).lower()
         for phrase in (
-            "contract presence does not execute any node",
+            "contract, schema, package-resource, and resolver presence does not execute any node",
             "does not grant authority",
             "does not open or satisfy a human gate",
             "does not create a scheduler",
@@ -1861,6 +1923,30 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             "runtime remains optional",
         ):
             self.assertIn(phrase, text)
+
+    def test_ready_resolver_implementation_wording_migration_guard(self):
+        resources = {
+            str(path.relative_to(REPOSITORY)).replace("\\", "/"): path.read_text(
+                encoding="utf-8"
+            )
+            for root in (CANONICAL, PACKAGED)
+            for path in root.glob("*.json")
+        }
+        combined = "\n".join(resources.values()).lower()
+        for forbidden in (
+            "future pure resolver",
+            "resolver remains deferred",
+            "resolver implementation remains deferred",
+            "optional resolver invocation",
+        ):
+            self.assertNotIn(forbidden, combined)
+        for required in (
+            "pure resolver is implemented",
+            "does not activate runtime",
+            "does not create a scheduler",
+            "does not grant authority",
+        ):
+            self.assertIn(required, combined)
 
     def test_schemas_exclude_private_runtime_and_execution_payloads(self):
         schemas = (self.input_schema, self.result_schema, self.error_schema)
