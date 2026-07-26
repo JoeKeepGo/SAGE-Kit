@@ -1,5 +1,6 @@
 import copy
 from contextlib import nullcontext
+import hashlib
 import json
 import sys
 import unittest
@@ -113,6 +114,14 @@ def minimal_result(status="SUCCEEDED"):
 
 def issue_codes(result):
     return {issue.code for issue in result.issues}
+
+
+class ByteSink:
+    def __init__(self):
+        self.data = bytearray()
+
+    def update(self, value):
+        self.data.extend(value)
 
 
 class GraphStructuralValidationTests(unittest.TestCase):
@@ -278,6 +287,104 @@ class GraphIdentityTests(unittest.TestCase):
         changed = copy.deepcopy(payload)
         changed["generation"] += 1
         self.assertNotEqual(second_digest, canonical_graph_digest(changed))
+
+    def test_canonical_writer_matches_independent_json_oracle(self):
+        value = {
+            "unicode": "图/β/😀",
+            "nested": {
+                "z": None,
+                "a": [True, False, {"z": "last", "a": "first"}],
+            },
+            "integer": 42,
+        }
+        expected = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        sink = ByteSink()
+        graph_contract._update_canonical_json(sink, value)
+
+        self.assertEqual(expected, bytes(sink.data))
+        self.assertEqual(
+            hashlib.sha256(expected).hexdigest(),
+            hashlib.sha256(sink.data).hexdigest(),
+        )
+
+    def test_large_integer_writer_matches_known_decimal_pattern(self):
+        decimal_digits = 100_001
+        generation = (
+            7 * 10**100_000
+            + 12_345 * 10**50_000
+            + 17
+        )
+        expected_decimal = (
+            "7"
+            + "0" * 49_995
+            + "12345"
+            + "0" * 49_998
+            + "17"
+        )
+        self.assertEqual(decimal_digits, len(expected_decimal))
+
+        payload = minimal_graph()
+        payload["generation"] = generation
+        projection = graph_contract._semantic_graph_projection(payload)
+        oracle_projection = copy.deepcopy(projection)
+        marker = "__KNOWN_DECIMAL_GENERATION__"
+        oracle_projection["generation"] = marker
+        expected = json.dumps(
+            oracle_projection,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8").replace(
+            json.dumps(marker).encode("utf-8"),
+            expected_decimal.encode("ascii"),
+        )
+
+        metrics = {"calls": 0, "base_1e9": False}
+        original_divmod = divmod
+
+        def tracked_divmod(left, right):
+            metrics["calls"] += 1
+            metrics["base_1e9"] = metrics["base_1e9"] or right == 1_000_000_000
+            return original_divmod(left, right)
+
+        sink = ByteSink()
+        with mock.patch("builtins.divmod", side_effect=tracked_divmod):
+            graph_contract._update_canonical_json(sink, projection)
+
+        self.assertEqual(expected, bytes(sink.data))
+        self.assertEqual(
+            hashlib.sha256(expected).hexdigest(),
+            canonical_graph_digest(payload),
+        )
+        self.assertFalse(metrics["base_1e9"])
+        self.assertLess(metrics["calls"], decimal_digits // 32)
+
+    def test_digest_errors_do_not_disclose_sensitive_values(self):
+        sentinels = (
+            "SECRET_ALPHA_17f5",
+            "TOKEN_BETA_6d21",
+            "PRIVATE_GAMMA_442e",
+        )
+        payload = minimal_graph()
+        payload["graph_id"] = sentinels[0]
+        payload["source_authority"]["identity"] = sentinels[1]
+        payload["source_authority"]["reference"] = f"records#{sentinels[2]}"
+        payload["generation"] = 0
+
+        with self.assertRaises(GraphContractError) as caught:
+            canonical_graph_digest(payload)
+
+        message = str(caught.exception)
+        for sentinel in sentinels:
+            with self.subTest(sentinel=sentinel):
+                self.assertNotIn(sentinel, message)
 
     def test_semantic_field_changes_change_digest(self):
         original = minimal_graph()

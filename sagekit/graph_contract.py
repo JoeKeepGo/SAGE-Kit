@@ -722,15 +722,39 @@ def _update_integer_decimal(digest: Any, value: int) -> None:
         digest.update(b"-")
         value = -value
 
-    base = 1_000_000_000
-    chunks: list[int] = []
-    while value:
-        value, remainder = divmod(value, base)
-        chunks.append(remainder)
+    leaf_digits = 64
+    leaf_limit = 10**leaf_digits
+    powers: dict[int, int] = {}
 
-    digest.update(str(chunks.pop()).encode("ascii"))
-    while chunks:
-        digest.update(f"{chunks.pop():09d}".encode("ascii"))
+    def power(width: int) -> int:
+        cached = powers.get(width)
+        if cached is None:
+            cached = 10**width
+            powers[width] = cached
+        return cached
+
+    def feed_fixed_width(number: int, width: int) -> None:
+        if width <= leaf_digits:
+            digest.update(f"{number:0{width}d}".encode("ascii"))
+            return
+        low_width = width // 2
+        high, low = divmod(number, power(low_width))
+        feed_fixed_width(high, width - low_width)
+        feed_fixed_width(low, low_width)
+
+    def feed_natural_width(number: int) -> None:
+        if number < leaf_limit:
+            digest.update(str(number).encode("ascii"))
+            return
+        estimated_digits = int(
+            (number.bit_length() - 1) * 0.3010299956639812
+        ) + 1
+        low_width = max(1, estimated_digits // 2)
+        high, low = divmod(number, power(low_width))
+        feed_natural_width(high)
+        feed_fixed_width(low, low_width)
+
+    feed_natural_width(value)
 
 
 def _update_canonical_json(digest: Any, value: Any) -> None:
