@@ -227,6 +227,66 @@ class TransitionResolverInterfaceAndDigestTests(unittest.TestCase):
             canonical_node_result_digest(candidate_graph, node_result_vector()),
         )
 
+    def test_node_result_digest_reuses_bounded_graph_admission(self) -> None:
+        from sagekit import transition_resolver
+
+        candidate_graph = graph(
+            nodes=[
+                node("./阶段/😀"),
+                node("节点/二"),
+                node("节点/一"),
+            ]
+        )
+        payload = node_result_vector()
+
+        with (
+            mock.patch.object(
+                transition_resolver,
+                "MAX_GRAPH_CANONICAL_BYTES",
+                1,
+            ),
+            mock.patch.object(
+                transition_resolver,
+                "validate_graph_contract",
+                wraps=transition_resolver.validate_graph_contract,
+            ) as validator,
+        ):
+            self.assertIsNone(
+                canonical_node_result_digest(candidate_graph, payload)
+            )
+            validator.assert_not_called()
+
+        with (
+            mock.patch.object(
+                transition_resolver,
+                "MAX_GRAPH_NODES",
+                2,
+            ),
+            mock.patch.object(
+                transition_resolver,
+                "validate_graph_contract",
+                wraps=transition_resolver.validate_graph_contract,
+            ) as validator,
+        ):
+            self.assertIsNone(
+                canonical_node_result_digest(candidate_graph, payload)
+            )
+            validator.assert_not_called()
+
+        graph_size = transition_resolver._canonical_json_size(
+            candidate_graph,
+            limit=transition_resolver.MAX_GRAPH_CANONICAL_BYTES,
+        )
+        with mock.patch.object(
+            transition_resolver,
+            "MAX_GRAPH_CANONICAL_BYTES",
+            graph_size,
+        ):
+            self.assertEqual(
+                NODE_RESULT_VECTOR_SHA256,
+                canonical_node_result_digest(candidate_graph, payload),
+            )
+
     def test_fixed_transition_input_digest_vector(self) -> None:
         from sagekit import transition_resolver
 

@@ -947,6 +947,82 @@ def _graph_admission_issues(
     return issues.result()
 
 
+def _admit_graph(graph: Any) -> _ResolutionValidation:
+    """Apply the resolver's bounded Graph admission before Graph validation."""
+
+    try:
+        _canonical_json_size(graph, limit=MAX_GRAPH_CANONICAL_BYTES)
+    except _CanonicalSizeExceeded:
+        return _ResolutionValidation(
+            "GRAPH_TOO_LARGE",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "CANONICAL_SIZE_EXCEEDED",
+                    "Graph canonical bytes exceed the resolver admission limit.",
+                ),
+            ),
+        )
+    except _CanonicalJSONError:
+        return _ResolutionValidation(
+            "GRAPH_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "STRICT_JSON_REQUIRED",
+                    "Graph must contain only strict canonical JSON values.",
+                ),
+            ),
+        )
+
+    admission_issues = _graph_admission_issues(graph)
+    if admission_issues:
+        return _ResolutionValidation(
+            "RESOLUTION_LIMIT_EXCEEDED",
+            admission_issues,
+        )
+
+    try:
+        graph_validation = validate_graph_contract(graph)
+    except (KeyError, TypeError, ValueError, RecursionError):
+        return _ResolutionValidation(
+            "GRAPH_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "GRAPH_VALIDATION_FAILED",
+                    "Graph Contract v1 validation could not be completed.",
+                ),
+            ),
+        )
+    if not graph_validation.valid:
+        return _ResolutionValidation(
+            "GRAPH_INVALID",
+            _mapped_validation_issues(
+                graph_validation,
+                message="The supplied Graph does not satisfy Graph Contract v1.",
+            ),
+        )
+    try:
+        graph_digest = canonical_graph_digest(graph)
+    except (KeyError, TypeError, ValueError, RecursionError):
+        return _ResolutionValidation(
+            "GRAPH_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "GRAPH_DIGEST_FAILED",
+                    "The valid Graph digest could not be calculated.",
+                ),
+            ),
+        )
+    return _ResolutionValidation(
+        None,
+        (),
+        graph_digest=graph_digest,
+    )
+
+
 def _failure(
     error_code: str,
     issues: tuple[TransitionResolutionIssue, ...]
@@ -991,8 +1067,8 @@ def canonical_node_result_digest(graph: Any, node_result: Any) -> str | None:
     """Return a digest only for a Node Result valid for the supplied Graph."""
 
     try:
-        graph_validation = validate_graph_contract(graph)
-        if not graph_validation.valid:
+        graph_admission = _admit_graph(graph)
+        if graph_admission.error_code is not None:
             return None
         _canonical_json_size(
             node_result,
@@ -1147,72 +1223,12 @@ def _validate_transition_resolution(
     graph: Any,
     transition_input: Any,
 ) -> _ResolutionValidation:
-    try:
-        _canonical_json_size(graph, limit=MAX_GRAPH_CANONICAL_BYTES)
-    except _CanonicalSizeExceeded:
-        return _ResolutionValidation(
-            "GRAPH_TOO_LARGE",
-            (
-                TransitionResolutionIssue(
-                    "$",
-                    "CANONICAL_SIZE_EXCEEDED",
-                    "Graph canonical bytes exceed the resolver admission limit.",
-                ),
-            ),
-        )
-    except _CanonicalJSONError:
-        return _ResolutionValidation(
-            "GRAPH_INVALID",
-            (
-                TransitionResolutionIssue(
-                    "$",
-                    "STRICT_JSON_REQUIRED",
-                    "Graph must contain only strict canonical JSON values.",
-                ),
-            ),
-        )
-
-    admission_issues = _graph_admission_issues(graph)
-    if admission_issues:
-        return _ResolutionValidation(
-            "RESOLUTION_LIMIT_EXCEEDED",
-            admission_issues,
-        )
-
-    try:
-        graph_validation = validate_graph_contract(graph)
-    except (KeyError, TypeError, ValueError, RecursionError):
-        return _ResolutionValidation(
-            "GRAPH_INVALID",
-            (
-                TransitionResolutionIssue(
-                    "$",
-                    "GRAPH_VALIDATION_FAILED",
-                    "Graph Contract v1 validation could not be completed.",
-                ),
-            ),
-        )
-    if not graph_validation.valid:
-        return _ResolutionValidation(
-            "GRAPH_INVALID",
-            _mapped_validation_issues(
-                graph_validation,
-                message="The supplied Graph does not satisfy Graph Contract v1.",
-            ),
-        )
-    try:
-        graph_digest = canonical_graph_digest(graph)
-    except (KeyError, TypeError, ValueError, RecursionError):
-        return _ResolutionValidation(
-            "GRAPH_INVALID",
-            (
-                TransitionResolutionIssue(
-                    "$",
-                    "GRAPH_DIGEST_FAILED",
-                    "The valid Graph digest could not be calculated.",
-                ),
-            ),
-        )
+    graph_admission = _admit_graph(graph)
+    if graph_admission.error_code is not None:
+        return graph_admission
+    graph_digest = graph_admission.graph_digest
+    if graph_digest is None:
+        raise AssertionError("successful Graph admission must retain its digest")
 
     binding_issues = _graph_binding_issues(
         graph,
