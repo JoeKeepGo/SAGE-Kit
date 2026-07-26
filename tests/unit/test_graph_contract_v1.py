@@ -1,11 +1,13 @@
 import hashlib
 import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+STAGE4D_BASELINE_COMMIT = "19872d42f1727a6fa4f9fcbd38c07a772b92e252"
 CANONICAL = REPOSITORY / "docs/contracts/graph/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/graph/v1"
 RESOURCE_NAMES = (
@@ -13,6 +15,27 @@ RESOURCE_NAMES = (
     "graph.schema.json",
     "node-result.schema.json",
 )
+EXPECTED_STAGE4D_PATHS = {
+    "docs/contracts/graph/v1/contract.json",
+    "docs/contracts/graph/v1/graph.schema.json",
+    "docs/contracts/ready-resolution/v1/contract.json",
+    "docs/contracts/runtime-state/v1/contract.json",
+    "docs/contracts/transition-resolution/v1/contract.json",
+    "sagekit/graph_contract.py",
+    "sagekit/resources/contracts/graph/v1/contract.json",
+    "sagekit/resources/contracts/graph/v1/graph.schema.json",
+    "sagekit/resources/contracts/ready-resolution/v1/contract.json",
+    "sagekit/resources/contracts/runtime-state/v1/contract.json",
+    "sagekit/resources/contracts/transition-resolution/v1/contract.json",
+    "tests/unit/test_graph_contract_v1.py",
+    "tests/unit/test_graph_contract_validation.py",
+    "tests/unit/test_ready_resolution_contract_v1.py",
+    "tests/unit/test_ready_resolver.py",
+    "tests/unit/test_runtime_state_contract_v1.py",
+    "tests/unit/test_runtime_store.py",
+    "tests/unit/test_transition_resolution_contract_v1.py",
+    "tests/unit/test_transition_resolver.py",
+}
 
 PERMISSION_MODES = {
     "READ_ONLY_REVIEW",
@@ -67,6 +90,40 @@ def walk(value):
     elif isinstance(value, list):
         for child in value:
             yield from walk(child)
+
+
+def stage4d_candidate_paths():
+    committed = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "--diff-filter=ACDMRTUXB",
+            STAGE4D_BASELINE_COMMIT,
+            "HEAD",
+            "--",
+        ],
+        cwd=REPOSITORY,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+    working = subprocess.run(
+        ["git", "diff", "--name-only", "--no-renames", "HEAD", "--"],
+        cwd=REPOSITORY,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=REPOSITORY,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+    return {path.replace("\\", "/") for path in (*committed, *working, *untracked)}
 
 
 class GraphContractV1Tests(unittest.TestCase):
@@ -212,6 +269,9 @@ class GraphContractV1Tests(unittest.TestCase):
         self.assertIn("byte-identical", mirror["expectation"])
         self.assertIn("canonical resource bytes", self.manifest["digest_semantics"])
         self.assertIn("not a semantic graph digest", self.manifest["digest_semantics"])
+
+    def test_stage4d_candidate_has_exact_frozen_manifest(self):
+        self.assertEqual(EXPECTED_STAGE4D_PATHS, stage4d_candidate_paths())
 
     def test_schemas_are_portable_and_do_not_embed_runtime_or_sensitive_dependencies(self):
         schemas = (self.graph, self.result)

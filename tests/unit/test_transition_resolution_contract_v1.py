@@ -16,6 +16,7 @@ from sagekit.graph_contract import (
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASELINE_COMMIT = "3fea7f3654838ff841a0f04203039de80657b3cd"
+STAGE4C1_ENDPOINT_COMMIT = "f2ead832fe5c639bb7fa15b28c8fd8b9ed3adca8"
 CANONICAL = REPOSITORY / "docs/contracts/transition-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/transition-resolution/v1"
 NODE_RESULT_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/node-result.schema.json"
@@ -1518,22 +1519,14 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                 "git",
                 "diff",
                 "--name-only",
-                f"{BASELINE_COMMIT}..HEAD",
+                f"{BASELINE_COMMIT}..{STAGE4C1_ENDPOINT_COMMIT}",
             ],
             cwd=REPOSITORY,
             check=True,
             capture_output=True,
             text=True,
         ).stdout.splitlines()
-        status = subprocess.run(
-            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-            cwd=REPOSITORY,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.splitlines()
-        working = [line[3:].replace("\\", "/") for line in status]
-        self.assertEqual(EXPECTED_STAGE4C1_PATHS, set(committed) | set(working))
+        self.assertEqual(EXPECTED_STAGE4C1_PATHS, set(committed))
         self.assertEqual(5, len(EXPECTED_STAGE4C1_PATHS))
         for path in PROTECTED_PATHS:
             with self.subTest(path=path):
@@ -1544,14 +1537,14 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                     capture_output=True,
                     text=True,
                 ).stdout.strip()
-                current_blob = subprocess.run(
-                    ["git", "hash-object", "--", path],
+                endpoint_blob = subprocess.run(
+                    ["git", "rev-parse", f"{STAGE4C1_ENDPOINT_COMMIT}:{path}"],
                     cwd=REPOSITORY,
                     check=True,
                     capture_output=True,
                     text=True,
                 ).stdout.strip()
-                self.assertEqual(baseline_blob, current_blob)
+                self.assertEqual(baseline_blob, endpoint_blob)
 
 
 if __name__ == "__main__":

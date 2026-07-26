@@ -9,6 +9,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASELINE_COMMIT = "e571849149d614f4fb365bc2255185f1263ab535"
+STAGE4A_ENDPOINT_COMMIT = "0ef078ae0486fbeae3b71936e764baa668bb127d"
 CANONICAL = REPOSITORY / "docs/contracts/ready-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/ready-resolution/v1"
 GRAPH_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/graph.schema.json"
@@ -269,7 +270,7 @@ def semantic_input_digest(value, schema):
     return hashlib.sha256(INPUT_DIGEST_DOMAIN + canonical_json_bytes(normalized)).hexdigest()
 
 
-def changed_paths_since_baseline():
+def changed_paths_in_stage4a():
     tracked = subprocess.run(
         [
             "git",
@@ -278,6 +279,7 @@ def changed_paths_since_baseline():
             "--no-renames",
             "--diff-filter=ACDMRTUXB",
             BASELINE_COMMIT,
+            STAGE4A_ENDPOINT_COMMIT,
             "--",
         ],
         cwd=REPOSITORY,
@@ -285,14 +287,7 @@ def changed_paths_since_baseline():
         text=True,
         capture_output=True,
     ).stdout.splitlines()
-    untracked = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard"],
-        cwd=REPOSITORY,
-        check=True,
-        text=True,
-        capture_output=True,
-    ).stdout.splitlines()
-    return {path.replace("\\", "/") for path in (*tracked, *untracked)}
+    return {path.replace("\\", "/") for path in tracked}
 
 
 def walk(value):
@@ -745,7 +740,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
     def test_graph_contract_blobs_and_unbounded_domains_are_unchanged(self):
         for relative_path, expected_blob in PROTECTED_GIT_BLOBS.items():
             actual_blob = subprocess.run(
-                ["git", "hash-object", relative_path],
+                ["git", "rev-parse", f"{STAGE4A_ENDPOINT_COMMIT}:{relative_path}"],
                 cwd=REPOSITORY,
                 check=True,
                 text=True,
@@ -817,10 +812,13 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
         self.assertNotIn("truncated", property_names((self.result_schema, self.error_schema)))
+        compatibility = self.manifest["compatibility"].lower()
+        self.assertNotIn("stage 4b resolver implementation remains deferred", compatibility)
         self.assertIn(
-            "stage 4b resolver implementation remains deferred",
-            self.manifest["compatibility"].lower(),
+            "former stage 4b deferral statement is obsolete and intentionally removed",
+            compatibility,
         )
+        self.assertIn("stage 4b is implemented", compatibility)
 
     def test_eight_resources_parse_and_use_stable_identities(self):
         self.assertTrue(
@@ -1879,7 +1877,7 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
                 self.assertFalse(is_schema_valid(candidate, schema), forbidden)
 
     def test_only_frozen_stage4a_manifest_changed(self):
-        self.assertEqual(EXPECTED_STAGE4A_PATHS, changed_paths_since_baseline())
+        self.assertEqual(EXPECTED_STAGE4A_PATHS, changed_paths_in_stage4a())
         manifests = {
             str(path.relative_to(REPOSITORY)).replace("\\", "/")
             for path in REPOSITORY.rglob("ready-resolution/v1/contract.json")

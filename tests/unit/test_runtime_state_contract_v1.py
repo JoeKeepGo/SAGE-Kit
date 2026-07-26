@@ -9,6 +9,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASELINE_COMMIT = "fee1246560bf358275c9f213f908b9045a4bf7e7"
+STAGE3D_ENDPOINT_COMMIT = "9b4ce24422bb1f0b630dde5f21d6d1a798f80854"
 CANONICAL = REPOSITORY / "docs/contracts/runtime-state/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/runtime-state/v1"
 RESOURCE_NAMES = (
@@ -34,6 +35,11 @@ EXPECTED_STAGE3D_PATHS = {
 GRAPH_RESOURCE_DIGESTS = {
     "contract.json": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
     "graph.schema.json": "fe3a9b58f7c50852d4f8e76c12dbdf1662b0811899b3c028ca6853e3da166d72",
+    "node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
+}
+STAGE3D_GRAPH_RESOURCE_DIGESTS = {
+    "contract.json": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
+    "graph.schema.json": "510f9d4a960aba78f80ac0ec35ac37504d992702528acad3c9f96279cab1824e",
     "node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
 }
 RUN_STATUSES = {
@@ -145,7 +151,7 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
 
 
-def changed_paths_since_baseline():
+def changed_paths_in_stage3d():
     tracked = subprocess.run(
         [
             "git",
@@ -154,6 +160,7 @@ def changed_paths_since_baseline():
             "--no-renames",
             "--diff-filter=ACDMRTUXB",
             BASELINE_COMMIT,
+            STAGE3D_ENDPOINT_COMMIT,
             "--",
         ],
         cwd=REPOSITORY,
@@ -161,14 +168,16 @@ def changed_paths_since_baseline():
         text=True,
         capture_output=True,
     ).stdout.splitlines()
-    untracked = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard"],
+    return {path.replace("\\", "/") for path in tracked}
+
+
+def historical_bytes(commit, relative_path):
+    return subprocess.run(
+        ["git", "show", f"{commit}:{relative_path}"],
         cwd=REPOSITORY,
         check=True,
-        text=True,
         capture_output=True,
-    ).stdout.splitlines()
-    return {path.replace("\\", "/") for path in (*tracked, *untracked)}
+    ).stdout
 
 
 def walk(value):
@@ -662,7 +671,7 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertFalse((REPOSITORY / ".sagekit").exists())
 
     def test_only_frozen_paths_one_canonical_family_and_one_packaged_mirror_exist(self):
-        self.assertEqual(EXPECTED_STAGE3D_PATHS, changed_paths_since_baseline())
+        self.assertEqual(EXPECTED_STAGE3D_PATHS, changed_paths_in_stage3d())
         canonical_families = {
             path.parent.relative_to(REPOSITORY).as_posix()
             for path in (REPOSITORY / "docs").rglob("runtime-state/v1/contract.json")
@@ -675,13 +684,32 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertEqual({"sagekit/resources/contracts/runtime-state/v1"}, packaged_families)
 
     def test_stage2_resources_and_capability_boundaries_are_unchanged(self):
-        graph_root = REPOSITORY / "docs/contracts/graph/v1"
-        packaged_graph_root = REPOSITORY / "sagekit/resources/contracts/graph/v1"
-        for name, expected_digest in GRAPH_RESOURCE_DIGESTS.items():
-            self.assertEqual(expected_digest, sha256(graph_root / name))
-            self.assertEqual((graph_root / name).read_bytes(), (packaged_graph_root / name).read_bytes())
-        graph_manifest = load_json(graph_root / "contract.json")
-        graph_schema = load_json(graph_root / "graph.schema.json")
+        for name, expected_digest in STAGE3D_GRAPH_RESOURCE_DIGESTS.items():
+            canonical = historical_bytes(
+                STAGE3D_ENDPOINT_COMMIT,
+                f"docs/contracts/graph/v1/{name}",
+            )
+            packaged = historical_bytes(
+                STAGE3D_ENDPOINT_COMMIT,
+                f"sagekit/resources/contracts/graph/v1/{name}",
+            )
+            self.assertEqual(
+                expected_digest,
+                hashlib.sha256(canonical.replace(b"\r\n", b"\n")).hexdigest(),
+            )
+            self.assertEqual(canonical, packaged)
+        graph_manifest = json.loads(
+            historical_bytes(
+                STAGE3D_ENDPOINT_COMMIT,
+                "docs/contracts/graph/v1/contract.json",
+            )
+        )
+        graph_schema = json.loads(
+            historical_bytes(
+                STAGE3D_ENDPOINT_COMMIT,
+                "docs/contracts/graph/v1/graph.schema.json",
+            )
+        )
         self.assertIn("Light remains graph-artifact optional", graph_manifest["compatibility"])
         self.assertIn("Light governance remains graph-artifact optional", graph_schema["description"])
         compatibility = self.manifest["compatibility"]
