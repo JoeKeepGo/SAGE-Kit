@@ -712,15 +712,64 @@ def _semantic_graph_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
     return projection
 
 
+def _update_integer_decimal(digest: Any, value: int) -> None:
+    """Feed an integer's JSON decimal form without process-global digit limits."""
+
+    if value == 0:
+        digest.update(b"0")
+        return
+    if value < 0:
+        digest.update(b"-")
+        value = -value
+
+    base = 1_000_000_000
+    chunks: list[int] = []
+    while value:
+        value, remainder = divmod(value, base)
+        chunks.append(remainder)
+
+    digest.update(str(chunks.pop()).encode("ascii"))
+    while chunks:
+        digest.update(f"{chunks.pop():09d}".encode("ascii"))
+
+
+def _update_canonical_json(digest: Any, value: Any) -> None:
+    """Feed compact sorted-key JSON bytes without materializing the document."""
+
+    if value is None:
+        digest.update(b"null")
+    elif type(value) is bool:
+        digest.update(b"true" if value else b"false")
+    elif type(value) is int:
+        _update_integer_decimal(digest, value)
+    elif type(value) is str:
+        digest.update(
+            json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        )
+    elif type(value) is list:
+        digest.update(b"[")
+        for index, item in enumerate(value):
+            if index:
+                digest.update(b",")
+            _update_canonical_json(digest, item)
+        digest.update(b"]")
+    elif type(value) is dict:
+        digest.update(b"{")
+        for index, key in enumerate(sorted(value)):
+            if index:
+                digest.update(b",")
+            _update_canonical_json(digest, key)
+            digest.update(b":")
+            _update_canonical_json(digest, value[key])
+        digest.update(b"}")
+    else:
+        raise TypeError(f"Unsupported semantic projection type: {type(value).__name__}")
+
+
 def _semantic_graph_digest(payload: Mapping[str, Any]) -> str:
-    canonical = json.dumps(
-        _semantic_graph_projection(payload),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(canonical).hexdigest()
+    digest = hashlib.sha256()
+    _update_canonical_json(digest, _semantic_graph_projection(payload))
+    return digest.hexdigest()
 
 
 def validate_graph_contract(payload: Any) -> GraphValidationResult:

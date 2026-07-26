@@ -1,7 +1,10 @@
 import copy
+from contextlib import nullcontext
 import json
+import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import sagekit.graph_contract as graph_contract
 from sagekit.graph_contract import (
@@ -19,6 +22,9 @@ from sagekit.graph_contract import (
 REPOSITORY = Path(__file__).resolve().parents[2]
 GRAPH_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/graph.schema.json"
 NODE_RESULT_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/node-result.schema.json"
+MINIMAL_GRAPH_SEMANTIC_DIGEST = (
+    "c9739a5712f3aab7f801c20f6539e7a4877c819dafbf60e1675976ff8c92951a"
+)
 
 
 def node(
@@ -227,6 +233,52 @@ class GraphStructuralValidationTests(unittest.TestCase):
 
 
 class GraphIdentityTests(unittest.TestCase):
+    def test_minimal_graph_digest_preserves_the_frozen_canonical_bytes(self):
+        self.assertEqual(
+            MINIMAL_GRAPH_SEMANTIC_DIGEST,
+            canonical_graph_digest(minimal_graph()),
+        )
+
+    def test_large_integer_generation_is_valid_and_deterministic(self):
+        payload = minimal_graph()
+        digit_limit = (
+            sys.get_int_max_str_digits()
+            if hasattr(sys, "get_int_max_str_digits")
+            else 4300
+        )
+        decimal_digits = max(digit_limit, 4300) + 100
+        payload["generation"] = 10 ** (decimal_digits - 1) + 17
+        original = copy.deepcopy(payload)
+
+        setter = getattr(sys, "set_int_max_str_digits", None)
+        patcher = (
+            mock.patch.object(
+                sys,
+                "set_int_max_str_digits",
+                side_effect=AssertionError("must not mutate the process digit limit"),
+            )
+            if setter is not None
+            else nullcontext()
+        )
+        before_limit = (
+            sys.get_int_max_str_digits()
+            if hasattr(sys, "get_int_max_str_digits")
+            else None
+        )
+        with patcher:
+            first = validate_graph_contract(payload)
+            second_digest = canonical_graph_digest(payload)
+
+        self.assertTrue(first.valid)
+        self.assertEqual(first.semantic_digest, second_digest)
+        self.assertEqual(payload, original)
+        if before_limit is not None:
+            self.assertEqual(before_limit, sys.get_int_max_str_digits())
+
+        changed = copy.deepcopy(payload)
+        changed["generation"] += 1
+        self.assertNotEqual(second_digest, canonical_graph_digest(changed))
+
     def test_semantic_field_changes_change_digest(self):
         original = minimal_graph()
         mutations = []
