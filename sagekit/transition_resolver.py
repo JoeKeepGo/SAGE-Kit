@@ -111,21 +111,57 @@ class TransitionResolutionIssue:
 class TransitionResolutionOutcome:
     """Resolver-created immutable snapshot of one complete Result or Error."""
 
-    __slots__ = ("_result_snapshot", "_error_snapshot")
+    __slots__ = ("_result_snapshot", "_error_snapshot", "_sealed")
 
     def __init__(
         self,
-        *,
-        _factory_token: object | None = None,
-        result: Mapping[str, Any] | None = None,
-        error: Mapping[str, Any] | None = None,
+        *_args: Any,
+        **_kwargs: Any,
     ) -> None:
-        if _factory_token is not _OUTCOME_FACTORY_TOKEN:
-            raise ValueError("TransitionResolutionOutcome is resolver-created")
-        if (result is None) == (error is None):
-            raise ValueError("exactly one of result or error is required")
-        self._result_snapshot = _freeze_json(result)
-        self._error_snapshot = _freeze_json(error)
+        raise ValueError("TransitionResolutionOutcome is resolver-created")
+
+    def __setattr__(self, _name: str, _value: Any) -> None:
+        raise AttributeError("TransitionResolutionOutcome is immutable")
+
+    def __delattr__(self, _name: str) -> None:
+        raise AttributeError("TransitionResolutionOutcome is immutable")
+
+    @classmethod
+    def _from_error(
+        cls,
+        error: Mapping[str, Any],
+    ) -> TransitionResolutionOutcome:
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "_result_snapshot", None)
+        object.__setattr__(instance, "_error_snapshot", _freeze_json(error))
+        object.__setattr__(instance, "_sealed", True)
+        return instance
+
+    @classmethod
+    def _from_validated_source(
+        cls,
+        graph: Any,
+        transition_input: Any,
+        result: Mapping[str, Any],
+    ) -> TransitionResolutionOutcome:
+        validation = _validate_transition_resolution(graph, transition_input)
+        if (
+            validation.error_code is not None
+            or validation.normalized_input is None
+        ):
+            raise ValueError("success source is not a valid transition")
+        expected = _build_transition_result(
+            graph,
+            validation.normalized_input,
+        )
+        _canonical_json_size(expected, limit=MAX_RESULT_CANONICAL_BYTES)
+        if type(result) is not dict or result != expected:
+            raise ValueError("result does not match its validated source")
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "_result_snapshot", _freeze_json(expected))
+        object.__setattr__(instance, "_error_snapshot", None)
+        object.__setattr__(instance, "_sealed", True)
+        return instance
 
     @property
     def result(self) -> dict[str, Any] | None:
@@ -148,9 +184,6 @@ class TransitionResolutionOutcome:
         )
 
 
-_OUTCOME_FACTORY_TOKEN = object()
-
-
 def _freeze_json(value: Any) -> Any:
     if value is None:
         return None
@@ -171,18 +204,6 @@ def _thaw_json(value: Any) -> Any:
     if type(value) is tuple:
         return [_thaw_json(item) for item in value]
     return value
-
-
-def _outcome(
-    *,
-    result: Mapping[str, Any] | None = None,
-    error: Mapping[str, Any] | None = None,
-) -> TransitionResolutionOutcome:
-    return TransitionResolutionOutcome(
-        _factory_token=_OUTCOME_FACTORY_TOKEN,
-        result=result,
-        error=error,
-    )
 
 
 class _CanonicalJSONError(ValueError):
@@ -408,7 +429,47 @@ def _canonical_json_size(value: Any, *, limit: int) -> int:
             raise _CanonicalSizeExceeded
         add(len(_integer_text(integer).encode("ascii")))
 
-    def visit(item: Any) -> None:
+    stack: list[tuple[Any, ...]] = [("value", value)]
+    while stack:
+        frame = stack.pop()
+        action = frame[0]
+        if action == "raw":
+            add(frame[1])
+            continue
+        if action == "string":
+            count_string(frame[1])
+            continue
+        if action == "array":
+            iterator, first, identity = frame[1:]
+            try:
+                child = next(iterator)
+            except StopIteration:
+                add(1)
+                active.remove(identity)
+                continue
+            if not first:
+                add(1)
+            stack.append(("array", iterator, False, identity))
+            stack.append(("value", child))
+            continue
+        if action == "object":
+            iterator, first, identity = frame[1:]
+            try:
+                key, child = next(iterator)
+            except StopIteration:
+                add(1)
+                active.remove(identity)
+                continue
+            if type(key) is not str:
+                raise _CanonicalJSONError("object keys must be strings")
+            if not first:
+                add(1)
+            count_string(key)
+            add(1)
+            stack.append(("object", iterator, False, identity))
+            stack.append(("value", child))
+            continue
+        item = frame[1]
         if item is None:
             add(4)
         elif item is True:
@@ -430,42 +491,17 @@ def _canonical_json_size(value: Any, *, limit: int) -> int:
                 if identity in active:
                     raise _CanonicalJSONError("cyclic array")
                 active.add(identity)
-                try:
-                    add(1)
-                    for index, child in enumerate(item):
-                        if index:
-                            add(1)
-                        visit(child)
-                    add(1)
-                finally:
-                    active.remove(identity)
+                add(1)
+                stack.append(("array", iter(item), True, identity))
             elif type(item) is dict:
                 identity = id(item)
                 if identity in active:
                     raise _CanonicalJSONError("cyclic object")
                 active.add(identity)
-                try:
-                    add(1)
-                    for index, (key, child) in enumerate(item.items()):
-                        if type(key) is not str:
-                            raise _CanonicalJSONError(
-                                "object keys must be strings"
-                            )
-                        if index:
-                            add(1)
-                        count_string(key)
-                        add(1)
-                        visit(child)
-                    add(1)
-                finally:
-                    active.remove(identity)
+                add(1)
+                stack.append(("object", iter(item.items()), True, identity))
             else:
                 raise _CanonicalJSONError("value is not strict JSON")
-
-    try:
-        visit(value)
-    except RecursionError as exc:
-        raise _CanonicalJSONError("value nesting is too deep") from exc
     return count
 
 
@@ -578,6 +614,151 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
     except RecursionError as exc:
         raise _CanonicalJSONError("value nesting is too deep") from exc
     return bytes(output)
+
+
+def _canonical_string_chunks(raw: str):
+    yield b'"'
+    index = 0
+    while index < len(raw):
+        codepoint = ord(raw[index])
+        if 0xD800 <= codepoint <= 0xDBFF:
+            if index + 1 >= len(raw):
+                raise _CanonicalJSONError("unpaired high surrogate")
+            low = ord(raw[index + 1])
+            if not 0xDC00 <= low <= 0xDFFF:
+                raise _CanonicalJSONError("unpaired high surrogate")
+            codepoint = (
+                0x10000
+                + ((codepoint - 0xD800) << 10)
+                + (low - 0xDC00)
+            )
+            character = chr(codepoint)
+            index += 2
+        elif 0xDC00 <= codepoint <= 0xDFFF:
+            raise _CanonicalJSONError("unpaired low surrogate")
+        else:
+            character = raw[index]
+            index += 1
+        if character == '"':
+            yield b'\\"'
+        elif character == "\\":
+            yield b"\\\\"
+        elif codepoint == 0x08:
+            yield b"\\b"
+        elif codepoint == 0x09:
+            yield b"\\t"
+        elif codepoint == 0x0A:
+            yield b"\\n"
+        elif codepoint == 0x0C:
+            yield b"\\f"
+        elif codepoint == 0x0D:
+            yield b"\\r"
+        elif codepoint <= 0x1F:
+            yield f"\\u{codepoint:04x}".encode("ascii")
+        else:
+            yield character.encode("utf-8")
+    yield b'"'
+
+
+def _canonical_json_digest(
+    value: Any,
+    *,
+    domain: bytes,
+    limit: int,
+) -> str:
+    """Hash canonical JSON iteratively without retaining the encoded value."""
+
+    digest = hashlib.sha256()
+    digest.update(domain)
+    count = 0
+    active: set[int] = set()
+    stack: list[tuple[str, Any]] = [("value", value)]
+
+    def emit(chunk: bytes) -> None:
+        nonlocal count
+        if count + len(chunk) > limit:
+            raise _CanonicalSizeExceeded
+        count += len(chunk)
+        digest.update(chunk)
+
+    while stack:
+        action, item = stack.pop()
+        if action == "raw":
+            emit(item)
+            continue
+        if action == "string":
+            for chunk in _canonical_string_chunks(item):
+                emit(chunk)
+            continue
+        if action == "leave":
+            active.remove(item)
+            continue
+        if item is None:
+            emit(b"null")
+        elif item is True:
+            emit(b"true")
+        elif item is False:
+            emit(b"false")
+        else:
+            integer = _mathematical_integer(item)
+            if integer is not None:
+                emit(_integer_text(integer).encode("ascii"))
+            elif type(item) is float:
+                raise _CanonicalJSONError(
+                    "only finite mathematical integers are admitted"
+                )
+            elif type(item) is str:
+                stack.append(("string", item))
+            elif type(item) is list:
+                identity = id(item)
+                if identity in active:
+                    raise _CanonicalJSONError("cyclic array")
+                active.add(identity)
+                actions: list[tuple[str, Any]] = [("raw", b"[")]
+                for index, child in enumerate(item):
+                    if index:
+                        actions.append(("raw", b","))
+                    actions.append(("value", child))
+                actions.extend((("raw", b"]"), ("leave", identity)))
+                stack.extend(reversed(actions))
+            elif type(item) is dict:
+                identity = id(item)
+                if identity in active:
+                    raise _CanonicalJSONError("cyclic object")
+                active.add(identity)
+                keys: list[tuple[str, str]] = []
+                seen: set[str] = set()
+                for key in item:
+                    if type(key) is not str:
+                        raise _CanonicalJSONError(
+                            "object keys must be strings"
+                        )
+                    normalized_key = _normalized_string(key)
+                    if normalized_key in seen:
+                        raise _CanonicalJSONError(
+                            "object keys collapse to one Unicode scalar sequence"
+                        )
+                    seen.add(normalized_key)
+                    keys.append((normalized_key, key))
+                keys.sort(
+                    key=lambda pair: tuple(ord(char) for char in pair[0])
+                )
+                actions = [("raw", b"{")]
+                for index, (normalized_key, original_key) in enumerate(keys):
+                    if index:
+                        actions.append(("raw", b","))
+                    actions.extend(
+                        (
+                            ("string", normalized_key),
+                            ("raw", b":"),
+                            ("value", item[original_key]),
+                        )
+                    )
+                actions.extend((("raw", b"}"), ("leave", identity)))
+                stack.extend(reversed(actions))
+            else:
+                raise _CanonicalJSONError("value is not strict JSON")
+    return digest.hexdigest()
 
 
 def _field_path(field: Any) -> str:
@@ -803,18 +984,30 @@ def _failure(
                 }
             ],
         }
-    return _outcome(error=error)
+    return TransitionResolutionOutcome._from_error(error)
 
 
 def canonical_node_result_digest(graph: Any, node_result: Any) -> str | None:
     """Return a digest only for a Node Result valid for the supplied Graph."""
 
     try:
-        normalized = _normalize_json_value(node_result)
-        validation = validate_node_result(normalized, graph)
+        graph_validation = validate_graph_contract(graph)
+        if not graph_validation.valid:
+            return None
+        _canonical_json_size(
+            node_result,
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        )
+        graph_view = _graph_identity_view(graph)
+        node_view = _node_result_identity_view(node_result)
+        validation = validate_node_result(node_view, graph_view)
         if not validation.valid:
             return None
-        canonical = _canonical_json_bytes(normalized)
+        return _canonical_json_digest(
+            node_result,
+            domain=NODE_RESULT_DIGEST_DOMAIN,
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        )
     except (
         _CanonicalJSONError,
         KeyError,
@@ -823,16 +1016,86 @@ def canonical_node_result_digest(graph: Any, node_result: Any) -> str | None:
         RecursionError,
     ):
         return None
-    return hashlib.sha256(NODE_RESULT_DIGEST_DOMAIN + canonical).hexdigest()
 
 
 def _canonical_transition_input_digest_raw(
     normalized_input: dict[str, Any],
 ) -> str:
-    canonical = _canonical_json_bytes(normalized_input)
-    return hashlib.sha256(
-        TRANSITION_INPUT_DIGEST_DOMAIN + canonical
-    ).hexdigest()
+    return _canonical_json_digest(
+        normalized_input,
+        domain=TRANSITION_INPUT_DIGEST_DOMAIN,
+        limit=MAX_INPUT_CANONICAL_BYTES,
+    )
+
+
+def _normalized_scalar(value: Any) -> Any:
+    if type(value) is str:
+        return _normalized_string(value)
+    integer = _mathematical_integer(value)
+    return integer if integer is not None else value
+
+
+def _node_result_identity_view(node_result: Any) -> Any:
+    if type(node_result) is not dict:
+        return node_result
+    view = dict(node_result)
+    if type(view.get("node_id")) is str:
+        view["node_id"] = _normalized_string(view["node_id"])
+    proposed = view.get("proposed_next_nodes")
+    if type(proposed) is list:
+        view["proposed_next_nodes"] = [
+            _normalized_string(item) if type(item) is str else item
+            for item in proposed
+        ]
+    return view
+
+
+def _graph_identity_view(graph: Any) -> Any:
+    if type(graph) is not dict:
+        return graph
+    view = dict(graph)
+    if type(view.get("graph_id")) is str:
+        view["graph_id"] = _normalized_string(view["graph_id"])
+    nodes = view.get("nodes")
+    if type(nodes) is list:
+        node_views: list[Any] = []
+        for item in nodes:
+            if type(item) is not dict:
+                node_views.append(item)
+                continue
+            node_view = dict(item)
+            if type(node_view.get("id")) is str:
+                node_view["id"] = _normalized_string(node_view["id"])
+            node_views.append(node_view)
+        view["nodes"] = node_views
+    return view
+
+
+def _transition_input_identity_view(transition_input: dict[str, Any]) -> dict[str, Any]:
+    view = dict(transition_input)
+    for field in (
+        "schema_id",
+        "graph_id",
+        "graph_digest",
+        "run_id",
+        "authority_id",
+        "controller_id",
+        "node_id",
+        "attempt_id",
+        "previous_status",
+    ):
+        if type(view.get(field)) is str:
+            view[field] = _normalized_string(view[field])
+    for field in (
+        "schema_version",
+        "graph_generation",
+        "state_revision",
+        "last_event_sequence",
+    ):
+        if field in view:
+            view[field] = _normalized_scalar(view[field])
+    view["node_result"] = _node_result_identity_view(view["node_result"])
+    return view
 
 
 def _graph_binding_issues(
@@ -853,8 +1116,13 @@ def _graph_binding_issues(
         or type(values[2]) is not str
     ):
         return ()
+    try:
+        input_graph_id = _normalized_string(values[0])
+        graph_id = _normalized_string(graph.get("graph_id"))
+    except (TypeError, _CanonicalJSONError):
+        return ()
     issues = _IssueCollector()
-    if values[0] != graph.get("graph_id"):
+    if input_graph_id != graph_id:
         issues.add(
             "$.graph_id",
             "GRAPH_ID_MISMATCH",
@@ -958,21 +1226,7 @@ def _validate_transition_resolution(
             graph_digest=graph_digest,
         )
 
-    try:
-        normalized = _normalize_json_value(transition_input)
-    except (_CanonicalJSONError, RecursionError):
-        return _ResolutionValidation(
-            "REQUIRED_INPUT_INVALID",
-            (
-                TransitionResolutionIssue(
-                    "$",
-                    "STRICT_JSON_REQUIRED",
-                    "Transition input must contain only strict canonical JSON values.",
-                ),
-            ),
-            graph_digest=graph_digest,
-        )
-    input_issues = _input_structure_issues(normalized)
+    input_issues = _input_structure_issues(transition_input)
     if input_issues:
         return _ResolutionValidation(
             "REQUIRED_INPUT_INVALID",
@@ -981,7 +1235,7 @@ def _validate_transition_resolution(
         )
     try:
         _canonical_json_size(
-            normalized,
+            transition_input,
             limit=MAX_INPUT_CANONICAL_BYTES,
         )
     except _CanonicalSizeExceeded:
@@ -1009,9 +1263,25 @@ def _validate_transition_resolution(
             graph_digest=graph_digest,
         )
 
+    try:
+        normalized = _transition_input_identity_view(transition_input)
+        graph_view = _graph_identity_view(graph)
+    except (_CanonicalJSONError, TypeError, ValueError):
+        return _ResolutionValidation(
+            "REQUIRED_INPUT_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "STRICT_JSON_REQUIRED",
+                    "Transition input must contain only valid Unicode scalar sequences.",
+                ),
+            ),
+            graph_digest=graph_digest,
+        )
+
     node_payload = normalized["node_result"]
     try:
-        node_validation = validate_node_result(node_payload, graph)
+        node_validation = validate_node_result(node_payload, graph_view)
     except (KeyError, TypeError, ValueError, RecursionError):
         return _ResolutionValidation(
             "NODE_RESULT_INVALID",
@@ -1115,43 +1385,19 @@ def validate_transition_resolution_input(
     return _validate_transition_resolution(graph, transition_input).issues
 
 
-def resolve_node_transition(
+def _build_transition_result(
     graph: Any,
-    transition_input: Any,
-) -> TransitionResolutionOutcome:
-    """Resolve one immutable snapshot without applying or authorizing it."""
-
-    validation = _validate_transition_resolution(graph, transition_input)
-    if validation.error_code is not None:
-        return _failure(validation.error_code, validation.issues)
-    if validation.normalized_input is None:
-        raise AssertionError("successful validation must retain normalized input")
-    normalized_input = validation.normalized_input
+    normalized_input: dict[str, Any],
+) -> dict[str, Any]:
     node_payload = normalized_input["node_result"]
-    next_status = node_payload["status"]
-    authority_change = node_payload["authority_change"]
-
-    try:
-        input_bytes = _canonical_json_bytes(normalized_input)
-        node_result_bytes = _canonical_json_bytes(node_payload)
-    except (_CanonicalJSONError, RecursionError):
-        return _failure(
-            "REQUIRED_INPUT_INVALID",
-            [
-                TransitionResolutionIssue(
-                    "$",
-                    "INPUT_DIGEST_UNAVAILABLE",
-                    "The validated transition input digest was unavailable.",
-                )
-            ],
+    input_digest = _canonical_transition_input_digest_raw(normalized_input)
+    node_result_digest = canonical_node_result_digest(graph, node_payload)
+    if node_result_digest is None:
+        raise _CanonicalJSONError(
+            "validated Node Result digest was unavailable"
         )
-    input_digest = hashlib.sha256(
-        TRANSITION_INPUT_DIGEST_DOMAIN + input_bytes
-    ).hexdigest()
-    node_result_digest = hashlib.sha256(
-        NODE_RESULT_DIGEST_DOMAIN + node_result_bytes
-    ).hexdigest()
 
+    authority_change = node_payload["authority_change"]
     if authority_change is True:
         disposition = "APPLY_HANDOFF_AND_REQUEST_AUTHORITY"
         reason_code = "AUTHORITY_CHANGE_HANDOFF_REQUIRED"
@@ -1161,7 +1407,7 @@ def resolve_node_transition(
         reason_code = "NODE_RESULT_STATUS_APPLIED"
         authority_decision_required = False
 
-    result: dict[str, Any] = {
+    return {
         "schema_id": RESULT_SCHEMA_ID,
         "schema_version": SCHEMA_VERSION,
         "disposition": disposition,
@@ -1178,7 +1424,7 @@ def resolve_node_transition(
         "state_revision": normalized_input["state_revision"],
         "last_event_sequence": normalized_input["last_event_sequence"],
         "previous_status": normalized_input["previous_status"],
-        "next_status": next_status,
+        "next_status": node_payload["status"],
         "reason_code": reason_code,
         "transition_allowed": True,
         "authority_decision_required": authority_decision_required,
@@ -1187,6 +1433,34 @@ def resolve_node_transition(
         "grants_gate_authority": False,
         "grants_write_authority": False,
     }
+
+
+def resolve_node_transition(
+    graph: Any,
+    transition_input: Any,
+) -> TransitionResolutionOutcome:
+    """Resolve one immutable snapshot without applying or authorizing it."""
+
+    validation = _validate_transition_resolution(graph, transition_input)
+    if validation.error_code is not None:
+        return _failure(validation.error_code, validation.issues)
+    if validation.normalized_input is None:
+        raise AssertionError("successful validation must retain normalized input")
+    normalized_input = validation.normalized_input
+
+    try:
+        result = _build_transition_result(graph, normalized_input)
+    except (_CanonicalJSONError, RecursionError):
+        return _failure(
+            "REQUIRED_INPUT_INVALID",
+            [
+                TransitionResolutionIssue(
+                    "$",
+                    "INPUT_DIGEST_UNAVAILABLE",
+                    "The validated transition input digest was unavailable.",
+                )
+            ],
+        )
     try:
         _canonical_json_size(result, limit=MAX_RESULT_CANONICAL_BYTES)
     except _CanonicalSizeExceeded:
@@ -1211,7 +1485,23 @@ def resolve_node_transition(
                 )
             ],
         )
-    return _outcome(result=result)
+    try:
+        return TransitionResolutionOutcome._from_validated_source(
+            graph,
+            transition_input,
+            result,
+        )
+    except (KeyError, TypeError, ValueError, _CanonicalJSONError):
+        return _failure(
+            "REQUIRED_INPUT_INVALID",
+            [
+                TransitionResolutionIssue(
+                    "$",
+                    "RESULT_SOURCE_VALIDATION_FAILED",
+                    "The Result could not be rebound to its validated source.",
+                )
+            ],
+        )
 
 
 __all__ = [

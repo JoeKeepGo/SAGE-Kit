@@ -293,6 +293,31 @@ class TransitionResolverInterfaceAndDigestTests(unittest.TestCase):
         lone["node_id"] = "\ud800"
         self.assertIsNone(canonical_node_result_digest(candidate_graph, lone))
 
+    def test_paired_surrogates_bind_as_the_same_unicode_scalar(self) -> None:
+        scalar_graph = graph(
+            graph_id="graph/😀",
+            nodes=[node("node/😀")],
+        )
+        candidate = transition_input(scalar_graph)
+        candidate["graph_id"] = "graph/\ud83d\ude00"
+        candidate["node_id"] = "node/\ud83d\ude00"
+        candidate["node_result"]["node_id"] = "node/\ud83d\ude00"
+
+        outcome = resolve_node_transition(scalar_graph, candidate)
+
+        self.assertTrue(outcome.succeeded)
+        self.assertEqual("graph/😀", outcome.result["graph_id"])
+        self.assertEqual("node/😀", outcome.result["node_id"])
+        direct = copy.deepcopy(candidate["node_result"])
+        direct["node_id"] = "node/😀"
+        self.assertEqual(
+            canonical_node_result_digest(scalar_graph, direct),
+            canonical_node_result_digest(
+                scalar_graph,
+                candidate["node_result"],
+            ),
+        )
+
     def test_array_reordering_changes_content_digest(self) -> None:
         original = node_result_vector()
         reordered = copy.deepcopy(original)
@@ -479,6 +504,93 @@ class TransitionResolverAdmissionAndValidationTests(unittest.TestCase):
             )
             outcome = resolve_node_transition(candidate_graph, oversized)
         self.assertEqual("INPUT_TOO_LARGE", error_code(outcome))
+
+    def test_input_admission_is_iterative_and_precedes_normalization(self) -> None:
+        from sagekit import transition_resolver
+
+        candidate_graph = graph()
+        deeply_unknown: dict[str, object] = {}
+        cursor = deeply_unknown
+        for _ in range(1100):
+            child: dict[str, object] = {}
+            cursor["nested"] = child
+            cursor = child
+        candidate = transition_input(candidate_graph)
+        candidate["node_result"]["unknown_deep"] = deeply_unknown
+
+        outcome = resolve_node_transition(candidate_graph, candidate)
+        self.assertEqual("NODE_RESULT_INVALID", error_code(outcome))
+
+        valid = transition_input(candidate_graph)
+        size = transition_resolver._canonical_json_size(
+            valid,
+            limit=transition_resolver.MAX_INPUT_CANONICAL_BYTES,
+        )
+        oversized = copy.deepcopy(valid)
+        oversized["attempt_id"] = str(oversized["attempt_id"]) + "x"
+        with (
+            mock.patch.object(
+                transition_resolver,
+                "MAX_INPUT_CANONICAL_BYTES",
+                size,
+            ),
+            mock.patch.object(
+                transition_resolver,
+                "_normalize_json_value",
+                side_effect=AssertionError("recursive normalization used"),
+            ),
+        ):
+            outcome = resolve_node_transition(candidate_graph, oversized)
+        self.assertEqual("INPUT_TOO_LARGE", error_code(outcome))
+
+    def test_node_result_digest_is_graph_aware_iterative_and_bounded(self) -> None:
+        from sagekit import transition_resolver
+
+        candidate_graph = graph()
+        payload = node_result()
+        expected = canonical_node_result_digest(candidate_graph, payload)
+        self.assertIsNotNone(expected)
+        invalid_graph = copy.deepcopy(candidate_graph)
+        invalid_graph["unknown"] = True
+        self.assertIsNone(canonical_node_result_digest(invalid_graph, payload))
+
+        read_only_graph = graph(
+            nodes=[node("node/α", permission="READ_ONLY_REVIEW")]
+        )
+        changed = node_result()
+        changed["changed_paths"] = ["src/forbidden.py"]
+        self.assertIsNone(
+            canonical_node_result_digest(read_only_graph, changed)
+        )
+
+        size = transition_resolver._canonical_json_size(
+            payload,
+            limit=transition_resolver.MAX_INPUT_CANONICAL_BYTES,
+        )
+        with (
+            mock.patch.object(
+                transition_resolver,
+                "_canonical_json_bytes",
+                side_effect=AssertionError("digest materialized bytes"),
+            ),
+            mock.patch.object(
+                transition_resolver,
+                "MAX_INPUT_CANONICAL_BYTES",
+                size,
+            ),
+        ):
+            self.assertEqual(
+                expected,
+                canonical_node_result_digest(candidate_graph, payload),
+            )
+        with mock.patch.object(
+            transition_resolver,
+            "MAX_INPUT_CANONICAL_BYTES",
+            size - 1,
+        ):
+            self.assertIsNone(
+                canonical_node_result_digest(candidate_graph, payload)
+            )
 
     def test_node_binding_mismatch(self) -> None:
         candidate_graph = graph(nodes=[node("node/α"), node("node/β")])
@@ -736,6 +848,8 @@ class TransitionResolverDeterminismAndPurityTests(unittest.TestCase):
         self.assertEqual(before_input, candidate)
 
     def test_outcome_rejects_forgery_and_returns_defensive_copies(self) -> None:
+        from sagekit import transition_resolver
+
         candidate_graph = graph()
         candidate = transition_input(candidate_graph)
         outcome = resolve_node_transition(candidate_graph, candidate)
@@ -747,6 +861,34 @@ class TransitionResolverDeterminismAndPurityTests(unittest.TestCase):
         forged["input_digest"] = "0" * 64
         with self.assertRaises(ValueError):
             TransitionResolutionOutcome(result=forged, error=None)
+        self.assertFalse(hasattr(transition_resolver, "_OUTCOME_FACTORY_TOKEN"))
+        self.assertFalse(hasattr(transition_resolver, "_outcome"))
+        with self.assertRaises(AttributeError):
+            outcome._result_snapshot = {}
+        with self.assertRaises(AttributeError):
+            del outcome._result_snapshot
+
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                candidate,
+                forged,
+            )
+        forged = copy.deepcopy(original)
+        forged["grants_write_authority"] = True
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                candidate,
+                forged,
+            )
+        rebuilt = TransitionResolutionOutcome._from_validated_source(
+            candidate_graph,
+            candidate,
+            copy.deepcopy(original),
+        )
+        self.assertTrue(rebuilt.succeeded)
+        self.assertEqual(original, rebuilt.result)
 
         original["input_digest"] = "0" * 64
         original["grants_write_authority"] = True
