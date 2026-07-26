@@ -435,13 +435,25 @@ def _object_without_duplicate_keys(
     return result
 
 
+def _parse_json_integer(value: str, *, maximum_digits: int) -> int:
+    digit_count = len(value) - (1 if value.startswith("-") else 0)
+    if digit_count > maximum_digits:
+        raise ValueError("JSON integer exceeds its digit bound")
+    return int(Decimal(value))
+
+
 def _strict_json_loads(data: bytes, label: str) -> Any:
     try:
         text = data.decode("utf-8")
+        maximum_digits = min(len(data), MAX_STATE_BYTES)
         return json.loads(
             text,
             object_pairs_hook=_object_without_duplicate_keys,
             parse_constant=_reject_json_constant,
+            parse_int=lambda value: _parse_json_integer(
+                value,
+                maximum_digits=maximum_digits,
+            ),
         )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise RuntimeStoreIntegrityError(f"{label} is not strict UTF-8 JSON: {exc}") from exc

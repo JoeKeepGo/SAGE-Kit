@@ -693,6 +693,76 @@ class InitializationAndSchemaTests(unittest.TestCase):
         with self.assertRaises(RuntimeStoreIntegrityError):
             validate_runtime_state(state, candidate_graph)
 
+    def test_large_generation_roundtrips_through_write_inspect_and_recovery(self):
+        import sagekit.runtime_recovery as recovery
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            graph["generation"] = 10**5000
+
+            writer, result = initialize(root, graph)
+            self.assertEqual(RuntimeStoreStatus.LOCKED, result.status)
+
+            paths = runtime_paths(root)
+            persisted_graph = runtime_store._strict_json_loads(
+                paths["graph"].read_bytes(),
+                "graph snapshot",
+            )
+            persisted_state = runtime_store._strict_json_loads(
+                paths["state"].read_bytes(),
+                "runtime state",
+            )
+            self.assertEqual(graph["generation"], persisted_graph["generation"])
+            self.assertEqual(graph["generation"], persisted_state["graph_generation"])
+            self.assertEqual(
+                RuntimeStoreStatus.LOCKED,
+                inspect_runtime_store(root).status,
+            )
+
+            recovered = recovery.recover_runtime_state(
+                writer,
+                clock=lambda: FIXED_TIME,
+            )
+            self.assertEqual(
+                recovery.RecoveryClassification.CONSISTENT,
+                recovered.classification,
+            )
+            self.assertEqual(
+                graph["generation"],
+                recovered.recovered_state["graph_generation"],
+            )
+
+            release_runtime_writer(writer)
+            self.assertEqual(
+                RuntimeStoreStatus.VALID,
+                inspect_runtime_store(root).status,
+            )
+
+    def test_malformed_and_oversized_runtime_json_fail_closed_with_typed_status(self):
+        corrupt_payloads = (
+            b'{"generation":' + (b"9" * 5000) + b"x}\n",
+            b" " * (runtime_store.MAX_GRAPH_BYTES + 1),
+        )
+        for payload in corrupt_payloads:
+            with self.subTest(size=len(payload)), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                writer, _ = initialize(root)
+                release_runtime_writer(writer)
+                runtime_paths(root)["graph"].write_bytes(payload)
+
+                report = inspect_runtime_store(root)
+                self.assertEqual(RuntimeStoreStatus.CORRUPT, report.status)
+                self.assertEqual("GRAPH_INVALID", report.issues[0].code)
+
+        with patch.object(runtime_store, "MAX_STATE_BYTES", 4):
+            with self.assertRaises(RuntimeStoreIntegrityError) as raised:
+                runtime_store._strict_json_loads(
+                    b'{"value":12345}\n',
+                    "bounded runtime JSON",
+                )
+        self.assertIn("digit bound", str(raised.exception))
+
     def test_node_membership_and_event_conditionals_are_enforced(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
