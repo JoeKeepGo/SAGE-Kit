@@ -559,6 +559,140 @@ class JoinValidationTests(unittest.TestCase):
         self.assertFalse(result.valid)
         self.assertIn("manual-gate-mismatch", issue_codes(result))
 
+    def test_external_gate_prerequisites_must_be_dependency_sinks(self):
+        for policy in ("manual-gate", "corrective-join"):
+            with self.subTest(policy=policy):
+                payload = minimal_graph()
+                payload["nodes"] = [
+                    node("gate-prerequisite"),
+                    node("post-gate", depends_on=["gate-prerequisite"]),
+                ]
+                payload["joins"] = [
+                    {
+                        "id": "external-gate",
+                        "requires": ["gate-prerequisite"],
+                        "policy": policy,
+                    }
+                ]
+                payload["human_gates"] = (
+                    ["external-gate"] if policy == "manual-gate" else []
+                )
+
+                result = validate_graph_contract(payload)
+
+                self.assertFalse(result.valid)
+                matching = [
+                    issue
+                    for issue in result.issues
+                    if issue.code == "nonterminal-external-join-prerequisite"
+                ]
+                self.assertEqual(1, len(matching), result.to_json())
+                self.assertEqual("$.nodes[1].depends_on[0]", matching[0].path)
+
+    def test_external_gate_transitive_successor_is_rejected_at_first_edge(self):
+        payload = minimal_graph()
+        payload["nodes"] = [
+            node("gate-prerequisite"),
+            node("first-successor", depends_on=["gate-prerequisite"]),
+            node("transitive-successor", depends_on=["first-successor"]),
+        ]
+        payload["joins"] = [
+            {
+                "id": "external-gate",
+                "requires": ["gate-prerequisite"],
+                "policy": "manual-gate",
+            }
+        ]
+        payload["human_gates"] = ["external-gate"]
+
+        result = validate_graph_contract(payload)
+
+        matching = [
+            issue
+            for issue in result.issues
+            if issue.code == "nonterminal-external-join-prerequisite"
+        ]
+        self.assertEqual(
+            ["$.nodes[1].depends_on[0]"],
+            [issue.path for issue in matching],
+            result.to_json(),
+        )
+
+    def test_shared_external_prerequisite_has_one_deterministic_issue_per_edge(self):
+        payload = minimal_graph()
+        payload["nodes"] = [
+            node("gate-prerequisite"),
+            node("successor-b", depends_on=["gate-prerequisite"]),
+            node("successor-a", depends_on=["gate-prerequisite"]),
+        ]
+        payload["joins"] = [
+            {
+                "id": "manual",
+                "requires": ["gate-prerequisite"],
+                "policy": "manual-gate",
+            },
+            {
+                "id": "corrective",
+                "requires": ["gate-prerequisite"],
+                "policy": "corrective-join",
+            },
+        ]
+        payload["human_gates"] = ["manual"]
+
+        first = validate_graph_contract(payload)
+        second = validate_graph_contract(copy.deepcopy(payload))
+        expected = [
+            ("$.nodes[1].depends_on[0]", "nonterminal-external-join-prerequisite"),
+            ("$.nodes[2].depends_on[0]", "nonterminal-external-join-prerequisite"),
+        ]
+        self.assertEqual(
+            expected,
+            [
+                (issue.path, issue.code)
+                for issue in first.issues
+                if issue.code == "nonterminal-external-join-prerequisite"
+            ],
+        )
+        self.assertEqual(first.issues, second.issues)
+
+    def test_external_gate_allows_upstream_dependencies_and_independent_nodes(self):
+        payload = minimal_graph()
+        payload["nodes"] = [
+            node("upstream"),
+            node("gate-prerequisite", depends_on=["upstream"]),
+            node("independent"),
+        ]
+        payload["joins"] = [
+            {
+                "id": "external-gate",
+                "requires": ["gate-prerequisite"],
+                "policy": "manual-gate",
+            }
+        ]
+        payload["human_gates"] = ["external-gate"]
+
+        result = validate_graph_contract(payload)
+
+        self.assertTrue(result.valid, result.to_json())
+
+    def test_automatic_join_does_not_make_its_prerequisite_a_sink(self):
+        payload = minimal_graph()
+        payload["nodes"] = [
+            node("automatic-prerequisite"),
+            node("successor", depends_on=["automatic-prerequisite"]),
+        ]
+        payload["joins"] = [
+            {
+                "id": "automatic",
+                "requires": ["automatic-prerequisite"],
+                "policy": "all-required",
+            }
+        ]
+
+        result = validate_graph_contract(payload)
+
+        self.assertTrue(result.valid, result.to_json())
+
     def test_all_required_and_required_plus_optional_preserve_required_nodes(self):
         payload = minimal_graph()
         payload["nodes"].append(node("optional", classification="optional"))

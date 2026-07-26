@@ -6,7 +6,7 @@
   "resources": {
     "graph_schema": {
       "resource": "graph.schema.json",
-      "canonical_sha256": "510f9d4a960aba78f80ac0ec35ac37504d992702528acad3c9f96279cab1824e"
+      "canonical_sha256": "fe3a9b58f7c50852d4f8e76c12dbdf1662b0811899b3c028ca6853e3da166d72"
     },
     "node_result_schema": {
       "resource": "node-result.schema.json",
@@ -14,7 +14,20 @@
     }
   },
   "digest_semantics": "SHA-256 over exact canonical resource bytes; this is resource integrity only and not a semantic graph digest.",
-  "compatibility": "Language-neutral Graph Contract v1 and Node Result v1 data boundaries. Schema presence does not activate Graph execution, runtime state, scheduling, node execution, gates, or authority. Light remains graph-artifact optional.",
+  "terminal_external_gate_topology": {
+    "policies": [
+      "manual-gate",
+      "corrective-join"
+    ],
+    "sink_rule": "Every node identity in requires for a manual-gate or corrective-join must be a dependency-DAG sink in the current Graph generation. No node in the same Graph generation may directly depend_on one of those prerequisites. Any transitive successor necessarily contains a first direct edge from the prerequisite and is rejected at that exact depends_on path.",
+    "issue_code": "nonterminal-external-join-prerequisite",
+    "issue_path": "The exact $.nodes[i].depends_on[j] edge that leaves an external-gate prerequisite.",
+    "complexity": "Validation collects the unique external-gate prerequisite identities and scans declared dependency edges once, with O(N + E + R) time and bounded deterministic issues.",
+    "generation_boundary": "Work governed by the external decision is expressed only in a later Graph generation supplied and authorized by the host after the gate decision. This contract does not create that generation, infer lineage, add a join-to-node edge, or dynamically rewrite the Graph.",
+    "independent_work": "Nodes without a dependency path from an external-gate prerequisite may remain in the same generation and continue according to their own dependencies and resources.",
+    "non_goals": "The rule introduces no WAITING_GATE or SKIPPED status, scheduler, hidden resolver edge, runtime mutation, gate decision, or authority grant. Automatic joins do not make their prerequisites dependency sinks."
+  },
+  "compatibility": "Language-neutral Graph Contract v1 and Node Result v1 data boundaries with machine-enforced terminal topology for manual-gate and corrective-join prerequisites. Existing valid Graph semantic projection and digest are unchanged. Schema presence does not activate Graph execution, runtime state, scheduling, node execution, gates, authority, or later-generation creation. Light remains graph-artifact optional.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 2A",
     "reference": "rebuild.md#stage-2-graph-contract-and-node-result"

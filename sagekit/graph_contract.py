@@ -654,6 +654,39 @@ def _validate_join_semantics(
             # responsibility, and the resolver must fail closed when it is absent.
 
 
+def _validate_external_join_prerequisite_sinks(
+    joins: list[tuple[str, dict[str, Any]]],
+    nodes: dict[str, dict[str, Any]],
+    node_paths: dict[str, str],
+    issues: _IssueCollector,
+) -> None:
+    external_prerequisites: set[str] = set()
+    for _, join in joins:
+        if join.get("policy") not in {"manual-gate", "corrective-join"}:
+            continue
+        requires = join.get("requires")
+        if _valid_string_list(requires):
+            external_prerequisites.update(requires)
+
+    if not external_prerequisites:
+        return
+
+    for node_id, node in nodes.items():
+        dependencies = node.get("depends_on")
+        if not _valid_string_list(dependencies):
+            continue
+        for index, dependency in enumerate(dependencies):
+            if dependency in external_prerequisites:
+                issues.add(
+                    _path(_path(node_paths[node_id], "depends_on"), index),
+                    "nonterminal-external-join-prerequisite",
+                    (
+                        "Manual-gate and corrective-join prerequisites must be "
+                        "dependency sinks in the current Graph generation."
+                    ),
+                )
+
+
 def _semantic_reference_identity(reference: str) -> str:
     """Remove a relocatable base while preserving an explicit record fragment."""
 
@@ -912,6 +945,12 @@ def validate_graph_contract(payload: Any) -> GraphValidationResult:
     if nodes:
         _validate_dependency_references_and_cycles(nodes, node_paths, issues)
     _validate_join_semantics(parsed_joins, nodes, human_gates, issues)
+    _validate_external_join_prerequisite_sinks(
+        parsed_joins,
+        nodes,
+        node_paths,
+        issues,
+    )
 
     result = issues.result()
     if not result.valid:

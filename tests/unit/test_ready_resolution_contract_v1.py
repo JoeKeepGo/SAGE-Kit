@@ -28,10 +28,10 @@ EXPECTED_STAGE4A_PATHS = {
     "tests/unit/test_ready_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
-    "docs/contracts/graph/v1/contract.json": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
-    "docs/contracts/graph/v1/graph.schema.json": "510f9d4a960aba78f80ac0ec35ac37504d992702528acad3c9f96279cab1824e",
+    "docs/contracts/graph/v1/contract.json": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
+    "docs/contracts/graph/v1/graph.schema.json": "fe3a9b58f7c50852d4f8e76c12dbdf1662b0811899b3c028ca6853e3da166d72",
     "docs/contracts/graph/v1/node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-    "docs/contracts/runtime-state/v1/contract.json": "a27806a732dbf60b9c38b7f410e62ce6d93a38c9a99d222c27241ac57c6ed976",
+    "docs/contracts/runtime-state/v1/contract.json": "a6a6ecf0bde382a5a9bcebae315fec37c0215268bf24b01bbb2f6057d94f1090",
     "docs/contracts/runtime-state/v1/state.schema.json": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
@@ -906,6 +906,16 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
             },
             runtime["canonical_resource_integrity"],
         )
+
+    def test_terminal_external_gate_relation_preserves_independent_work(self):
+        relation = self.manifest["semantic_boundaries"]["graph_dependency_boundary"]
+        self.assertIn("dependency-DAG sink", relation)
+        self.assertIn("later separately authorized Graph generation", relation)
+        self.assertIn("never invents a join-to-node edge", relation)
+        self.assertIn("preserves independent same-generation nodes", relation)
+        compatibility = self.manifest["compatibility"]
+        self.assertIn("no WAITING_GATE or SKIPPED status", compatibility)
+        self.assertIn("scheduler", compatibility)
 
     def test_contract_defines_domain_separated_semantic_input_digest(self):
         digest_contract = self.manifest["semantic_input_digest"]

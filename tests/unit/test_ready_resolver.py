@@ -673,6 +673,74 @@ class ReadyResolverJoinTests(unittest.TestCase):
         self.assertEqual("WAITING_NODE", decision["disposition"])
         self.assertEqual(["a"], decision["blocking_node_ids"])
 
+    def test_external_gate_successor_topology_is_graph_invalid(self) -> None:
+        for policy in ("manual-gate", "corrective-join"):
+            with self.subTest(policy=policy):
+                candidate_graph = graph(
+                    nodes=[
+                        node("gate-prerequisite"),
+                        node("post-gate", depends_on=["gate-prerequisite"]),
+                    ],
+                    joins=[
+                        {
+                            "id": "external-gate",
+                            "requires": ["gate-prerequisite"],
+                            "policy": policy,
+                        }
+                    ],
+                    human_gates=["external-gate"] if policy == "manual-gate" else [],
+                )
+                candidate = {
+                    "schema_id": "urn:sagekit:ready-resolution:v1:input",
+                    "schema_version": 1,
+                    "graph_digest": "0" * 64,
+                    "graph_generation": candidate_graph["generation"],
+                    "node_states": [
+                        state("gate-prerequisite", "SUCCEEDED"),
+                        state("post-gate"),
+                    ],
+                    "resource_availability": [],
+                    "external_join_decisions": [],
+                }
+
+                outcome = resolve_ready_nodes(candidate_graph, candidate)
+
+                self.assertIsNone(outcome.result)
+                self.assertEqual("GRAPH_INVALID", outcome.error["error_code"])
+
+    def test_pending_external_gate_preserves_independent_ready_work(self) -> None:
+        candidate_graph = graph(
+            nodes=[node("gate-prerequisite"), node("independent")],
+            joins=[
+                {
+                    "id": "external-gate",
+                    "requires": ["gate-prerequisite"],
+                    "policy": "manual-gate",
+                }
+            ],
+            human_gates=["external-gate"],
+        )
+        outcome = resolve_ready_nodes(
+            candidate_graph,
+            resolution_input(
+                candidate_graph,
+                node_states=[
+                    state("gate-prerequisite", "SUCCEEDED"),
+                    state("independent"),
+                ],
+            ),
+        )
+
+        self.assertEqual("READY", outcome.result["graph_disposition"])
+        self.assertEqual(
+            "READY",
+            node_decision(outcome, "independent")["disposition"],
+        )
+        self.assertEqual(
+            "REQUIRES_EXTERNAL_DECISION",
+            join_decision(outcome, "external-gate")["disposition"],
+        )
+
     def test_blocked_join_preserves_failed_and_pending_prerequisites(self) -> None:
         for policy in ("all-required", "manual-gate", "corrective-join"):
             with self.subTest(policy=policy):

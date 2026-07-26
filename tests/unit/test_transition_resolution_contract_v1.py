@@ -33,9 +33,9 @@ EXPECTED_STAGE4C1_PATHS = {
     "tests/unit/test_transition_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
-    "docs/contracts/graph/v1/contract.json": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
+    "docs/contracts/graph/v1/contract.json": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
     "docs/contracts/graph/v1/node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-    "docs/contracts/runtime-state/v1/contract.json": "a27806a732dbf60b9c38b7f410e62ce6d93a38c9a99d222c27241ac57c6ed976",
+    "docs/contracts/runtime-state/v1/contract.json": "a6a6ecf0bde382a5a9bcebae315fec37c0215268bf24b01bbb2f6057d94f1090",
     "docs/contracts/runtime-state/v1/state.schema.json": "0bc618412e1e2a8fbdb4691840477460294f38bf76b46dccef250979af29ce2e",
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
@@ -711,6 +711,16 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
             self.assertEqual(digest, dependency_records[key]["canonical_sha256"])
         for path, digest in DEPENDENCY_DIGESTS.items():
             self.assertEqual(digest, canonical_sha256(REPOSITORY / path))
+
+    def test_transition_classifies_terminal_gate_successors_as_graph_invalid(self):
+        relation = self.contract["dependencies"]["graph_contract_v1"]["relation"]
+        self.assertIn("terminal external-gate topology", relation)
+        self.assertIn("GRAPH_INVALID", relation)
+        compatibility = self.contract["compatibility"]
+        self.assertIn("terminal external-gate topology", compatibility)
+        self.assertIn("no partial Result", compatibility)
+        self.assertIn("no join-to-node edge", compatibility)
+        self.assertIn("scheduler", compatibility)
 
     def test_input_exact_fields_closed_shape_and_node_result_envelope_only(self):
         self.assertEqual(INPUT_REQUIRED, set(self.input_schema["required"]))

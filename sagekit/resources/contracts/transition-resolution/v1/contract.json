@@ -24,8 +24,8 @@
     "graph_contract_v1": {
       "contract_id": "urn:sagekit:graph-contract:v1",
       "resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_sha256": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
-      "relation": "Supplies the immutable Graph identity and generation boundary; this contract neither copies nor mutates the Graph."
+      "canonical_sha256": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
+      "relation": "Supplies the immutable valid Graph identity, generation boundary, and terminal external-gate topology; this contract neither copies nor mutates the Graph. A same-generation successor after a manual-gate or corrective-join prerequisite is GRAPH_INVALID before transition binding."
     },
     "node_result_v1": {
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
@@ -36,7 +36,7 @@
     "runtime_state_contract_v1": {
       "contract_id": "urn:sagekit:runtime-state-contract:v1",
       "resource": "docs/contracts/runtime-state/v1/contract.json",
-      "canonical_sha256": "a27806a732dbf60b9c38b7f410e62ce6d93a38c9a99d222c27241ac57c6ed976",
+      "canonical_sha256": "a6a6ecf0bde382a5a9bcebae315fec37c0215268bf24b01bbb2f6057d94f1090",
       "relation": "Defines the language-neutral snapshot and writer boundary; this contract consumes observed identity labels only."
     },
     "runtime_state_v1": {
@@ -338,7 +338,7 @@
     "stage_5": "Semantic evidence fingerprinting is not part of these canonical content digests.",
     "stage_6": "Graph evolution and proposal application remain outside this contract."
   },
-  "compatibility": "This final pre-implementation corrective remains language-neutral Transition Resolution Contract v1 and preserves Graph Contract v1, Node Result v1, Runtime State/Event v1, Transition Input v1, and Transition Result v1 semantics and digests. It adds only independently enforced Transition Resolver Graph admission bounds and two mutually exclusive Error classifications without narrowing Graph Contract validity. No Python resolver, Ready Resolver call, CLI, scheduler, daemon, network API, runtime mutation, package initializer change, or consumer behavior is introduced; Stage 4C2 resolver implementation remains deferred.",
+  "compatibility": "Transition Resolution Contract v1 consumes the Graph Contract v1 terminal external-gate topology before snapshot binding. A same-generation successor after a manual-gate or corrective-join prerequisite is GRAPH_INVALID and produces no partial Result; independent valid nodes remain unaffected. Transition Input, Result, Error, Node Result, Runtime State/Event, snapshot binding, authority-change, and content-digest semantics remain unchanged. This relation adds no join-to-node edge, WAITING_GATE or SKIPPED status, scheduler, dynamic Graph rewrite, runtime mutation, permission, gate decision, CLI, or authority grant.",
   "source_authority": {
     "identity": "SAGE-Kit rebuild Stage 4C1",
     "reference": "Rebuild Stage 4C1 — Transition Resolution Contract v1"

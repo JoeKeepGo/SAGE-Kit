@@ -504,6 +504,37 @@ class TransitionResolverAdmissionAndValidationTests(unittest.TestCase):
         outcome = resolve_node_transition(invalid_graph, candidate)
         self.assertEqual("GRAPH_INVALID", error_code(outcome))
 
+    def test_external_gate_successor_topology_is_graph_invalid(self) -> None:
+        for policy in ("manual-gate", "corrective-join"):
+            with self.subTest(policy=policy):
+                candidate_graph = graph(
+                    nodes=[
+                        node("gate-prerequisite"),
+                        node("post-gate", depends_on=["gate-prerequisite"]),
+                    ],
+                    joins=[
+                        {
+                            "id": "external-gate",
+                            "requires": ["gate-prerequisite"],
+                            "policy": policy,
+                        }
+                    ],
+                )
+                if policy == "manual-gate":
+                    candidate_graph["human_gates"] = ["external-gate"]
+                candidate = copy.deepcopy(candidate_graph)
+                candidate["nodes"] = [node("gate-prerequisite")]
+                candidate["joins"] = []
+                resolution = transition_input(candidate)
+                resolution["graph_id"] = candidate_graph["graph_id"]
+                resolution["graph_generation"] = candidate_graph["generation"]
+                resolution["graph_digest"] = "0" * 64
+
+                outcome = resolve_node_transition(candidate_graph, resolution)
+
+                self.assertIsNone(outcome.result)
+                self.assertEqual("GRAPH_INVALID", error_code(outcome))
+
     def test_valid_graph_binding_mismatch(self) -> None:
         candidate_graph = graph()
         candidate = transition_input(candidate_graph)

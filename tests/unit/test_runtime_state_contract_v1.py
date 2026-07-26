@@ -32,8 +32,8 @@ EXPECTED_STAGE3D_PATHS = {
     "tests/unit/test_runtime_views.py",
 }
 GRAPH_RESOURCE_DIGESTS = {
-    "contract.json": "fee6c97a067752e75755cf166cd94322cbe3775c298e474781f8814564356c76",
-    "graph.schema.json": "510f9d4a960aba78f80ac0ec35ac37504d992702528acad3c9f96279cab1824e",
+    "contract.json": "92fae08c37a0708d7f81b92309450f755552f97f2ca66a297a747526756ad61c",
+    "graph.schema.json": "fe3a9b58f7c50852d4f8e76c12dbdf1662b0811899b3c028ca6853e3da166d72",
     "node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
 }
 RUN_STATUSES = {
@@ -397,6 +397,16 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertIn("not a runtime snapshot digest", self.manifest["digest_semantics"])
         self.assertEqual("sagekit/resources/contracts/runtime-state/v1", self.manifest["packaged_mirror"]["path"])
         self.assertIn("byte-identical", self.manifest["packaged_mirror"]["expectation"])
+
+    def test_runtime_consumes_terminal_external_gate_topology_without_new_state(self):
+        dependency = self.manifest["dependencies"]["graph_contract_v1"]
+        self.assertIn("terminal external-gate topology", dependency["relation"])
+        self.assertIn("rejected before runtime initialization", dependency["relation"])
+        compatibility = self.manifest["compatibility"]
+        self.assertIn("terminal external-gate topology", compatibility)
+        self.assertIn("scheduler", compatibility)
+        self.assertIn("WAITING_GATE", compatibility)
+        self.assertIn("SKIPPED", compatibility)
 
     def test_state_required_fields_statuses_and_graph_boundary_are_exact(self):
         self.assertEqual(STATE_REQUIRED, set(self.state["required"]))

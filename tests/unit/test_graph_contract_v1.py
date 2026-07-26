@@ -202,7 +202,9 @@ class GraphContractV1Tests(unittest.TestCase):
         self.assertEqual({"graph_schema", "node_result_schema"}, set(resources))
         for key, name in (("graph_schema", "graph.schema.json"), ("node_result_schema", "node-result.schema.json")):
             self.assertEqual(name, resources[key]["resource"])
-            digest = hashlib.sha256(self.canonical[name].read_bytes()).hexdigest()
+            digest = hashlib.sha256(
+                self.canonical[name].read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest()
             self.assertEqual(digest, resources[key]["canonical_sha256"])
             self.assertRegex(digest, r"^[0-9a-f]{64}$")
         mirror = self.manifest["packaged_mirror"]
@@ -250,6 +252,29 @@ class GraphContractV1Tests(unittest.TestCase):
         self.assertIn("language-neutral", compatibility)
         self.assertIn("light remains graph-artifact optional", compatibility)
         self.assertIn("does not activate graph execution", compatibility)
+
+    def test_terminal_external_gate_topology_is_language_neutral_and_inert(self):
+        topology = self.manifest["terminal_external_gate_topology"]
+        self.assertEqual(
+            ["manual-gate", "corrective-join"],
+            topology["policies"],
+        )
+        self.assertIn("dependency-DAG sink", topology["sink_rule"])
+        self.assertEqual(
+            "nonterminal-external-join-prerequisite",
+            topology["issue_code"],
+        )
+        self.assertIn("$.nodes[i].depends_on[j]", topology["issue_path"])
+        self.assertIn("O(N + E + R)", topology["complexity"])
+        self.assertIn("later Graph generation", topology["generation_boundary"])
+        self.assertIn(
+            "without a dependency path",
+            topology["independent_work"],
+        )
+        self.assertIn("no WAITING_GATE or SKIPPED", topology["non_goals"])
+        schema_text = json.dumps(self.graph, ensure_ascii=False)
+        self.assertIn("dependency-DAG sink", schema_text)
+        self.assertNotIn("join_to_node", schema_text)
 
 
 if __name__ == "__main__":

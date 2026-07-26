@@ -284,6 +284,25 @@ class ImportReadAndPathBoundaryTests(unittest.TestCase):
                 acquire(root, graph)
             self.assertFalse((root / ".sagekit").exists())
 
+    def test_external_gate_successor_graph_is_rejected_before_runtime_write(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = minimal_graph()
+            graph["human_gates"] = ["approval"]
+            graph["nodes"].append(node("post-gate", depends_on=["build"]))
+            graph["joins"] = [
+                {
+                    "id": "approval",
+                    "requires": ["build"],
+                    "policy": "manual-gate",
+                }
+            ]
+
+            with self.assertRaises(RuntimeStoreIntegrityError):
+                acquire(root, graph)
+
+            self.assertFalse((root / ".sagekit").exists())
+
     def test_runtime_symlink_escape_is_rejected_without_following_it(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
