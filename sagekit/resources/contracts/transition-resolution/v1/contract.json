@@ -31,7 +31,7 @@
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
       "resource": "docs/contracts/graph/v1/node-result.schema.json",
       "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-      "relation": "The Input schema carries only a Node Result object envelope. The complete proposed Node Result is validated through the existing validate_node_result owner and content-digest bound without defining a second Node Result shape."
+      "relation": "The Input schema carries only a Node Result object envelope. After basic Input envelope structural admission and bounded canonical byte admission, the complete proposed Node Result is validated through the existing validate_node_result owner and content-digest bound without defining a second Node Result shape."
     },
     "runtime_state_contract_v1": {
       "contract_id": "urn:sagekit:runtime-state-contract:v1",
@@ -119,9 +119,12 @@
     },
     "transition_input": {
       "structural_owner": "input.schema.json",
-      "structure_rule": "Only after Graph admission, validation, and binding succeed, validate the complete Transition Resolution Input envelope and canonical byte size. The Input schema remains an envelope validator and does not validate complete Node Result v1 semantics, authority-change status, decision semantics, graph-aware node/proposal references, read-only changed paths, node binding, or transition legality.",
+      "structure_rule": "Only after Graph admission, validation, and binding succeed, perform basic structural admission of the complete Transition Resolution Input envelope through input.schema.json. The Input schema remains an envelope validator and does not validate complete Node Result v1 semantics, authority-change status, decision semantics, graph-aware node/proposal references, read-only changed paths, node binding, or transition legality.",
       "invalid_error_code": "REQUIRED_INPUT_INVALID",
-      "invalid_outcome": "A missing, mistyped, malformed, oversized, or otherwise structurally invalid Input envelope returns only REQUIRED_INPUT_INVALID Error and does not reach Node Result, binding, authority-change, or transition classification."
+      "invalid_outcome": "A missing, mistyped, malformed, or otherwise structurally invalid Input envelope returns only REQUIRED_INPUT_INVALID Error and does not reach canonical byte counting, Node Result, binding, authority-change, or transition classification.",
+      "canonical_byte_admission": "After basic Input envelope structural admission succeeds, measure the complete Transition Resolution Input as canonical strict JSON bytes using canonical_digests.canonical_json. Use a bounded counter that stops as soon as byte 16777217 would be emitted. Exactly 16777216 bytes is admitted.",
+      "too_large_error_code": "INPUT_TOO_LARGE",
+      "too_large_outcome": "A structurally admitted Input envelope whose canonical byte count exceeds 16777216 returns only INPUT_TOO_LARGE Error before graph-aware validate_node_result, node binding, authority-change status classification, transition legality, or digest calculation."
     },
     "deterministic_order": [
       "bounded_canonical_graph_byte_calculation",
@@ -133,8 +136,10 @@
       "canonical_graph_digest",
       "graph_binding_comparison",
       "graph_binding_mismatch_error_only",
-      "complete_transition_input_envelope_validation",
+      "basic_transition_input_envelope_structural_admission",
       "required_input_invalid_error_only",
+      "bounded_canonical_input_byte_calculation",
+      "input_too_large_error_only",
       "graph_aware_validate_node_result",
       "node_result_invalid_error_only",
       "node_binding_comparison",
@@ -142,47 +147,50 @@
       "authority_change_status_validation",
       "authority_change_status_invalid_error_only",
       "validate_node_transition",
-      "transition_not_allowed_error_only"
+      "transition_not_allowed_error_only",
+      "transition_input_digest",
+      "node_result_digest"
     ],
     "failure_precedence": [
       "GRAPH_ADMISSION_VALIDATION_BINDING",
       "REQUIRED_INPUT_INVALID",
+      "INPUT_TOO_LARGE",
       "NODE_RESULT_INVALID",
       "NODE_BINDING_MISMATCH",
       "AUTHORITY_CHANGE_STATUS_INVALID",
       "TRANSITION_NOT_ALLOWED"
     ],
-    "graph_classification_boundary": "GRAPH_TOO_LARGE applies only when the bounded canonical Graph byte calculation exceeds 8388608. RESOLUTION_LIMIT_EXCEEDED applies only after byte admission when a Transition Resolver structural cardinality exceeds its bound, is not GRAPH_INVALID, and does not decide Graph Contract validity. An admitted invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to an admitted valid Graph after validate_graph_contract and canonical digest calculation when graph ID, generation, or digest differs. Complete Input envelope validation, graph-aware Node Result validation, node binding, authority-change status classification, and transition legality begin only after Graph admission, validity, and binding succeed in that order.",
+    "graph_classification_boundary": "GRAPH_TOO_LARGE applies only when the bounded canonical Graph byte calculation exceeds 8388608. RESOLUTION_LIMIT_EXCEEDED applies only after byte admission when a Transition Resolver structural cardinality exceeds its bound, is not GRAPH_INVALID, and does not decide Graph Contract validity. An admitted invalid Graph yields only GRAPH_INVALID and never GRAPH_BINDING_MISMATCH. GRAPH_BINDING_MISMATCH applies only to an admitted valid Graph after validate_graph_contract and canonical digest calculation when graph ID, generation, or digest differs. After Graph admission, validity, and binding succeed, Input processing proceeds in this order: basic envelope structural admission, bounded canonical byte count with INPUT_TOO_LARGE for overflow, graph-aware validate_node_result, node binding, authority-change status classification, transition legality, then digests.",
     "node_binding": {
       "left": "$.node_id",
       "right": "$.node_result.node_id",
       "comparison": "exact Unicode scalar sequence equality",
-      "precondition": "Evaluate only after Graph admission, validation, and binding, complete Input envelope validation, and graph-aware validate_node_result have succeeded.",
+      "precondition": "Evaluate only after Graph admission, validation, and binding, basic Input envelope structural admission, bounded canonical byte admission, and graph-aware validate_node_result have succeeded.",
       "error_code": "NODE_BINDING_MISMATCH"
     },
     "node_result": {
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
       "existing_validator": "validate_node_result",
-      "validation_rule": "After complete Transition Resolution Input envelope validation succeeds, validate the complete Node Result through its existing graph-aware owner before node binding, authority-change status, or transition legality classification. Do not copy or redefine Node Result v1 validation in the Input schema.",
+      "validation_rule": "After basic Transition Resolution Input envelope structural admission and bounded canonical byte admission succeed, validate the complete Node Result through its existing graph-aware owner before node binding, authority-change status, or transition legality classification. Do not copy or redefine Node Result v1 validation in the Input schema.",
       "graph_aware_scope": "validate_node_result owns complete Node Result semantics for missing required Node Result fields, invalid status, missing or invalid authority decision, unknown graph node, unknown proposed_next_nodes targets, read-only node changed_paths, bounded findings, no-action evidence, and all other Node Result v1 structural and semantic failures.",
       "invalid_error_code": "NODE_RESULT_INVALID",
       "invalid_outcome": "A supplied Node Result object that fails existing graph-aware validate_node_result returns only NODE_RESULT_INVALID Error and never NODE_BINDING_MISMATCH, AUTHORITY_CHANGE_STATUS_INVALID, TRANSITION_NOT_ALLOWED, or Result."
     },
     "authority_change_status": {
       "when": "$.node_result.authority_change is true",
-      "precondition": "Evaluate only after Graph admission, validation, and binding, complete Input envelope validation, graph-aware validate_node_result, and node binding have succeeded. Missing or invalid authority decision remains NODE_RESULT_INVALID because it is owned by valid Node Result validation.",
+      "precondition": "Evaluate only after Graph admission, validation, and binding, basic Input envelope structural admission, bounded canonical byte admission, graph-aware validate_node_result, and node binding have succeeded. Missing or invalid authority decision remains NODE_RESULT_INVALID because it is owned by valid Node Result validation.",
       "required_status": "HANDOFF",
       "required_decision": "existing Node Result v1 non-empty bounded decision",
       "error_code": "AUTHORITY_CHANGE_STATUS_INVALID",
       "classification_rule": "For an otherwise valid Node Result with authority_change true, any non-HANDOFF status returns AUTHORITY_CHANGE_STATUS_INVALID before transition legality is evaluated. Missing, empty, too-long, or otherwise invalid decision remains NODE_RESULT_INVALID, not AUTHORITY_CHANGE_STATUS_INVALID."
     },
     "status_projection": "For ordinary input, next_status equals node_result.status exactly. For authority change, both node_result.status and next_status are HANDOFF. No status is trimmed, mapped, promoted, or synthesized.",
-    "validation_failure": "Any structural Input or Graph, binding, Node Result, transition, authority-change, or size failure yields only Error. Invalid input or Graph has no Result, no partial transition, and no fabricated HANDOFF or BLOCKED substitute."
+    "validation_failure": "Any structural Input or Graph, size, binding, Node Result, transition, or authority-change failure yields only Error. Invalid, oversized, or Graph-invalid input has no Result, no partial transition, and no fabricated HANDOFF or BLOCKED substitute."
   },
   "transition_legality": {
     "owner": "validate_node_transition",
     "owner_stage": "Stage 2B",
-    "rule": "After Graph admission/validation/binding, Input envelope validation, graph-aware Node Result validation, node binding, and authority-change status validation have succeeded, the pair previous_status and the exact Node Result status must be allowed by the existing owner. This contract's Result schema mirrors that table only as a success-envelope constraint and does not create a different state machine.",
+    "rule": "After Graph admission/validation/binding, basic Input envelope structural admission, bounded canonical byte admission, graph-aware Node Result validation, node binding, and authority-change status validation have succeeded, the pair previous_status and the exact Node Result status must be allowed by the existing owner. This contract's Result schema mirrors that table only as a success-envelope constraint and does not create a different state machine.",
     "terminal_rule": "A terminal previous status cannot produce Result.",
     "distinct_outcomes": "NO_ACTION_REQUIRED and DONE_WITH_CONCERNS remain their exact proposed statuses and are never mapped to SUCCEEDED.",
     "not_allowed_error_code": "TRANSITION_NOT_ALLOWED"
@@ -218,7 +226,7 @@
       "domain_separator_utf8_hex": "736167656b69742d7472616e736974696f6e2d7265736f6c7574696f6e2d696e7075742d763100",
       "construction": "SHA-256(UTF-8 domain separator bytes followed by canonical JSON bytes of the complete valid Transition Resolution Input v1 instance)."
     },
-    "validation_order": "Resolver-wide Graph admission, validation, and binding follow semantic_validation.deterministic_order. For Transition Resolution Input, parse strict JSON while rejecting duplicate object names, validate the complete referenced schema and semantic bindings, enforce the canonical byte budget, reject non-JSON numbers and invalid Unicode scalar sequences, then calculate input and Node Result digests. No input or Node Result digest exists for invalid input.",
+    "validation_order": "Resolver-wide Graph admission, validation, and binding follow semantic_validation.deterministic_order. For Transition Resolution Input, first perform basic envelope structural admission by parsing strict JSON, rejecting duplicate object names, rejecting non-JSON numbers and invalid Unicode scalar sequences, and validating input.schema.json; then enforce the bounded canonical byte count and return INPUT_TOO_LARGE for overflow; then run graph-aware validate_node_result, node binding, authority-change status validation, and transition legality; only then calculate input and Node Result digests. No input or Node Result digest exists for invalid or oversized input.",
     "canonical_json": {
       "encoding": "UTF-8 without BOM",
       "object_keys": "Recursively sort object keys lexicographically by Unicode scalar value sequence.",

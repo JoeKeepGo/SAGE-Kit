@@ -584,9 +584,21 @@ def transition_graph(*, read_only_node=False):
     }
 
 
-def reference_transition_taxonomy(input_payload, input_schema, registry, graph):
+def reference_transition_taxonomy(
+    input_payload,
+    input_schema,
+    registry,
+    graph,
+    *,
+    input_canonical_bytes=None,
+    input_max_canonical_bytes=16777216,
+):
     if not is_schema_valid(input_payload, input_schema, registry=registry):
         return "REQUIRED_INPUT_INVALID"
+    if input_canonical_bytes is None:
+        input_canonical_bytes = len(canonical_json_bytes(input_payload))
+    if input_canonical_bytes > input_max_canonical_bytes:
+        return "INPUT_TOO_LARGE"
     node_result = validate_node_result(input_payload["node_result"], graph)
     if not node_result.valid:
         return "NODE_RESULT_INVALID"
@@ -782,8 +794,10 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                 "canonical_graph_digest",
                 "graph_binding_comparison",
                 "graph_binding_mismatch_error_only",
-                "complete_transition_input_envelope_validation",
+                "basic_transition_input_envelope_structural_admission",
                 "required_input_invalid_error_only",
+                "bounded_canonical_input_byte_calculation",
+                "input_too_large_error_only",
                 "graph_aware_validate_node_result",
                 "node_result_invalid_error_only",
                 "node_binding_comparison",
@@ -792,6 +806,8 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                 "authority_change_status_invalid_error_only",
                 "validate_node_transition",
                 "transition_not_allowed_error_only",
+                "transition_input_digest",
+                "node_result_digest",
             ],
             validation["deterministic_order"],
         )
@@ -1150,6 +1166,9 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         structural_invalid = valid_input()
         structural_invalid["node_result"] = []
 
+        oversized = valid_input()
+        oversized["node_result"].pop("schema_id")
+
         node_result_invalid = valid_input()
         node_result_invalid["node_result"].pop("schema_id")
 
@@ -1163,16 +1182,18 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         transition_invalid["previous_status"] = "PENDING"
 
         cases = (
-            ("REQUIRED_INPUT_INVALID", structural_invalid),
-            ("NODE_RESULT_INVALID", node_result_invalid),
-            ("NODE_BINDING_MISMATCH", binding_mismatch),
-            ("AUTHORITY_CHANGE_STATUS_INVALID", authority_invalid),
-            ("TRANSITION_NOT_ALLOWED", transition_invalid),
+            ("REQUIRED_INPUT_INVALID", structural_invalid, 16777217),
+            ("INPUT_TOO_LARGE", oversized, 16777217),
+            ("NODE_RESULT_INVALID", node_result_invalid, None),
+            ("NODE_BINDING_MISMATCH", binding_mismatch, None),
+            ("AUTHORITY_CHANGE_STATUS_INVALID", authority_invalid, None),
+            ("TRANSITION_NOT_ALLOWED", transition_invalid, None),
         )
         self.assertEqual(
             [
                 "GRAPH_ADMISSION_VALIDATION_BINDING",
                 "REQUIRED_INPUT_INVALID",
+                "INPUT_TOO_LARGE",
                 "NODE_RESULT_INVALID",
                 "NODE_BINDING_MISMATCH",
                 "AUTHORITY_CHANGE_STATUS_INVALID",
@@ -1186,11 +1207,64 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
                 self.input_schema,
                 self.registry,
                 graph,
+                input_canonical_bytes=input_canonical_bytes,
             )
-            for _, payload in cases
+            for _, payload, input_canonical_bytes in cases
         ]
-        self.assertEqual([expected for expected, _ in cases], outcomes)
+        self.assertEqual([expected for expected, _, _ in cases], outcomes)
         self.assertEqual(len(outcomes), len(set(outcomes)))
+
+    def test_input_too_large_precedes_node_result_semantics_and_order_text_is_current(self):
+        graph = transition_graph()
+        oversized_node_result_invalid = valid_input()
+        oversized_node_result_invalid["node_result"].pop("schema_id")
+        self.assertTrue(self.input_valid(oversized_node_result_invalid))
+        self.assertFalse(
+            validate_node_result(
+                oversized_node_result_invalid["node_result"], graph
+            ).valid
+        )
+        self.assertEqual(
+            "INPUT_TOO_LARGE",
+            reference_transition_taxonomy(
+                oversized_node_result_invalid,
+                self.input_schema,
+                self.registry,
+                graph,
+                input_canonical_bytes=16777217,
+            ),
+        )
+
+        malformed_oversized = valid_input()
+        malformed_oversized["node_result"] = []
+        self.assertFalse(self.input_valid(malformed_oversized))
+        self.assertEqual(
+            "REQUIRED_INPUT_INVALID",
+            reference_transition_taxonomy(
+                malformed_oversized,
+                self.input_schema,
+                self.registry,
+                graph,
+                input_canonical_bytes=16777217,
+            ),
+        )
+
+        contract_text = json.dumps(self.contract, ensure_ascii=False)
+        for phrase in (
+            "basic envelope structural admission",
+            "bounded canonical byte count with INPUT_TOO_LARGE",
+            "No input or Node Result digest exists for invalid or oversized input.",
+        ):
+            self.assertIn(phrase, contract_text)
+        for stale in (
+            "validate the complete referenced schema and semantic "
+            "bindings, "
+            "enforce the canonical byte budget",
+            "validate the complete Transition Resolution Input envelope and "
+            "canonical " + "byte size",
+            "malformed, " + "oversized, or otherwise structurally invalid",
+        ):
+            self.assertNotIn(stale, contract_text)
 
     def test_result_required_fields_dispositions_and_authority_constants(self):
         self.assertEqual(RESULT_REQUIRED, set(self.result_schema["required"]))
