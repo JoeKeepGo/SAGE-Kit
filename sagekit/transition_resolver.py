@@ -14,6 +14,7 @@ import math
 import re
 from types import MappingProxyType
 from typing import Any, Mapping
+import weakref
 
 from .graph_contract import (
     NODE_STATUSES,
@@ -30,6 +31,9 @@ SCHEMA_VERSION = 1
 
 NODE_RESULT_DIGEST_DOMAIN = b"sagekit-node-result-v1\0"
 TRANSITION_INPUT_DIGEST_DOMAIN = b"sagekit-transition-resolution-input-v1\0"
+ADMITTED_GRAPH_SOURCE_DOMAIN = b"sagekit-transition-admitted-graph-v1\0"
+ADMITTED_INPUT_SOURCE_DOMAIN = b"sagekit-transition-admitted-input-v1\0"
+ADMITTED_RESULT_SOURCE_DOMAIN = b"sagekit-transition-admitted-result-v1\0"
 
 MAX_INPUT_CANONICAL_BYTES = 16 * 1024 * 1024
 MAX_GRAPH_CANONICAL_BYTES = 8 * 1024 * 1024
@@ -142,32 +146,64 @@ class TransitionResolutionOutcome:
         graph: Any,
         transition_input: Any,
         result: Mapping[str, Any],
+        *,
+        _admitted_source: _AdmittedTransitionSource | None = None,
     ) -> TransitionResolutionOutcome:
-        validation = _validate_transition_resolution(graph, transition_input)
+        if _admitted_source is None:
+            validation = _validate_transition_resolution(graph, transition_input)
+            admitted_source = validation.admitted_source
+        else:
+            admitted_source = _admitted_source
         if (
-            validation.error_code is not None
-            or validation.normalized_input is None
+            admitted_source is None
+            or admitted_source not in _TRUSTED_ADMITTED_SOURCES
         ):
             raise ValueError("success source is not a valid transition")
-        expected = _build_transition_result(
-            validation.normalized_input,
+        if not _canonical_source_matches(
+            graph,
+            admitted_source.graph_snapshot,
+            domain=ADMITTED_GRAPH_SOURCE_DOMAIN,
+            limit=MAX_GRAPH_CANONICAL_BYTES,
+        ):
+            raise ValueError("graph does not match its admitted source")
+        if not _canonical_source_matches(
+            transition_input,
+            admitted_source.input_snapshot,
+            domain=ADMITTED_INPUT_SOURCE_DOMAIN,
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        ):
+            raise ValueError("input does not match its admitted source")
+
+        normalized_input = _thaw_json(
+            admitted_source.normalized_input_snapshot
         )
+        if type(normalized_input) is not dict:
+            raise ValueError("admitted input snapshot is invalid")
+        if not _canonical_source_matches(
+            normalized_input,
+            admitted_source.input_snapshot,
+            domain=ADMITTED_INPUT_SOURCE_DOMAIN,
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        ):
+            raise ValueError("normalized input does not match its admitted source")
+        if normalized_input.get("graph_digest") != admitted_source.graph_digest:
+            raise ValueError("input graph digest does not match its admitted graph")
+
+        expected = _build_transition_result(normalized_input)
         _canonical_json_size(expected, limit=MAX_RESULT_CANONICAL_BYTES)
-        if type(result) is not dict or result != expected:
+        if (
+            type(result) is not dict
+            or result != expected
+            or not _canonical_source_matches(
+                result,
+                _freeze_json(expected),
+                domain=ADMITTED_RESULT_SOURCE_DOMAIN,
+                limit=MAX_RESULT_CANONICAL_BYTES,
+            )
+        ):
             raise ValueError("result does not match its validated source")
         instance = object.__new__(cls)
         object.__setattr__(instance, "_result_snapshot", _freeze_json(expected))
-        object.__setattr__(instance, "_error_snapshot", None)
-        object.__setattr__(instance, "_sealed", True)
-        return instance
-
-    @classmethod
-    def _from_result(
-        cls,
-        result: Mapping[str, Any],
-    ) -> TransitionResolutionOutcome:
-        instance = object.__new__(cls)
-        object.__setattr__(instance, "_result_snapshot", _freeze_json(result))
         object.__setattr__(instance, "_error_snapshot", None)
         object.__setattr__(instance, "_sealed", True)
         return instance
@@ -223,12 +259,51 @@ class _CanonicalSizeExceeded(_CanonicalJSONError):
     pass
 
 
+class _AdmittedTransitionSource:
+    __slots__ = (
+        "graph_snapshot",
+        "input_snapshot",
+        "normalized_input_snapshot",
+        "graph_digest",
+        "__weakref__",
+    )
+
+    def __init__(
+        self,
+        *,
+        graph_snapshot: Any,
+        input_snapshot: Any,
+        normalized_input_snapshot: Any,
+        graph_digest: str,
+    ) -> None:
+        object.__setattr__(self, "graph_snapshot", graph_snapshot)
+        object.__setattr__(self, "input_snapshot", input_snapshot)
+        object.__setattr__(
+            self,
+            "normalized_input_snapshot",
+            normalized_input_snapshot,
+        )
+        object.__setattr__(self, "graph_digest", graph_digest)
+
+    def __setattr__(self, _name: str, _value: Any) -> None:
+        raise AttributeError("admitted transition source is immutable")
+
+    def __delattr__(self, _name: str) -> None:
+        raise AttributeError("admitted transition source is immutable")
+
+
+_TRUSTED_ADMITTED_SOURCES: weakref.WeakSet[_AdmittedTransitionSource] = (
+    weakref.WeakSet()
+)
+
+
 @dataclass(frozen=True)
 class _ResolutionValidation:
     error_code: str | None
     issues: tuple[TransitionResolutionIssue, ...]
     normalized_input: dict[str, Any] | None = None
     graph_digest: str | None = None
+    admitted_source: _AdmittedTransitionSource | None = None
 
 
 class _IssueCollector:
@@ -768,6 +843,30 @@ def _canonical_json_digest(
             else:
                 raise _CanonicalJSONError("value is not strict JSON")
     return digest.hexdigest()
+
+
+def _canonical_source_matches(
+    value: Any,
+    frozen_snapshot: Any,
+    *,
+    domain: bytes,
+    limit: int,
+) -> bool:
+    """Compare a live source with a defensive snapshot by canonical content."""
+
+    try:
+        snapshot = _thaw_json(frozen_snapshot)
+        return _canonical_json_digest(
+            value,
+            domain=domain,
+            limit=limit,
+        ) == _canonical_json_digest(
+            snapshot,
+            domain=domain,
+            limit=limit,
+        )
+    except (_CanonicalJSONError, RecursionError):
+        return False
 
 
 def _field_path(field: Any) -> str:
@@ -1378,11 +1477,38 @@ def _validate_transition_resolution(
             graph_digest=graph_digest,
         )
 
+    try:
+        admitted_source = _AdmittedTransitionSource(
+            graph_snapshot=_freeze_json(graph),
+            input_snapshot=_freeze_json(transition_input),
+            normalized_input_snapshot=_freeze_json(normalized),
+            graph_digest=graph_digest,
+        )
+        _TRUSTED_ADMITTED_SOURCES.add(admitted_source)
+        normalized_snapshot = _thaw_json(
+            admitted_source.normalized_input_snapshot
+        )
+    except RecursionError:
+        return _ResolutionValidation(
+            "REQUIRED_INPUT_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "STRICT_JSON_REQUIRED",
+                    "Transition input could not be defensively snapshotted.",
+                ),
+            ),
+            graph_digest=graph_digest,
+        )
+    if type(normalized_snapshot) is not dict:
+        raise AssertionError("admitted normalized input must be an object")
+
     return _ResolutionValidation(
         None,
         (),
-        normalized_input=normalized,
+        normalized_input=normalized_snapshot,
         graph_digest=graph_digest,
+        admitted_source=admitted_source,
     )
 
 
@@ -1512,7 +1638,12 @@ def resolve_node_transition(
             ],
         )
     try:
-        return TransitionResolutionOutcome._from_result(result)
+        return TransitionResolutionOutcome._from_validated_source(
+            graph,
+            transition_input,
+            result,
+            _admitted_source=validation.admitted_source,
+        )
     except (KeyError, TypeError, ValueError, _CanonicalJSONError):
         return _failure(
             "REQUIRED_INPUT_INVALID",

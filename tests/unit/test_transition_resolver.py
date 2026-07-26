@@ -12,6 +12,7 @@ import unittest
 from unittest import mock
 
 import sagekit
+import sagekit.graph_contract as graph_contract_owner
 from sagekit.graph_contract import (
     NODE_STATUSES,
     canonical_graph_digest,
@@ -454,21 +455,42 @@ class TransitionResolverAdmissionAndValidationTests(unittest.TestCase):
         self.assertEqual("REQUIRED_INPUT_INVALID", error_code(outcome))
         self.assertEqual("STRICT_JSON_REQUIRED", outcome.error["issues"][0]["code"])
 
-    def test_success_path_runs_graph_owner_validation_at_most_twice(self) -> None:
+    def test_success_path_owner_validation_oracle_includes_outcome_rebind(
+        self,
+    ) -> None:
         from sagekit import transition_resolver
 
         candidate_graph = graph()
         candidate = transition_input(candidate_graph)
+        owner_validation = graph_contract_owner.validate_graph_contract
+        owner_calls: list[object] = []
+
+        def counted_owner(payload: object):
+            owner_calls.append(payload)
+            return owner_validation(payload)
+
         with mock.patch.object(
             transition_resolver,
             "validate_graph_contract",
-            wraps=transition_resolver.validate_graph_contract,
-        ) as validator:
+            side_effect=counted_owner,
+        ), mock.patch.object(
+            graph_contract_owner,
+            "validate_graph_contract",
+            side_effect=counted_owner,
+        ), mock.patch.object(
+            TransitionResolutionOutcome,
+            "_from_validated_source",
+            wraps=TransitionResolutionOutcome._from_validated_source,
+        ) as rebound:
             outcome = resolve_node_transition(candidate_graph, candidate)
 
         self.assertTrue(outcome.succeeded, outcome.error)
-        self.assertGreaterEqual(validator.call_count, 1)
-        self.assertLessEqual(validator.call_count, 2)
+        self.assertEqual(
+            2,
+            len(owner_calls),
+            "Graph admission plus graph-aware Node Result validation are required",
+        )
+        self.assertEqual(1, rebound.call_count)
 
     def test_structural_cardinality_boundaries_are_inclusive(self) -> None:
         from sagekit import transition_resolver
@@ -983,6 +1005,7 @@ class TransitionResolverDeterminismAndPurityTests(unittest.TestCase):
         forged["input_digest"] = "0" * 64
         with self.assertRaises(ValueError):
             TransitionResolutionOutcome(result=forged, error=None)
+        self.assertFalse(hasattr(TransitionResolutionOutcome, "_from_result"))
         self.assertFalse(hasattr(transition_resolver, "_OUTCOME_FACTORY_TOKEN"))
         self.assertFalse(hasattr(transition_resolver, "_outcome"))
         with self.assertRaises(AttributeError):
@@ -1004,6 +1027,66 @@ class TransitionResolverDeterminismAndPurityTests(unittest.TestCase):
                 candidate,
                 forged,
             )
+        forged = copy.deepcopy(original)
+        forged["node_result_digest"] = "0" * 64
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                candidate,
+                forged,
+            )
+        forged = copy.deepcopy(original)
+        forged["schema_version"] = True
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                candidate,
+                forged,
+            )
+
+        fabricated_source = transition_resolver._AdmittedTransitionSource(
+            graph_snapshot=transition_resolver._freeze_json(candidate_graph),
+            input_snapshot=transition_resolver._freeze_json(candidate),
+            normalized_input_snapshot=transition_resolver._freeze_json(
+                transition_resolver._transition_input_identity_view(candidate)
+            ),
+            graph_digest=str(candidate["graph_digest"]),
+        )
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                candidate,
+                copy.deepcopy(original),
+                _admitted_source=fabricated_source,
+            )
+
+        changed_input = copy.deepcopy(candidate)
+        changed_input["state_revision"] = 4
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                changed_input,
+                copy.deepcopy(original),
+            )
+        changed_node_result = copy.deepcopy(candidate)
+        changed_node_result["node_result"]["evidence_refs"].append("evidence/new")
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                candidate_graph,
+                changed_node_result,
+                copy.deepcopy(original),
+            )
+        changed_graph = copy.deepcopy(candidate_graph)
+        changed_graph["source_authority"]["reference"] = "changed/source"
+        graph_bound_input = copy.deepcopy(candidate)
+        graph_bound_input["graph_digest"] = canonical_graph_digest(changed_graph)
+        with self.assertRaises(ValueError):
+            TransitionResolutionOutcome._from_validated_source(
+                changed_graph,
+                graph_bound_input,
+                copy.deepcopy(original),
+            )
+
         rebuilt = TransitionResolutionOutcome._from_validated_source(
             candidate_graph,
             candidate,
