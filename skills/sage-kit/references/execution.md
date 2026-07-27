@@ -3,8 +3,8 @@
 Execution economy, change classes, Bounded Corrective Authority, evidence
 invalidation, one primary review topology, shared-file serialization, and local
 limits are canonical at the `sage-loop-*` anchors in
-`docs/agent/EXECUTION_ECONOMY.md`. Use
-`docs/agent/CONTINUITY_PROTOCOL.md` when a local limit requires
+`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md`. Use
+`sagekit/resources/docs/agent/CONTINUITY_PROTOCOL.md` when a local limit requires
 `HANDOFF_READY`. These rules prevent older generic execution guidance from
 causing broader repeated work; explicit project approval and safety gates still
 control.
@@ -17,7 +17,7 @@ Strict Mode, Wave Execution, Session Orchestration, or Worktree Isolation.
 For an explicitly adopted `thin-v1` milestone, validate `SAGE_PROJECT.json`,
 `MILESTONE_MANIFEST.json`, and the selected phase manifest before execution.
 Resolve the selected current source under
-`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`.
+`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`.
 Resolve explicit project approval/gates before project overrides, pinned
 contract/profile policy, and runtime defaults. Unknown profiles, invalid
 overrides, conflicting authority, and missing digests must not fall back.
@@ -92,9 +92,9 @@ the domain work.
 ## External Capability Integration
 
 Apply the canonical lifecycle, authorization, fallback, and evidence contract at
-`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`. Apply any runtime-specific ban
+`sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`. Apply any runtime-specific ban
 or override before generic capability routing, as defined at
-`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
+`sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
 
 Each worker launch and result keeps only these execution-local fields:
 
@@ -230,7 +230,7 @@ When Session Orchestration is active:
   workers and remains independent for re-review.
 - Corrective workers fix only findings named in corrective packets.
 - After corrective work, Final Review follows the Deterministic Closure or
-  re-review selection contract in `docs/agent/SESSION_ORCHESTRATION.md`. Only
+  re-review selection contract in `sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md`. Only
   the separated review authority may record a receipt and precommitted
   `VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager acceptance remains pending.
 - If Task Dispatch Profile is active, Coder updates task/evidence records and
@@ -250,7 +250,7 @@ target is a guideline, not a correctness gate.
 
 Every PM authority delta retains its authority ID, source, priority, and
 reconciliation destination. Classify it and handle authority gaps under
-`docs/agent/AGENT_HARNESS.md#sage-auth-010`; this reference retains execution-
+`sagekit/resources/docs/agent/AGENT_HARNESS.md#sage-auth-010`; this reference retains execution-
 specific worker launch and packet-loading guidance.
 
 Worker prompts remain explicit. Workers and external agents that cannot read
@@ -265,7 +265,7 @@ including affected-lane focused verification, stays in the basic workflow above
 and does not load or apply these advanced runtime details by default.
 
 Apply verification admission at
-`docs/agent/EXECUTION_ECONOMY.md#sage-loop-003`, candidate binding at
+`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-003`, candidate binding at
 `#sage-loop-006`, and evidence reuse at `#sage-loop-007`. This reference
 retains only execution-local packet, worker, Lane, Root, and Final Controller
 routing; none may expand the authority resolved from those sections.
@@ -277,7 +277,7 @@ identity without recounting. When one verification-graph node fails, skip only
 successors that depend on it; continue and report independent nodes.
 
 Candidate successors and no-progress outcomes remain governed by
-`docs/agent/EXECUTION_ECONOMY.md#sage-loop-006` and `#sage-loop-008`; execution
+`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-006` and `#sage-loop-008`; execution
 records their identities and routes their outcomes without redefining either
 contract.
 
@@ -303,7 +303,7 @@ Do not infer a governance result from user token budgets, platform quotas, or
 similar service limits. Record the concrete capability or evidence constraint
 and use the applicable handoff, checkpoint, or stop rule instead.
 Route corrective convergence through
-`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`; this reference records the
+`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`; this reference records the
 resulting checkpoint or controller handoff without redefining it.
 
 Coder and Final Review controllers must reassess whether the milestone should
@@ -312,9 +312,9 @@ does not imply wave readiness. Stop for Project Manager when a sequencing
 change affects scope, approval gates, public contracts, shared ownership, or
 final decision authority.
 
-Apply Graph admission from `docs/SAGE_CORE.md#sage-grf-001` and execution-shape
-and active-change semantics from `docs/agent/WAVE_EXECUTION.md#sage-grf-002` and
-`docs/agent/WAVE_EXECUTION.md#sage-grf-006`. This reference remains responsible
+Apply Graph admission from `sagekit/resources/docs/SAGE_CORE.md#sage-grf-001` and execution-shape
+and active-change semantics from `sagekit/resources/docs/agent/WAVE_EXECUTION.md#sage-grf-002` and
+`sagekit/resources/docs/agent/WAVE_EXECUTION.md#sage-grf-006`. This reference remains responsible
 for executing the selected shape and returning a controller decision when its
 packet boundary would change.
 

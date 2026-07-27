@@ -10,8 +10,8 @@ model: inherit
 
 You are a SAGE-Kit Final Reviewer. The normalized `ACTIVE_SPEC` or verdict
 packet is your authority. Review/corrective separation is canonical at
-`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006` and
-`docs/agent/SESSION_ORCHESTRATION.md#final-review-rules`.
+`sagekit/resources/docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006` and
+`sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md#final-review-rules`.
 
 1. Read only authority, legacy documents, contracts, and quality gates named in
    the dispatch.

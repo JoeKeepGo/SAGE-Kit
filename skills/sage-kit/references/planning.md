@@ -7,7 +7,7 @@ orchestration, and worktree isolation planning.
 
 Before planning an executable milestone, select its document model and SPEC
 sources from project authority under
-`docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`. `legacy-markdown` continues to use the retained
+`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001`. `legacy-markdown` continues to use the retained
 Markdown entry gate and phase documents. `thin-v1` requires
 `SAGE_PROJECT.json` plus explicit or configured milestone and phase sources. The
 legacy adapter keeps `docs/<M>/MILESTONE_MANIFEST.json` and
@@ -115,7 +115,7 @@ Conditional optional controls:
   but relevant, or needs fallback, name authorization level, fallback, and
   evidence mapping. Otherwise: `Not enabled: <reason>`.
 - Runtime override: record any applicable override ID and status from
-  `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`; otherwise use the runtime's
+  `sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`; otherwise use the runtime's
   normal adapter policy.
 - External planning outputs: when used, name where outputs are written or
   mapped so the milestone ledger, phase docs, and packets remain the source of
@@ -154,13 +154,13 @@ Parallel lanes must have disjoint writable files. If a lane needs a shared
 startup context file, it returns a proposal and the controller applies it
 serially.
 
-Admit Graph planning under `docs/SAGE_CORE.md#sage-grf-001`. Record the
+Admit Graph planning under `sagekit/resources/docs/SAGE_CORE.md#sage-grf-001`. Record the
 project-specific dependency DAG, parallel candidates, serial barriers, and
 phase-internal lanes in the plan, and apply the canonical shape,
 affected-serialization, and active-change rules at
-`docs/agent/WAVE_EXECUTION.md#sage-grf-002`,
-`docs/agent/WAVE_EXECUTION.md#sage-grf-005`, and
-`docs/agent/WAVE_EXECUTION.md#sage-grf-006`.
+`sagekit/resources/docs/agent/WAVE_EXECUTION.md#sage-grf-002`,
+`sagekit/resources/docs/agent/WAVE_EXECUTION.md#sage-grf-005`, and
+`sagekit/resources/docs/agent/WAVE_EXECUTION.md#sage-grf-006`.
 
 ## Session Orchestration Planning
 
@@ -215,7 +215,7 @@ validator meaning will change.
 
 If Planning Review returns `NEEDS_CORRECTION`, run Targeted Fix, then choose
 strict Deterministic Closure when every pre-authored `MECHANICAL_STATUS`
-condition in `docs/agent/SESSION_ORCHESTRATION.md` passes; otherwise run
+condition in `sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md` passes; otherwise run
 Targeted Re-Review.
 
 One root session may orchestrate the lifecycle, but role authority stays
@@ -246,7 +246,7 @@ before submit.
 ## Capability Adapter Planning
 
 Use the canonical lifecycle, authorization, fallback, and evidence contract at
-`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` when a phase, milestone, or
+`sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` when a phase, milestone, or
 controller expects an external capability.
 
 Keep only task-shaped planning fields here:
@@ -260,7 +260,7 @@ Keep only task-shaped planning fields here:
 - installation, credential, environment-write, or external-mutation gate when
   applicable;
 - runtime override status from
-  `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
+  `sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
 
 ## Task Dispatch Planning
 

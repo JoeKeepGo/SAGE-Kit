@@ -38,19 +38,19 @@
   "dependencies": {
     "evidence_lineage_contract_v1": {
       "contract_id": "urn:sagekit:evidence-lineage:v1",
-      "resource": "docs/contracts/evidence-lineage/v1/contract.json",
-      "canonical_sha256": "240c98234e04e1c97414dae86fadd6a94de16649f71c2dc023e1a2ddf04cbe2a",
+      "resource": "sagekit/resources/contracts/evidence-lineage/v1/contract.json",
+      "canonical_sha256": "07855701085c5822e174f4f9220f2c8aa8b44c0497f06f854a91a5222f164bdc",
       "relation": "Owns Stage 5 lineage comparison semantics. Graph Evolution binds an externally supplied Stage 5 lineage digest and reuses this exact frozen contract resource digest without defining another Stage 5 lineage model."
     },
     "graph_contract_v1": {
       "contract_id": "urn:sagekit:graph-contract:v1",
-      "resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
+      "resource": "sagekit/resources/contracts/graph/v1/contract.json",
+      "canonical_sha256": "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9",
       "relation": "The existing validate_graph_contract owner alone validates target Graph structure, topology, permission vocabulary, generation, and semantic digest. Graph Evolution consumes that result and does not redefine or copy Graph semantics."
     },
     "graph_schema_v1": {
       "schema_id": "urn:sagekit:graph-contract:v1:graph",
-      "resource": "docs/contracts/graph/v1/graph.schema.json",
+      "resource": "sagekit/resources/contracts/graph/v1/graph.schema.json",
       "canonical_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
       "relation": "Proposal target_graph references the existing Graph schema identity. This contract carries no duplicate Graph definition."
     }
@@ -186,6 +186,6 @@
   },
   "packaged_mirror": {
     "path": "sagekit/resources/contracts/graph-evolution/v1",
-    "expectation": "All seven resources are byte-identical mirrors of canonical resources in docs/contracts/graph-evolution/v1."
+    "expectation": "This package-resource directory is the canonical owner of all Graph Evolution Contract v1 resources; distributed copies must remain byte-identical."
   }
 }

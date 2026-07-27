@@ -16,8 +16,6 @@ RESOURCE_NAMES = (
     "error.schema.json",
 )
 STAGE5_CONTRACT_PATHS = {
-    f"docs/contracts/evidence-lineage/v1/{name}" for name in RESOURCE_NAMES
-} | {
     f"sagekit/resources/contracts/evidence-lineage/v1/{name}"
     for name in RESOURCE_NAMES
 }
@@ -39,7 +37,7 @@ STAGE5_OWNER_DIGESTS = json.loads(
 STAGE5_OWNED_PATHS = STAGE5_CONTRACT_PATHS | STAGE5_OWNER_PATHS
 STAGE5_CONTRACT_RESOURCE_DIGESTS = {
     "contract.json": (
-        "240c98234e04e1c97414dae86fadd6a94de16649f71c2dc023e1a2ddf04cbe2a"
+        "07855701085c5822e174f4f9220f2c8aa8b44c0497f06f854a91a5222f164bdc"
     ),
     "error.schema.json": (
         "ed86e040b8fc64e6003dbf163172700faec608d6f73463092005c9ac82aa5019"
@@ -74,20 +72,20 @@ ERROR_CODES = {
     "RESULT_TOO_LARGE",
 }
 DEPENDENCY_DIGESTS = {
-    "docs/contracts/graph/v1/contract.json": (
-        "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4"
+    "sagekit/resources/contracts/graph/v1/contract.json": (
+        "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9"
     ),
-    "docs/contracts/graph/v1/graph.schema.json": (
+    "sagekit/resources/contracts/graph/v1/graph.schema.json": (
         "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466"
     ),
-    "docs/contracts/graph/v1/node-result.schema.json": (
+    "sagekit/resources/contracts/graph/v1/node-result.schema.json": (
         "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379"
     ),
-    "docs/contracts/ready-resolution/v1/contract.json": (
-        "9eb5f0f94b3b01f6c71a525bb3ef65ddca31fc9f3fb1eb9b59a1d093aae78f67"
+    "sagekit/resources/contracts/ready-resolution/v1/contract.json": (
+        "f5a8503146b2f3bb45e61ccf92f28897c67c3808648bbb19c60a0912f8471bb6"
     ),
-    "docs/contracts/transition-resolution/v1/contract.json": (
-        "385a33f82ea9a65cb90649a4ba7a87fda7eb7035b696766339c691093f7d1291"
+    "sagekit/resources/contracts/transition-resolution/v1/contract.json": (
+        "cae9bda1762dd552ea9d7d04a413e7c6c999b76878b2b323d318cde52c93417c"
     ),
 }
 NODE_INPUT_DOMAIN = b"sagekit-evidence-lineage-node-input-v1\0"
@@ -451,7 +449,7 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
             STAGE5_CONTRACT_PATHS | STAGE5_OWNER_PATHS,
             STAGE5_OWNED_PATHS,
         )
-        self.assertEqual(15, len(STAGE5_OWNED_PATHS))
+        self.assertEqual(11, len(STAGE5_OWNED_PATHS))
         missing = {
             path for path in STAGE5_OWNED_PATHS if not current_resource_path(path).is_file()
         }

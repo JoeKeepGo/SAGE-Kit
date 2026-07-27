@@ -16,31 +16,15 @@ SAGE-Kit 是面向长期、Agent 辅助软件工程的项目治理与证据运�
 项目自有的 SPEC 与配置是权威来源。Harness 解释并执行这些边界，但不拥有项目
 策略。
 
-## 当前状态
+## 核心模型
 
-- 当前 release：`v2026.7.28.1`
-- Release 主线：无公开 CLI、可嵌入 Harness、package resources 单一来源
-- 运行环境：Python 3.10+，仅使用标准库
-- 公开 CLI：已移除，改用 Python Harness API
-- 框架规范资源：[`sagekit/resources`](sagekit/resources)
-- 可选 Assistant 入口：[`skills/sage-kit`](skills/sage-kit)
-
-正式接入时应固定 release tag。
-
-## 当前版本的核心变化
-
-SAGE-Kit 已不再是 CLI 驱动的文档合规系统。
-
-- SPEC 来源位置无关，执行前统一规范化。
-- Markdown 是可选 source 格式，不是 authority 模型。
-- 已接受历史是不可变 provenance，不作为启动上下文。
-- candidate、checkpoint、lease、attempt 和 counter 等运行状态不写入
-  milestone 叙事文档。
-- Harness 由项目工具嵌入调用，并返回结构化结果。
-- 只读审查、纠正、验证和提交保持独立权限边界。
-- CPU-heavy 命令默认由单一 Root Controller 串行执行；只有获得明确授权且资源
-  不冲突时才并行。
-- Review finding 必须指向项目权威；通用偏好不能自行制造产品需求。
+- 项目自有 SPEC 与配置定义真实工作。
+- Source adapter 统一规范化 Markdown 或机器可读输入，文件位置不进入执行身份。
+- 可嵌入 Harness 负责编译 packet、验证合同、管理受限执行并返回结构化 evidence。
+- 紧凑 active context 保存当前 handoff 事实；accepted history 保持不可变参考。
+- 实现、审查、纠正、验证与验收使用彼此独立的权限边界。
+- 框架规范资源随 package 发布，唯一来源位于
+  [`sagekit/resources`](sagekit/resources)。
 
 ## 架构
 
@@ -64,7 +48,7 @@ flowchart LR
 
 ```bash
 python -m pip install \
-  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.1"
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.2"
 ```
 
 本地开发：
@@ -202,20 +186,16 @@ tests/                      Unit、integration、compatibility 与 smoke tests
 - [`EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
 - [`SPEC_SOURCE_CONTRACT.md`](sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md)
 
-## 开发与验证
+## 参与开发
 
-运行与 CI 相同的串行 lanes：
+先运行与改动范围直接相关的 focused checks：
 
 ```bash
 python -B -m scripts.run_tests focused --repository .
-python -B -m scripts.run_tests unit --repository .
-python -B -m scripts.run_tests integration --repository .
-python -B -m scripts.run_tests source-repo --repository .
-python -B -m scripts.run_tests package --repository .
 ```
 
-CI 覆盖 Linux、Windows、macOS 和 Python 3.10-3.12。Package smoke 会在全新环境
-以及源码 checkout 之外验证安装结果。
+当改动涉及更广范围时，可通过 `scripts.run_tests` 选择 unit、integration、
+source-repository 或 package lane。
 
 ## 适用场景
 

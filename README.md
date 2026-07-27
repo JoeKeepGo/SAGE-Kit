@@ -20,33 +20,19 @@ into product policy.
 Project-owned SPEC and configuration are authoritative. The Harness interprets
 and enforces their boundaries; it does not own project policy.
 
-## Current Status
+## Core Model
 
-- Current release: `v2026.7.28.1`
-- Release line: CLI-free embedded Harness and canonical package resources
-- Runtime: Python 3.10+, standard library only
-- Public CLI: removed; use the Python Harness API
-- Canonical framework resources: [`sagekit/resources`](sagekit/resources)
-- Optional assistant entrypoint: [`skills/sage-kit`](skills/sage-kit)
-
-Pin the release tag for reproducible adoption.
-
-## What Changed
-
-SAGE-Kit is no longer a CLI-driven documentation compliance system.
-
-- SPEC sources are location-independent and normalized before execution.
-- Markdown is a supported source format, not the authority model.
-- Accepted history is immutable provenance and is not startup context.
-- Runtime state, candidate identity, checkpoints, leases, and counters stay out
-  of milestone prose.
-- The Harness is embedded by project tooling and returns structured results.
-- Read-only review, corrective work, verification, and submission remain
-  separate authority boundaries.
-- CPU-heavy commands run serially under one Root Controller unless explicit,
-  conflict-free parallel authority exists.
-- Review findings must trace to project authority; generic preferences cannot
-  manufacture product requirements.
+- Project-owned SPEC and configuration define the work.
+- Source adapters normalize Markdown or machine-readable inputs without making
+  their physical location part of execution identity.
+- The embedded Harness compiles packets, validates contracts, manages bounded
+  execution, and returns structured evidence.
+- A compact active context carries current handoff facts; accepted history
+  remains immutable reference material.
+- Implementation, review, corrective work, verification, and acceptance keep
+  distinct authority boundaries.
+- Canonical framework resources ship with the package under
+  [`sagekit/resources`](sagekit/resources).
 
 ## Architecture
 
@@ -71,7 +57,7 @@ Install the latest tagged release directly from GitHub:
 
 ```bash
 python -m pip install \
-  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.1"
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.2"
 ```
 
 For local development:
@@ -217,20 +203,16 @@ Start with:
 - [`EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
 - [`SPEC_SOURCE_CONTRACT.md`](sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md)
 
-## Development
+## Contributing
 
-Run the same serial lanes used by CI:
+Start with the focused checks for the surface you changed:
 
 ```bash
 python -B -m scripts.run_tests focused --repository .
-python -B -m scripts.run_tests unit --repository .
-python -B -m scripts.run_tests integration --repository .
-python -B -m scripts.run_tests source-repo --repository .
-python -B -m scripts.run_tests package --repository .
 ```
 
-CI covers Python 3.10-3.12 on Linux, Windows, and macOS. Package smoke verifies a
-fresh environment and execution outside the source checkout.
+Additional unit, integration, source-repository, and package lanes are available
+under `scripts.run_tests` when the change reaches those surfaces.
 
 ## Fit
 
