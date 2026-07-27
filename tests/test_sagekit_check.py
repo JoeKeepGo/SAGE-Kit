@@ -1241,45 +1241,40 @@ class SagekitCheckTests(unittest.TestCase):
             references,
         )
 
-    def test_source_repo_check_reports_packaged_resource_mirror_parity(self):
+    def test_source_repo_check_reports_single_canonical_resource_owner(self):
         result = run_compatibility_check(
             "check", "--source-repo", "--json", "--max-findings", "500", cwd=REPO_ROOT
         )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
-        mirrors = [
-            item for item in payload["findings"] if item["rule"] == "source-resource-mirror"
+        hygiene = [
+            item
+            for item in payload["findings"]
+            if item["rule"] in {"source-repository-hygiene", "source-resource-duplication"}
         ]
-        passed_paths = {item["path"] for item in mirrors if item["level"] == "PASS"}
-
-        self.assertIn("sagekit/resources/docs/SAGE_CORE.md", passed_paths)
+        self.assertEqual(len(hygiene), 4, hygiene)
+        self.assertTrue(all(item["level"] == "PASS" for item in hygiene), hygiene)
         self.assertIn(
-            "sagekit/resources/docs/agent/MILESTONE_PLANNING.md",
-            passed_paths,
-        )
-        self.assertFalse(
-            [item for item in mirrors if item["level"] == "FAIL"],
-            mirrors,
+            "sagekit/resources",
+            {item["path"] for item in hygiene},
         )
 
-    def test_source_resource_mirror_reports_orphan_packaged_resource(self):
-        from sagekit.check import check_source_resource_mirrors
+    def test_source_repository_hygiene_rejects_duplicate_top_level_docs(self):
+        from sagekit.check import check_source_repository_hygiene
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
-            resource_root = Path(tmp) / "resources"
-            orphan = resource_root / "docs/templates/ORPHAN_TEMPLATE.md"
-            orphan.parent.mkdir(parents=True)
-            orphan.write_text("# Orphan\n", encoding="utf-8")
+            duplicate = root / "docs/SAGE_CORE.md"
+            duplicate.parent.mkdir(parents=True)
+            duplicate.write_text("# Duplicate\n", encoding="utf-8")
 
-            with patch("sagekit.init.package_resource_root", return_value=resource_root):
-                findings = check_source_resource_mirrors(root)
+            findings = check_source_repository_hygiene(root)
 
         failures = [item for item in findings if item.level == "FAIL"]
         self.assertEqual(len(failures), 1, findings)
-        self.assertEqual(failures[0].rule, "source-resource-mirror")
-        self.assertIn("has no source document", failures[0].message)
+        self.assertEqual(failures[0].rule, "source-resource-duplication")
+        self.assertIn("duplicate packaged canonical resources", failures[0].message)
 
     def test_source_gitignore_runtime_patterns_require_numeric_milestone_dirs(self):
         from sagekit.check import GITIGNORE_RUNTIME_PATTERNS
@@ -1406,13 +1401,13 @@ class SagekitCheckTests(unittest.TestCase):
         milestone = (root / "docs/templates/MILESTONE_TEMPLATE.md").read_text(encoding="utf-8")
         structural = (root / "docs/templates/STRUCTURAL_GATE_TEMPLATE.md").read_text(encoding="utf-8")
 
-        source_paths = sorted((REPO_ROOT / "docs").rglob("*.md")) + sorted(
+        source_paths = sorted((REPO_ROOT / "sagekit/resources/docs").rglob("*.md")) + sorted(
             (REPO_ROOT / "skills/sage-kit").rglob("*.md")
         )
         expected_owners = {
-            "sage-loop-011": "docs/agent/SESSION_ORCHESTRATION.md",
-            "sage-lif-011": "docs/templates/MILESTONE_TEMPLATE.md",
-            "sage-lif-012": "docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
+            "sage-loop-011": "sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md",
+            "sage-lif-011": "sagekit/resources/docs/templates/MILESTONE_TEMPLATE.md",
+            "sage-lif-012": "sagekit/resources/docs/templates/STRUCTURAL_GATE_TEMPLATE.md",
         }
         for anchor, owner_path in expected_owners.items():
             declaration = f'<a id="{anchor}"></a>'
@@ -1598,7 +1593,7 @@ class SagekitCheckTests(unittest.TestCase):
         )
 
         skill_entry = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
-        engineering_source = (REPO_ROOT / "docs/ENGINEERING_SYSTEM_TEMPLATE.md").read_text(
+        engineering_source = (REPO_ROOT / "sagekit/resources/docs/ENGINEERING_SYSTEM_TEMPLATE.md").read_text(
             encoding="utf-8"
         )
         engineering_mirror = (
@@ -1751,16 +1746,16 @@ class SagekitCheckTests(unittest.TestCase):
 
     def test_stage1b_context_and_graph_rules_have_canonical_owners_and_pointers(self):
         paths = {
-            "core": "docs/SAGE_CORE.md",
-            "harness": "docs/agent/AGENT_HARNESS.md",
-            "source": "docs/agent/SPEC_SOURCE_CONTRACT.md",
-            "planning": "docs/agent/MILESTONE_PLANNING.md",
-            "session": "docs/agent/SESSION_ORCHESTRATION.md",
-            "wave": "docs/agent/WAVE_EXECUTION.md",
-            "agent_prompt": "docs/templates/AGENT_PROMPT_TEMPLATE.md",
-            "milestone_packet": "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
-            "lane_packet": "docs/templates/LANE_PACKET_TEMPLATE.md",
-            "result_packet": "docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
+            "core": "sagekit/resources/docs/SAGE_CORE.md",
+            "harness": "sagekit/resources/docs/agent/AGENT_HARNESS.md",
+            "source": "sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md",
+            "planning": "sagekit/resources/docs/agent/MILESTONE_PLANNING.md",
+            "session": "sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md",
+            "wave": "sagekit/resources/docs/agent/WAVE_EXECUTION.md",
+            "agent_prompt": "sagekit/resources/docs/templates/AGENT_PROMPT_TEMPLATE.md",
+            "milestone_packet": "sagekit/resources/docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+            "lane_packet": "sagekit/resources/docs/templates/LANE_PACKET_TEMPLATE.md",
+            "result_packet": "sagekit/resources/docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md",
             "skill": "skills/sage-kit/SKILL.md",
             "adoption": "skills/sage-kit/references/adoption.md",
             "skill_planning": "skills/sage-kit/references/planning.md",
@@ -1870,7 +1865,7 @@ class SagekitCheckTests(unittest.TestCase):
         from sagekit.init import package_resource_root
 
         root = package_resource_root()
-        capability_source = (REPO_ROOT / "docs/agent/CAPABILITY_ADAPTERS.md").read_text(
+        capability_source = (REPO_ROOT / "sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md").read_text(
             encoding="utf-8"
         )
         capability_packaged = (
@@ -1995,10 +1990,10 @@ class SagekitCheckTests(unittest.TestCase):
             "planning": "skills/sage-kit/references/planning.md",
             "execution": "skills/sage-kit/references/execution.md",
             "openai": "skills/sage-kit/agents/openai.yaml",
-            "adapters": "docs/agent/CAPABILITY_ADAPTERS.md",
-            "harness": "docs/agent/AGENT_HARNESS.md",
-            "prompt": "docs/templates/AGENT_PROMPT_TEMPLATE.md",
-            "packet": "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
+            "adapters": "sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md",
+            "harness": "sagekit/resources/docs/agent/AGENT_HARNESS.md",
+            "prompt": "sagekit/resources/docs/templates/AGENT_PROMPT_TEMPLATE.md",
+            "packet": "sagekit/resources/docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
         }
         sources = {
             name: (REPO_ROOT / path).read_text(encoding="utf-8")
@@ -2108,20 +2103,22 @@ class SagekitCheckTests(unittest.TestCase):
             "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
         ):
             packaged = root / source_path
-            self.assertEqual((REPO_ROOT / source_path).read_bytes(), packaged.read_bytes(), source_path)
+            canonical = REPO_ROOT / "sagekit/resources" / source_path
+            self.assertTrue(canonical.is_file(), canonical)
+            self.assertEqual(canonical.read_bytes(), packaged.read_bytes(), source_path)
 
     def test_working_tree_candidate_snapshot_is_explicit_and_bound(self):
         from sagekit.init import package_resource_root
 
         root = package_resource_root()
-        source = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+        source = (REPO_ROOT / "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md").read_text(
             encoding="utf-8"
         )
         packaged = (root / "docs/agent/EXECUTION_ECONOMY.md").read_text(
             encoding="utf-8"
         )
         packet = (
-            REPO_ROOT / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+            REPO_ROOT / "sagekit/resources/docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
         ).read_text(encoding="utf-8")
         skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
         execution = (
@@ -2287,8 +2284,8 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertNotIn("named status/ledger controller", combined)
 
     def test_core_and_readmes_do_not_unconditionally_require_corrective_rereview(self):
-        core = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8")
-        quality = (REPO_ROOT / "docs/QUALITY_GATES_TEMPLATE.md").read_text(encoding="utf-8")
+        core = (REPO_ROOT / "sagekit/resources/docs/SAGE_CORE.md").read_text(encoding="utf-8")
+        quality = (REPO_ROOT / "sagekit/resources/docs/QUALITY_GATES_TEMPLATE.md").read_text(encoding="utf-8")
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         readme_zh = (REPO_ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
 
@@ -2296,7 +2293,7 @@ class SagekitCheckTests(unittest.TestCase):
             self.assertIn("Deterministic Closure", text)
             self.assertIn("VERDICT_FINALIZED_FROM_RECEIPT", text)
         for text in [readme, readme_zh]:
-            self.assertIn("EXECUTION_ECONOMY_REDESIGN.md", text)
+            self.assertIn("sagekit/resources/docs/agent/EXECUTION_ECONOMY.md", text)
 
         self.assertNotIn("- corrective re-review evidence when corrective work changes files", core)
         self.assertNotIn("\n  -> independent corrective re-review\n", readme)

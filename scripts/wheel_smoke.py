@@ -5,6 +5,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -437,14 +438,28 @@ def run_wheel_smoke(repository: Path) -> None:
     environment = isolated_environment()
     with tempfile.TemporaryDirectory(prefix="sagekit-wheel-smoke-") as temp_name:
         workspace = Path(temp_name)
+        source_snapshot = workspace / "source"
         wheelhouse = workspace / "wheelhouse"
         fresh_venv = workspace / "fresh-venv"
         outside_source = workspace / "outside-source"
+        shutil.copytree(
+            repository,
+            source_snapshot,
+            ignore=shutil.ignore_patterns(
+                ".git",
+                ".pytest_cache",
+                "__pycache__",
+                "*.pyc",
+                "build",
+                "dist",
+                "*.egg-info",
+            ),
+        )
         wheelhouse.mkdir()
         outside_source.mkdir()
 
         run(
-            build_command(Path(sys.executable), repository, wheelhouse),
+            build_command(Path(sys.executable), source_snapshot, wheelhouse),
             cwd=outside_source,
             environment=environment,
             repository=repository,

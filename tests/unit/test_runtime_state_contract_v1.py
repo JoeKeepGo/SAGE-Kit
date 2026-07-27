@@ -10,7 +10,7 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASELINE_COMMIT = "fee1246560bf358275c9f213f908b9045a4bf7e7"
 STAGE3D_ENDPOINT_COMMIT = "9b4ce24422bb1f0b630dde5f21d6d1a798f80854"
-CANONICAL = REPOSITORY / "docs/contracts/runtime-state/v1"
+CANONICAL = REPOSITORY / "sagekit/resources/contracts/runtime-state/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/runtime-state/v1"
 RESOURCE_NAMES = (
     "contract.json",
@@ -145,6 +145,12 @@ FORBIDDEN_PROPERTIES = {
 
 def load_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def current_resource_path(relative):
+    if relative.startswith("docs/contracts/"):
+        relative = relative.replace("docs/contracts/", "sagekit/resources/contracts/", 1)
+    return REPOSITORY / relative
 
 
 def sha256(path):
@@ -401,7 +407,7 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
         self.assertEqual("urn:sagekit:graph-contract:v1", dependency["contract_id"])
         self.assertEqual("docs/contracts/graph/v1/contract.json", dependency["contract_resource"])
         self.assertEqual(GRAPH_RESOURCE_DIGESTS["contract.json"], dependency["canonical_contract_sha256"])
-        graph_manifest = load_json(REPOSITORY / dependency["contract_resource"])
+        graph_manifest = load_json(current_resource_path(dependency["contract_resource"]))
         self.assertEqual(
             graph_manifest["resources"]["graph_schema"]["canonical_sha256"],
             dependency["canonical_resource_integrity"]["graph_schema_sha256"],
@@ -704,7 +710,7 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
             path.parent.relative_to(REPOSITORY).as_posix()
             for path in (REPOSITORY / "sagekit/resources").rglob("runtime-state/v1/contract.json")
         }
-        self.assertEqual({"docs/contracts/runtime-state/v1"}, canonical_families)
+        self.assertEqual(set(), canonical_families)
         self.assertEqual({"sagekit/resources/contracts/runtime-state/v1"}, packaged_families)
 
     def test_stage2_resources_and_capability_boundaries_are_unchanged(self):

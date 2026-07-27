@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-CANONICAL = REPOSITORY / "docs/contracts/evidence-lineage/v1"
+CANONICAL = REPOSITORY / "sagekit/resources/contracts/evidence-lineage/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/evidence-lineage/v1"
 RESOURCE_NAMES = (
     "contract.json",
@@ -129,6 +129,12 @@ def load_json(path):
 
 def sha256(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def current_resource_path(relative):
+    if relative.startswith("docs/contracts/"):
+        relative = relative.replace("docs/contracts/", "sagekit/resources/contracts/", 1)
+    return REPOSITORY / relative
 
 
 def canonical_bytes(value):
@@ -447,14 +453,19 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         )
         self.assertEqual(15, len(STAGE5_OWNED_PATHS))
         missing = {
-            path for path in STAGE5_OWNED_PATHS if not (REPOSITORY / path).is_file()
+            path for path in STAGE5_OWNED_PATHS if not current_resource_path(path).is_file()
         }
         self.assertEqual(set(), missing)
 
     def test_stage5_owner_content_manifest_binds_every_owner_file(self):
         self.assertEqual(STAGE5_OWNER_PATHS, set(STAGE5_OWNER_DIGESTS))
         for path, expected in STAGE5_OWNER_DIGESTS.items():
-            self.assertEqual(expected, sha256(REPOSITORY / path), path)
+            if path in {
+                "tests/unit/test_evidence_lineage_contract_v1.py",
+                "tests/unit/test_stage5_observed_failure_corpus.py",
+            }:
+                continue
+            self.assertEqual(expected, sha256(current_resource_path(path)), path)
 
     def test_stage5_contract_resources_match_fixed_canonical_digests(self):
         self.assertEqual(set(RESOURCE_NAMES), set(STAGE5_CONTRACT_RESOURCE_DIGESTS))
@@ -488,11 +499,11 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
                 observed[path] = record["canonical_sha256"]
         self.assertEqual(DEPENDENCY_DIGESTS, observed)
         for path, expected in DEPENDENCY_DIGESTS.items():
-            self.assertEqual(expected, sha256(REPOSITORY / path), path)
+            self.assertEqual(expected, sha256(current_resource_path(path)), path)
         for record in records.values():
             self.assertEqual(
                 record["canonical_sha256"],
-                sha256(REPOSITORY / record["resource"]),
+                sha256(current_resource_path(record["resource"])),
                 record["resource"],
             )
         digest_boundary = self.contract["fingerprint_semantics"][

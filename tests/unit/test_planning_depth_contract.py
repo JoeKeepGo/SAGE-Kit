@@ -8,8 +8,8 @@ class PlanningDepthContractTests(unittest.TestCase):
     def test_canonical_contract_has_no_general_planning_count_or_file_ceiling(self) -> None:
         repository = Path(__file__).resolve().parents[2]
         paths = (
-            repository / "docs/agent/MILESTONE_PLANNING.md",
-            repository / "docs/agent/WAVE_EXECUTION.md",
+            repository / "sagekit/resources/docs/agent/MILESTONE_PLANNING.md",
+            repository / "sagekit/resources/docs/agent/WAVE_EXECUTION.md",
             repository / "skills/sage-kit/SKILL.md",
         )
         text = "\n".join(path.read_text(encoding="utf-8") for path in paths)

@@ -61,7 +61,8 @@ Harness 的强制目录；配置化 SPEC source 或 adapter 可以提供同一 n
 - `docs/MILESTONE_ROADMAP.md`
 - milestone ledger、phase 文档、closeout 文档
 
-模板仍放在 [`docs`](docs) 和 [`docs/templates`](docs/templates)。
+规范模板和框架契约统一放在 [`sagekit/resources`](sagekit/resources)。项目仍可使用
+`docs/...` 作为 consumer 布局，但本仓库不再维护重复的物理副本。
 
 ## 集成方式
 
@@ -115,8 +116,7 @@ Coding skill、插件、MCP、CI、浏览器自动化、Reviewer 都是执行输
 ## 仓库结构
 
 ```text
-docs/                 框架规则、模板与可选 Profile
-sagekit/              Harness 核心与打包资源
+sagekit/              Harness 核心与规范打包资源
 skills/sage-kit/      runtime 技能入口与环境画像
 scripts/              独立验证脚本
 tests/                单元与兼容测试
@@ -124,8 +124,8 @@ tests/                单元与兼容测试
 
 完整契约先看：
 
-- [`docs/SAGE_CORE.md`](docs/SAGE_CORE.md)
-- [`docs/design/EXECUTION_ECONOMY_REDESIGN.md`](docs/design/EXECUTION_ECONOMY_REDESIGN.md)
+- [`sagekit/resources/docs/SAGE_CORE.md`](sagekit/resources/docs/SAGE_CORE.md)
+- [`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
 
 ## 适用性
 

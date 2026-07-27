@@ -40,7 +40,6 @@ TEST_MODULE_LANES = {
     "test_package_smoke": "unit",
     "test_packet_compile": "unit",
     "test_spec_sources": "unit",
-    "test_stage8_compatibility": "unit",
     "test_pathing": "unit",
     "test_sagekit_check": "integration",
     "test_task_dispatch_validator": "unit",

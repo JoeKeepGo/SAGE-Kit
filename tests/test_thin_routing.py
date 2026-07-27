@@ -11,7 +11,7 @@ from sagekit import (
     compile_ephemeral_packet,
     write_ephemeral_packet,
 )
-from sagekit.check import check_execution_documents, check_source_execution_document_mirrors
+from sagekit.check import check_execution_documents
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -237,25 +237,23 @@ class ThinExecutionRoutingTests(unittest.TestCase):
             )
             self.assertFalse(any(item.rule == "phase-governance" for item in findings))
 
-    def test_execution_contract_source_and_package_mirrors_are_bidirectional(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            source = root / "docs/contracts/execution-documents/v1/contract.json"
-            packaged = root / "sagekit/resources/execution_documents/v1/contract.json"
-            source.parent.mkdir(parents=True)
-            packaged.parent.mkdir(parents=True)
-            source.write_text('{"schema_version":1}\n', encoding="utf-8")
-            packaged.write_bytes(source.read_bytes())
-
-            self.assertFalse(
-                any(item.level == "FAIL" for item in check_source_execution_document_mirrors(root))
-            )
-
-            packaged.write_text('{"schema_version":2}\n', encoding="utf-8")
-            findings = check_source_execution_document_mirrors(root)
-            self.assertTrue(
-                any(item.level == "FAIL" and item.rule == "execution-resource-mirror" for item in findings)
-            )
+    def test_execution_contract_runtime_and_document_resources_are_package_owned(self):
+        version = "2026.7.20.1"
+        runtime = (
+            REPO_ROOT
+            / "sagekit/resources/execution_documents"
+            / version
+            / "contract.json"
+        )
+        documented = (
+            REPO_ROOT
+            / "sagekit/resources/docs/contracts/execution-documents"
+            / version
+            / "contract.json"
+        )
+        self.assertTrue(runtime.is_file(), runtime)
+        self.assertTrue(documented.is_file(), documented)
+        self.assertEqual(runtime.read_bytes(), documented.read_bytes())
 
     def test_explicit_thin_milestone_routes_to_thin_checker(self):
         with tempfile.TemporaryDirectory() as tmp:

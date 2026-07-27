@@ -17,9 +17,9 @@ from sagekit.graph_contract import (
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASELINE_COMMIT = "3fea7f3654838ff841a0f04203039de80657b3cd"
 STAGE4C1_ENDPOINT_COMMIT = "f2ead832fe5c639bb7fa15b28c8fd8b9ed3adca8"
-CANONICAL = REPOSITORY / "docs/contracts/transition-resolution/v1"
+CANONICAL = REPOSITORY / "sagekit/resources/contracts/transition-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/transition-resolution/v1"
-NODE_RESULT_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/node-result.schema.json"
+NODE_RESULT_SCHEMA = REPOSITORY / "sagekit/resources/contracts/graph/v1/node-result.schema.json"
 RESOURCE_NAMES = (
     "contract.json",
     "error.schema.json",
@@ -164,6 +164,12 @@ def load_json(path):
 
 def canonical_sha256(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def current_resource_path(relative):
+    if relative.startswith("docs/contracts/"):
+        relative = relative.replace("docs/contracts/", "sagekit/resources/contracts/", 1)
+    return REPOSITORY / relative
 
 
 def normalize_json_integers(value):
@@ -711,7 +717,7 @@ class TransitionResolutionContractV1Tests(unittest.TestCase):
         for key, digest in expected.items():
             self.assertEqual(digest, dependency_records[key]["canonical_sha256"])
         for path, digest in DEPENDENCY_DIGESTS.items():
-            self.assertEqual(digest, canonical_sha256(REPOSITORY / path))
+            self.assertEqual(digest, canonical_sha256(current_resource_path(path)))
 
     def test_transition_classifies_terminal_gate_successors_as_graph_invalid(self):
         relation = self.contract["dependencies"]["graph_contract_v1"]["relation"]

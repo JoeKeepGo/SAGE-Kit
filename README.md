@@ -72,7 +72,9 @@ adapters may provide the same normalized facts without recreating this tree.
 - milestone ledgers and phase documents
 - milestone closeout documents
 
-Templates continue to live under [`docs`](docs) and [`docs/templates`](docs/templates).
+Canonical templates and framework contracts live under
+[`sagekit/resources`](sagekit/resources). Project-local `docs/...` paths remain
+supported as a consumer layout, but they are not duplicated in this repository.
 
 ## Integration Architecture
 
@@ -133,8 +135,7 @@ execution inputs. They may run inside SAGE boundaries, but none may:
 ## Repository Guide
 
 ```text
-docs/                 Framework rules, templates, and optional profiles
-sagekit/              Harness core and packaged resources
+sagekit/              Harness core and canonical packaged resources
 skills/sage-kit/      Runtime skill entrypoints and profiles
 scripts/              Standalone validation helpers
 tests/                Unit and compatibility tests
@@ -142,8 +143,8 @@ tests/                Unit and compatibility tests
 
 For full contract text, start with:
 
-- [`docs/SAGE_CORE.md`](docs/SAGE_CORE.md)
-- [`docs/design/EXECUTION_ECONOMY_REDESIGN.md`](docs/design/EXECUTION_ECONOMY_REDESIGN.md)
+- [`sagekit/resources/docs/SAGE_CORE.md`](sagekit/resources/docs/SAGE_CORE.md)
+- [`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
 
 ## Is It A Good Fit?
 

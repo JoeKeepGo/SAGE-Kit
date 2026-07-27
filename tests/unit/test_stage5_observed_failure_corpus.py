@@ -40,7 +40,7 @@ from sagekit.review import EvaluatorRisk, select_evaluator
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_PATH = REPO_ROOT / "docs/design/rebuild/SCENARIO_EVAL_CANDIDATES.json"
+SOURCE_PATH = REPO_ROOT / "tests/fixtures/stage5_observed_failure_candidates.json"
 FIXTURE_PATH = (
     REPO_ROOT / "tests/fixtures/stage5_observed_failure_corpus_v1.json"
 )

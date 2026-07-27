@@ -19,7 +19,7 @@ from sagekit.validation_scope_manifest import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_ROOT = REPO_ROOT / "docs/profiles/task-dispatch/templates"
+TEMPLATE_ROOT = REPO_ROOT / "sagekit/resources/docs/profiles/task-dispatch/templates"
 BASELINE_HEAD = "0123456789abcdef0123456789abcdef01234567"
 
 
@@ -816,7 +816,7 @@ class ScopeManifestPhaseAndRuntimeTests(unittest.TestCase):
 
 class ScopeManifestPackagingTests(unittest.TestCase):
     def test_source_template_and_packaged_mirror_are_equal(self):
-        source = REPO_ROOT / "docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json"
+        source = REPO_ROOT / "sagekit/resources/docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json"
         packaged = (
             REPO_ROOT
             / "sagekit/resources/docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json"
@@ -825,7 +825,7 @@ class ScopeManifestPackagingTests(unittest.TestCase):
         self.assertEqual(source.read_bytes(), packaged.read_bytes())
 
     def test_template_is_not_valid_authority_until_placeholders_are_completed(self):
-        source = REPO_ROOT / "docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json"
+        source = REPO_ROOT / "sagekit/resources/docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json"
 
         with self.assertRaises(ScopeManifestError):
             load_validation_scope_manifest(source)

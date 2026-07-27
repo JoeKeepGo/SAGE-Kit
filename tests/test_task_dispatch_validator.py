@@ -15,8 +15,14 @@ from sagekit.task_dispatch_validator import (
 )
 
 
-SCHEMA_DIR = Path(__file__).resolve().parents[1] / "docs/profiles/task-dispatch/schemas"
-TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "docs/profiles/task-dispatch/templates"
+SCHEMA_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "sagekit/resources/docs/profiles/task-dispatch/schemas"
+)
+TEMPLATE_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "sagekit/resources/docs/profiles/task-dispatch/templates"
+)
 
 
 def valid_task():
@@ -1026,10 +1032,14 @@ class EvidenceValidationTests(unittest.TestCase):
 class TaskDispatchProfileArchitectureTests(unittest.TestCase):
     def test_profile_uses_authority_activation_and_embedded_harness(self):
         root = Path(__file__).resolve().parents[1]
-        profile = (root / "docs/profiles/task-dispatch/DISPATCH_PROFILE.md").read_text(
+        profile = (
+            root / "sagekit/resources/docs/profiles/task-dispatch/DISPATCH_PROFILE.md"
+        ).read_text(
             encoding="utf-8-sig"
         )
-        readme = (root / "docs/profiles/task-dispatch/README.md").read_text(
+        readme = (
+            root / "sagekit/resources/docs/profiles/task-dispatch/README.md"
+        ).read_text(
             encoding="utf-8-sig"
         )
 
@@ -1052,7 +1062,9 @@ class TaskDispatchProfileArchitectureTests(unittest.TestCase):
 
     def test_base_phase_template_only_references_optional_profiles(self):
         root = Path(__file__).resolve().parents[1]
-        source = (root / "docs/templates/PHASE_TEMPLATE.md").read_text(encoding="utf-8-sig")
+        source = (
+            root / "sagekit/resources/docs/templates/PHASE_TEMPLATE.md"
+        ).read_text(encoding="utf-8-sig")
         packaged = (
             root / "sagekit/resources/docs/templates/PHASE_TEMPLATE.md"
         ).read_text(encoding="utf-8-sig")

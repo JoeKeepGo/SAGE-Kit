@@ -30,54 +30,54 @@ PERMISSION_MODES = [
 ]
 
 SOURCE_REPO_MARKERS = [
-    "docs/SAGE_CORE.md",
+    "sagekit/resources/docs/SAGE_CORE.md",
     "skills/sage-kit/SKILL.md",
-    "docs/PROJECT_PROFILE_TEMPLATE.md",
+    "pyproject.toml",
 ]
 
 SOURCE_REQUIRED_FILES = [
     "pyproject.toml",
     "README.md",
     "README.zh-CN.md",
-    "docs/SAGE_CORE.md",
-    "docs/PROJECT_PROFILE_TEMPLATE.md",
-    "docs/QUALITY_GATES_TEMPLATE.md",
-    "docs/ACTIVE_CONTEXT_TEMPLATE.md",
-    "docs/DOC_ROUTING_TEMPLATE.md",
-    "docs/TECHNICAL_DESIGN_TEMPLATE.md",
-    "docs/ENGINEERING_SYSTEM_TEMPLATE.md",
-    "docs/APPROVAL_GATES_TEMPLATE.md",
-    "docs/templates/PHASE_TEMPLATE.md",
-    "docs/templates/MILESTONE_LEDGER_TEMPLATE.md",
-    "docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md",
-    "docs/templates/COMPLETION_REPORT_TEMPLATE.md",
-    "docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json",
-    "docs/templates/SAGE_PROJECT_TEMPLATE.json",
-    "docs/templates/THIN_MILESTONE_TEMPLATE.json",
-    "docs/templates/THIN_PHASE_TEMPLATE.json",
-    "docs/contracts/execution-documents/2026.7.19.3/contract.json",
-    "docs/contracts/execution-documents/2026.7.19.3/project.schema.json",
-    "docs/contracts/execution-documents/2026.7.19.3/milestone.schema.json",
-    "docs/contracts/execution-documents/2026.7.19.3/phase.schema.json",
-    "docs/contracts/execution-documents/2026.7.19.3/profiles/standard-milestone-v1.json",
-    "docs/contracts/execution-documents/2026.7.19.3/profiles/standard-phase-v1.json",
-    "docs/contracts/execution-documents/2026.7.20.1/contract.json",
-    "docs/contracts/execution-documents/2026.7.20.1/project.schema.json",
-    "docs/contracts/execution-documents/2026.7.20.1/milestone.schema.json",
-    "docs/contracts/execution-documents/2026.7.20.1/phase.schema.json",
-    "docs/contracts/execution-documents/2026.7.20.1/profiles/standard-milestone-v1.json",
-    "docs/contracts/execution-documents/2026.7.20.1/profiles/standard-phase-v1.json",
-    "docs/contracts/resource-governance/conservative-host-v1.json",
-    "docs/agent/GOVERNANCE_LEVELS.md",
-    "docs/agent/SESSION_ORCHESTRATION.md",
-    "docs/agent/CAPABILITY_ADAPTERS.md",
-    "docs/agent/EXECUTION_ECONOMY.md",
-    "docs/agent/CONTINUITY_PROTOCOL.md",
-    "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
-    "docs/agent/HOST_RESOURCE_GOVERNANCE.md",
-    "docs/agent/SPEC_SOURCE_CONTRACT.md",
-    "docs/profiles/task-dispatch/schemas/task.schema.json",
-    "docs/profiles/task-dispatch/schemas/evidence.schema.json",
+    "sagekit/resources/docs/SAGE_CORE.md",
+    "sagekit/resources/docs/PROJECT_PROFILE_TEMPLATE.md",
+    "sagekit/resources/docs/QUALITY_GATES_TEMPLATE.md",
+    "sagekit/resources/docs/ACTIVE_CONTEXT_TEMPLATE.md",
+    "sagekit/resources/docs/DOC_ROUTING_TEMPLATE.md",
+    "sagekit/resources/docs/TECHNICAL_DESIGN_TEMPLATE.md",
+    "sagekit/resources/docs/ENGINEERING_SYSTEM_TEMPLATE.md",
+    "sagekit/resources/docs/APPROVAL_GATES_TEMPLATE.md",
+    "sagekit/resources/docs/templates/PHASE_TEMPLATE.md",
+    "sagekit/resources/docs/templates/MILESTONE_LEDGER_TEMPLATE.md",
+    "sagekit/resources/docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md",
+    "sagekit/resources/docs/templates/COMPLETION_REPORT_TEMPLATE.md",
+    "sagekit/resources/docs/templates/SAGE_VALIDATION_SCOPE_TEMPLATE.json",
+    "sagekit/resources/docs/templates/SAGE_PROJECT_TEMPLATE.json",
+    "sagekit/resources/docs/templates/THIN_MILESTONE_TEMPLATE.json",
+    "sagekit/resources/docs/templates/THIN_PHASE_TEMPLATE.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/contract.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/project.schema.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/milestone.schema.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/phase.schema.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/profiles/standard-milestone-v1.json",
+    "sagekit/resources/execution_documents/2026.7.19.3/profiles/standard-phase-v1.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/contract.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/project.schema.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/milestone.schema.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/phase.schema.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/profiles/standard-milestone-v1.json",
+    "sagekit/resources/execution_documents/2026.7.20.1/profiles/standard-phase-v1.json",
+    "sagekit/resources/resource_governance/conservative-host-v1.json",
+    "sagekit/resources/docs/agent/GOVERNANCE_LEVELS.md",
+    "sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md",
+    "sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md",
+    "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
+    "sagekit/resources/docs/agent/CONTINUITY_PROTOCOL.md",
+    "sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
+    "sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md",
+    "sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md",
+    "sagekit/resources/docs/profiles/task-dispatch/schemas/task.schema.json",
+    "sagekit/resources/docs/profiles/task-dispatch/schemas/evidence.schema.json",
     "skills/sage-kit/SKILL.md",
     "sagekit/__init__.py",
     "sagekit/harness.py",
@@ -756,7 +756,7 @@ def run_source_repo_check(start: Path) -> list[Finding]:
             Finding(
                 "PASS",
                 "source-repo",
-                relpath(root, root / "docs/SAGE_CORE.md"),
+                relpath(root, root / "sagekit/resources/docs/SAGE_CORE.md"),
                 None,
                 "SAGE-Kit source repository detected",
             )
@@ -777,9 +777,7 @@ def run_source_repo_check(start: Path) -> list[Finding]:
     findings.extend(check_source_required_files(root))
     findings.extend(check_source_init_resources(root))
     findings.extend(check_source_resource_references(root))
-    findings.extend(check_source_resource_mirrors(root))
-    findings.extend(check_source_execution_document_mirrors(root))
-    findings.extend(check_source_resource_governance_mirrors(root))
+    findings.extend(check_source_repository_hygiene(root))
     findings.extend(check_source_pyproject(root))
     findings.extend(check_source_gitignore(root))
     try:
@@ -805,144 +803,56 @@ def is_kit_source_repo(root: Path) -> bool:
     return all((root / marker).exists() for marker in SOURCE_REPO_MARKERS)
 
 
-def check_source_execution_document_mirrors(root: Path) -> list[Finding]:
-    """Require a byte-identical, bidirectional source/package contract tree."""
-
-    source_root = root / "docs/contracts/execution-documents"
-    package_root = root / "sagekit/resources/execution_documents"
-    source_files = {
-        path.relative_to(source_root).as_posix(): path
-        for path in source_root.rglob("*")
-        if path.is_file()
-    } if source_root.is_dir() else {}
-    package_files = {
-        path.relative_to(package_root).as_posix(): path
-        for path in package_root.rglob("*")
-        if path.is_file()
-    } if package_root.is_dir() else {}
+def check_source_repository_hygiene(root: Path) -> list[Finding]:
+    forbidden = [
+        "rebuild.md",
+        "docs/design/rebuild",
+        "docs/design/EXECUTION_ECONOMY_REDESIGN.md",
+    ]
     findings: list[Finding] = []
-    for relative in sorted(set(source_files) | set(package_files)):
-        source = source_files.get(relative)
-        packaged = package_files.get(relative)
-        display = f"docs/contracts/execution-documents/{relative}"
-        if source is None:
+    for relative in forbidden:
+        path = root / relative
+        if path.exists():
             findings.append(
                 Finding(
                     "FAIL",
-                    "execution-resource-mirror",
-                    display,
+                    "source-repository-hygiene",
+                    relative,
                     None,
-                    "packaged execution contract has no source counterpart",
-                )
-            )
-        elif packaged is None:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "execution-resource-mirror",
-                    display,
-                    None,
-                    "source execution contract has no packaged counterpart",
-                )
-            )
-        elif source.read_bytes() != packaged.read_bytes():
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "execution-resource-mirror",
-                    display,
-                    None,
-                    "source and packaged execution contracts differ byte-for-byte",
+                    "internal rebuild or design-process artifact is tracked in the product tree",
+                    "Remove the process artifact; Git history retains its provenance.",
                 )
             )
         else:
             findings.append(
                 Finding(
                     "PASS",
-                    "execution-resource-mirror",
-                    display,
+                    "source-repository-hygiene",
+                    relative,
                     None,
-                    "source and packaged execution contracts match",
+                    "internal process artifact is absent",
                 )
             )
-    if not source_files and not package_files:
+    docs_root = root / "docs"
+    if docs_root.exists():
         findings.append(
             Finding(
                 "FAIL",
-                "execution-resource-mirror",
-                "docs/contracts/execution-documents",
+                "source-resource-duplication",
+                "docs",
                 None,
-                "versioned execution contract resources are missing",
+                "top-level source resources duplicate packaged canonical resources",
+                "Keep publishable resources only under sagekit/resources.",
             )
         )
-    return findings
-
-
-def check_source_resource_governance_mirrors(root: Path) -> list[Finding]:
-    """Require resource contract source and runtime resources to match exactly."""
-
-    source_root = root / "docs/contracts/resource-governance"
-    package_root = root / "sagekit/resources/resource_governance"
-    source_files = (
-        {
-            path.relative_to(source_root).as_posix(): path
-            for path in source_root.rglob("*")
-            if path.is_file()
-        }
-        if source_root.is_dir()
-        else {}
-    )
-    package_files = (
-        {
-            path.relative_to(package_root).as_posix(): path
-            for path in package_root.rglob("*")
-            if path.is_file()
-        }
-        if package_root.is_dir()
-        else {}
-    )
-    findings: list[Finding] = []
-    for relative in sorted(set(source_files) | set(package_files)):
-        source = source_files.get(relative)
-        packaged = package_files.get(relative)
-        display = f"docs/contracts/resource-governance/{relative}"
-        if source is None or packaged is None:
-            message = (
-                "packaged resource contract has no source counterpart"
-                if source is None
-                else "source resource contract has no packaged counterpart"
-            )
-            findings.append(
-                Finding("FAIL", "resource-governance-mirror", display, None, message)
-            )
-        elif source.read_bytes() != packaged.read_bytes():
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "resource-governance-mirror",
-                    display,
-                    None,
-                    "source and packaged resource contracts differ byte-for-byte",
-                )
-            )
-        else:
-            findings.append(
-                Finding(
-                    "PASS",
-                    "resource-governance-mirror",
-                    display,
-                    None,
-                    "source and packaged resource contracts match",
-                )
-            )
-    if not source_files and not package_files:
+    else:
         findings.append(
             Finding(
-                "FAIL",
-                "resource-governance-mirror",
-                "docs/contracts/resource-governance",
+                "PASS",
+                "source-resource-duplication",
+                "sagekit/resources",
                 None,
-                "versioned resource governance contracts are missing",
+                "packaged resources are the single canonical source",
             )
         )
     return findings
@@ -1119,74 +1029,6 @@ def summarize_reference_sources(sources: set[str]) -> str:
     if len(ordered) <= 3:
         return ", ".join(ordered)
     return ", ".join(ordered[:3]) + f", and {len(ordered) - 3} more"
-
-
-def check_source_resource_mirrors(root: Path) -> list[Finding]:
-    try:
-        from .init import package_resource_root
-    except Exception as exc:
-        return [
-            Finding(
-                "FAIL",
-                "source-resource-mirror",
-                "sagekit/init.py",
-                None,
-                f"could not load packaged resource root: {exc}",
-            )
-        ]
-
-    source_root = package_resource_root()
-    docs_root = source_root / "docs"
-    if not docs_root.exists():
-        return [
-            Finding(
-                "FAIL",
-                "source-resource-mirror",
-                relpath(root, docs_root),
-                None,
-                "packaged docs resource root missing",
-            )
-        ]
-
-    findings: list[Finding] = []
-    for resource_path in sorted(path for path in docs_root.rglob("*") if path.is_file()):
-        relative = resource_path.relative_to(source_root).as_posix()
-        source_path = root / relative
-        display = relpath(root, resource_path)
-        if not source_path.exists() or not source_path.is_file():
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "source-resource-mirror",
-                    display,
-                    None,
-                    f"{relative} has no source document",
-                    "Remove the orphan packaged resource or add the matching source document.",
-                )
-            )
-            continue
-        if read_text(resource_path) == read_text(source_path):
-            findings.append(
-                Finding(
-                    "PASS",
-                    "source-resource-mirror",
-                    display,
-                    None,
-                    f"{relative} matches source document",
-                )
-            )
-        else:
-            findings.append(
-                Finding(
-                    "FAIL",
-                    "source-resource-mirror",
-                    display,
-                    None,
-                    f"{relative} differs from source document",
-                    "Copy the updated source document into sagekit/resources before release.",
-                )
-            )
-    return findings
 
 
 def check_source_pyproject(root: Path) -> list[Finding]:
@@ -2753,7 +2595,6 @@ def validate_task_dispatch_pair_with_scope(
 def default_schema_dir(root: Path) -> Path | None:
     candidates = [
         root / "docs/profiles/task-dispatch/schemas",
-        Path(__file__).resolve().parents[1] / "docs/profiles/task-dispatch/schemas",
         Path(__file__).resolve().parent / "resources/docs/profiles/task-dispatch/schemas",
     ]
     for candidate in candidates:

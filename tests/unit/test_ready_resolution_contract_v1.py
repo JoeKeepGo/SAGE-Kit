@@ -10,9 +10,9 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASELINE_COMMIT = "e571849149d614f4fb365bc2255185f1263ab535"
 STAGE4A_ENDPOINT_COMMIT = "0ef078ae0486fbeae3b71936e764baa668bb127d"
-CANONICAL = REPOSITORY / "docs/contracts/ready-resolution/v1"
+CANONICAL = REPOSITORY / "sagekit/resources/contracts/ready-resolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/ready-resolution/v1"
-GRAPH_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/graph.schema.json"
+GRAPH_SCHEMA = REPOSITORY / "sagekit/resources/contracts/graph/v1/graph.schema.json"
 RESOURCE_NAMES = (
     "contract.json",
     "error.schema.json",
@@ -177,6 +177,12 @@ def load_json(path):
 
 def canonical_sha256(path):
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def current_resource_path(relative):
+    if relative.startswith("docs/contracts/"):
+        relative = relative.replace("docs/contracts/", "sagekit/resources/contracts/", 1)
+    return REPOSITORY / relative
 
 
 def normalize_unicode_scalars(item):
@@ -903,7 +909,11 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
 
     def test_manifest_binds_graph_node_result_and_runtime_dependencies(self):
         for relative_path, expected in DEPENDENCY_DIGESTS.items():
-            self.assertEqual(expected, canonical_sha256(REPOSITORY / relative_path), relative_path)
+            self.assertEqual(
+                expected,
+                canonical_sha256(current_resource_path(relative_path)),
+                relative_path,
+            )
         dependencies = self.manifest["dependencies"]
         self.assertEqual(
             {
@@ -1968,13 +1978,12 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         self.assertEqual(EXPECTED_STAGE4A_PATHS, changed_paths_in_stage4a())
         manifests = {
             str(path.relative_to(REPOSITORY)).replace("\\", "/")
-            for path in REPOSITORY.rglob("ready-resolution/v1/contract.json")
+            for path in (REPOSITORY / "sagekit/resources").rglob(
+                "ready-resolution/v1/contract.json"
+            )
         }
         self.assertEqual(
-            {
-                "docs/contracts/ready-resolution/v1/contract.json",
-                "sagekit/resources/contracts/ready-resolution/v1/contract.json",
-            },
+            {"sagekit/resources/contracts/ready-resolution/v1/contract.json"},
             manifests,
         )
 

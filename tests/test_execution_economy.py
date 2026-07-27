@@ -1530,7 +1530,7 @@ class DocumentationPolicyTests(unittest.TestCase):
             "agent/EXECUTION_ECONOMY.md",
             "agent/CONTINUITY_PROTOCOL.md",
         ):
-            source = REPO_ROOT / "docs" / relative
+            source = REPO_ROOT / "sagekit/resources/docs" / relative
             packaged = REPO_ROOT / "sagekit/resources/docs" / relative
             self.assertTrue(source.is_file(), relative)
             self.assertEqual(
@@ -1539,7 +1539,7 @@ class DocumentationPolicyTests(unittest.TestCase):
             )
 
     def test_execution_economy_doc_contains_normative_contracts(self):
-        text = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(encoding="utf-8")
+        text = (REPO_ROOT / "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md").read_text(encoding="utf-8")
         for token in (
             "C0 Record-only",
             "C1 Bounded corrective",
@@ -1563,7 +1563,7 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertNotRegex(text, r"\b(?:70|85|100)%\s+token")
 
     def test_continuity_doc_defines_checkpoint_and_commands(self):
-        text = (REPO_ROOT / "docs/agent/CONTINUITY_PROTOCOL.md").read_text(encoding="utf-8")
+        text = (REPO_ROOT / "sagekit/resources/docs/agent/CONTINUITY_PROTOCOL.md").read_text(encoding="utf-8")
         self.assertIn(".sagekit/runtime/CURRENT_RUN.json", text)
         self.assertIn("fail closed", text)
         self.assertIn("checkpoint schema v4", text)
@@ -1571,7 +1571,7 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertIn("started verification attempts", text)
 
     def test_core_records_bootstrap_maintainer_exception_without_project_bypass(self):
-        text = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8")
+        text = (REPO_ROOT / "sagekit/resources/docs/SAGE_CORE.md").read_text(encoding="utf-8")
         self.assertIn("Bootstrap Maintainer Policy", text)
         self.assertIn("dogfood is a validation mode", text)
         self.assertIn("does not apply to adopted target projects", text)
@@ -1580,7 +1580,7 @@ class DocumentationPolicyTests(unittest.TestCase):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
         self.assertIn("Stable `sage-loop-*` anchors", text)
-        owner = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+        owner = (REPO_ROOT / "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md").read_text(
             encoding="utf-8"
         )
         for anchor in (
@@ -1607,10 +1607,7 @@ class DocumentationPolicyTests(unittest.TestCase):
             "Managed expensive verification is eligible only for a frozen candidate "
             "whose fingerprint matches current inputs."
         )
-        owner_paths = (
-            "docs/agent/EXECUTION_ECONOMY.md",
-            "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
-        )
+        owner_paths = ("sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",)
 
         for relative in owner_paths:
             with self.subTest(path=relative):
@@ -1630,11 +1627,11 @@ class DocumentationPolicyTests(unittest.TestCase):
                 self.assertNotIn(core_rule, " ".join(text.split()))
 
     def test_stage1c_loop_rules_have_unique_owners_and_stable_pointers(self):
-        owner = REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md"
+        owner = REPO_ROOT / "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md"
         economy = owner.read_text(encoding="utf-8")
         normalized = " ".join(economy.split())
         loop_ids = ("001", "002", "003", "006", "007", "008", "009", "010", "012", "013")
-        source_paths = sorted((REPO_ROOT / "docs").rglob("*.md")) + sorted(
+        source_paths = sorted((REPO_ROOT / "sagekit/resources/docs").rglob("*.md")) + sorted(
             (REPO_ROOT / "skills/sage-kit").rglob("*.md")
         )
         for rule_id in loop_ids:
@@ -1646,7 +1643,8 @@ class DocumentationPolicyTests(unittest.TestCase):
                     if count:
                         occurrences.append((path.relative_to(REPO_ROOT).as_posix(), count))
                 self.assertEqual(
-                    [("docs/agent/EXECUTION_ECONOMY.md", 1)], occurrences
+                    [("sagekit/resources/docs/agent/EXECUTION_ECONOMY.md", 1)],
+                    occurrences,
                 )
 
         self.assertIn("no independent reviewer by default", economy)
@@ -1663,11 +1661,11 @@ class DocumentationPolicyTests(unittest.TestCase):
         pointers = {
             "skills/sage-kit/references/execution.md": ("#sage-loop-003", "#sage-loop-007"),
             "skills/sage-kit/references/review-completion.md": ("#sage-loop-008", "#sage-loop-010"),
-            "docs/agent/CONTINUITY_PROTOCOL.md": ("#sage-loop-006", "#sage-loop-009"),
-            "docs/agent/SESSION_ORCHESTRATION.md": ("#sage-loop-008", "#sage-loop-010"),
-            "docs/templates/CORRECTIVE_PACKET_TEMPLATE.md": ("#sage-loop-001", "#sage-loop-009"),
-            "docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md": ("#sage-loop-002", "#sage-loop-010"),
-            "docs/templates/COMPLETION_REPORT_TEMPLATE.md": ("#sage-loop-013",),
+            "sagekit/resources/docs/agent/CONTINUITY_PROTOCOL.md": ("#sage-loop-006", "#sage-loop-009"),
+            "sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md": ("#sage-loop-008", "#sage-loop-010"),
+            "sagekit/resources/docs/templates/CORRECTIVE_PACKET_TEMPLATE.md": ("#sage-loop-001", "#sage-loop-009"),
+            "sagekit/resources/docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md": ("#sage-loop-002", "#sage-loop-010"),
+            "sagekit/resources/docs/templates/COMPLETION_REPORT_TEMPLATE.md": ("#sage-loop-013",),
         }
         for relative, anchors in pointers.items():
             text = (REPO_ROOT / relative).read_text(encoding="utf-8")
@@ -1689,8 +1687,8 @@ class DocumentationPolicyTests(unittest.TestCase):
         from sagekit.check import SOURCE_REQUIRED_FILES
 
         for relative in (
-            "docs/agent/EXECUTION_ECONOMY.md",
-            "docs/agent/CONTINUITY_PROTOCOL.md",
+            "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
+            "sagekit/resources/docs/agent/CONTINUITY_PROTOCOL.md",
             "sagekit/pathing.py",
             "sagekit/change_control.py",
             "sagekit/evidence.py",

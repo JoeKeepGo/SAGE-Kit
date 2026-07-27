@@ -32,7 +32,7 @@ from sagekit.validation_scope_manifest import load_validation_scope_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_ROOT = REPO_ROOT / "docs/profiles/task-dispatch/templates"
+TEMPLATE_ROOT = REPO_ROOT / "sagekit/resources/docs/profiles/task-dispatch/templates"
 FROZEN_V1_BASE_SHA = "626706a5c4a9bc4cce9ce7dc69effb6eaf960141"
 FROZEN_V1_PATHS = {
     "task.schema.json": "docs/profiles/task-dispatch/schemas/task.schema.json",
@@ -665,14 +665,14 @@ class ContractResourceTests(unittest.TestCase):
         self.assertRegex(expected["policy_sha256"], r"^[0-9a-f]{64}$")
 
     def test_current_source_schemas_require_contract_metadata(self):
-        schema_root = REPO_ROOT / "docs/profiles/task-dispatch/schemas"
+        schema_root = REPO_ROOT / "sagekit/resources/docs/profiles/task-dispatch/schemas"
         for name in ("task.schema.json", "evidence.schema.json"):
             payload = json.loads((schema_root / name).read_text(encoding="utf-8"))
             self.assertIn("validation_contract", payload["required"])
             self.assertIn("validation_contract", payload["properties"])
 
     def test_packaged_schemas_are_exact_snapshots_with_bound_digests(self):
-        source_root = REPO_ROOT / "docs/profiles/task-dispatch/schemas"
+        source_root = REPO_ROOT / "sagekit/resources/docs/profiles/task-dispatch/schemas"
         for version in (1, 2):
             policy = json.loads(contract_resource(version, "policy.json").read_text(encoding="utf-8"))
             for name in ("task.schema.json", "evidence.schema.json"):
@@ -724,7 +724,7 @@ class ContractResourceTests(unittest.TestCase):
 
     def test_source_manifest_includes_compatibility_runtime_and_policy(self):
         for relative in (
-            "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
+            "sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
             "sagekit/compatibility.py",
             "sagekit/milestone_scope.py",
             "sagekit/candidate.py",
@@ -1329,7 +1329,7 @@ class BoundedReportingTests(unittest.TestCase):
 
 class CompatibilityDocumentationTests(unittest.TestCase):
     def test_compatibility_doc_is_packaged_and_project_neutral(self):
-        source = REPO_ROOT / "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md"
+        source = REPO_ROOT / "sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md"
         packaged = (
             REPO_ROOT
             / "sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md"
@@ -1358,7 +1358,7 @@ class CompatibilityDocumentationTests(unittest.TestCase):
     def test_skill_defers_scope_selection_to_runtime_and_protects_history(self):
         skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
         owner = (
-            REPO_ROOT / "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md"
+            REPO_ROOT / "sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md"
         ).read_text(encoding="utf-8")
         owner_normalized = " ".join(owner.split())
 
@@ -1381,12 +1381,8 @@ class CompatibilityDocumentationTests(unittest.TestCase):
             "docs/profiles/task-dispatch/README.md",
             "docs/profiles/task-dispatch/DISPATCH_PROFILE.md",
         ):
-            source = REPO_ROOT / relative
-            packaged = REPO_ROOT / "sagekit/resources" / relative
-            self.assertEqual(
-                source.read_text(encoding="utf-8"),
-                packaged.read_text(encoding="utf-8"),
-            )
+            source = REPO_ROOT / "sagekit/resources" / relative
+            self.assertTrue(source.is_file(), source)
             normalized = " ".join(source.read_text(encoding="utf-8").split()).lower()
             self.assertIn("explicitly selected, accepted immutable-history", normalized)
             self.assertIn("container", normalized)

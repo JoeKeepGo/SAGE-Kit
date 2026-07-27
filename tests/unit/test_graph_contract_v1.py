@@ -9,7 +9,7 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 STAGE4D_BASELINE_COMMIT = "19872d42f1727a6fa4f9fcbd38c07a772b92e252"
 STAGE4D_ENDPOINT_COMMIT = "25abf32fbcaa2f1a4ce42c8a23912a75595da062"
-CANONICAL = REPOSITORY / "docs/contracts/graph/v1"
+CANONICAL = REPOSITORY / "sagekit/resources/contracts/graph/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/graph/v1"
 RESOURCE_NAMES = (
     "contract.json",

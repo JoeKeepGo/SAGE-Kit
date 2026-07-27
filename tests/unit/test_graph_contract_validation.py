@@ -21,8 +21,8 @@ from sagekit.graph_contract import (
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-GRAPH_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/graph.schema.json"
-NODE_RESULT_SCHEMA = REPOSITORY / "docs/contracts/graph/v1/node-result.schema.json"
+GRAPH_SCHEMA = REPOSITORY / "sagekit/resources/contracts/graph/v1/graph.schema.json"
+NODE_RESULT_SCHEMA = REPOSITORY / "sagekit/resources/contracts/graph/v1/node-result.schema.json"
 MINIMAL_GRAPH_SEMANTIC_DIGEST = (
     "c9739a5712f3aab7f801c20f6539e7a4877c819dafbf60e1675976ff8c92951a"
 )

@@ -10,7 +10,7 @@ from sagekit import __version__
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_VERSION = "2026.7.20.1"
 SOURCE_CONTRACT_ROOT = (
-    REPO_ROOT / "docs/contracts/execution-documents" / CONTRACT_VERSION
+    REPO_ROOT / "sagekit/resources/docs/contracts/execution-documents" / CONTRACT_VERSION
 )
 RUNTIME_CONTRACT_ROOT = (
     REPO_ROOT / "sagekit/resources/execution_documents" / CONTRACT_VERSION
@@ -98,17 +98,14 @@ class ThinExecutionContractResourceTests(unittest.TestCase):
         self.assertEqual(CONTRACT_VERSION, "2026.7.20.1")
         self.assertNotEqual(CONTRACT_VERSION, __version__)
 
-    def test_contract_sources_runtime_resources_and_packaged_docs_are_byte_identical(self):
+    def test_canonical_contract_and_runtime_resources_are_byte_identical(self):
         for relative in CONTRACT_FILES:
             with self.subTest(relative=relative):
                 source = SOURCE_CONTRACT_ROOT / relative
                 runtime = RUNTIME_CONTRACT_ROOT / relative
-                packaged_doc = PACKAGED_DOC_CONTRACT_ROOT / relative
                 self.assertTrue(source.is_file(), source)
                 self.assertTrue(runtime.is_file(), runtime)
-                self.assertTrue(packaged_doc.is_file(), packaged_doc)
                 self.assertEqual(source.read_bytes(), runtime.read_bytes())
-                self.assertEqual(source.read_bytes(), packaged_doc.read_bytes())
 
     def test_contract_indexes_strict_schemas_and_versioned_profiles(self):
         contract = load_json(SOURCE_CONTRACT_ROOT / "contract.json")
@@ -222,15 +219,12 @@ class ThinTemplateTests(unittest.TestCase):
         ("THIN_PHASE_TEMPLATE.json", PHASE_KEYS),
     )
 
-    def test_templates_are_byte_identical_packaged_resources_with_exact_fields(self):
+    def test_canonical_packaged_templates_have_exact_fields(self):
         for filename, expected_keys in self.TEMPLATE_CASES:
             with self.subTest(template=filename):
-                source = REPO_ROOT / "docs/templates" / filename
-                packaged = REPO_ROOT / "sagekit/resources/docs/templates" / filename
-                self.assertTrue(source.is_file(), source)
-                self.assertTrue(packaged.is_file(), packaged)
-                self.assertEqual(source.read_bytes(), packaged.read_bytes())
-                payload = load_json(source)
+                template = REPO_ROOT / "sagekit/resources/docs/templates" / filename
+                self.assertTrue(template.is_file(), template)
+                payload = load_json(template)
                 self.assertEqual(set(payload), expected_keys)
 
     def test_thin_templates_retain_project_facts_not_generic_governance_prose(self):
@@ -245,15 +239,15 @@ class ThinTemplateTests(unittest.TestCase):
         )
         for filename, _ in self.TEMPLATE_CASES:
             with self.subTest(template=filename):
-                text = (REPO_ROOT / "docs/templates" / filename).read_text(
+                text = (REPO_ROOT / "sagekit/resources/docs/templates" / filename).read_text(
                     encoding="utf-8"
                 ).casefold()
                 for phrase in generic_prose:
                     self.assertNotIn(phrase, text)
 
-        milestone = load_json(REPO_ROOT / "docs/templates/THIN_MILESTONE_TEMPLATE.json")
-        phase = load_json(REPO_ROOT / "docs/templates/THIN_PHASE_TEMPLATE.json")
-        project = load_json(REPO_ROOT / "docs/templates/SAGE_PROJECT_TEMPLATE.json")
+        milestone = load_json(REPO_ROOT / "sagekit/resources/docs/templates/THIN_MILESTONE_TEMPLATE.json")
+        phase = load_json(REPO_ROOT / "sagekit/resources/docs/templates/THIN_PHASE_TEMPLATE.json")
+        project = load_json(REPO_ROOT / "sagekit/resources/docs/templates/SAGE_PROJECT_TEMPLATE.json")
         self.assertEqual(project["resource_contract"], "conservative-host-v1")
         self.assertEqual(milestone["governance_profile"], "standard-milestone@v1")
         self.assertEqual(milestone["approval_gates"][0]["applies_to"], ["P1"])
@@ -348,7 +342,7 @@ class ThinDocumentationTests(unittest.TestCase):
             (REPO_ROOT / filename).read_text(encoding="utf-8")
             for filename in ("README.md", "README.zh-CN.md")
         ).casefold()
-        core = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8").casefold()
+        core = (REPO_ROOT / "sagekit/resources/docs/SAGE_CORE.md").read_text(encoding="utf-8").casefold()
         skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(
             encoding="utf-8"
         ).casefold()
@@ -363,41 +357,19 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertIn("workspace verification", skill)
 
     def test_governance_authority_and_fail_closed_rules_are_packaged(self):
-        pairs = {
-            "core": (
-                "docs/SAGE_CORE.md",
-                "sagekit/resources/docs/SAGE_CORE.md",
-            ),
-            "quality": (
-                "docs/QUALITY_GATES_TEMPLATE.md",
-                "sagekit/resources/docs/QUALITY_GATES_TEMPLATE.md",
-            ),
-            "economy": (
-                "docs/agent/EXECUTION_ECONOMY.md",
-                "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
-            ),
-            "strict": (
-                "docs/agent/STRICT_MODE.md",
-                "sagekit/resources/docs/agent/STRICT_MODE.md",
-            ),
-            "entry": (
-                "docs/agent/PROJECT_OWNER_ENTRY.md",
-                "sagekit/resources/docs/agent/PROJECT_OWNER_ENTRY.md",
-            ),
-            "assurance": (
-                "docs/agent/MODEL_ASSURANCE_POLICY.md",
-                "sagekit/resources/docs/agent/MODEL_ASSURANCE_POLICY.md",
-            ),
-            "adapters": (
-                "docs/agent/CAPABILITY_ADAPTERS.md",
-                "sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md",
-            ),
+        resources = {
+            "core": "sagekit/resources/docs/SAGE_CORE.md",
+            "quality": "sagekit/resources/docs/QUALITY_GATES_TEMPLATE.md",
+            "economy": "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
+            "strict": "sagekit/resources/docs/agent/STRICT_MODE.md",
+            "entry": "sagekit/resources/docs/agent/PROJECT_OWNER_ENTRY.md",
+            "assurance": "sagekit/resources/docs/agent/MODEL_ASSURANCE_POLICY.md",
+            "adapters": "sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md",
         }
         documents = {}
-        for name, (source_path, packaged_path) in pairs.items():
-            source = REPO_ROOT / source_path
-            packaged = REPO_ROOT / packaged_path
-            self.assertEqual(source.read_bytes(), packaged.read_bytes(), name)
+        for name, resource_path in resources.items():
+            source = REPO_ROOT / resource_path
+            self.assertTrue(source.is_file(), source)
             documents[name] = " ".join(
                 source.read_text(encoding="utf-8").split()
             )
@@ -423,17 +395,13 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertIn("No adapter result can create authority", documents["adapters"])
 
     def test_resource_governance_document_is_packaged_and_states_containment_levels(self):
-        source = REPO_ROOT / "docs/agent/HOST_RESOURCE_GOVERNANCE.md"
-        packaged = REPO_ROOT / "sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md"
-        contract = REPO_ROOT / "docs/contracts/resource-governance/conservative-host-v1.json"
-        packaged_contract = (
+        source = REPO_ROOT / "sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md"
+        contract = (
             REPO_ROOT
             / "sagekit/resources/docs/contracts/resource-governance/conservative-host-v1.json"
         )
         self.assertTrue(source.is_file(), source)
-        self.assertTrue(packaged.is_file(), packaged)
-        self.assertEqual(source.read_bytes(), packaged.read_bytes())
-        self.assertEqual(contract.read_bytes(), packaged_contract.read_bytes())
+        self.assertTrue(contract.is_file(), contract)
         text = " ".join(source.read_text(encoding="utf-8").casefold().split())
         policy = json.loads(contract.read_text(encoding="utf-8"))
         for phrase in (
@@ -466,7 +434,7 @@ class ThinDocumentationTests(unittest.TestCase):
 
     def test_skill_and_core_define_authority_without_requiring_expanded_project_rules(self):
         skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
-        core = (REPO_ROOT / "docs/SAGE_CORE.md").read_text(encoding="utf-8")
+        core = (REPO_ROOT / "sagekit/resources/docs/SAGE_CORE.md").read_text(encoding="utf-8")
         combined = (skill + "\n" + core).casefold()
         for phrase in (
             "governance interpreter",
@@ -480,11 +448,11 @@ class ThinDocumentationTests(unittest.TestCase):
 
     def test_agent_docs_and_skill_references_route_thin_documents_without_retroactive_migration(self):
         paths = (
-            "docs/agent/AGENT_HARNESS.md",
-            "docs/agent/MILESTONE_PLANNING.md",
-            "docs/agent/PHASE_EXECUTION.md",
-            "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
-            "docs/DOC_ROUTING_TEMPLATE.md",
+            "sagekit/resources/docs/agent/AGENT_HARNESS.md",
+            "sagekit/resources/docs/agent/MILESTONE_PLANNING.md",
+            "sagekit/resources/docs/agent/PHASE_EXECUTION.md",
+            "sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md",
+            "sagekit/resources/docs/DOC_ROUTING_TEMPLATE.md",
             "skills/sage-kit/references/adoption.md",
             "skills/sage-kit/references/planning.md",
             "skills/sage-kit/references/execution.md",
@@ -503,14 +471,14 @@ class ThinDocumentationTests(unittest.TestCase):
             self.assertIn(phrase, combined)
 
     def test_lane_f_profiles_use_embedded_authority_and_soft_unknown_runtime_guarantees(self):
-        harness = (REPO_ROOT / "docs/agent/AGENT_HARNESS.md").read_text(
+        harness = (REPO_ROOT / "sagekit/resources/docs/agent/AGENT_HARNESS.md").read_text(
             encoding="utf-8"
         )
-        economy = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+        economy = (REPO_ROOT / "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md").read_text(
             encoding="utf-8"
         )
         packet = (
-            REPO_ROOT / "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
+            REPO_ROOT / "sagekit/resources/docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md"
         ).read_text(encoding="utf-8")
         claude = (REPO_ROOT / "skills/sage-kit/references/claude.md").read_text(
             encoding="utf-8"
@@ -541,9 +509,9 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertIn("Permission configuration is absent", opencode)
 
         for path in (
-            "docs/agent/MILESTONE_PLANNING.md",
-            "docs/agent/PHASE_EXECUTION.md",
-            "docs/DOC_ROUTING_TEMPLATE.md",
+            "sagekit/resources/docs/agent/MILESTONE_PLANNING.md",
+            "sagekit/resources/docs/agent/PHASE_EXECUTION.md",
+            "sagekit/resources/docs/DOC_ROUTING_TEMPLATE.md",
             "skills/sage-kit/references/planning.md",
         ):
             with self.subTest(location_independent_source=path):

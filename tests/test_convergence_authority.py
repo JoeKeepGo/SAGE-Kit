@@ -1079,11 +1079,11 @@ class ConvergenceDocumentationTests(unittest.TestCase):
             "docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md",
         )
         for relative in sources:
-            source = REPO_ROOT / relative
-            packaged = REPO_ROOT / "sagekit/resources" / relative
-            self.assertEqual(source.read_bytes(), packaged.read_bytes(), relative)
+            source = REPO_ROOT / "sagekit/resources" / relative
+            self.assertTrue(source.is_file(), source)
         combined = "\n".join(
-            (REPO_ROOT / relative).read_text(encoding="utf-8") for relative in sources
+            (REPO_ROOT / "sagekit/resources" / relative).read_text(encoding="utf-8")
+            for relative in sources
         )
         for phrase in (
             "Preauthorized Convergence Window",
@@ -1101,7 +1101,7 @@ class ConvergenceDocumentationTests(unittest.TestCase):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
         self.assertIn("Stable `sage-loop-*` anchors", text)
-        owner = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+        owner = (REPO_ROOT / "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md").read_text(
             encoding="utf-8"
         )
         self.assertIn("Preauthorized Convergence Window", owner)

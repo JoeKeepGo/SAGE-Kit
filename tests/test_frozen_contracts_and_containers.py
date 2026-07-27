@@ -31,7 +31,7 @@ from sagekit.validation_scope_manifest import load_validation_scope_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_ROOT = REPO_ROOT / "docs/profiles/task-dispatch/templates"
+TEMPLATE_ROOT = REPO_ROOT / "sagekit/resources/docs/profiles/task-dispatch/templates"
 BASELINE_HEAD = "0123456789abcdef0123456789abcdef01234567"
 V0_SOURCE_COMMIT = "e6fe28061d600bfb7164c5cf40448f2d2f5d620c"
 V0_POLICY_SHA256 = "443c99d1eecd13adef9e2960e1ca56e3f9267b1eac026ad19dd790c1111aa5cb"
