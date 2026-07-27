@@ -1,162 +1,89 @@
 # Claude Code Profile
 
-Environment profile for running sage-kit inside Claude Code. Claude Code
-implements the Agent Skills open standard and adds invocation control,
-subagent isolation modes, and lifecycle hooks, so several SAGE-Kit rules
-that are soft guarantees elsewhere become hard enforcement here.
+This is a Claude Code runtime adapter. It supplies only Claude-specific
+discovery, tool-surface, and enforcement facts. It does not define SAGE-Kit
+authority, role permissions, evidence, verification, acceptance, or workflow.
 
-This file is additive environment guidance. Supporting files ship under
-`references/claude/`; no Codex-facing file is changed by this profile.
+## Canonical Pointers
 
-## Local Information Policy
+Use the named canonical owner rather than duplicating its rules here.
 
-This document intentionally contains no machine-specific or owner-specific
-details: no local paths, no usernames, no organization or model inventory.
-Resolve concrete configuration against the installed Claude Code version at
-use time.
+| Concern | Canonical owner | Claude Code delta |
+|---|---|---|
+| Authority, approval, and completion | `docs/SAGE_CORE.md#sage-auth-001` and `docs/SAGE_CORE.md#sage-auth-009` | Claude permissions do not grant project authority. |
+| Packet, source, file boundary, and controller duties | `docs/agent/AGENT_HARNESS.md#sage-auth-010` | Dispatch the resolved authority and named launch-only delta. |
+| Permission modes and separated Coder/Final Review authority | `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`, `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`, and `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006` | Agent frontmatter narrows available tools; it cannot broaden a packet. |
+| Adapter lifecycle, evidence-only results, native fallback, and descendant inheritance | `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` | Propagate the bound and applicable runtime/model policy in every child prompt. |
+| Managed-operation containment and reporting | `docs/agent/HOST_RESOURCE_GOVERNANCE.md` | Claude hooks and tool declarations are not host-process containment. |
+| Session roles, verification ownership, and review/corrective flow | `docs/agent/SESSION_ORCHESTRATION.md` | The controller owns required command execution and its evidence. |
 
-## Skill Compatibility
+An adapter result is evidence only. It cannot create permission, widen scope,
+open a gate, establish `PASS`, accept work, or claim `DONE`.
 
-| Requirement | sage-kit status |
-|---|---|
-| `SKILL.md` with YAML frontmatter | yes |
-| Command name from directory | `sage-kit` → `/sage-kit` |
-| `description` + `when_to_use` truncated at 1,536 chars in listings | passes (~500 chars) |
-| Supporting files under the skill directory | `references/` ships with the skill and loads on demand |
+## Claude Code Discovery
 
-Discovery paths (any one is sufficient):
+Claude Code discovers a skill from a project, personal, plugin, or managed
+deployment location. Deploy the whole `skills/sage-kit/` directory so the
+`references/` files remain available on demand. Resolve concrete locations and
+supported frontmatter against the installed Claude Code version; this profile
+intentionally contains no machine-specific paths or inventories.
 
-- Project: `.claude/skills/sage-kit/SKILL.md`
-- Personal: `~/.claude/skills/sage-kit/SKILL.md`
-- Plugin or managed deployment for team rollout
+`SKILL.md` uses `disable-model-invocation: true`. Where the installed runtime
+supports that field, it is a `HARD` invocation control for model-initiated skill
+loading. Settings rules such as `Skill(sage-kit)` can further allow, ask, or
+deny use. Neither control replaces explicit packet authority.
 
-Copy the whole `skills/sage-kit/` directory so `references/` ships with it.
-Skill edits are picked up live in the running session; a newly created
-top-level skills directory requires a restart.
+## Tool And Role Mapping
 
-## Invocation Mapping
+Copy the shipped agent files into a governed project's `.claude/agents/`
+directory when their bounded roles are authorized.
 
-| Codex | Claude Code |
-|---|---|
-| `$sage-kit` mention invokes the skill | Invoke explicitly with `/sage-kit`; `disable-model-invocation: true` prevents model-initiated automatic loading |
-| `agents/openai.yaml` display metadata | Ignored; no equivalent surface |
-| `allow_implicit_invocation: false` (hard config) | Native equivalent: `disable-model-invocation: true` in the SKILL.md frontmatter. This field is set in the shared SKILL.md; it is inert in runtimes that do not define it. With it, only the user can invoke the skill |
-| — | Additional hard control: permission rules `Skill(sage-kit)` in settings allow/deny/ask per skill |
+| SAGE-Kit role | Claude Code agent | Runtime restriction | Controller responsibility |
+|---|---|---|---|
+| Coder worker | `sage-coder` | `Edit` and `Write` are available only for packet-authorized files; `Bash` is available only for packet-authorized commands. | Issue the writable boundary and run any controller-owned verification. |
+| Final Review | `sage-final-review` | `Read`, `Grep`, and `Glob` only; no edit, write, or shell tool. | Run required verification and provide its output as review evidence. |
+| Exploration | Built-in read-only exploration/planning agent when available | No writable or shell surface unless separately authorized. | Keep it inside the same inherited bound. |
 
-## Permission Mapping
+The reviewer tool set is a `HARD` restriction on the declared agent surface:
+it cannot modify files or execute verification commands through those tools.
+The review verdict remains evidence only and never replaces controller-owned
+verification, corrective authorization, or acceptance.
 
-Claude Code settings permissions (`allow` / `ask` / `deny` rules for `Bash`,
-`Edit`, `Skill`, `Agent`, and others) enforce SAGE-Kit adapter levels:
+## Hook And Containment Limits
 
-| SAGE adapter level | Claude Code enforcement |
-|---|---|
-| `metadata-only` | Default; skills and agents visible by name and description |
-| `read-only` | Subagent `tools: Read, Grep, Glob` allowlist, or `permissionMode: plan` |
-| `write-inside-boundary` | Default tools plus `permissions.ask` rules outside the boundary |
-| `environment-write` | `permissions.ask` or `deny` on package installs and config writes |
-| `destructive-or-submit` | `permissions.deny` on `Bash(git push *)`, `Bash(rm -rf *)`, publish commands |
+The shipped `protect-serial-files` PreToolUse hook may be bound to the Coder
+agent for the named structured edit and Bash events. It is a `MANAGED`
+runtime-specific guard only when Claude Code invokes the configured hook for the
+event and the deployment has the matching hook command available. It does not
+make a worker's packet boundary `HARD`.
 
-Example `.claude/settings.json` baseline for a governed project:
+For structured edit events, the hook can reject its configured serial-file
+targets before that tool operation. Bash inspection is command-text heuristic
+and therefore `SOFT`: shell indirection or another unobserved write path can
+bypass it. A controller that needs a stronger writable boundary must withhold
+`Bash`, use an environment-enforced boundary, and report the actual containment
+level under `docs/agent/HOST_RESOURCE_GOVERNANCE.md`.
 
-```json
-{
-  "permissions": {
-    "allow": ["Bash(git status *)", "Bash(git diff *)", "Skill(sage-kit)"],
-    "ask": ["Bash(pip install *)", "Bash(npm install *)"],
-    "deny": ["Bash(git push *)", "Bash(rm -rf *)"]
-  }
-}
-```
+Windows and Unix deployments select a runtime-supported hook command for the
+available shell. The paired hook implementations do not imply equivalent host
+containment, and neither platform is presumed `HARD` merely because a hook is
+configured. Do not edit hook scripts as part of this adapter profile.
 
-Treat these rules as enforcement of the SAGE-Kit boundary, not as the boundary
-itself: allowed files, gates, and stop conditions come from the normalized
-active SPEC and its ephemeral execution packet. Persist a packet only when
-project-owned SPEC/configuration requires it.
+## Dispatch And Continuity
 
-## Orchestration Mapping
+Dispatch the normalized `ACTIVE_SPEC` or execution packet, allowed/read-only/
+forbidden files, commands, gates, expected evidence, and stop conditions. Read
+legacy documents only when the packet names them. Every descendant inherits the
+same adapter bound and applicable runtime/model policy; a descendant that cannot
+repeat them in its child packet must return the authority-defined handoff.
 
-| SAGE-Kit construct | Claude Code mapping |
-|---|---|
-| Project Manager session | Main session running the sage-kit skill; owns routing, serial files, gates, submit authority |
-| Coder Controller and workers | `sage-coder` subagent (shipped at `references/claude/agents/sage-coder.md`), dispatched with a bounded prompt containing the normalized `ACTIVE_SPEC` or execution packet, allowed files, gates, and stop conditions. Legacy files may be read only when explicitly named. |
-| Final Review session | `sage-final-review` subagent (shipped at `references/claude/agents/sage-final-review.md`) with a read-only tool allowlist and no shell; it consumes the normalized `ACTIVE_SPEC` or verdict packet, plus only explicitly named legacy files. Verification execution stays with the controller |
-| Read-only exploration lanes | Built-in `Explore` and `Plan` subagents — reuse them |
-| Wave Execution | Parallel subagent calls only when Wave Readiness is proven — unchanged rule |
-| Worktree Isolation | Native: set `isolation: worktree` on the worker subagent |
-| Serial files (`ACTIVE_CONTEXT.md`, `DOC_ROUTING.md`) | Structured edit tools receive deterministic path-based protection inside the worker subagent through its frontmatter PreToolUse hook (below); Bash protection is best-effort, and hard isolation requires a no-Bash worker plus an environment-enforced write boundary. The controller session does not load the hook |
-| Strict Mode task cards | Run the skill or packet with `context: fork` for isolated execution |
+Use native model workflows for planning, implementation, debugging, review,
+and verification whenever the packet requires them. Runtime helpers are optional
+methods inside the canonical adapter lifecycle, not new authority or a fallback
+for missing evidence.
 
-Copy the shipped agent files into the governed project's `.claude/agents/`
-to activate them. Subagent `model`, `maxTurns`, and `effort` fields make
-per-role cost and step limits explicit; subagent `memory: project` gives a
-version-controlled cross-session memory that complements, but never
-replaces, the milestone ledger.
-
-## Deterministic Enforcement
-
-Claude Code hooks let SAGE-Kit rules execute as code instead of relying on
-model compliance. One hook ships under `references/claude/hooks/` in both a
-POSIX (`.sh`) and a Windows PowerShell (`.ps1`) variant:
-
-- `protect-serial-files` (PreToolUse, matcher `Edit|Write|MultiEdit|Bash`)
-  is bound inside the `sage-coder` subagent's frontmatter hooks, not in
-  global settings. It has two honesty levels:
-  - Structured edit tools: hard boundary. Paths are canonicalized against
-    `CLAUDE_PROJECT_DIR` before comparison (dot segments and separator
-    variants collapse lexically; symlinks are not resolved), the
-    comparison is lane-wide and case-insensitive (any canonical path
-    ending in a serial-file name is blocked, whatever its root), and
-    missing or non-string `file_path` values fail closed.
-  - Bash: best-effort heuristic. Commands that mention a serial file and
-    contain a write-shaped operator are blocked, but shell string matching
-    is evadable by design. A lane that needs a hard shell-level boundary
-    must use a worker without `Bash` in `tools` and let the controller run
-    the verification commands instead.
-Completion hooks are not included by default. Completion checks belong to the
-project controller and controller-owned evidence pipeline.
-
-Hooks are enforcement, not authority: permission mode and ownership in the
-active SAGE-Kit artifact still decide whether a write is legitimate.
-
-## Model Assurance
-
-Claude Code runs one model family, but per-subagent `model` and `effort`
-fields still make executor strength explicit. Apply
-`docs/agent/MODEL_ASSURANCE_POLICY.md` per role: unproven or low-effort
-executors run Strict Mode task cards, and review lanes should not run on a
-weaker configuration than the implementation lane they review.
-
-## Continuity Mapping
-
-- `.sagekit/runtime/CURRENT_RUN.json` remains the checkpoint contract. A host
-  integration must call the exported SAGE-Kit Harness checkpoint functions;
-  Bash alone does not provide checkpoint/resume behavior.
-- `claude --continue` / `claude --resume` restore session context; the
-  on-disk checkpoint remains the canonical resume contract across machines
-  and agents.
-- Subagent `memory: project` may mirror durable learnings; the JSON
-  checkpoint remains the source of truth for run state.
-
-## Version Requirements
-
-Mappings were verified against current documentation. Several features are
-version-gated; check `claude --version` before relying on them:
-
-| Feature | Minimum version note |
-|---|---|
-| `isolation: worktree` working-directory hardening | v2.1.203+ recommended |
-| Background subagents by default | v2.1.198+ |
-| Subagent output scanning | v2.1.210+ |
-| `Agent` tool naming (formerly `Task`) | v2.1.63+; `Task(...)` aliases still work |
-| `permissionMode: manual` alias | v2.1.200+ |
-
-## Known Deltas (vs Codex)
-
-1. `agents/openai.yaml` is ignored by Claude Code (display metadata only).
-2. Invocation is `/sage-kit`, not `$sage-kit`; prose references to
-   `$sage-kit` in SAGE-Kit docs read as "invoke the sage-kit skill".
-3. Bundled skills such as `/code-review` overlap SAGE-Kit review lanes;
-   SAGE-Kit gates and verdict formats remain authoritative, bundled skills
-   are execution tools inside a boundary.
-4. Hooks and subagent fields are version-gated (see Version Requirements);
-   on older versions, fall back to soft rules and record the fallback.
+Claude session continuation can restore conversation context, but the
+project-owned checkpoint and evidence records remain canonical. Version-gated
+features, agent frontmatter, isolation modes, and hook behavior must be
+detected from the installed runtime before reliance; unsupported or unverified
+behavior is reported as a limitation, not inferred as enforcement.
