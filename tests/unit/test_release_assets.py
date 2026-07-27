@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tarfile
@@ -73,6 +74,70 @@ class ReleaseAssetTests(unittest.TestCase):
                 manifest["aggregate_sha256"],
                 release.skill_bundle.aggregate_digest(manifest["files"]),
             )
+
+    def test_source_archive_uses_only_the_frozen_tracked_manifest(self):
+        release = load_release_builder()
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name) / "repository"
+            root.mkdir()
+            tracked = root / "tracked.txt"
+            tracked.write_text("tracked\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "tracked.txt"], check=True)
+            (root / ".env").write_text("secret=value\n", encoding="utf-8")
+            (root / ".sagekit").mkdir()
+            (root / ".sagekit" / "runtime.json").write_text("{}\n", encoding="utf-8")
+            (root / "secret-fixture.txt").write_text("secret\n", encoding="utf-8")
+
+            archive = release.build_source_archive(root, Path(temp_name), "test")
+            with tarfile.open(archive, "r:gz") as source:
+                names = set(source.getnames())
+            self.assertEqual({"sagekit-test/tracked.txt"}, names)
+
+    def test_source_archive_normalizes_tar_metadata_across_host_modes(self):
+        release = load_release_builder()
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            source = root / "payload.txt"
+            source.write_text("stable payload\n", encoding="utf-8")
+            entry = release.TrackedSourceEntry(
+                source, release.PurePosixPath("payload.txt"), 0o100644
+            )
+            first = release.write_source_archive(root / "first.tar.gz", (entry,), "test")
+            original_mode = source.stat().st_mode
+            try:
+                os.chmod(source, 0o600)
+                second = release.write_source_archive(root / "second.tar.gz", (entry,), "test")
+            finally:
+                os.chmod(source, original_mode)
+
+            self.assertEqual(first.read_bytes(), second.read_bytes())
+            with tarfile.open(first, "r:gz") as archive:
+                member = archive.getmember("sagekit-test/payload.txt")
+            self.assertEqual(0, member.mtime)
+            self.assertEqual(0, member.uid)
+            self.assertEqual(0, member.gid)
+            self.assertEqual("", member.uname)
+            self.assertEqual("", member.gname)
+            self.assertEqual(0o644, member.mode)
+
+    def test_tampered_skill_payload_fails_even_when_outer_checksum_is_regenerated(self):
+        release = load_release_builder()
+        with tempfile.TemporaryDirectory() as temp_name:
+            assets = release.build_release_assets(REPOSITORY, Path(temp_name))
+            with zipfile.ZipFile(assets.skill_bundle) as original:
+                payloads = {
+                    name: original.read(name)
+                    for name in original.namelist()
+                }
+            payloads["sage-kit/SKILL.md"] += b"\nchanged\n"
+            with zipfile.ZipFile(assets.skill_bundle, "w", zipfile.ZIP_DEFLATED) as mutated:
+                for name, payload in payloads.items():
+                    mutated.writestr(name, payload)
+            release.write_checksum(assets.skill_bundle)
+
+            with self.assertRaises(ValueError):
+                release.verify_release_assets(assets)
 
 
 if __name__ == "__main__":

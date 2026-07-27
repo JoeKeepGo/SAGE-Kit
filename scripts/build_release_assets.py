@@ -12,7 +12,7 @@ import sys
 import tarfile
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 _BUNDLE_SCRIPT = Path(__file__).with_name("build_skill_bundle.py")
@@ -49,6 +49,13 @@ class ReleaseAssets:
     skill_manifest: Path
 
 
+@dataclass(frozen=True)
+class TrackedSourceEntry:
+    path: Path
+    relative: PurePosixPath
+    git_mode: int
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -80,41 +87,89 @@ def asset_names(version: str) -> frozenset[str]:
     )
 
 
-def _source_files(repository: Path, output_directory: Path) -> tuple[Path, ...]:
-    ignored_output = output_directory.resolve()
-    files: list[Path] = []
-    for path in repository.rglob("*"):
-        if not path.is_file() or path.is_symlink():
-            continue
-        relative = path.relative_to(repository)
-        if any(part in SOURCE_EXCLUDED_PARTS for part in relative.parts):
-            continue
-        if path.suffix == ".pyc":
+def _safe_tracked_path(value: bytes) -> PurePosixPath:
+    try:
+        text = value.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        raise ValueError("tracked source path is not valid UTF-8") from exc
+    path = PurePosixPath(text)
+    if (
+        path.is_absolute()
+        or "\\" in text
+        or not path.parts
+        or any(part in {"", ".", ".."} or ":" in part or "\x00" in part for part in path.parts)
+    ):
+        raise ValueError(f"unsafe tracked source path: {text!r}")
+    return path
+
+
+def tracked_source_entries(repository: Path) -> tuple[TrackedSourceEntry, ...]:
+    completed = subprocess.run(
+        ["git", "-C", str(repository), "ls-files", "-s", "-z"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode:
+        raise RuntimeError("could not read frozen Git tracked manifest")
+    root = repository.resolve(strict=True)
+    entries: list[TrackedSourceEntry] = []
+    seen: set[PurePosixPath] = set()
+    for record in completed.stdout.split(b"\0"):
+        if not record:
             continue
         try:
-            path.resolve().relative_to(ignored_output)
-        except ValueError:
-            files.append(path)
-    return tuple(sorted(files, key=lambda path: path.relative_to(repository).as_posix()))
+            metadata, raw_path = record.split(b"\t", 1)
+            mode_text, _object_id, stage_text = metadata.split(b" ")
+            git_mode = int(mode_text, 8)
+        except (ValueError, TypeError) as exc:
+            raise ValueError("malformed Git tracked manifest entry") from exc
+        if stage_text != b"0" or git_mode not in {0o100644, 0o100755}:
+            raise ValueError("tracked manifest contains an unsupported Git entry")
+        relative = _safe_tracked_path(raw_path)
+        if relative in seen:
+            raise ValueError(f"tracked manifest duplicates {relative.as_posix()!r}")
+        seen.add(relative)
+        path = root.joinpath(*relative.parts)
+        try:
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"tracked source path escapes repository: {relative}") from exc
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"tracked source is not a regular file: {relative}")
+        entries.append(TrackedSourceEntry(path, relative, git_mode))
+    if not entries:
+        raise ValueError("frozen Git tracked manifest is empty")
+    return tuple(sorted(entries, key=lambda entry: entry.relative.as_posix()))
 
 
-def build_source_archive(repository: Path, output_directory: Path, version: str) -> Path:
-    archive = output_directory / f"sagekit-{version}.tar.gz"
+def write_source_archive(
+    archive: Path, entries: tuple[TrackedSourceEntry, ...], version: str
+) -> Path:
     prefix = f"sagekit-{version}"
     with archive.open("wb") as raw:
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as zipped:
-            with tarfile.open(fileobj=zipped, mode="w", format=tarfile.PAX_FORMAT) as tar:
-                for path in _source_files(repository, output_directory):
-                    relative = path.relative_to(repository).as_posix()
-                    info = tar.gettarinfo(str(path), arcname=f"{prefix}/{relative}")
+            with tarfile.open(fileobj=zipped, mode="w", format=tarfile.GNU_FORMAT) as tar:
+                for entry in entries:
+                    info = tar.gettarinfo(
+                        str(entry.path), arcname=f"{prefix}/{entry.relative.as_posix()}"
+                    )
                     info.uid = 0
                     info.gid = 0
                     info.uname = ""
                     info.gname = ""
                     info.mtime = 0
-                    with path.open("rb") as source:
+                    info.mode = 0o755 if entry.git_mode == 0o100755 else 0o644
+                    info.pax_headers = {}
+                    with entry.path.open("rb") as source:
                         tar.addfile(info, source)
     return archive
+
+
+def build_source_archive(repository: Path, output_directory: Path, version: str) -> Path:
+    archive = output_directory / f"sagekit-{version}.tar.gz"
+    return write_source_archive(archive, tracked_source_entries(repository), version)
 
 
 def build_wheel(repository: Path, output_directory: Path, version: str) -> Path:
@@ -172,14 +227,37 @@ def verify_release_assets(assets: ReleaseAssets) -> None:
         if f"{prefix}pyproject.toml" not in names:
             raise ValueError("source archive lacks pyproject.toml")
     with zipfile.ZipFile(assets.skill_bundle) as bundle:
+        names = bundle.namelist()
+        if len(names) != len(set(names)):
+            raise ValueError("Skill bundle contains duplicate archive names")
         embedded_manifest = bundle.read("sage-kit/manifest.json")
-    if embedded_manifest != assets.skill_manifest.read_bytes():
-        raise ValueError("Skill bundle manifest sidecar differs from embedded manifest")
-    manifest = json.loads(embedded_manifest)
-    if manifest.get("version") != version:
-        raise ValueError("Skill bundle manifest version differs from release version")
-    if manifest.get("aggregate_sha256") != skill_bundle.aggregate_digest(manifest.get("files", [])):
-        raise ValueError("Skill bundle manifest aggregate digest is invalid")
+        if embedded_manifest != assets.skill_manifest.read_bytes():
+            raise ValueError("Skill bundle manifest sidecar differs from embedded manifest")
+        manifest = json.loads(embedded_manifest)
+        if manifest.get("version") != version:
+            raise ValueError("Skill bundle manifest version differs from release version")
+        records = manifest.get("files")
+        if not isinstance(records, list):
+            raise ValueError("Skill bundle manifest has no file records")
+        expected_names = {"sage-kit/manifest.json"}
+        seen: set[str] = set()
+        for record in records:
+            if not isinstance(record, dict):
+                raise ValueError("Skill bundle manifest has an invalid file record")
+            relative = skill_bundle._safe_relative(str(record.get("path", "")))
+            relative_text = relative.as_posix()
+            if relative_text in seen:
+                raise ValueError("Skill bundle manifest duplicates a file record")
+            seen.add(relative_text)
+            name = f"sage-kit/{relative_text}"
+            expected_names.add(name)
+            payload = bundle.read(name)
+            if record.get("size_bytes") != len(payload) or record.get("sha256") != skill_bundle.sha256_bytes(payload):
+                raise ValueError(f"Skill bundle payload digest mismatch: {relative_text}")
+        if set(names) != expected_names:
+            raise ValueError("Skill bundle archive names do not match its manifest")
+        if manifest.get("aggregate_sha256") != skill_bundle.aggregate_digest(records):
+            raise ValueError("Skill bundle manifest aggregate digest is invalid")
 
 
 def build_release_assets(repository: Path, output_directory: Path) -> ReleaseAssets:
