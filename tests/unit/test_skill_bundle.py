@@ -35,7 +35,7 @@ class SkillBundleTests(unittest.TestCase):
             skill = expanded / "sage-kit"
             manifest = json.loads((skill / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual("sage-kit", manifest["skill_name"])
-            self.assertEqual("2026.7.28.3", manifest["version"])
+            self.assertEqual("2026.7.28.4", manifest["version"])
             self.assertTrue(manifest["aggregate_sha256"])
             self.assertTrue((skill / "SKILL.md").read_text(encoding="utf-8").startswith("---\n"))
             self.assertTrue((skill / "agents/openai.yaml").is_file())
@@ -63,11 +63,11 @@ class SkillBundleTests(unittest.TestCase):
             artifact = builder.build_skill_bundle(REPOSITORY, Path(temp_name))
             self.assertEqual(
                 artifact.archive.name,
-                "sage-kit-skill-v2026.7.28.3.zip",
+                "sage-kit-skill-2026.7.28.4.zip",
             )
             self.assertEqual(
                 artifact.checksum.name,
-                "sage-kit-skill-v2026.7.28.3.zip.sha256",
+                "sage-kit-skill-2026.7.28.4.zip.sha256",
             )
             self.assertTrue(artifact.checksum.read_text(encoding="utf-8").startswith(artifact.sha256))
 

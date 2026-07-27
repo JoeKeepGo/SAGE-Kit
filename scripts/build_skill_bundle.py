@@ -27,6 +27,7 @@ ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 class SkillBundleArtifact:
     archive: Path
     checksum: Path
+    manifest_path: Path
     sha256: str
     manifest: dict[str, object]
 
@@ -138,10 +139,14 @@ def build_skill_bundle(repository: Path, output_directory: Path) -> SkillBundleA
     repository = repository.resolve(strict=True)
     output_directory.mkdir(parents=True, exist_ok=True)
     version = package_version(repository)
-    archive = output_directory / f"{SKILL_NAME}-skill-v{version}.zip"
+    archive = output_directory / f"{SKILL_NAME}-skill-{version}.zip"
     checksum = output_directory / f"{archive.name}.sha256"
+    manifest_path = output_directory / f"{SKILL_NAME}-skill-{version}.manifest.json"
     manifest = build_manifest(repository)
     root = repository / SKILL_ROOT
+    manifest_bytes = (
+        json.dumps(manifest, ensure_ascii=True, sort_keys=True, indent=2) + "\n"
+    ).encode("utf-8")
 
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         for record in manifest["files"]:
@@ -150,14 +155,12 @@ def build_skill_bundle(repository: Path, output_directory: Path) -> SkillBundleA
                 _zip_info(f"{SKILL_NAME}/{relative.as_posix()}"),
                 (root.joinpath(*relative.parts)).read_bytes(),
             )
-        manifest_bytes = (
-            json.dumps(manifest, ensure_ascii=True, sort_keys=True, indent=2) + "\n"
-        ).encode("utf-8")
         bundle.writestr(_zip_info(f"{SKILL_NAME}/{MANIFEST_NAME}"), manifest_bytes)
 
+    manifest_path.write_bytes(manifest_bytes)
     digest = sha256_bytes(archive.read_bytes())
     checksum.write_text(f"{digest}  {archive.name}\n", encoding="ascii")
-    return SkillBundleArtifact(archive, checksum, digest, manifest)
+    return SkillBundleArtifact(archive, checksum, manifest_path, digest, manifest)
 
 
 def _read_manifest(bundle: zipfile.ZipFile) -> dict[str, object]:
@@ -245,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "archive": str(artifact.archive),
                 "checksum": str(artifact.checksum),
+                "manifest": str(artifact.manifest_path),
                 "sha256": artifact.sha256,
                 "version": artifact.manifest["version"],
             },

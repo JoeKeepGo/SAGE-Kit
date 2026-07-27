@@ -21,6 +21,7 @@ from scripts.build_skill_bundle import (
     extract_and_verify_skill_bundle,
     package_doc_locators,
 )
+from scripts.build_release_assets import build_release_assets, verify_release_assets
 
 
 class SmokeFailure(RuntimeError):
@@ -473,6 +474,13 @@ def find_built_wheel(wheelhouse: Path) -> Path:
     return wheels[0]
 
 
+def run_release_asset_smoke(repository: Path) -> None:
+    """Build and verify the complete release inventory in the package lane."""
+    with tempfile.TemporaryDirectory(prefix="sagekit-release-assets-") as temp_name:
+        assets = build_release_assets(repository, Path(temp_name) / "release")
+        verify_release_assets(assets)
+
+
 def run_wheel_smoke(repository: Path) -> None:
     repository = repository.resolve(strict=True)
     if not (repository / "pyproject.toml").is_file():
@@ -590,6 +598,7 @@ def run_wheel_smoke(repository: Path) -> None:
                 "outside-source smoke created bytecode: "
                 + ", ".join(str(path.relative_to(outside_source)) for path in bytecode)
             )
+    run_release_asset_smoke(repository)
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -113,7 +113,7 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
         )
 
         self.assertIn("Install package build capability", workflow)
-        self.assertIn('python -m pip install "setuptools>=68"', workflow)
+        self.assertIn('python -m pip install "setuptools>=68" wheel', workflow)
 
     def test_final_plan_has_one_fixed_serial_order(self) -> None:
         plan = build_plan("final", waive_high_load=False)
