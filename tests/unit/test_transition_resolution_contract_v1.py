@@ -34,9 +34,9 @@ EXPECTED_STAGE4C1_PATHS = {
     "tests/unit/test_transition_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
-    "docs/contracts/graph/v1/contract.json": "2de042291ee90e6051d5dfbff9901d38d114f5c6bcf225b37bf8338a36be67ef",
+    "docs/contracts/graph/v1/contract.json": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
     "docs/contracts/graph/v1/node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-    "docs/contracts/runtime-state/v1/contract.json": "bb4962b0b2281524a9dd5790b23289f05aa2879cb9fcd9bdc92c143164a89902",
+    "docs/contracts/runtime-state/v1/contract.json": "b74ede0245a124b49e8078a2388099f17084624a815fb4812231a04b52020728",
     "docs/contracts/runtime-state/v1/state.schema.json": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
     "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }

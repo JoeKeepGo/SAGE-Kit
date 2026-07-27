@@ -21,7 +21,7 @@
     "graph_contract_v1": {
       "contract_id": "urn:sagekit:graph-contract:v1",
       "contract_resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_contract_sha256": "2de042291ee90e6051d5dfbff9901d38d114f5c6bcf225b37bf8338a36be67ef",
+      "canonical_contract_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
       "canonical_resource_integrity": {
         "graph_schema_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466"
       },
@@ -36,7 +36,7 @@
     "runtime_state_contract_v1": {
       "contract_id": "urn:sagekit:runtime-state-contract:v1",
       "contract_resource": "docs/contracts/runtime-state/v1/contract.json",
-      "canonical_contract_sha256": "bb4962b0b2281524a9dd5790b23289f05aa2879cb9fcd9bdc92c143164a89902",
+      "canonical_contract_sha256": "b74ede0245a124b49e8078a2388099f17084624a815fb4812231a04b52020728",
       "canonical_resource_integrity": {
         "state_schema_sha256": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
         "event_schema_sha256": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9"

@@ -33,7 +33,7 @@ EXPECTED_STAGE3D_PATHS = {
     "tests/unit/test_runtime_views.py",
 }
 GRAPH_RESOURCE_DIGESTS = {
-    "contract.json": "2de042291ee90e6051d5dfbff9901d38d114f5c6bcf225b37bf8338a36be67ef",
+    "contract.json": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
     "graph.schema.json": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
     "node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
 }

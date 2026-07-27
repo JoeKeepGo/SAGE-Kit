@@ -18,7 +18,7 @@
       "contract_id": "urn:sagekit:graph-contract:v1",
       "relation": "A graph snapshot payload must be a valid Graph Contract v1 instance, including external-gate topology and the unbounded positive mathematical generation domain; this family does not copy or redefine the Graph schema. Dependencies within one external join remain valid, while an edge leaving any containing manual-gate or corrective-join is rejected before runtime initialization.",
       "contract_resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_contract_sha256": "2de042291ee90e6051d5dfbff9901d38d114f5c6bcf225b37bf8338a36be67ef",
+      "canonical_contract_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
       "canonical_resource_integrity": {
         "graph_schema_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
         "node_result_schema_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379"
