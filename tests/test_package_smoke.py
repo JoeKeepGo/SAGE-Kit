@@ -103,6 +103,18 @@ class WheelSmokeScriptTests(unittest.TestCase):
         self.assertNotIn("containment", flattened.casefold())
         self.assertNotIn("job object", flattened.casefold())
 
+    def test_wheel_smoke_uses_the_explicit_skill_bundle_for_its_installed_fixture(self):
+        wheel_smoke = load_wheel_smoke()
+        source = SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("build_skill_bundle(source_snapshot", source)
+        self.assertIn("extract_and_verify_skill_bundle", source)
+        self.assertNotIn(
+            'shutil.copytree(source_snapshot / "skills/sage-kit", installed_skill)',
+            source,
+        )
+        self.assertTrue(callable(wheel_smoke.run_wheel_smoke))
+
     def test_subprocess_environment_removes_source_import_overrides(self):
         wheel_smoke = load_wheel_smoke()
         original = {

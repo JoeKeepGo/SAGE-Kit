@@ -16,6 +16,10 @@ from sagekit.managed_execution import ManagedExecutionError, _run_managed_comman
 from sagekit.process_supervisor import ProcessResult
 from sagekit.resource_governor import ResourceClass
 from sagekit.spec_sources import package_identity
+from scripts.build_skill_bundle import (
+    build_skill_bundle,
+    extract_and_verify_skill_bundle,
+)
 
 
 class SmokeFailure(RuntimeError):
@@ -493,8 +497,9 @@ def run_wheel_smoke(repository: Path) -> None:
             stage="wheel-install",
             temp_root=workspace,
         )
+        bundle = build_skill_bundle(source_snapshot, workspace / "skill-release")
+        extract_and_verify_skill_bundle(bundle.archive, outside_source / "installed-skills")
         installed_skill = outside_source / "installed-skills" / "sage-kit"
-        shutil.copytree(source_snapshot / "skills/sage-kit", installed_skill)
         sibling_decoy = (
             installed_skill / "sagekit/resources/docs/agent/AGENT_HARNESS.md"
         )
