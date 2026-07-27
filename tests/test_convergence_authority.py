@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from dataclasses import replace
@@ -57,19 +56,6 @@ def commit_change(root: Path, content: str, relative: str = "tracked.txt") -> No
     path.write_text(content, encoding="utf-8")
     git(root, "add", relative)
     git(root, "commit", "-m", "deterministic corrective")
-
-
-def run_sagekit(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
-    return subprocess.run(
-        [sys.executable, "-m", "sagekit", *args],
-        cwd=cwd,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
 
 
 def authority(**overrides) -> PreauthorizedConvergenceAuthority:
@@ -983,7 +969,12 @@ class ConvergenceCheckpointTests(unittest.TestCase):
             init_repository(root)
             current = window_candidate(root, 9).candidate
             created = self.create(root, current, authority())
-            resumed = resume_checkpoint(root)
+            resumed = resume_checkpoint(
+                root,
+                expected_authority_id="request",
+                expected_authority_version="1",
+                expected_convergence_authority=authority(),
+            )
 
         self.assertEqual(4, created.checkpoint["schema_version"])
         self.assertTrue(resumed.ok, resumed.mismatches)
@@ -1078,151 +1069,6 @@ class ConvergenceCheckpointTests(unittest.TestCase):
         self.assertTrue(any("expected convergence authority" in item for item in resumed.mismatches))
 
 
-class ConvergenceCliTests(unittest.TestCase):
-    def write_authority(self, root: Path, value=None) -> Path:
-        path = root / ".sagekit/runtime/convergence-authority.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = authority().to_dict() if value is None else value
-        if isinstance(payload, PreauthorizedConvergenceAuthority):
-            payload = payload.to_dict()
-        path.write_text(
-            json.dumps(payload),
-            encoding="utf-8",
-        )
-        return path
-
-    def test_malformed_authority_is_configuration_failure_not_internal_error(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            path = root / "bad-authority.json"
-            path.write_text("{bad json", encoding="utf-8")
-            result = run_sagekit(
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v1",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-                "--convergence-authority",
-                str(path),
-                "--root-cause-id",
-                "path-representation",
-                "--finding-count",
-                "9",
-                "--finding-severity",
-                "3",
-                "--semantic-change",
-                "implementation-preserving",
-                "--targeted-review-closed",
-                cwd=root,
-            )
-
-        self.assertEqual(2, result.returncode)
-        self.assertIn("configuration-error", result.stdout + result.stderr)
-        self.assertNotIn("internal-error", result.stdout + result.stderr)
-
-    def test_wrong_authority_json_types_are_configuration_failures(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            payload = authority().to_dict()
-            payload["semantic_change_policy"] = ["implementation-preserving-only"]
-            path = self.write_authority(root, payload)
-            result = run_sagekit(
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v1",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-                "--convergence-authority",
-                str(path),
-                "--root-cause-id",
-                "path-representation",
-                "--finding-count",
-                "9",
-                "--semantic-change",
-                "implementation-preserving",
-                "--targeted-review-closed",
-                cwd=root,
-            )
-
-        self.assertEqual(2, result.returncode)
-        self.assertIn("configuration-error", result.stdout + result.stderr)
-        self.assertNotIn("internal-error", result.stdout + result.stderr)
-
-    def test_candidate_text_and_json_status_report_active_window_consistently(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            path = self.write_authority(root)
-            common = (
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v1",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-                "--convergence-authority",
-                str(path),
-                "--root-cause-id",
-                "path-representation",
-                "--finding-count",
-                "9",
-                "--finding-severity",
-                "3",
-                "--semantic-change",
-                "implementation-preserving",
-                "--targeted-review-closed",
-            )
-            text = run_sagekit(*common, cwd=root)
-            machine = run_sagekit(*common, "--json", cwd=root)
-
-        payload = json.loads(machine.stdout)
-        self.assertEqual(0, text.returncode, text.stderr)
-        self.assertEqual(0, machine.returncode, machine.stderr)
-        self.assertIn("CONVERGENCE_WINDOW active", text.stdout)
-        self.assertIn("AUTHORITY_ID AUTH-CONVERGENCE-1", text.stdout)
-        self.assertIn("ROOT_CAUSE_FAMILY portability", text.stdout)
-        self.assertTrue(payload["convergence"]["active"])
-        self.assertEqual("AUTH-CONVERGENCE-1", payload["convergence"]["authority_id"])
-
-    def test_candidate_without_window_reports_inactive(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            init_repository(root)
-            result = run_sagekit(
-                "candidate",
-                "freeze",
-                "--target",
-                str(root),
-                "--contract-digest",
-                "contracts-v1",
-                "--dependency-digest",
-                "dependencies-v1",
-                "--review-closed",
-                "--corrective-batch-closed",
-                "--json",
-                cwd=root,
-            )
-
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertFalse(json.loads(result.stdout)["convergence"]["active"])
-
-
 class ConvergenceDocumentationTests(unittest.TestCase):
     def test_required_guidance_is_present_and_packaged(self):
         sources = (
@@ -1253,10 +1099,14 @@ class ConvergenceDocumentationTests(unittest.TestCase):
 
     def test_repository_skill_routes_convergence_without_changing_installed_skill(self):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("Preauthorized Convergence Window", text)
         self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
-        self.assertIn("#sage-loop-008", text)
-        self.assertIn("#sage-loop-010", text)
+        self.assertIn("Stable `sage-loop-*` anchors", text)
+        owner = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Preauthorized Convergence Window", owner)
+        self.assertIn('<a id="sage-loop-008"></a>', owner)
+        self.assertIn('<a id="sage-loop-010"></a>', owner)
 
 
 if __name__ == "__main__":

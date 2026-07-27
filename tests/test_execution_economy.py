@@ -169,6 +169,7 @@ class ChangeControlTests(unittest.TestCase):
             change_class=ChangeClass.C0_RECORD_ONLY,
             changed_paths=("docs/ACTIVE_CONTEXT.md",),
             purposes={"docs/ACTIVE_CONTEXT.md": "synchronize current status"},
+            authority_granted=True,
         )
 
         decision = decide_change(Path.cwd(), request)
@@ -181,6 +182,7 @@ class ChangeControlTests(unittest.TestCase):
             change_class=ChangeClass.C1_BOUNDED_CORRECTIVE,
             changed_paths=("src/widget.py",),
             purposes={"src/widget.py": "satisfy the approved criterion"},
+            authority_granted=True,
         )
 
         decision = decide_change(
@@ -201,6 +203,7 @@ class ChangeControlTests(unittest.TestCase):
                 "src/a.py": "repair behavior",
                 "tests/test_a.py": "verify the repair",
             },
+            authority_granted=True,
         )
 
         decision = decide_change(
@@ -664,7 +667,7 @@ class CandidateVerificationTests(unittest.TestCase):
                 )
 
         self.assertFalse(result.ok)
-        self.assertIn("changed while snapshotting", result.message)
+        self.assertIn("working-tree snapshot changed", result.message)
 
     def test_working_tree_snapshot_rechecks_after_authority_processing(self):
         import sagekit.candidate as candidate_module
@@ -676,9 +679,9 @@ class CandidateVerificationTests(unittest.TestCase):
             original = candidate_module._working_tree_snapshot
             snapshot_reads = 0
 
-            def mutate_after_initial_snapshot(target):
+            def mutate_after_initial_snapshot(target, initial_head):
                 nonlocal snapshot_reads
-                result = original(target)
+                result = original(target, initial_head)
                 snapshot_reads += 1
                 if snapshot_reads == 1:
                     (root / "tracked.txt").write_text(
@@ -1576,6 +1579,10 @@ class DocumentationPolicyTests(unittest.TestCase):
     def test_skill_routes_resume_and_record_only_changes_economically(self):
         text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
         self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
+        self.assertIn("Stable `sage-loop-*` anchors", text)
+        owner = (REPO_ROOT / "docs/agent/EXECUTION_ECONOMY.md").read_text(
+            encoding="utf-8"
+        )
         for anchor in (
             "#sage-loop-003",
             "#sage-loop-006",
@@ -1585,14 +1592,14 @@ class DocumentationPolicyTests(unittest.TestCase):
             "#sage-loop-012",
             "#sage-loop-013",
         ):
-            self.assertIn(anchor, text)
+            self.assertIn(anchor.replace("#", 'id="') + '"', owner)
         self.assertIn(
             "Capability or preflight failures do not consume a candidate verification run.",
-            text,
+            owner,
         )
         self.assertIn(
             "independent verification nodes continue and report their own results.",
-            text,
+            owner,
         )
 
     def test_managed_expensive_verification_requires_a_frozen_candidate_everywhere(self):
@@ -1618,7 +1625,8 @@ class DocumentationPolicyTests(unittest.TestCase):
         ):
             with self.subTest(pointer=relative):
                 text = (REPO_ROOT / relative).read_text(encoding="utf-8")
-                self.assertIn("#sage-loop-003", text)
+                self.assertIn("docs/agent/EXECUTION_ECONOMY.md", text)
+                self.assertIn("sage-loop-", text)
                 self.assertNotIn(core_rule, " ".join(text.split()))
 
     def test_stage1c_loop_rules_have_unique_owners_and_stable_pointers(self):
@@ -1653,7 +1661,6 @@ class DocumentationPolicyTests(unittest.TestCase):
         self.assertIn("Runtime or UI evidence is required only when that surface is in scope", normalized)
 
         pointers = {
-            "skills/sage-kit/SKILL.md": ("#sage-loop-003", "#sage-loop-013"),
             "skills/sage-kit/references/execution.md": ("#sage-loop-003", "#sage-loop-007"),
             "skills/sage-kit/references/review-completion.md": ("#sage-loop-008", "#sage-loop-010"),
             "docs/agent/CONTINUITY_PROTOCOL.md": ("#sage-loop-006", "#sage-loop-009"),
@@ -1667,6 +1674,9 @@ class DocumentationPolicyTests(unittest.TestCase):
             for anchor in anchors:
                 with self.subTest(path=relative, anchor=anchor):
                     self.assertIn(anchor, text)
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("docs/agent/EXECUTION_ECONOMY.md", skill)
+        self.assertIn("Stable `sage-loop-*` anchors", skill)
 
     def test_runtime_checkpoint_is_gitignored(self):
         lines = {

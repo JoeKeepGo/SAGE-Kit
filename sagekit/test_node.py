@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     suite = build_suite(args.lane, repository)
     result = unittest.TextTestRunner(
         stream=sys.stderr,
-        verbosity=2,
+        verbosity=1,
         resultclass=HeartbeatResult,
     ).run(suite)
     return 0 if result.wasSuccessful() else 1

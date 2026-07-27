@@ -19,6 +19,22 @@ from scripts.run_tests import main as runner_main
 
 
 class SerialTestRunnerUnitTests(unittest.TestCase):
+    def test_test_node_uses_heartbeat_instead_of_verbose_success_output(self) -> None:
+        repository = Path(__file__).resolve().parents[2]
+        result = SimpleNamespace(wasSuccessful=lambda: True)
+
+        with patch("sagekit.test_node.build_suite", return_value=object()), patch(
+            "sagekit.test_node.unittest.TextTestRunner"
+        ) as runner:
+            runner.return_value.run.return_value = result
+            code = test_node_main(
+                ["unit", "--repository", str(repository)]
+            )
+
+        self.assertEqual(0, code)
+        self.assertEqual(1, runner.call_args.kwargs["verbosity"])
+        self.assertIsNotNone(runner.call_args.kwargs["resultclass"])
+
     def test_heartbeat_atomic_replace_retries_transient_permission_race(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "current-test.json"

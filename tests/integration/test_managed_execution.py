@@ -141,6 +141,44 @@ class ManagedExecutionIntegrationTests(unittest.TestCase):
             )
             self.assertEqual((), active)
 
+    def test_candidate_binary_diff_is_an_exact_bounded_readonly_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            git(root, "init", "--initial-branch=main")
+            (root / "tracked.txt").write_text("base\n", encoding="utf-8")
+            git(root, "add", "tracked.txt")
+            git(
+                root,
+                "-c",
+                "user.name=SAGE-Kit Tests",
+                "-c",
+                "user.email=sagekit@example.invalid",
+                "-c",
+                "commit.gpgSign=false",
+                "-c",
+                f"core.hooksPath={os.devnull}",
+                "commit",
+                "-m",
+                "baseline",
+            )
+            (root / "tracked.txt").write_text("changed\n", encoding="utf-8")
+
+            result = run_managed_git(
+                root,
+                (
+                    "diff",
+                    "--binary",
+                    "--full-index",
+                    "--no-ext-diff",
+                    "--no-renames",
+                ),
+                stage="candidate-binary-diff",
+            )
+
+            self.assertIn(b"tracked.txt", result.stdout)
+            self.assertIsNone(result.lease_id)
+            self.assertEqual("SOFT", result.containment_level)
+
 
 if __name__ == "__main__":
     unittest.main()

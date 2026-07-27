@@ -112,12 +112,22 @@ def _is_bounded_readonly_git(arguments: Sequence[str]) -> bool:
         }
         return bool(arguments[1:]) and options.issubset(allowed)
     if command == "diff":
-        allowed = {
+        name_only_allowed = {
             "--name-only", "--cached", "--staged", "-z", "--no-renames",
             "--relative", "--diff-filter", "--ignore-submodules",
             "--no-ext-diff", "--no-textconv", "--",
         }
-        return "--name-only" in options and options.issubset(allowed)
+        if "--name-only" in options:
+            return options.issubset(name_only_allowed)
+        binary_allowed = {
+            "--cached", "--staged", "--binary", "--full-index",
+            "--no-ext-diff", "--no-renames",
+        }
+        return (
+            "--binary" in options
+            and "--no-ext-diff" in options
+            and options.issubset(binary_allowed)
+        )
     if command == "ls-files":
         return "--recurse-submodules" not in options
     if command == "merge-base":
