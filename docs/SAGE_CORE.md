@@ -68,10 +68,14 @@ policies supersede older generic instructions that would otherwise require
 broader repeated verification or review, but they never bypass an explicit
 project approval, security, or destructive-operation gate.
 
-Versioned Task Dispatch validation follows
-`docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`: closed legacy history uses
-its frozen contract, active work uses the current contract, and ambiguous or
-mixed records fail closed.
+Versioned Task Dispatch contract selection and historical compatibility are
+canonical at `docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md#sage-val-001`.
+SAGE Core does not select, repair, or downgrade a validation contract. Its local
+boundary is that the configured `ACTIVE_CONTEXT` and retained active SPEC remain
+the project's handoff and current truth; project authority outranks Kit defaults;
+and Graph or runtime-contract presence alone does not activate Task Dispatch or
+change validation scope. Consumer projects may bind or point to the packaged
+contract without mirroring the framework documentation tree.
 
 ## Principles
 

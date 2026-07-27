@@ -14,6 +14,23 @@ milestones use the legacy phase checker. Active thin milestones require a valid
 missing, or conflicting document-model authority must not fall back, and an
 explicit v2 record failure still remains a v2 failure.
 
+<a id="sage-val-001"></a>
+
+## Current And History Authority Boundary
+
+The configured `ACTIVE_CONTEXT` and retained active SPEC are the project's
+handoff and current truth. Current authority selects only the current contract:
+active or new records require explicit matching current metadata, and an
+explicit current record that is invalid, mismatched, or otherwise fails remains
+a failure under that current contract. It must not fall back to a frozen v0/v1
+contract, a manifest-selected history contract, or an inferred history state.
+
+Accepted immutable history is audit-only and is eligible for frozen v0/v1
+validation only when an explicit, versioned Validation Scope Manifest identifies
+its container and selected contract. A successful history audit neither becomes
+execution authority nor changes the selected contract for current work. Mixed,
+ambiguous, incomplete, or overlapping current/history authority fails closed.
+
 Task Dispatch contract selection happens before record validation:
 
 ```text
