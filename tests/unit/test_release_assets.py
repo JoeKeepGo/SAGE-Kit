@@ -173,8 +173,13 @@ class ReleaseAssetTests(unittest.TestCase):
     def test_tampered_skill_payload_fails_even_when_outer_checksum_is_regenerated(self):
         release = load_release_builder()
         with tempfile.TemporaryDirectory() as temp_name:
-            with patch.object(release, "verify_tracked_worktree_clean"):
+            with patch.object(release, "verify_tracked_worktree_clean"), patch.object(
+                release, "build_wheel", side_effect=write_prebuilt_wheel
+            ) as build_wheel:
                 assets = release.build_release_assets(REPOSITORY, Path(temp_name))
+            build_wheel.assert_called_once_with(
+                REPOSITORY.resolve(), Path(temp_name), "2026.7.28.4"
+            )
             with zipfile.ZipFile(assets.skill_bundle) as original:
                 payloads = {
                     name: original.read(name)
