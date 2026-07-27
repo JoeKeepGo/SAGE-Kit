@@ -1356,10 +1356,25 @@ class CompatibilityDocumentationTests(unittest.TestCase):
         self.assertNotIn("specific external project", text.lower())
 
     def test_skill_defers_scope_selection_to_runtime_and_protects_history(self):
-        text = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        owner = (
+            REPO_ROOT / "docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md"
+        ).read_text(encoding="utf-8")
+        owner_normalized = " ".join(owner.split())
 
-        self.assertIn("Runtime validator owns contract and milestone scope selection", text)
-        self.assertIn("Do not rewrite accepted historical documents", text)
+        self.assertIn("docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md", skill)
+        self.assertIn("Preserve accepted history", skill)
+        self.assertIn("never infer a new contract", skill)
+        self.assertIn("retrofit current fields", skill)
+        self.assertIn(
+            "The harness validator and host controller own contract and milestone "
+            "scope selection",
+            owner_normalized,
+        )
+        self.assertIn(
+            "Agents must not rewrite accepted historical documents",
+            owner_normalized,
+        )
 
     def test_task_dispatch_summaries_name_container_scope_requirement(self):
         for relative in (
@@ -1373,7 +1388,7 @@ class CompatibilityDocumentationTests(unittest.TestCase):
                 packaged.read_text(encoding="utf-8"),
             )
             normalized = " ".join(source.read_text(encoding="utf-8").split()).lower()
-            self.assertIn("trusted accepted", normalized)
+            self.assertIn("explicitly selected, accepted immutable-history", normalized)
             self.assertIn("container", normalized)
 
     def test_runtime_python_uses_python_310_compatible_syntax(self):

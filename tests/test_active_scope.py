@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from sagekit import compile_ephemeral_packet, load_project_normalized_spec
 from sagekit.check import run_check
 from sagekit.candidate import (
     CandidateFingerprint,
@@ -14,8 +15,9 @@ from sagekit.candidate import (
     collect_repository_snapshot,
     freeze_candidate,
 )
-from sagekit.packet import compile_packet
-from sagekit.spec_sources import load_normalized_spec, package_identity
+from sagekit.init import fallback_content
+from sagekit.milestone_scope import read_active_milestones
+from sagekit.spec_sources import package_identity
 from tests.test_thin_execution_documents import create_project
 from tests.test_validation_scope_manifest import (
     manifest_payload,
@@ -51,14 +53,14 @@ def configure_active(root: Path) -> None:
     context.write_text(
         """# Active Context
 
-Current milestone: M36
-Current wave/phase: W1 / P2
-Current state: active
-Current authority: project config
-Blockers: none
-Next action: compile the active packet
-Key decisions: use the package-bound runtime
-Evidence/closeout pointers: docs/evidence/M36.md
+- Current milestone: M36
+- Current wave/phase: W1 / P2
+- Current state: active
+- Current authority: project config
+- Blockers: none
+- Next action: compile the active packet
+- Key decisions: use the package-bound runtime
+- Evidence/closeout pointers: docs/evidence/M36.md
 """,
         encoding="utf-8",
     )
@@ -73,6 +75,24 @@ def stable_findings(findings):
 
 
 class ActiveScopeTests(unittest.TestCase):
+    def test_package_bound_init_context_is_valid_empty_active_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            context = root / "docs/ACTIVE_CONTEXT.md"
+            context.parent.mkdir(parents=True)
+            context.write_text(
+                fallback_content("docs/ACTIVE_CONTEXT.md"),
+                encoding="utf-8",
+            )
+
+            milestones, _authorities, error, available = read_active_milestones(
+                root, context
+            )
+
+        self.assertTrue(available)
+        self.assertIsNone(error)
+        self.assertEqual(frozenset(), milestones)
+
     def test_active_check_is_read_only_and_creates_no_runtime_state(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
@@ -142,14 +162,14 @@ class ActiveScopeTests(unittest.TestCase):
             contracts = workspace / "contracts"
             create_project(root, contracts)
             configure_active(root)
-            before = load_normalized_spec(root, "M36", contract_root=contracts)
-            packet_before = compile_packet(root, "M36", contract_root=contracts)
+            before = load_project_normalized_spec(root, "M36")
+            packet_before = compile_ephemeral_packet(root, "M36")
             historical = root / "docs/accepted-history/decision.md"
             historical.parent.mkdir(parents=True)
             historical.write_text("old wording\n", encoding="utf-8")
             historical.write_text("new wording\n", encoding="utf-8")
-            after = load_normalized_spec(root, "M36", contract_root=contracts)
-            packet_after = compile_packet(root, "M36", contract_root=contracts)
+            after = load_project_normalized_spec(root, "M36")
+            packet_after = compile_ephemeral_packet(root, "M36")
 
         self.assertEqual(before.semantic_digest, after.semantic_digest)
         self.assertEqual(packet_before.digest, packet_after.digest)
@@ -342,7 +362,7 @@ class ActiveScopeTests(unittest.TestCase):
                 },
             )
             (root / "ACTIVE.md").write_text(
-                "# Active Context\n\nCurrent milestone: none\nCurrent state: idle\n",
+                "# Active Context\n\n- Current milestone: none\n- Current state: idle\n",
                 encoding="utf-8",
             )
             valid = run_check(root)

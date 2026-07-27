@@ -2,6 +2,6 @@
 /docs/contracts/execution-documents/2026.7.19.3/** -text
 /sagekit/resources/docs/contracts/execution-documents/2026.7.19.3/** -text
 /sagekit/resources/execution_documents/2026.7.19.3/** -text
-/sagekit/resources/contracts/v0/** -text
-/sagekit/resources/contracts/v1/** -text
-/sagekit/resources/contracts/v2/** -text
+/sagekit/resources/contracts/v0/** text eol=lf
+/sagekit/resources/contracts/v1/** text eol=lf
+/sagekit/resources/contracts/v2/** text eol=lf

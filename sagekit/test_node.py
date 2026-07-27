@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -27,6 +28,9 @@ FOCUSED_TESTS = (
     "tests.integration.test_process_supervisor",
 )
 
+_HEARTBEAT_REPLACE_ATTEMPTS = 5
+_HEARTBEAT_RETRY_DELAY_SECONDS = 0.01
+
 TEST_MODULE_LANES = {
     "test_ci_workflow": "unit",
     "test_active_scope": "unit",
@@ -36,6 +40,7 @@ TEST_MODULE_LANES = {
     "test_package_smoke": "unit",
     "test_packet_compile": "unit",
     "test_spec_sources": "unit",
+    "test_stage8_compatibility": "unit",
     "test_pathing": "unit",
     "test_sagekit_check": "integration",
     "test_task_dispatch_validator": "unit",
@@ -65,7 +70,15 @@ def _write_heartbeat(current_test: str) -> None:
         json.dumps({"schema_version": 1, "current_test": current_test}) + "\n",
         encoding="utf-8",
     )
-    os.replace(temporary, path)
+    for attempt in range(_HEARTBEAT_REPLACE_ATTEMPTS):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if attempt + 1 == _HEARTBEAT_REPLACE_ATTEMPTS:
+                temporary.unlink(missing_ok=True)
+                raise
+            time.sleep(_HEARTBEAT_RETRY_DELAY_SECONDS)
 
 
 def build_suite(lane: str, repository: Path) -> unittest.TestSuite:

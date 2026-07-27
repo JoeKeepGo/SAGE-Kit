@@ -1033,7 +1033,7 @@ class TaskDispatchProfileArchitectureTests(unittest.TestCase):
             encoding="utf-8-sig"
         )
 
-        self.assertIn("Activation must come from project-owned authority", profile)
+        self.assertIn("active project's authority", profile)
         self.assertIn("never activates this profile", profile)
         self.assertIn("compatibility-aware Task Dispatch validation operation", profile)
         self.assertNotIn("python scripts/validate_task_dispatch.py", profile)

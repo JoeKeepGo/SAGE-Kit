@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
@@ -10,12 +13,40 @@ from pathlib import Path
 
 from sagekit.findings import Finding
 from sagekit.resource_governor import ResourceClass
-from sagekit.test_node import main as test_node_main
+from sagekit.test_node import _write_heartbeat, main as test_node_main
 from sagekit.test_runner import NodeEvidence, build_plan, command_for, execute_plan
 from scripts.run_tests import main as runner_main
 
 
 class SerialTestRunnerUnitTests(unittest.TestCase):
+    def test_heartbeat_atomic_replace_retries_transient_permission_race(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "current-test.json"
+            real_replace = os.replace
+            attempts = 0
+
+            def replace_after_transient_failure(source, target):
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    raise PermissionError("target is briefly open")
+                real_replace(source, target)
+
+            with patch.dict(
+                os.environ,
+                {"SAGEKIT_TEST_HEARTBEAT_FILE": str(path)},
+            ), patch(
+                "sagekit.test_node.os.replace",
+                side_effect=replace_after_transient_failure,
+            ), patch("sagekit.test_node.time.sleep") as retry_wait:
+                _write_heartbeat("tests.unit.test_example")
+
+            payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(2, attempts)
+        retry_wait.assert_called_once()
+        self.assertEqual("tests.unit.test_example", payload["current_test"])
+
     def test_only_package_lane_delegates_its_shared_host_lease(self) -> None:
         repository = Path(__file__).resolve().parents[2]
         result = SimpleNamespace(

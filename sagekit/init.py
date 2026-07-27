@@ -281,14 +281,14 @@ Tests and runtime smoke must be recorded before work is called complete, or mark
 """,
     "docs/ACTIVE_CONTEXT.md": """# Active Context
 
-Current milestone: none
-Current wave/phase: none
-Current state: idle
-Current authority: SAGEKIT_CONFIG.json
-Blockers: none
-Next action: register an ACTIVE_SPEC source when work is authorized
-Key decisions: package-bound SAGE-Kit runtime
-Evidence/closeout pointers: none
+- Current milestone: none
+- Current wave/phase: none
+- Current state: idle
+- Current authority: SAGEKIT_CONFIG.json
+- Blockers: none
+- Next action: register an ACTIVE_SPEC source when work is authorized
+- Key decisions: package-bound SAGE-Kit runtime
+- Evidence/closeout pointers: none
 """,
     "docs/DOC_ROUTING.md": """# Document Routing
 
