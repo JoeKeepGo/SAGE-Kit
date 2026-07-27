@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run serial focused lane
-        run: python -B scripts/run_tests.py focused --repository .
+        run: python -B -m scripts.run_tests focused --repository .
 
   unit:
     needs: focused
@@ -50,7 +50,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run serial unit lane
-        run: python -B scripts/run_tests.py unit --repository .
+        run: python -B -m scripts.run_tests unit --repository .
 
   integration:
     needs: unit
@@ -70,7 +70,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run serial integration lane
-        run: python -B scripts/run_tests.py integration --repository .
+        run: python -B -m scripts.run_tests integration --repository .
 
   package-process-resource-smoke:
     needs: integration
@@ -93,9 +93,9 @@ jobs:
         run: python -m pip install "setuptools>=68"
       - name: Run source-repository check once
         if: matrix.os == 'ubuntu-latest'
-        run: python -B scripts/run_tests.py source-repo --repository .
+        run: python -B -m scripts.run_tests source-repo --repository .
       - name: Run package and outside-source smoke
-        run: python -B scripts/run_tests.py package --repository .
+        run: python -B -m scripts.run_tests package --repository .
       - name: Run Claude Code hook tests
         if: matrix.os == 'ubuntu-latest'
         run: bash tests/test_claude_hooks.sh

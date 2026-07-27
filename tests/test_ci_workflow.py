@@ -38,7 +38,7 @@ class SelfCheckWorkflowTests(unittest.TestCase):
         self.assertIn("needs: focused", unit)
         self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", unit)
         self.assertIn('python-version: ["3.10", "3.11", "3.12"]', unit)
-        self.assertIn("python -B scripts/run_tests.py unit --repository .", unit)
+        self.assertIn("python -B -m scripts.run_tests unit --repository .", unit)
 
     def test_focused_matrix_runs_before_the_unit_lane(self):
         text = WORKFLOW.read_text(encoding="utf-8")
@@ -46,7 +46,7 @@ class SelfCheckWorkflowTests(unittest.TestCase):
         focused = self.job(text, "focused", "unit")
         self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", focused)
         self.assertIn('python-version: ["3.10", "3.11", "3.12"]', focused)
-        self.assertIn("python -B scripts/run_tests.py focused --repository .", focused)
+        self.assertIn("python -B -m scripts.run_tests focused --repository .", focused)
 
     def test_each_job_fetches_history_for_frozen_base_comparison(self):
         text = WORKFLOW.read_text(encoding="utf-8")
@@ -60,11 +60,11 @@ class SelfCheckWorkflowTests(unittest.TestCase):
         integration = self.job(text, "integration", "package-process-resource-smoke")
         package = self.job(text, "package-process-resource-smoke", None)
 
-        self.assertIn("python -B scripts/run_tests.py unit --repository .", unit)
+        self.assertIn("python -B -m scripts.run_tests unit --repository .", unit)
         self.assertIn("needs: unit", integration)
-        self.assertIn("python -B scripts/run_tests.py integration --repository .", integration)
+        self.assertIn("python -B -m scripts.run_tests integration --repository .", integration)
         self.assertIn("needs: integration", package)
-        self.assertIn("python -B scripts/run_tests.py package --repository .", package)
+        self.assertIn("python -B -m scripts.run_tests package --repository .", package)
         for job in (unit, integration, package):
             self.assertNotIn("sagekit.test_node", job)
             self.assertNotIn("scripts/wheel_smoke.py", job)
@@ -78,14 +78,19 @@ class SelfCheckWorkflowTests(unittest.TestCase):
             self.assertIn("os: [ubuntu-latest, windows-latest, macos-latest]", job)
             self.assertNotIn('python-version: ["3.10", "3.11", "3.12"]', job)
             self.assertIn("python-version: \"3.12\"", job)
-        self.assertIn("python -B scripts/run_tests.py integration --repository .", integration)
-        self.assertIn("python -B scripts/run_tests.py package --repository .", package)
+        self.assertIn("python -B -m scripts.run_tests integration --repository .", integration)
+        self.assertIn("python -B -m scripts.run_tests package --repository .", package)
 
     def test_package_jobs_use_internal_source_check_and_wheel_smoke(self):
         text = WORKFLOW.read_text(encoding="utf-8")
 
-        self.assertEqual(1, text.count("python -B scripts/run_tests.py package --repository ."))
-        self.assertEqual(1, text.count("python -B scripts/run_tests.py source-repo --repository ."))
+        self.assertEqual(
+            1, text.count("python -B -m scripts.run_tests package --repository .")
+        )
+        self.assertEqual(
+            1, text.count("python -B -m scripts.run_tests source-repo --repository .")
+        )
+        self.assertNotIn("python -B scripts/run_tests.py", text)
         self.assertNotIn("python -B -m sagekit check --source-repo", text)
 
     @staticmethod
