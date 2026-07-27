@@ -269,6 +269,7 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
 
     def test_deterministic_failure_is_not_reported_as_handoff(self) -> None:
         stdout = StringIO()
+        stderr = StringIO()
         evidence = (
             NodeEvidence(
                 "unit",
@@ -276,16 +277,20 @@ class SerialTestRunnerUnitTests(unittest.TestCase):
                 ("python", "unit"),
                 0.1,
                 classification="nonzero",
+                stderr_tail="FAIL: exact unit regression",
             ),
         )
         with patch(
             "scripts.run_tests.execute_plan", return_value=(1, evidence)
-        ), redirect_stdout(stdout), redirect_stderr(StringIO()):
-            exit_code = runner_main(["unit", "--json"])
+        ), redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = runner_main(["unit"])
 
         self.assertEqual(1, exit_code)
         self.assertIn('"state": "NEEDS_CORRECTION"', stdout.getvalue())
         self.assertNotIn("HANDOFF_READY", stdout.getvalue())
+        self.assertNotIn("FAIL: exact unit regression", stdout.getvalue())
+        self.assertIn("--- unit stderr ---", stderr.getvalue())
+        self.assertIn("FAIL: exact unit regression", stderr.getvalue())
 
 
 if __name__ == "__main__":

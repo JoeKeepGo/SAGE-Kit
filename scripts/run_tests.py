@@ -96,7 +96,30 @@ def main(argv: list[str] | None = None) -> int:
         "serial": True,
         "nodes": evidence_payload(evidence),
     }
-    print(json.dumps(payload, indent=2 if args.json else None, sort_keys=True))
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        for item in evidence:
+            if item.state != "FAIL":
+                continue
+            if item.stdout_tail:
+                print(f"--- {item.name} stdout ---", file=sys.stderr)
+                print(item.stdout_tail, file=sys.stderr)
+            if item.stderr_tail:
+                print(f"--- {item.name} stderr ---", file=sys.stderr)
+                print(item.stderr_tail, file=sys.stderr)
+        compact = {
+            **payload,
+            "nodes": [
+                {
+                    key: value
+                    for key, value in node.items()
+                    if key not in {"stdout_tail", "stderr_tail"}
+                }
+                for node in payload["nodes"]
+            ],
+        }
+        print(json.dumps(compact, sort_keys=True))
     return code
 
 
