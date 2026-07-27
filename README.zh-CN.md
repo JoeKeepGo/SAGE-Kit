@@ -48,7 +48,7 @@ flowchart LR
 
 ```bash
 python -m pip install \
-  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.2"
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.3"
 ```
 
 本地开发：
@@ -164,6 +164,13 @@ Consumer 项目仍可使用 `docs/...`。SAGE-Kit 源码仓库不再把 package 
 公共 Skill 位于 [`skills/sage-kit`](skills/sage-kit)。Installed Skill 为 Codex、
 Claude Code、OpenCode、Kimi Work 和兼容运行时提供 activation、routing、
 authority、delegation、review 与 completion 指导。
+
+Python package 与 host Skill 是两层明确分开的安装。package 提供 Embedded
+Harness 和规范资源；如需 agent routing，请从
+[release](https://github.com/JoeKeepGo/SAGE-Kit/releases/tag/v2026.7.28.3)
+下载与版本匹配的 `sage-kit-skill-v2026.7.28.3.zip` 及 `.sha256`，核验摘要后，
+再通过 host 自己的 Skill 机制显式解压或同步。安装 Python package 不会自动修改
+host Skill。
 
 Skill 是可选入口，不是项目 authority，不能自行创建缺失的产品需求、threat model、
 migration、Gate 或验收条件。

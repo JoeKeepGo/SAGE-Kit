@@ -57,7 +57,7 @@ Install the latest tagged release directly from GitHub:
 
 ```bash
 python -m pip install \
-  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.2"
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.3"
 ```
 
 For local development:
@@ -181,6 +181,14 @@ The public Skill is located at [`skills/sage-kit`](skills/sage-kit). An
 Installed Skill provides activation, routing, authority, delegation, review,
 and completion guidance for Codex, Claude Code, OpenCode, Kimi Work, and
 compatible hosts.
+
+The Python package and the host Skill are deliberately separate installs. The
+package provides the Embedded Harness and canonical resources. To add agent
+routing, download the matching `sage-kit-skill-v2026.7.28.3.zip` and `.sha256`
+assets from the [release](https://github.com/JoeKeepGo/SAGE-Kit/releases/tag/v2026.7.28.3),
+verify the checksum, then explicitly extract or sync the bundle through your
+host's Skill mechanism. Installing the Python package does not change a host
+Skill automatically.
 
 The Skill is optional. It is not project authority and cannot create missing
 requirements, threat models, migrations, gates, or acceptance criteria.

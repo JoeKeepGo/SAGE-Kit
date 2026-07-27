@@ -50,6 +50,30 @@ class WheelSmokeScriptTests(unittest.TestCase):
                 environment={},
             )
 
+    def test_trivial_probe_admits_only_the_exact_bundle_locator_probe(self):
+        wheel_smoke = load_wheel_smoke()
+        paths = ("docs/agent/AGENT_HARNESS.md",)
+        command = wheel_smoke.installed_smoke_commands(
+            Path("python"), package_doc_paths=paths
+        )[-1]
+        completed = subprocess.CompletedProcess(
+            args=command, returncode=0, stdout=b"", stderr=b""
+        )
+        with patch.object(wheel_smoke.subprocess, "run", return_value=completed):
+            wheel_smoke.run_trivial_probe(
+                command,
+                cwd=Path.cwd(),
+                environment={},
+                package_doc_paths=paths,
+            )
+
+        with self.assertRaises(wheel_smoke.SmokeFailure):
+            wheel_smoke.run_trivial_probe(
+                command,
+                cwd=Path.cwd(),
+                environment={},
+            )
+
     def test_build_and_install_commands_are_offline_and_dependency_free(self):
         wheel_smoke = load_wheel_smoke()
         python = Path("python")
@@ -81,7 +105,13 @@ class WheelSmokeScriptTests(unittest.TestCase):
         wheel_smoke = load_wheel_smoke()
         python = Path("venv-python")
 
-        commands = wheel_smoke.installed_smoke_commands(python)
+        commands = wheel_smoke.installed_smoke_commands(
+            python,
+            package_doc_paths=(
+                "docs/SAGE_CORE.md",
+                "docs/agent/AGENT_HARNESS.md",
+            ),
+        )
 
         self.assertTrue(commands)
         for command in commands:
@@ -98,10 +128,24 @@ class WheelSmokeScriptTests(unittest.TestCase):
         self.assertIn("resource_governance/conservative-host-v1.json", flattened)
         self.assertIn("docs/agent/HOST_RESOURCE_GOVERNANCE.md", flattened)
         self.assertIn("docs/agent/SPEC_SOURCE_CONTRACT.md", flattened)
+        self.assertIn("missing package-doc resources", flattened)
+        self.assertIn("consumer project paths must not be package-doc locators", flattened)
         self.assertNotIn("-m sagekit", flattened)
         self.assertNotIn("sleep", flattened.casefold())
         self.assertNotIn("containment", flattened.casefold())
         self.assertNotIn("job object", flattened.casefold())
+
+    def test_wheel_smoke_uses_the_explicit_skill_bundle_for_its_installed_fixture(self):
+        wheel_smoke = load_wheel_smoke()
+        source = SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("build_skill_bundle(source_snapshot", source)
+        self.assertIn("extract_and_verify_skill_bundle", source)
+        self.assertNotIn(
+            'shutil.copytree(source_snapshot / "skills/sage-kit", installed_skill)',
+            source,
+        )
+        self.assertTrue(callable(wheel_smoke.run_wheel_smoke))
 
     def test_subprocess_environment_removes_source_import_overrides(self):
         wheel_smoke = load_wheel_smoke()
