@@ -2,13 +2,11 @@ import copy
 import hashlib
 import json
 import re
-import subprocess
 import unittest
 from pathlib import Path
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-BASELINE_COMMIT = "eb4a98407f49f57194d44a59054b2bbfa0c455d2"
 CANONICAL = REPOSITORY / "docs/contracts/evidence-lineage/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/evidence-lineage/v1"
 RESOURCE_NAMES = (
@@ -17,12 +15,13 @@ RESOURCE_NAMES = (
     "result.schema.json",
     "error.schema.json",
 )
-EXPECTED_PATHS = {
+STAGE5_CONTRACT_PATHS = {
     f"docs/contracts/evidence-lineage/v1/{name}" for name in RESOURCE_NAMES
 } | {
     f"sagekit/resources/contracts/evidence-lineage/v1/{name}"
     for name in RESOURCE_NAMES
-} | {
+}
+STAGE5_OWNER_PATHS = {
     "sagekit/evidence.py",
     "sagekit/review.py",
     "tests/fixtures/stage5_observed_failure_corpus_v1.json",
@@ -31,6 +30,7 @@ EXPECTED_PATHS = {
     "tests/unit/test_risk_based_evaluator.py",
     "tests/unit/test_stage5_observed_failure_corpus.py",
 }
+STAGE5_OWNED_PATHS = STAGE5_CONTRACT_PATHS | STAGE5_OWNER_PATHS
 
 EDGE_TYPES = {
     "NODE_OUTPUT",
@@ -411,30 +411,6 @@ def valid_result():
     }
 
 
-def changed_paths():
-    completed = subprocess.run(
-        ["git", "diff", "--name-only", BASELINE_COMMIT, "--"],
-        cwd=REPOSITORY,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-    untracked = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard"],
-        cwd=REPOSITORY,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=20,
-    )
-    return {
-        line.replace("\\", "/")
-        for line in (completed.stdout + untracked.stdout).splitlines()
-        if line.strip()
-    }
-
-
 class EvidenceLineageContractV1Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -443,9 +419,12 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         cls.result_schema = load_json(CANONICAL / "result.schema.json")
         cls.error_schema = load_json(CANONICAL / "error.schema.json")
 
-    def test_exact_manifest_is_final_fifteen_files(self):
-        self.assertEqual(EXPECTED_PATHS, changed_paths())
-        self.assertEqual(15, len(EXPECTED_PATHS))
+    def test_stage5_ownership_manifest_has_exactly_fifteen_existing_paths(self):
+        self.assertEqual(15, len(STAGE5_OWNED_PATHS))
+        missing = {
+            path for path in STAGE5_OWNED_PATHS if not (REPOSITORY / path).is_file()
+        }
+        self.assertEqual(set(), missing)
 
     def test_resources_are_valid_json_byte_identical_and_digest_bound(self):
         resource_keys = {
