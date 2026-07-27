@@ -525,9 +525,11 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertIn("`snapshot_authority` API/config field", packet)
         self.assertIn("supports that field", claude)
         self.assertIn("An unknown Kimi host capability", kimi)
-        self.assertIn("authority-preserving safe native fallback", kimi)
+        self.assertIn("Only in a Kimi Code CLI deployment", kimi)
+        self.assertIn("does not establish a delegation default or depth limit", kimi)
+        self.assertIn("fallback selected by the canonical adapter", kimi)
         self.assertIn("normalized `ACTIVE_SPEC` or execution packet", claude)
-        self.assertIn("descendants are limited to depth", kimi)
+        self.assertNotIn("descendants are limited to depth", kimi)
         self.assertIn("Those contracts retain authority", opencode)
         self.assertIn("Permission configuration is absent", opencode)
 
