@@ -65,10 +65,34 @@ LEASE_STATUSES = {"ACTIVE", "HELD", "RELEASED", "EXPIRED"}
 RELEASED_LEASE_STATUSES = {"RELEASED", "EXPIRED"}
 LOCK_STATUSES = {"ACTIVE", "HELD", "RELEASED", "EXPIRED"}
 RESOURCE_MODES = {"EXCLUSIVE", "SHARED"}
+DUPLICATE_MAPPING_KEY_ERROR = "duplicate mapping key"
 
 
 class ValidationError(Exception):
     pass
+
+
+def ensure_unique_mapping_key(mapping: dict[Any, Any], key: Any) -> None:
+    try:
+        if key in mapping:
+            raise ValidationError(DUPLICATE_MAPPING_KEY_ERROR)
+    except TypeError as exc:
+        raise ValidationError("invalid mapping key") from exc
+
+
+def add_unique_mapping_item(mapping: dict[Any, Any], key: Any, value: Any) -> None:
+    ensure_unique_mapping_key(mapping, key)
+    try:
+        mapping[key] = value
+    except TypeError as exc:
+        raise ValidationError("invalid mapping key") from exc
+
+
+def unique_mapping_from_pairs(pairs: list[tuple[Any, Any]]) -> dict[Any, Any]:
+    mapping: dict[Any, Any] = {}
+    for key, value in pairs:
+        add_unique_mapping_item(mapping, key, value)
+    return mapping
 
 
 def strip_comment(line: str) -> str:
@@ -182,9 +206,7 @@ def parse_scalar(text: str) -> Any:
             key = parse_scalar(raw_key)
             if not isinstance(key, str) or not key.strip():
                 raise ValidationError(f"invalid flow mapping key near: {part}")
-            if key in result:
-                raise ValidationError(f"duplicate flow mapping key: {key}")
-            result[key] = parse_scalar(raw_value)
+            add_unique_mapping_item(result, key, parse_scalar(raw_value))
         return result
     if re.fullmatch(r"-?\d+", text):
         return int(text)
@@ -245,15 +267,16 @@ def parse_mapping(lines: list[tuple[int, str]], index: int, indent: int) -> tupl
         key, value = pair
         if not key:
             raise ValidationError(f"empty key near: {content}")
+        ensure_unique_mapping_key(result, key)
         if value == "":
             index += 1
             if index < len(lines) and lines[index][0] > indent:
                 child, index = parse_block(lines, index, lines[index][0])
-                result[key] = child
+                add_unique_mapping_item(result, key, child)
             else:
-                result[key] = {}
+                add_unique_mapping_item(result, key, {})
         else:
-            result[key] = parse_scalar(value)
+            add_unique_mapping_item(result, key, parse_scalar(value))
             index += 1
     return result, index
 
@@ -292,7 +315,8 @@ def parse_sequence(lines: list[tuple[int, str]], index: int, indent: int) -> tup
         if index < len(lines) and lines[index][0] > indent:
             child, index = parse_block(lines, index, lines[index][0])
             if isinstance(item, dict) and isinstance(child, dict):
-                item.update(child)
+                for key, value in child.items():
+                    add_unique_mapping_item(item, key, value)
             else:
                 raise ValidationError(f"unexpected nested value after list item: {item_text}")
         result.append(item)
@@ -303,16 +327,33 @@ def load_record(path: Path) -> Any:
     text = path.read_text(encoding="utf-8")
     try:
         import yaml  # type: ignore
-
-        loaded = yaml.safe_load(text)
-        return loaded if loaded is not None else {}
     except ImportError:
         pass
-    except Exception as exc:
-        raise ValidationError(f"{path}: YAML parse failed: {exc}") from exc
+    else:
+        class UniqueKeyLoader(yaml.SafeLoader):
+            pass
+
+        def construct_mapping(loader: Any, node: Any, deep: bool = False) -> dict[Any, Any]:
+            mapping: dict[Any, Any] = {}
+            for key_node, value_node in node.value:
+                key = loader.construct_object(key_node, deep=deep)
+                value = loader.construct_object(value_node, deep=deep)
+                add_unique_mapping_item(mapping, key, value)
+            return mapping
+
+        UniqueKeyLoader.add_constructor(
+            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
+        )
+        try:
+            loaded = yaml.load(text, Loader=UniqueKeyLoader)
+            return loaded if loaded is not None else {}
+        except ValidationError:
+            raise
+        except Exception as exc:
+            raise ValidationError(f"{path}: YAML parse failed: {exc}") from exc
 
     try:
-        return json.loads(text)
+        return json.loads(text, object_pairs_hook=unique_mapping_from_pairs)
     except json.JSONDecodeError:
         return parse_yaml_subset(text)
 

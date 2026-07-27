@@ -1,9 +1,18 @@
+import builtins
 import json
+import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 from pathlib import Path
 
-from sagekit.task_dispatch_validator import load_record, parse_yaml_subset, validate_records
+from sagekit.task_dispatch_validator import (
+    ValidationError,
+    load_record,
+    parse_yaml_subset,
+    validate_records,
+)
 
 
 SCHEMA_DIR = Path(__file__).resolve().parents[1] / "docs/profiles/task-dispatch/schemas"
@@ -147,6 +156,79 @@ commands:
             record["commands"],
             [{"command": "python -m unittest", "source": "local", "cwd": r"C:\repo\src"}],
         )
+
+
+class DuplicateKeyLoadingTests(unittest.TestCase):
+    duplicate_records = {
+        "json": '{"task": {"id": "first", "id": "last"}}',
+        "nested_block": "task:\n  id: first\n  id: last\n",
+        "nested_flow": "task: {id: first, id: last}\n",
+        "sequence_inline_block": "tasks:\n  - id: first\n    id: last\n",
+    }
+
+    def assert_duplicate_key_is_rejected(self, text: str) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "record.yaml"
+            path.write_text(text, encoding="utf-8")
+
+            with self.assertRaisesRegex(ValidationError, r"^duplicate mapping key$") as raised:
+                load_record(path)
+
+        self.assertNotIn("last", str(raised.exception))
+
+    def test_available_yaml_loader_rejects_duplicate_json_keys(self):
+        mapping_tag = "tag:yaml.org,2002:map"
+
+        class FakeSafeLoader:
+            constructors = {}
+
+            @classmethod
+            def add_constructor(cls, tag, constructor):
+                cls.constructors[tag] = constructor
+
+            def construct_object(self, node, deep=False):
+                if node.mapping:
+                    return type(self).constructors[mapping_tag](self, node, deep)
+                return node.value
+
+        def load(text, Loader):
+            pairs = json.loads(text, object_pairs_hook=lambda value: value)
+            def to_node(value):
+                if isinstance(value, list) and all(
+                    isinstance(item, tuple) and len(item) == 2 for item in value
+                ):
+                    return types.SimpleNamespace(
+                        mapping=True,
+                        value=[(to_node(key), to_node(item)) for key, item in value],
+                    )
+                return types.SimpleNamespace(mapping=False, value=value)
+
+            node = to_node(pairs)
+            return Loader.constructors[mapping_tag](Loader(), node)
+
+        fake_yaml = types.SimpleNamespace(
+            SafeLoader=FakeSafeLoader,
+            load=load,
+            resolver=types.SimpleNamespace(
+                BaseResolver=types.SimpleNamespace(DEFAULT_MAPPING_TAG=mapping_tag)
+            ),
+        )
+
+        with mock.patch.dict(sys.modules, {"yaml": fake_yaml}):
+            self.assert_duplicate_key_is_rejected(self.duplicate_records["json"])
+
+    def test_forced_fallback_rejects_json_yaml_block_and_flow_duplicates(self):
+        original_import = builtins.__import__
+
+        def import_without_yaml(name, *args, **kwargs):
+            if name == "yaml":
+                raise ImportError("forced fallback")
+            return original_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=import_without_yaml):
+            for kind, text in self.duplicate_records.items():
+                with self.subTest(kind=kind):
+                    self.assert_duplicate_key_is_rejected(text)
 
 
 class StructuralValidationTests(unittest.TestCase):
