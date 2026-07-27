@@ -240,6 +240,20 @@ def parse_yaml_subset(text: str) -> Any:
     return result
 
 
+def parse_block_mapping_key(raw_key: str) -> str:
+    key = raw_key.strip()
+    if (key.startswith('"') and key.endswith('"')) or (
+        key.startswith("'") and key.endswith("'")
+    ):
+        parsed = parse_scalar(key)
+        if not isinstance(parsed, str):
+            raise ValidationError("invalid mapping key")
+        key = parsed
+    if not key:
+        raise ValidationError("invalid mapping key")
+    return key
+
+
 def parse_block(lines: list[tuple[int, str]], index: int, indent: int) -> tuple[Any, int]:
     if index >= len(lines):
         return {}, index
@@ -264,9 +278,8 @@ def parse_mapping(lines: list[tuple[int, str]], index: int, indent: int) -> tupl
         pair = split_key_value(content)
         if pair is None:
             raise ValidationError(f"expected key/value near: {content}")
-        key, value = pair
-        if not key:
-            raise ValidationError(f"empty key near: {content}")
+        raw_key, value = pair
+        key = parse_block_mapping_key(raw_key)
         ensure_unique_mapping_key(result, key)
         if value == "":
             index += 1
@@ -306,7 +319,8 @@ def parse_sequence(lines: list[tuple[int, str]], index: int, indent: int) -> tup
             item = parse_scalar(item_text)
             index += 1
         else:
-            key, value = pair
+            raw_key, value = pair
+            key = parse_block_mapping_key(raw_key)
             item = {key: parse_scalar(value) if value else {}}
             index += 1
             if value == "" and index < len(lines) and lines[index][0] > indent:
@@ -323,6 +337,30 @@ def parse_sequence(lines: list[tuple[int, str]], index: int, indent: int) -> tup
     return result, index
 
 
+def yaml_node_identity(node: Any) -> tuple[Any, ...]:
+    tag = getattr(node, "tag", None)
+    node_kind = getattr(node, "id", None)
+    value = getattr(node, "value", None)
+
+    if node_kind == "mapping" or (
+        isinstance(value, list)
+        and all(isinstance(item, tuple) and len(item) == 2 for item in value)
+    ):
+        return (
+            "mapping",
+            tag,
+            tuple(
+                (yaml_node_identity(key_node), yaml_node_identity(value_node))
+                for key_node, value_node in value
+            ),
+        )
+    if node_kind == "sequence" or isinstance(value, list):
+        return ("sequence", tag, tuple(yaml_node_identity(item) for item in value))
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return ("scalar", tag, type(value).__name__, value)
+    raise ValidationError("invalid mapping key")
+
+
 def load_record(path: Path) -> Any:
     text = path.read_text(encoding="utf-8")
     try:
@@ -330,20 +368,43 @@ def load_record(path: Path) -> Any:
     except ImportError:
         pass
     else:
-        class UniqueKeyLoader(yaml.SafeLoader):
-            pass
+        try:
+            class UniqueKeyLoader(yaml.SafeLoader):
+                pass
 
-        def construct_mapping(loader: Any, node: Any, deep: bool = False) -> dict[Any, Any]:
-            mapping: dict[Any, Any] = {}
-            for key_node, value_node in node.value:
-                key = loader.construct_object(key_node, deep=deep)
-                value = loader.construct_object(value_node, deep=deep)
-                add_unique_mapping_item(mapping, key, value)
-            return mapping
+            mapping_tag = yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG
+            merge_tag = "tag:yaml.org,2002:merge"
 
-        UniqueKeyLoader.add_constructor(
-            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_mapping
-        )
+            def construct_mapping(loader: Any, node: Any, deep: bool = False) -> dict[Any, Any]:
+                seen: set[tuple[Any, ...]] = set()
+                for key_node, _value_node in node.value:
+                    if getattr(key_node, "tag", None) == merge_tag:
+                        continue
+                    identity = yaml_node_identity(key_node)
+                    if identity in seen:
+                        raise ValidationError(DUPLICATE_MAPPING_KEY_ERROR)
+                    seen.add(identity)
+
+                base_construct = getattr(yaml.SafeLoader, "construct_mapping", None)
+                if callable(base_construct):
+                    return base_construct(loader, node, deep=deep)
+
+                mapping: dict[Any, Any] = {}
+                for key_node, value_node in node.value:
+                    key = loader.construct_object(key_node, deep=deep)
+                    value = loader.construct_object(value_node, deep=deep)
+                    try:
+                        mapping[key] = value
+                    except TypeError as exc:
+                        raise ValidationError("invalid mapping key") from exc
+                return mapping
+
+            UniqueKeyLoader.add_constructor(mapping_tag, construct_mapping)
+        except ValidationError:
+            raise
+        except Exception as exc:
+            raise ValidationError(f"{path}: YAML loader initialization failed: {exc}") from exc
+
         try:
             loaded = yaml.load(text, Loader=UniqueKeyLoader)
             return loaded if loaded is not None else {}

@@ -230,6 +230,156 @@ class DuplicateKeyLoadingTests(unittest.TestCase):
                 with self.subTest(kind=kind):
                     self.assert_duplicate_key_is_rejected(text)
 
+    def test_forced_fallback_rejects_equivalent_quoted_block_keys(self):
+        original_import = builtins.__import__
+
+        def import_without_yaml(name, *args, **kwargs):
+            if name == "yaml":
+                raise ImportError("forced fallback")
+            return original_import(name, *args, **kwargs)
+
+        records = {
+            "double_quoted": 'task:\n  id: first\n  "id": last\n',
+            "single_quoted": "task:\n  id: first\n  'id': last\n",
+            "sequence": 'tasks:\n  - id: first\n    "id": last\n',
+        }
+        with mock.patch("builtins.__import__", side_effect=import_without_yaml):
+            for kind, text in records.items():
+                with self.subTest(kind=kind):
+                    self.assert_duplicate_key_is_rejected(text)
+
+    def test_yaml_loader_distinguishes_scalar_key_tags(self):
+        mapping_tag = "tag:yaml.org,2002:map"
+        bool_tag = "tag:yaml.org,2002:bool"
+        int_tag = "tag:yaml.org,2002:int"
+
+        class FakeSafeLoader:
+            constructors = {}
+
+            @classmethod
+            def add_constructor(cls, tag, constructor):
+                cls.constructors[tag] = constructor
+
+            def construct_object(self, node, deep=False):
+                if node.id == "mapping":
+                    return type(self).constructors[mapping_tag](self, node, deep)
+                if node.tag == bool_tag:
+                    return node.value == "true"
+                if node.tag == int_tag:
+                    return int(node.value)
+                return node.value
+
+            def construct_mapping(self, node, deep=False):
+                mapping = {}
+                for key_node, value_node in node.value:
+                    mapping[self.construct_object(key_node, deep)] = self.construct_object(
+                        value_node, deep
+                    )
+                return mapping
+
+        def scalar(tag, value):
+            return types.SimpleNamespace(id="scalar", tag=tag, value=value)
+
+        def load(_text, Loader):
+            node = types.SimpleNamespace(
+                id="mapping",
+                tag=mapping_tag,
+                value=[
+                    (scalar(bool_tag, "true"), scalar("tag:yaml.org,2002:str", "boolean")),
+                    (scalar(int_tag, "1"), scalar("tag:yaml.org,2002:str", "integer")),
+                ],
+            )
+            return Loader.constructors[mapping_tag](Loader(), node)
+
+        fake_yaml = types.SimpleNamespace(
+            SafeLoader=FakeSafeLoader,
+            load=load,
+            resolver=types.SimpleNamespace(
+                BaseResolver=types.SimpleNamespace(DEFAULT_MAPPING_TAG=mapping_tag)
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "record.yaml"
+            path.write_text("typed-keys", encoding="utf-8")
+            with mock.patch.dict(sys.modules, {"yaml": fake_yaml}):
+                load_record(path)
+
+    def test_yaml_loader_preserves_merge_expansion_and_explicit_override(self):
+        mapping_tag = "tag:yaml.org,2002:map"
+        merge_tag = "tag:yaml.org,2002:merge"
+        string_tag = "tag:yaml.org,2002:str"
+
+        class FakeSafeLoader:
+            constructors = {}
+
+            @classmethod
+            def add_constructor(cls, tag, constructor):
+                cls.constructors[tag] = constructor
+
+            def construct_object(self, node, deep=False):
+                if node.id == "mapping":
+                    return type(self).constructors[mapping_tag](self, node, deep)
+                if node.id == "python":
+                    return node.value
+                return node.value
+
+            def construct_mapping(self, node, deep=False):
+                inherited = {}
+                explicit = {}
+                for key_node, value_node in node.value:
+                    if key_node.tag == merge_tag:
+                        inherited.update(self.construct_object(value_node, deep))
+                    else:
+                        explicit[self.construct_object(key_node, deep)] = self.construct_object(
+                            value_node, deep
+                        )
+                inherited.update(explicit)
+                return inherited
+
+        def scalar(tag, value):
+            return types.SimpleNamespace(id="scalar", tag=tag, value=value)
+
+        def load(_text, Loader):
+            node = types.SimpleNamespace(
+                id="mapping",
+                tag=mapping_tag,
+                value=[
+                    (
+                        scalar(merge_tag, "<<"),
+                        types.SimpleNamespace(
+                            id="python", tag=mapping_tag, value={"id": "inherited", "keep": "yes"}
+                        ),
+                    ),
+                    (scalar(string_tag, "id"), scalar(string_tag, "explicit")),
+                ],
+            )
+            return Loader.constructors[mapping_tag](Loader(), node)
+
+        fake_yaml = types.SimpleNamespace(
+            SafeLoader=FakeSafeLoader,
+            load=load,
+            resolver=types.SimpleNamespace(
+                BaseResolver=types.SimpleNamespace(DEFAULT_MAPPING_TAG=mapping_tag)
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "record.yaml"
+            path.write_text("merge", encoding="utf-8")
+            with mock.patch.dict(sys.modules, {"yaml": fake_yaml}):
+                self.assertEqual(load_record(path), {"id": "explicit", "keep": "yes"})
+
+    def test_incompatible_yaml_loader_is_wrapped_as_validation_error(self):
+        fake_yaml = types.SimpleNamespace()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "record.yaml"
+            path.write_text("task: {}", encoding="utf-8")
+            with mock.patch.dict(sys.modules, {"yaml": fake_yaml}):
+                with self.assertRaisesRegex(ValidationError, r"YAML loader initialization failed"):
+                    load_record(path)
+
 
 class StructuralValidationTests(unittest.TestCase):
     def test_rejects_wrong_element_types_in_file_and_command_lists(self):
