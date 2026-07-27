@@ -205,6 +205,8 @@ def resume_checkpoint(
     if recorded_payload_digest != _json_digest(digest_payload):
         mismatches.append("checkpoint payload digest differs")
     authority = payload.get("authority")
+    if (expected_authority_id is None) != (expected_authority_version is None):
+        mismatches.append("expected authority identity and version must be provided together")
     if isinstance(authority, dict):
         if expected_authority_id is not None and authority.get("id") != expected_authority_id:
             mismatches.append(

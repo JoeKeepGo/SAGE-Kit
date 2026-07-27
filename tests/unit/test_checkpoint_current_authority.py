@@ -133,6 +133,36 @@ class CheckpointCurrentAuthorityTests(unittest.TestCase):
             resumed.mismatches,
         )
 
+    def test_resume_rejects_authority_id_without_version(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            create_default_checkpoint(root)
+
+            resumed = resume_checkpoint(root, expected_authority_id="request")
+
+        self.assertFalse(resumed.ok)
+        self.assertEqual("checkpoint-mismatch", resumed.rule)
+        self.assertIn(
+            "expected authority identity and version must be provided together",
+            resumed.mismatches,
+        )
+
+    def test_resume_rejects_authority_version_without_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            init_repository(root)
+            create_default_checkpoint(root)
+
+            resumed = resume_checkpoint(root, expected_authority_version="1")
+
+        self.assertFalse(resumed.ok)
+        self.assertEqual("checkpoint-mismatch", resumed.rule)
+        self.assertIn(
+            "expected authority identity and version must be provided together",
+            resumed.mismatches,
+        )
+
     def test_legacy_checkpoint_resumes_without_execution_grant(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
