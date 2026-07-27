@@ -25,7 +25,8 @@ Do not read the whole file by default. A rebuild controller reads:
 4. the Decision Log;
 5. another named section only when the current decision needs it.
 
-Current stage pointer: `Stage 0: Baseline And Authority Inventory`.
+Current rebuild result: `REBUILD_STAGES_0_8_COMPLETE`; Stage 8 verdict:
+`STAGE_8_READY_FOR_ACCEPTANCE`. External acceptance remains pending.
 
 When a stage is accepted, its stable rules move to their canonical owner and
 this blueprint retains only the decision, stage outcome, and design history.
@@ -875,6 +876,22 @@ Acceptance:
 - ambiguous mixed authority fails closed;
 - a deprecated document cannot silently remain a second authority.
 
+### Stage Results Index
+
+| Stage | Result | Recorded checkpoint or canonical result |
+|---|---|---|
+| 0 | Complete | `docs/design/rebuild/STAGE_0_REPORT.md` |
+| 1-4 | Complete | Stage 4 architecture lineage and canonical owners |
+| 5 | Complete | `docs/design/rebuild/STAGE_5_ARCHITECTURE_CHECKPOINT.md` (evidence lineage) |
+| 6 | Complete | `docs/design/rebuild/STAGE_6_ARCHITECTURE_CHECKPOINT.md` (bounded Graph evolution) |
+| 7 | Complete | `docs/design/rebuild/STAGE_7_ARCHITECTURE_CHECKPOINT.md` (adapter profiles) |
+| 8 | `STAGE_8_READY_FOR_ACCEPTANCE` | `docs/design/rebuild/STAGE_8_ARCHITECTURE_CHECKPOINT.md` (compatibility close) |
+
+`REBUILD_STAGES_0_8_COMPLETE` records completed implementation and checkpoint
+lineage only. It does not record acceptance, merge, release, Installed Skill
+update, or consumer adoption. The future backlog and non-goals in this
+blueprint remain unchanged.
+
 ## 11. Product Metrics
 
 Do not depend on model-token or subscription usage data. Measure observable
@@ -957,22 +974,11 @@ Every rebuild stage must preserve:
 
 ## 14. Immediate Next Step
 
-Start only Stage 0.
-
-The next working session should produce a rule-ownership inventory and a
-proposed canonical map. It must not yet move files, rewrite the Skill, add the
-Graph Contract, or change runtime behavior.
-
-Stage 0 should answer:
-
-1. Which rules are repeated?
-2. Which current file should own each rule?
-3. Which copies can become references?
-4. Which paths are compatibility-sensitive?
-5. Which existing tests protect the meaning of each rule?
-6. What is the smallest Stage 1 diff that reduces duplicate authority?
-
-Only after Stage 0 review should Stage 1 receive implementation authority.
+The Stages 0-8 checkpoint lineage is complete. The next action is an external
+acceptance decision for the recorded Stage 8 result, not merge, release,
+Installed Skill update, or consumer adoption. Future backlog remains pending
+until separately authorized; this result does not activate Graph, runtime,
+adapter, Task Dispatch, scheduler, dynamic Graph database, or CLI behavior.
 
 ## 15. Decision Log
 
