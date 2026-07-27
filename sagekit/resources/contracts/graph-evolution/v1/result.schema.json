@@ -79,14 +79,11 @@
   "oneOf": [
     {
       "properties": {
-        "operation": {
-          "const": "NO_CHANGE"
-        },
         "outcome": {
-          "const": "NO_CHANGE"
+          "const": "REJECTED"
         },
         "message_code": {
-          "const": "NO_CHANGE_ACCEPTED"
+          "const": "EVOLUTION_REJECTED"
         }
       },
       "not": {
@@ -126,15 +123,13 @@
     {
       "properties": {
         "operation": {
-          "not": {
-            "const": "NO_CHANGE"
-          }
+          "const": "NO_CHANGE"
         },
         "outcome": {
-          "const": "REJECTED"
+          "const": "NO_CHANGE"
         },
         "message_code": {
-          "const": "EVOLUTION_REJECTED"
+          "const": "NO_CHANGE_ACCEPTED"
         }
       },
       "not": {

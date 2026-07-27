@@ -60,6 +60,18 @@
     "reason_code": {
       "$ref": "#/$defs/reason_code"
     },
+    "finding_ref": {
+      "$ref": "#/$defs/reference",
+      "description": "Required only for ADD_CORRECTIVE; binds the observed finding without dereferencing it."
+    },
+    "root_cause_ref": {
+      "$ref": "#/$defs/reference",
+      "description": "Required only for ADD_CORRECTIVE; binds the accepted root-cause record without dereferencing it."
+    },
+    "subject_status": {
+      "const": "PENDING",
+      "description": "Required only for SPLIT_PENDING and DISABLE_OPTIONAL_PENDING. This digest-bound assertion does not create runtime state."
+    },
     "evidence_refs": {
       "$ref": "#/$defs/references"
     },
@@ -74,6 +86,74 @@
       "description": "Digest of the externally retained Stage 5 lineage record selected by its owner. This contract binds the supplied value and does not redefine Stage 5 lineage semantics."
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "ADD_CORRECTIVE"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "finding_ref",
+          "root_cause_ref"
+        ],
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "finding_ref"
+              ]
+            },
+            {
+              "required": [
+                "root_cause_ref"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "SPLIT_PENDING",
+              "DISABLE_OPTIONAL_PENDING"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "subject_status"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "subject_status"
+          ]
+        }
+      }
+    }
+  ],
   "$defs": {
     "operation": {
       "type": "string",
@@ -142,13 +222,13 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:file|https?|unc):)[^\\r\\n\\\\]+$"
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?![A-Za-z][A-Za-z0-9+.-]*:)[^\\r\\n\\\\]+$"
     },
     "path": {
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:file|https?|unc):)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\r\\n\\\\*]+$"
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?![A-Za-z][A-Za-z0-9+.-]*:)(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:\\/|$))[^/\\r\\n\\\\*]+(?:/[^/\\r\\n\\\\*]+)*$"
     },
     "references": {
       "type": "array",

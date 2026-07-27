@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from sagekit.graph_evolution_contract import (
     STAGE5_LINEAGE_CONTRACT_SHA256,
     GraphEvolutionContractError,
     canonical_graph_evolution_digest,
+    validate_decision_chain,
     validate_graph_evolution_acceptance,
     validate_graph_evolution_document,
     validate_graph_evolution_error,
@@ -140,6 +142,62 @@ def minimal_graph(generation=8):
         ],
         "joins": [],
     }
+
+
+def evolution_parent_graph():
+    graph = minimal_graph(7)
+    graph["completion_verifier"] = "verifier/completion"
+    graph["human_gates"] = ["gate/acceptance"]
+    graph["nodes"] = [
+        {
+            "id": "node/controller",
+            "role": "Controller",
+            "depends_on": [],
+            "permission": "WRITE_AUTHORIZED",
+            "verifier": "verifier/controller",
+            "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+            "resources": [],
+            "classification": "required",
+        },
+        {
+            "id": "node/verify",
+            "role": "Verifier",
+            "depends_on": [],
+            "permission": "READ_ONLY_REVIEW",
+            "verifier": "verifier/focused",
+            "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+            "resources": [],
+            "classification": "required",
+        },
+        {
+            "id": "node/split",
+            "role": "Implementer",
+            "depends_on": [],
+            "permission": "WRITE_AUTHORIZED",
+            "verifier": "verifier/split",
+            "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+            "resources": ["scope/original"],
+            "classification": "required",
+        },
+        {
+            "id": "node/optional",
+            "role": "Investigator",
+            "depends_on": [],
+            "permission": "READ_ONLY_REVIEW",
+            "verifier": "verifier/investigation",
+            "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+            "resources": [],
+            "classification": "optional",
+        },
+    ]
+    graph["joins"] = [
+        {
+            "id": "gate/acceptance",
+            "requires": ["node/controller", "node/verify"],
+            "policy": "manual-gate",
+        }
+    ]
+    return graph
 
 
 def authority():
@@ -337,6 +395,234 @@ def error():
     }
 
 
+def operation_chain(operation="ADD_VERIFICATION", decision="ACCEPTED"):
+    parent = evolution_parent_graph()
+    parent_digest = canonical_graph_digest(parent)
+    subjects = {
+        "ADD_CORRECTIVE": "node/corrective",
+        "ADD_VERIFICATION": "node/new-verify",
+        "ADD_INVESTIGATION": "node/investigate",
+        "SPLIT_PENDING": "node/split",
+        "DISABLE_OPTIONAL_PENDING": "node/optional",
+        "NO_CHANGE": "node/verify",
+    }
+    reasons = {
+        "ADD_CORRECTIVE": "OBSERVED_FAILURE",
+        "ADD_VERIFICATION": "VERIFICATION_GAP",
+        "ADD_INVESTIGATION": "BLOCKING_UNCERTAINTY",
+        "SPLIT_PENDING": "NODE_TOO_BROAD",
+        "DISABLE_OPTIONAL_PENDING": "OPTIONAL_NODE_NO_LONGER_DECISIVE",
+        "NO_CHANGE": "EXISTING_GRAPH_SUFFICIENT",
+    }
+    req = request(operation)
+    req.update(
+        {
+            "node_id": subjects[operation],
+            "reason_code": reasons[operation],
+            "parent_graph_digest": parent_digest,
+        }
+    )
+    if operation == "ADD_CORRECTIVE":
+        req["finding_ref"] = "finding/review-001"
+        req["root_cause_ref"] = "root-cause/review-001"
+    if operation in {"SPLIT_PENDING", "DISABLE_OPTIONAL_PENDING"}:
+        req["subject_status"] = "PENDING"
+
+    preauth = preauthorization()
+    preauth["parent_graph_digest"] = parent_digest
+    preauth["allowed_node_ids"] = [
+        "node/controller",
+        "node/verify",
+        "node/split",
+        "node/optional",
+        "node/corrective",
+        "node/new-verify",
+        "node/investigate",
+        "node/split-part",
+    ]
+    preauth["allowed_roles"] = [
+        "Controller",
+        "Verifier",
+        "Corrector",
+        "Investigator",
+        "Implementer",
+    ]
+
+    prop = copy.deepcopy(req)
+    prop["schema_id"] = "urn:sagekit:graph-evolution:v1:proposal"
+    prop["proposal_id"] = f"proposal/{operation.lower()}"
+    prop["request_digest"] = canonical_graph_evolution_digest("request", req)
+    prop["preauthorization_digest"] = canonical_graph_evolution_digest(
+        "preauthorization", preauth
+    )
+    if operation != "NO_CHANGE":
+        target = copy.deepcopy(parent)
+        target["generation"] = 8
+        if operation == "ADD_CORRECTIVE":
+            target["nodes"].append(
+                {
+                    "id": "node/corrective",
+                    "role": "Corrector",
+                    "depends_on": [],
+                    "permission": "CORRECTIVE_AUTHORIZED",
+                    "verifier": "verifier/corrective",
+                    "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+                    "resources": [],
+                    "classification": "required",
+                }
+            )
+        elif operation == "ADD_VERIFICATION":
+            target["nodes"].append(
+                {
+                    "id": "node/new-verify",
+                    "role": "Verifier",
+                    "depends_on": [],
+                    "permission": "READ_ONLY_REVIEW",
+                    "verifier": "verifier/new-focused",
+                    "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+                    "resources": [],
+                    "classification": "required",
+                }
+            )
+        elif operation == "ADD_INVESTIGATION":
+            target["nodes"].append(
+                {
+                    "id": "node/investigate",
+                    "role": "Investigator",
+                    "depends_on": [],
+                    "permission": "READ_ONLY_REVIEW",
+                    "verifier": "verifier/investigation",
+                    "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+                    "resources": [],
+                    "classification": "optional",
+                }
+            )
+        elif operation == "SPLIT_PENDING":
+            target["nodes"].append(
+                {
+                    "id": "node/split-part",
+                    "role": "Implementer",
+                    "depends_on": ["node/split"],
+                    "permission": "WRITE_AUTHORIZED",
+                    "verifier": "verifier/split",
+                    "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+                    "resources": ["scope/split-part"],
+                    "classification": "required",
+                }
+            )
+        else:
+            target["nodes"] = [
+                node for node in target["nodes"] if node["id"] != "node/optional"
+            ]
+        prop["target_generation"] = 8
+        prop["target_graph"] = target
+        prop["target_graph_digest"] = canonical_graph_digest(target)
+
+    accept = {
+        "schema_id": "urn:sagekit:graph-evolution:v1:acceptance",
+        "schema_version": 1,
+        "acceptance_id": f"acceptance/{operation.lower()}",
+        "proposal_digest": canonical_graph_evolution_digest("proposal", prop),
+        "preauthorization_digest": canonical_graph_evolution_digest(
+            "preauthorization", preauth
+        ),
+        "decision": decision,
+        "authority": authority(),
+        "evaluator": {
+            "node_id": "node/verify",
+            "role": "Verifier",
+            "decision": "APPROVE" if decision == "ACCEPTED" else "REJECT",
+            "decision_ref": "decision/evaluator-001",
+        },
+        "reason_code": (
+            "WITHIN_PREAUTHORIZATION"
+            if decision == "ACCEPTED"
+            else "EVALUATOR_REJECTED"
+        ),
+        "decision_refs": ["decision/pm-001"],
+    }
+    outcome = (
+        "REJECTED"
+        if decision == "REJECTED"
+        else "NO_CHANGE"
+        if operation == "NO_CHANGE"
+        else "ACCEPTED"
+    )
+    res = {
+        "schema_id": "urn:sagekit:graph-evolution:v1:result",
+        "schema_version": 1,
+        "request_digest": canonical_graph_evolution_digest("request", req),
+        "preauthorization_digest": canonical_graph_evolution_digest(
+            "preauthorization", preauth
+        ),
+        "proposal_digest": canonical_graph_evolution_digest("proposal", prop),
+        "acceptance_digest": canonical_graph_evolution_digest(
+            "acceptance", accept
+        ),
+        "operation": operation,
+        "outcome": outcome,
+        "graph_id": parent["graph_id"],
+        "parent_generation": parent["generation"],
+        "parent_graph_digest": parent_digest,
+        "message_code": (
+            "EVOLUTION_REJECTED"
+            if outcome == "REJECTED"
+            else "NO_CHANGE_ACCEPTED"
+            if outcome == "NO_CHANGE"
+            else "EVOLUTION_ACCEPTED"
+        ),
+    }
+    if outcome == "ACCEPTED":
+        res["target_generation"] = prop["target_generation"]
+        res["target_graph_digest"] = prop["target_graph_digest"]
+    return req, preauth, prop, accept, res, parent
+
+
+def rebind_chain(chain):
+    req, preauth, prop, accept, res, parent = chain
+    parent_digest = canonical_graph_digest(parent)
+    for document in (req, preauth, prop, res):
+        document["parent_graph_digest"] = parent_digest
+    prop["request_digest"] = canonical_graph_evolution_digest("request", req)
+    prop["preauthorization_digest"] = canonical_graph_evolution_digest(
+        "preauthorization", preauth
+    )
+    if "target_graph" in prop:
+        prop["target_graph_digest"] = canonical_graph_digest(prop["target_graph"])
+    accept["proposal_digest"] = canonical_graph_evolution_digest("proposal", prop)
+    accept["preauthorization_digest"] = canonical_graph_evolution_digest(
+        "preauthorization", preauth
+    )
+    res["request_digest"] = canonical_graph_evolution_digest("request", req)
+    res["preauthorization_digest"] = canonical_graph_evolution_digest(
+        "preauthorization", preauth
+    )
+    res["proposal_digest"] = canonical_graph_evolution_digest("proposal", prop)
+    res["acceptance_digest"] = canonical_graph_evolution_digest(
+        "acceptance", accept
+    )
+    if res["outcome"] == "ACCEPTED":
+        res["target_graph_digest"] = prop["target_graph_digest"]
+    return chain
+
+
+def powershell_test_json(schema_path, value):
+    command = (
+        "$json = [Console]::In.ReadToEnd(); "
+        f"$json | Test-Json -SchemaFile '{schema_path}' "
+        "-ErrorAction SilentlyContinue"
+    )
+    completed = subprocess.run(
+        ["pwsh", "-NoProfile", "-Command", command],
+        input=json.dumps(value, ensure_ascii=False),
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    return completed.returncode == 0 and completed.stdout.strip().endswith("True")
+
+
 class GraphEvolutionContractV1Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -527,6 +813,31 @@ class GraphEvolutionContractV1Tests(unittest.TestCase):
         with self.assertRaises(GraphEvolutionContractError):
             canonical_graph_evolution_digest("bogus", request())
 
+    def test_malformed_enum_types_return_issues_without_raising(self):
+        cases = []
+        invalid_request = request()
+        invalid_request["operation"] = []
+        cases.append((validate_graph_evolution_request, invalid_request))
+        invalid_proposer = request()
+        invalid_proposer["proposer"]["permission"] = {}
+        cases.append((validate_graph_evolution_request, invalid_proposer))
+        invalid_preauth = preauthorization()
+        invalid_preauth["evaluator"]["permission"] = []
+        cases.append(
+            (validate_graph_evolution_preauthorization, invalid_preauth)
+        )
+        invalid_acceptance = acceptance()
+        invalid_acceptance["decision"] = {}
+        cases.append((validate_graph_evolution_acceptance, invalid_acceptance))
+        invalid_result = result()
+        invalid_result["message_code"] = []
+        cases.append((validate_graph_evolution_result, invalid_result))
+        invalid_error = error()
+        invalid_error["error_code"] = {}
+        cases.append((validate_graph_evolution_error, invalid_error))
+        for validator, value in cases:
+            self.assertFalse(validator(value).valid)
+
     def test_preauthorization_is_bounded_and_fail_closed(self):
         self.assertTrue(
             validate_graph_evolution_preauthorization(preauthorization()).valid
@@ -574,6 +885,8 @@ class GraphEvolutionContractV1Tests(unittest.TestCase):
     def test_references_and_paths_reject_uri_absolute_and_newline_values(self):
         invalid_values = (
             "https://example.invalid/evidence",
+            "SSH://example.invalid/evidence",
+            "git+ssh://example.invalid/evidence",
             "file:///tmp/secret",
             "/etc/passwd",
             "\\\\server\\share",
@@ -638,6 +951,264 @@ class GraphEvolutionContractV1Tests(unittest.TestCase):
             {"RESULT_ERROR_EXCLUSIVITY"},
             {issue.issue_code for issue in neither.issues},
         )
+
+    def test_result_operation_outcome_and_message_are_globally_bound(self):
+        non_change_no_change = result("ADD_VERIFICATION", "NO_CHANGE")
+        non_change_no_change["message_code"] = "NO_CHANGE_ACCEPTED"
+        self.assertFalse(
+            validate_graph_evolution_result(non_change_no_change).valid
+        )
+        unknown_message = result()
+        unknown_message["message_code"] = "UNKNOWN_MESSAGE"
+        self.assertFalse(validate_graph_evolution_result(unknown_message).valid)
+        no_change_rejected = result("NO_CHANGE", "REJECTED")
+        no_change_rejected["message_code"] = "EVOLUTION_REJECTED"
+        self.assertTrue(validate_graph_evolution_result(no_change_rejected).valid)
+
+    def test_preauthorization_requires_complete_fail_stop_set_and_zero_mutation_budget(self):
+        for stop_condition in preauthorization()["stop_conditions"]:
+            value = preauthorization()
+            value["stop_conditions"].remove(stop_condition)
+            self.assertFalse(
+                validate_graph_evolution_preauthorization(value).valid,
+                stop_condition,
+            )
+
+        exhausted = preauthorization()
+        exhausted["generation_budget"]["remaining_generations"] = 0
+        self.assertFalse(
+            validate_graph_evolution_preauthorization(exhausted).valid
+        )
+        for operation in OPERATIONS - {"NO_CHANGE"}:
+            exhausted["operation_budgets"][operation] = 0
+            exhausted["allowed_operations"].remove(operation)
+        self.assertTrue(
+            validate_graph_evolution_preauthorization(exhausted).valid
+        )
+        self.assertGreater(exhausted["operation_budgets"]["NO_CHANGE"], 0)
+
+    def test_opaque_identity_is_never_rejected_for_path_like_appearance(self):
+        opaque_values = (
+            "https://identity.example/pm",
+            "/authority/private/path",
+            r"C:\identity\node",
+            "../identity/segment",
+        )
+        for opaque in opaque_values:
+            value = request()
+            value["graph_id"] = opaque
+            value["authority"]["authority_id"] = opaque
+            value["proposer"]["node_id"] = opaque
+            value["node_id"] = opaque
+            self.assertTrue(
+                validate_graph_evolution_request(value).valid,
+                opaque,
+            )
+
+    def test_paths_reject_empty_current_and_trailing_segments(self):
+        for invalid_path in ("a//b", "./a", "a/./b", "a/", ".", ".."):
+            value = request()
+            value["affected_paths"] = [invalid_path]
+            self.assertFalse(
+                validate_graph_evolution_request(value).valid,
+                invalid_path,
+            )
+
+    def test_error_issues_are_unique_and_use_uppercase_machine_codes(self):
+        duplicate = error()
+        duplicate["issues"].append(copy.deepcopy(duplicate["issues"][0]))
+        self.assertFalse(validate_graph_evolution_error(duplicate).valid)
+        for invalid_code in ("invalid_operation", "InvalidOperation", "_INVALID"):
+            value = error()
+            value["issues"][0]["issue_code"] = invalid_code
+            self.assertFalse(
+                validate_graph_evolution_error(value).valid,
+                invalid_code,
+            )
+
+    def test_powershell_test_json_and_python_validation_have_real_parity_probes(self):
+        validators = {
+            "request": validate_graph_evolution_request,
+            "preauthorization": validate_graph_evolution_preauthorization,
+            "result": validate_graph_evolution_result,
+            "error": validate_graph_evolution_error,
+        }
+        cases = []
+        valid_opaque = request()
+        valid_opaque["graph_id"] = "https://opaque.example/a/b"
+        cases.append(("request", valid_opaque, True))
+        for invalid_path in ("a//b", "./a", "a/"):
+            value = request()
+            value["affected_paths"] = [invalid_path]
+            cases.append(("request", value, False))
+        invalid_result = result("ADD_VERIFICATION", "NO_CHANGE")
+        invalid_result["message_code"] = "NO_CHANGE_ACCEPTED"
+        cases.append(("result", invalid_result, False))
+        invalid_message = result()
+        invalid_message["message_code"] = "NOT_A_MESSAGE"
+        cases.append(("result", invalid_message, False))
+        rejected_no_change = result("NO_CHANGE", "REJECTED")
+        rejected_no_change["message_code"] = "EVOLUTION_REJECTED"
+        cases.append(("result", rejected_no_change, True))
+        duplicate_issue = error()
+        duplicate_issue["issues"].append(copy.deepcopy(duplicate_issue["issues"][0]))
+        cases.append(("error", duplicate_issue, False))
+        lowercase_issue = error()
+        lowercase_issue["issues"][0]["issue_code"] = "invalid_operation"
+        cases.append(("error", lowercase_issue, False))
+        long_location = error()
+        long_location["issues"][0]["location"] = "$." + "a" * 511
+        cases.append(("error", long_location, False))
+        uri_reference = request()
+        uri_reference["evidence_refs"] = ["Git+SSH://example.invalid/evidence"]
+        cases.append(("request", uri_reference, False))
+        missing_corrective_context = request("ADD_CORRECTIVE")
+        cases.append(("request", missing_corrective_context, False))
+        valid_corrective_context = request("ADD_CORRECTIVE")
+        valid_corrective_context["reason_code"] = "OBSERVED_FAILURE"
+        valid_corrective_context["finding_ref"] = "finding/review-001"
+        valid_corrective_context["root_cause_ref"] = "root-cause/review-001"
+        cases.append(("request", valid_corrective_context, True))
+        incomplete_stops = preauthorization()
+        incomplete_stops["stop_conditions"].pop()
+        cases.append(("preauthorization", incomplete_stops, False))
+        exhausted_mutation = preauthorization()
+        exhausted_mutation["generation_budget"]["remaining_generations"] = 0
+        cases.append(("preauthorization", exhausted_mutation, False))
+
+        for kind, value, expected in cases:
+            with self.subTest(kind=kind, value=value):
+                python_valid = validators[kind](value).valid
+                schema_valid = powershell_test_json(
+                    CANONICAL / f"{kind}.schema.json",
+                    value,
+                )
+                self.assertEqual(expected, python_valid)
+                self.assertEqual(expected, schema_valid)
+                self.assertEqual(python_valid, schema_valid)
+
+    def test_valid_decision_chains_bind_all_documents_and_parent_graph(self):
+        for operation in OPERATIONS:
+            chain = operation_chain(operation)
+            with self.subTest(operation=operation):
+                validation = validate_decision_chain(*chain)
+                self.assertTrue(validation.valid, validation.issues)
+
+        rejected = operation_chain("ADD_VERIFICATION", "REJECTED")
+        validation = validate_decision_chain(*rejected)
+        self.assertTrue(validation.valid, validation.issues)
+        rejected_no_change = operation_chain("NO_CHANGE", "REJECTED")
+        validation = validate_decision_chain(*rejected_no_change)
+        self.assertTrue(validation.valid, validation.issues)
+
+    def test_decision_chain_recomputes_digests_and_binds_authority_scope_and_budget(self):
+        mutators = (
+            lambda chain: chain[2].__setitem__("request_digest", "f" * 64),
+            lambda chain: chain[3]["authority"].__setitem__(
+                "authority_id", "pm/other"
+            ),
+            lambda chain: chain[1]["allowed_roles"].remove("Controller"),
+            lambda chain: chain[1]["allowed_permissions"].remove(
+                "WRITE_AUTHORIZED"
+            ),
+            lambda chain: chain[1]["allowed_paths"].__setitem__(
+                0, "unrelated/**"
+            ),
+            lambda chain: chain[1]["operation_budgets"].__setitem__(
+                "ADD_VERIFICATION", 0
+            ),
+            lambda chain: chain[1]["generation_budget"].__setitem__(
+                "remaining_generations", 0
+            ),
+            lambda chain: chain[5].__setitem__("generation", 6),
+        )
+        for mutate in mutators:
+            chain = list(operation_chain("ADD_VERIFICATION"))
+            mutate(chain)
+            with self.subTest(mutate=mutate):
+                self.assertFalse(validate_decision_chain(*chain).valid)
+
+    def test_operation_specific_graph_deltas_fail_closed(self):
+        cases = []
+
+        corrective = list(operation_chain("ADD_CORRECTIVE"))
+        corrective[2]["target_graph"]["nodes"][-1]["permission"] = "WRITE_AUTHORIZED"
+        corrective[2]["target_graph_digest"] = canonical_graph_digest(
+            corrective[2]["target_graph"]
+        )
+        cases.append(rebind_chain(corrective))
+
+        verification = list(operation_chain("ADD_VERIFICATION"))
+        verification[2]["target_graph"]["nodes"][-1][
+            "permission"
+        ] = "WRITE_AUTHORIZED"
+        verification[2]["target_graph_digest"] = canonical_graph_digest(
+            verification[2]["target_graph"]
+        )
+        cases.append(rebind_chain(verification))
+
+        investigation = list(operation_chain("ADD_INVESTIGATION"))
+        investigation[2]["target_graph"]["nodes"][-1][
+            "classification"
+        ] = "required"
+        investigation[2]["target_graph_digest"] = canonical_graph_digest(
+            investigation[2]["target_graph"]
+        )
+        cases.append(rebind_chain(investigation))
+
+        split = list(operation_chain("SPLIT_PENDING"))
+        split[2]["target_graph"]["nodes"][2]["verifier"] = "verifier/weaker"
+        split[2]["target_graph_digest"] = canonical_graph_digest(
+            split[2]["target_graph"]
+        )
+        cases.append(rebind_chain(split))
+
+        disabled = list(operation_chain("DISABLE_OPTIONAL_PENDING"))
+        disabled[5]["joins"].append(
+            {
+                "id": "join/optional-required",
+                "requires": ["node/controller", "node/optional"],
+                "policy": "required-plus-optional",
+            }
+        )
+        cases.append(rebind_chain(disabled))
+
+        changed_gate = list(operation_chain("ADD_VERIFICATION"))
+        changed_gate[2]["target_graph"]["human_gates"].append("gate/other")
+        changed_gate[2]["target_graph_digest"] = canonical_graph_digest(
+            changed_gate[2]["target_graph"]
+        )
+        cases.append(rebind_chain(changed_gate))
+
+        changed_completion = list(operation_chain("ADD_VERIFICATION"))
+        changed_completion[2]["target_graph"][
+            "completion_verifier"
+        ] = "verifier/other"
+        changed_completion[2]["target_graph_digest"] = canonical_graph_digest(
+            changed_completion[2]["target_graph"]
+        )
+        cases.append(rebind_chain(changed_completion))
+
+        for chain in cases:
+            self.assertFalse(validate_decision_chain(*chain).valid)
+
+    def test_chain_binds_parent_authority_proposer_and_evaluator_controls(self):
+        authority_mismatch = list(operation_chain("ADD_VERIFICATION"))
+        authority_mismatch[5]["source_authority"]["identity"] = "pm/other"
+
+        proposer_mismatch = list(operation_chain("ADD_VERIFICATION"))
+        proposer_mismatch[0]["proposer"]["role"] = "Verifier"
+        proposer_mismatch[2]["proposer"]["role"] = "Verifier"
+
+        evaluator_mismatch = list(operation_chain("ADD_VERIFICATION"))
+        evaluator_mismatch[1]["evaluator"]["permission"] = "WRITE_AUTHORIZED"
+
+        for chain in (
+            rebind_chain(authority_mismatch),
+            rebind_chain(proposer_mismatch),
+            rebind_chain(evaluator_mismatch),
+        ):
+            self.assertFalse(validate_decision_chain(*chain).valid)
 
     def test_module_does_not_construct_or_apply_proposals(self):
         import sagekit.graph_evolution_contract as module

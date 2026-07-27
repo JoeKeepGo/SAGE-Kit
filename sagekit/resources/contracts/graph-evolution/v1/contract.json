@@ -7,27 +7,27 @@
     "request_schema": {
       "resource": "request.schema.json",
       "schema_id": "urn:sagekit:graph-evolution:v1:request",
-      "canonical_sha256": "ac049775ed8e46fba68e7c4dc4a372cae6a967c7877fc12e2a8d257ecfe32a5a"
+      "canonical_sha256": "6e0219cb03016a20d00da7a1d3162282a61e7556e0747921ca586782698b324f"
     },
     "preauthorization_schema": {
       "resource": "preauthorization.schema.json",
       "schema_id": "urn:sagekit:graph-evolution:v1:preauthorization",
-      "canonical_sha256": "0cc9288d7c5a961597ce04a0d442c83fb7bd18cc000617bc63264d0ecdda924f"
+      "canonical_sha256": "3660a7fc4f3ef53de95c0c461c4634a2ffce685cf414062692a4732f89c15e39"
     },
     "proposal_schema": {
       "resource": "proposal.schema.json",
       "schema_id": "urn:sagekit:graph-evolution:v1:proposal",
-      "canonical_sha256": "170faae3e5d37dd78ad20c40138aa901d9f4d47c0c29908d869ae74e78703254"
+      "canonical_sha256": "6b460fe2884ea54f281a33d419bbc219d10df948e88393ebab3f100784e31af1"
     },
     "acceptance_schema": {
       "resource": "acceptance.schema.json",
       "schema_id": "urn:sagekit:graph-evolution:v1:acceptance",
-      "canonical_sha256": "764428a768c6709dada554a13f2c5b709d6f6b2fc128389def95364791c4887f"
+      "canonical_sha256": "780aeda2785de4c51b4b333acdbec26b41988a255c8e74b555befb16d254e1c6"
     },
     "result_schema": {
       "resource": "result.schema.json",
       "schema_id": "urn:sagekit:graph-evolution:v1:result",
-      "canonical_sha256": "49007c1ac3256afee2cb725e0387afe636bab03c4101e39cf574d24f9a72ba53"
+      "canonical_sha256": "b35eed56d83a238f47534276b91c3e0e074abdce77af7e4401020be5aba826c1"
     },
     "error_schema": {
       "resource": "error.schema.json",
@@ -56,24 +56,24 @@
     }
   },
   "operations": {
-    "ADD_CORRECTIVE": "Propose one bounded corrective node associated with observed failure evidence.",
-    "ADD_VERIFICATION": "Propose one focused verification node tied to a current acceptance, gate, changed surface, or observed evidence.",
-    "ADD_INVESTIGATION": "Propose one read-only investigation node for blocking uncertainty that can change an execution or acceptance decision.",
-    "SPLIT_PENDING": "Propose splitting one still-pending node without rewriting completed history.",
-    "DISABLE_OPTIONAL_PENDING": "Propose disabling one optional still-pending node without removing required work, gates, or verifiers.",
+    "ADD_CORRECTIVE": "Add exactly one required CORRECTIVE_AUTHORIZED node. The digest-bound Request must identify the observed finding, accepted root-cause record, and at least one evidence reference.",
+    "ADD_VERIFICATION": "Add exactly one READ_ONLY_REVIEW verification node while preserving every parent node and verifier.",
+    "ADD_INVESTIGATION": "Add exactly one optional READ_ONLY_REVIEW investigation node. It cannot enter a required join; any join that references it must be first-success.",
+    "SPLIT_PENDING": "Add exactly one split node for a Request subject asserted PENDING. The subject remains byte-for-byte unchanged, the split preserves role, permission, verifier, and classification, and gates cannot change.",
+    "DISABLE_OPTIONAL_PENDING": "Remove exactly one optional Request subject asserted PENDING. The subject cannot be referenced by a required join or gate; only a first-success reference may be removed with it.",
     "NO_CHANGE": "Explicitly recommend retaining the parent Graph. NO_CHANGE has no target_graph, target_generation, or target_graph_digest."
   },
   "binding": {
     "request_and_proposal": "Each Request and Proposal binds operation, Graph ID, parent generation and existing Graph semantic digest, external authority, proposer node/role/permission, subject node, change class, closed reason code, bounded evidence and decision references, bounded affected paths, and Stage 5 lineage digest.",
-    "decision_chain": "Proposal binds exact Request and PM Preauthorization digests. Acceptance binds exact Proposal and PM Preauthorization digests plus Project Manager authority and independent evaluator decision. Result binds exact Request, Preauthorization, Proposal, and Acceptance digests.",
+    "decision_chain": "The pure validate_decision_chain operation validates all five documents, recomputes their canonical digests, binds Proposal to Request and PM Preauthorization, binds Acceptance to Proposal, PM authority, and the preauthorized independent evaluator, binds Result to the complete chain, and compares the supplied parent Graph with the inert target Graph. It performs no apply or execution.",
     "generation_lineage": "Every changed Proposal target generation is exactly parent_generation plus one and the Graph owner must reproduce graph_id, target_generation, and target_graph_digest. NO_CHANGE crosses no generation.",
-    "completed_history": "This contract records parent and target identities but does not implement semantic Graph differencing. Preservation of immutable completed-node history, required gates, and required verifiers remains an acceptance and host admission obligation for later explicitly authorized behavior."
+    "completed_history": "Pure parent/target differencing preserves every unaffected parent node byte-for-byte, preserves split subjects byte-for-byte, and forbids changes to human_gates or completion_verifier. SPLIT_PENDING and DISABLE_OPTIONAL_PENDING require a digest-bound PENDING assertion because Graph Contract v1 intentionally contains no runtime node status. The validator never obtains or dereferences runtime state."
   },
   "pm_preauthorization": {
     "closed_world": "Allowed operations, change classes, nodes, roles, permissions, path patterns, generation budget, all six per-operation budgets, independent evaluator, stop conditions, and Project Manager authority are explicit closed fields. Missing or unlisted values are denied.",
-    "budget_alignment": "Every allowed operation has a positive remaining budget and every disallowed operation has zero budget. Generation and operation budgets are inclusive bounded counters and confer no authority after exhaustion.",
+    "budget_alignment": "Every allowed operation has a positive remaining budget and every disallowed operation has zero budget. When remaining_generations is zero, all five mutating operation budgets must be zero; NO_CHANGE may retain a positive budget. Generation and operation budgets are inclusive bounded counters and confer no authority after exhaustion.",
     "ordinary_scope": "C0 and C1 can be listed for ordinary preauthorized continuation. C2 or C3 may be represented only when Project Manager authority explicitly lists them; classification never upgrades itself.",
-    "stop_rule": "Budget exhaustion, no progress, evaluator rejection, authority or contract change, permission expansion, and gate or verifier removal are closed fail-stop conditions."
+    "stop_rule": "The complete fail-stop set is mandatory: budget exhaustion, no progress, evaluator rejection, authority change, contract change, permission expansion, and gate or verifier removal."
   },
   "canonical_digest": {
     "algorithm": "SHA-256",
@@ -157,8 +157,9 @@
       "domain_separated_digest"
     ],
     "unknown_fields": "Every document and nested control object rejects unknown fields. No extension bag, free-form metadata, or arbitrary content field exists.",
-    "reference_boundary": "Authority, evidence, decision, and document references are bounded repository-neutral strings and reject absolute, rooted, drive-prefixed, UNC, file URI, HTTP(S) URI, backslash, and newline forms.",
-    "path_boundary": "Affected paths and allowed path patterns are repository-relative slash-separated values. They reject roots, drives, URIs, backslashes, newlines, empty segments, and parent traversal.",
+    "reference_boundary": "Authority, evidence, decision, and document references are bounded repository-neutral strings and reject absolute, rooted, drive-prefixed, UNC, any URI-scheme-prefixed, backslash, and newline forms.",
+    "path_boundary": "Affected paths and allowed path patterns are repository-relative slash-separated values. They reject roots, drives, URIs, backslashes, newlines, empty segments, current or parent traversal segments, and trailing slashes.",
+    "opaque_identity_boundary": "Graph, authority, node, and role identities are bounded opaque strings inherited from the Stage 4 identity model. They may look like paths or URIs and are never opened, normalized as locations, traversed, or dereferenced; appearance alone is not grounds for rejection.",
     "allowlist_boundary": "Operations, change classes, Graph-owned permission names, reason codes, evaluator decisions, stop conditions, outcomes, messages, document kinds, and errors are closed enumerations."
   },
   "failure_semantics": {
@@ -174,7 +175,7 @@
     "acceptance_boundary": "Acceptance is an external digest-bound decision record. Proposal presence alone is never acceptance; evaluator approval alone is never Project Manager authority.",
     "apply_ownership": "The independently authorized host retains all apply ownership and must revalidate current parent Graph, authority, budgets, stop conditions, acceptance, and target Graph before any later application.",
     "result_error_exclusivity": "A valid outcome contains exactly one complete Result or exactly one complete Error. Error never masquerades as rejection, no-change success, or partial acceptance.",
-    "privacy": "Documents exclude prompts, private reasoning, chain of thought, transcripts, stdout, stderr, environment dumps, credentials, secrets, commands, callbacks, arbitrary payloads, mutable handles, complete project history, and absolute local paths. Reasons and decisions use bounded closed codes.",
+    "privacy": "The closed schemas provide no dedicated fields for prompts, reasoning traces, transcripts, environment dumps, credentials, commands, callbacks, arbitrary payloads, or mutable handles. This is a structural data-minimization boundary, not a claim that opaque identity strings have been inspected or proven non-sensitive. Producers must not place secrets or private content in opaque identities. Reference and path fields separately reject absolute local paths and URI locations.",
     "non_goals": "This contract adds no command interface, scheduling component, database, network API, filesystem traversal, process launch, runtime writer, proposal builder, Graph apply implementation, or later-stage adapter behavior."
   },
   "digest_semantics": "canonical_sha256 values in resources and dependencies are LF-normalized resource-integrity digests only. The canonical_digest section separately owns Graph Evolution document digests. Neither digest family grants authority or execution.",

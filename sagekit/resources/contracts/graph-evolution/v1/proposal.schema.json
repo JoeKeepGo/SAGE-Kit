@@ -78,6 +78,15 @@
     "reason_code": {
       "$ref": "#/$defs/reason_code"
     },
+    "finding_ref": {
+      "$ref": "#/$defs/reference"
+    },
+    "root_cause_ref": {
+      "$ref": "#/$defs/reference"
+    },
+    "subject_status": {
+      "const": "PENDING"
+    },
     "evidence_refs": {
       "$ref": "#/$defs/references"
     },
@@ -143,6 +152,72 @@
           "target_graph_digest"
         ]
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "ADD_CORRECTIVE"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "finding_ref",
+          "root_cause_ref"
+        ],
+        "properties": {
+          "evidence_refs": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "finding_ref"
+              ]
+            },
+            {
+              "required": [
+                "root_cause_ref"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "SPLIT_PENDING",
+              "DISABLE_OPTIONAL_PENDING"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "required": [
+          "subject_status"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "subject_status"
+          ]
+        }
+      }
     }
   ],
   "$defs": {
@@ -200,13 +275,13 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:file|https?|unc):)[^\\r\\n\\\\]+$"
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?![A-Za-z][A-Za-z0-9+.-]*:)[^\\r\\n\\\\]+$"
     },
     "path": {
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:file|https?|unc):)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\r\\n\\\\*]+$"
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?![A-Za-z][A-Za-z0-9+.-]*:)(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:\\/|$))[^/\\r\\n\\\\*]+(?:/[^/\\r\\n\\\\*]+)*$"
     },
     "references": {
       "type": "array",
