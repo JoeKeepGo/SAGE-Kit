@@ -2,8 +2,8 @@
 
 Review topology, finding severity, corrective re-review scope, evidence reuse,
 and convergence are canonical at the `sage-loop-*` anchors in
-`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md`. Deterministic Closure is canonical at
-`sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`. This reference retains the
+`package-doc("docs/agent/EXECUTION_ECONOMY.md")`. Deterministic Closure is canonical at
+`package-doc("docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011")`. This reference retains the
 review, reporting, handoff, and submit applications of those rules.
 
 Use this reference for reviews, handoff, completion reports, milestone ledgers,
@@ -14,8 +14,8 @@ memory maintenance, closeout, commit, or push.
 For `thin-v1`, review `SAGE_PROJECT.json`, the active
 `MILESTONE_MANIFEST.json`, and selected phase manifests as structured authority.
 Resolve and classify that current authority under
-`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and
-`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`.
+`package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001")` and
+`package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002")`.
 Confirm their contract/profile references and digests, dependency integrity,
 path containment, approval/permission consistency, acceptance, state, and
 evidence references. Generic governance prose is not required in the project
@@ -66,21 +66,21 @@ Lead with blocking findings before summaries.
 ## Severity And Acceptance
 
 Apply initial and corrective review scope from
-`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-010`. Record severity, finding owner,
+`package-doc("docs/agent/EXECUTION_ECONOMY.md#sage-loop-010")`. Record severity, finding owner,
 blocking reason, and any backlog route in the review packet; this reference does
 not broaden the canonical re-review.
 
 ## Corrective Convergence
 
 Apply convergence and local-limit outcomes from
-`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`. Apply Deterministic Closure at
-`sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`; Project Manager acceptance
+`package-doc("docs/agent/EXECUTION_ECONOMY.md#sage-loop-008")`. Apply Deterministic Closure at
+`package-doc("docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011")`; Project Manager acceptance
 remains pending after any Final Review finalization.
 
 ## Completion Report Must Name
 
 Apply completion eligibility from
-`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`. The report locally retains:
+`package-doc("docs/agent/EXECUTION_ECONOMY.md#sage-loop-013")`. The report locally retains:
 
 - scope implemented;
 - governance level;
@@ -175,7 +175,7 @@ Memory Maintenance: ACTIVE_CONTEXT no change; DOC_ROUTING no change.
 ## Milestone Closeout
 
 Closeout order and historical-context boundaries are canonical at
-`sagekit/resources/docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`. When that sequence permits
+`package-doc("docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011")`. When that sequence permits
 closeout, the local historical index records:
 
 - outcome;
@@ -221,7 +221,7 @@ When Session Orchestration is used:
   Project Manager decision request, blocker, or waiver path instead of editing.
 - If corrective execution is authorized, Final Review may open a bounded
   corrective round through separately authorized corrective workers and must
-  apply `sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-010` or a valid
+  apply `package-doc("docs/agent/EXECUTION_ECONOMY.md#sage-loop-010")` or a valid
   reviewer-authored Deterministic Closure receipt. It must not edit
   implementation or corrective files itself.
 - Corrective closure must produce independent re-review evidence or a valid
@@ -244,7 +244,7 @@ Before commit, push, PR, or final handoff:
 3. Scan for secrets or local data when applicable.
 4. Run required verification.
    Apply mechanical normalization boundaries from
-   `sagekit/resources/docs/agent/EXECUTION_ECONOMY.md#sage-loop-012`.
+   `package-doc("docs/agent/EXECUTION_ECONOMY.md#sage-loop-012")`.
    Treat successful line-ending notices, such as `git diff --check` reporting
    LF-to-CRLF conversion with exit code `0`, as non-blocking platform warnings.
    Treat trailing whitespace, conflict markers, malformed patches, or any
@@ -262,5 +262,5 @@ Before commit, push, PR, or final handoff:
    Planning Author, Planning Review, Targeted Fix, Closure Receipt Owner,
    Verdict Finalization, Targeted Re-Review when selected, Closeout/Status, and
    Submit Controller authority stayed separate. Strict closure still follows
-   `sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md`.
+   `package-doc("docs/agent/SESSION_ORCHESTRATION.md")`.
 10. Commit or hand off only intended scope.

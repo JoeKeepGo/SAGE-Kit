@@ -10,12 +10,12 @@ Use the named canonical owner rather than duplicating its rules here.
 
 | Concern | Canonical owner | Claude Code delta |
 |---|---|---|
-| Authority, approval, and completion | `sagekit/resources/docs/SAGE_CORE.md#sage-auth-001` and `sagekit/resources/docs/SAGE_CORE.md#sage-auth-009` | Claude permissions do not grant project authority. |
-| Packet, source, file boundary, and controller duties | `sagekit/resources/docs/agent/AGENT_HARNESS.md#sage-auth-010` | Dispatch the resolved authority and named launch-only delta; Coder packet file and command limits remain `SOFT` instructions unless a separate control covers a specific operation. |
-| Permission modes and separated Coder/Final Review authority | `sagekit/resources/docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`, `sagekit/resources/docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005`, and `sagekit/resources/docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006` | Agent frontmatter narrows available tools; it cannot broaden a packet. |
-| Adapter lifecycle, evidence-only results, native fallback, and descendant inheritance | `sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` | Propagate the bound and applicable runtime/model policy in every child prompt. |
-| Managed-operation containment and reporting | `sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md` | Claude hooks and tool declarations are not host-process containment. |
-| Session roles, verification ownership, and review/corrective flow | `sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md` | The controller owns required command execution and its evidence. |
+| Authority, approval, and completion | `package-doc("docs/SAGE_CORE.md#sage-auth-001")` and `package-doc("docs/SAGE_CORE.md#sage-auth-009")` | Claude permissions do not grant project authority. |
+| Packet, source, file boundary, and controller duties | `package-doc("docs/agent/AGENT_HARNESS.md#sage-auth-010")` | Dispatch the resolved authority and named launch-only delta; Coder packet file and command limits remain `SOFT` instructions unless a separate control covers a specific operation. |
+| Permission modes and separated Coder/Final Review authority | `package-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004")`, `package-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005")`, and `package-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006")` | Agent frontmatter narrows available tools; it cannot broaden a packet. |
+| Adapter lifecycle, evidence-only results, native fallback, and descendant inheritance | `package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003")` | Propagate the bound and applicable runtime/model policy in every child prompt. |
+| Managed-operation containment and reporting | `package-doc("docs/agent/HOST_RESOURCE_GOVERNANCE.md")` | Claude hooks and tool declarations are not host-process containment. |
+| Session roles, verification ownership, and review/corrective flow | `package-doc("docs/agent/SESSION_ORCHESTRATION.md")` | The controller owns required command execution and its evidence. |
 
 An adapter result is evidence only. It cannot create permission, widen scope,
 open a gate, establish `PASS`, accept work, or claim `DONE`.
@@ -65,7 +65,7 @@ control is `MANAGED`; other packet allowed/read-only/forbidden paths remain
 does not enforce the packet command boundary. A controller that needs stronger
 isolation must select a worker without `Bash` or use an environment-enforced
 boundary, then report the actual containment level under
-`sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md`.
+`package-doc("docs/agent/HOST_RESOURCE_GOVERNANCE.md")`.
 
 Windows and Unix deployments select a runtime-supported hook command for the
 available shell. The paired hook implementations do not imply equivalent host

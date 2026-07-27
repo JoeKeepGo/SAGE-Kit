@@ -11,7 +11,7 @@ interface:
     subagent orchestration, review, verification, and branch completion as
     native behaviors, not similarly named skill invocations. Otherwise use the
     runtime's normal adapter policy. Canonical policy:
-    sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007.
+    package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007").
     Codex runtime mapping and host-boundary notes:
     skills/sage-kit/references/codex.md.
     Repeat the disabled status and using-superpowers prohibition in every

@@ -1,5 +1,10 @@
 import json
+import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -28,16 +33,17 @@ CONTRACT_FAMILIES = (
     "graph-evolution",
 )
 PACKAGE_DOC_PATTERN = re.compile(
-    r"sagekit/resources/docs/[A-Za-z0-9_./-]+\.(?:md|json)"
+    r'package-doc\("([A-Za-z0-9_./-]+\.(?:md|json))(?:#[A-Za-z0-9_-]+)?"\)'
 )
 
 
 class CanonicalResourceInventoryTests(unittest.TestCase):
     def test_skill_framework_locators_resolve_to_package_resources(self):
         stale_patterns = (
-            re.compile(r"(?<!resources/)docs/agent/"),
-            re.compile(r"(?<!resources/)docs/templates/"),
-            re.compile(r"(?<!resources/)docs/SAGE_CORE\.md"),
+            re.compile(r"(?<!resources/)sagekit/resources/docs/"),
+            re.compile(r'(?<!package-doc\(")docs/agent/'),
+            re.compile(r'(?<!package-doc\(")docs/templates/'),
+            re.compile(r'(?<!package-doc\(")docs/SAGE_CORE\.md'),
             re.compile(r"\.\./\.\./\.\./docs/"),
         )
         located = set()
@@ -48,21 +54,65 @@ class CanonicalResourceInventoryTests(unittest.TestCase):
             located.update(PACKAGE_DOC_PATTERN.findall(text))
 
         self.assertTrue(located)
-        missing = sorted(path for path in located if not (REPOSITORY / path).is_file())
-        self.assertEqual([], missing)
-
-    def test_codex_markdown_links_resolve_inside_repository(self):
-        reference = REPOSITORY / "skills/sage-kit/references/codex.md"
-        text = reference.read_text(encoding="utf-8")
-        links = re.findall(r"\[[^\]]+\]\(([^)#]+)(?:#[^)]+)?\)", text)
-        repository_links = [link for link in links if "://" not in link]
-        self.assertTrue(repository_links)
         missing = sorted(
-            link
-            for link in repository_links
-            if not (reference.parent / link).resolve().is_file()
+            path
+            for path in located
+            if not (REPOSITORY / "sagekit/resources" / path).is_file()
         )
         self.assertEqual([], missing)
+
+    def test_skill_defines_package_doc_as_an_importlib_resource_locator(self):
+        skill = (REPOSITORY / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(
+            'importlib.resources.files("sagekit").joinpath("resources/", relative_path)',
+            skill,
+        )
+        self.assertIn("never resolve it relative to the Skill installation", skill)
+
+    def test_source_checkout_package_doc_locators_use_imported_package(self):
+        from importlib import resources
+
+        resource = resources.files("sagekit").joinpath(
+            "resources/docs/agent/AGENT_HARNESS.md"
+        )
+        self.assertTrue(resource.is_file())
+        self.assertEqual(
+            (REPOSITORY / "sagekit/resources/docs/agent/AGENT_HARNESS.md").resolve(),
+            Path(str(resource)).resolve(),
+        )
+
+    def test_site_packages_and_external_installed_skill_use_package_resources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            site_packages = root / "site-packages"
+            installed_skill = root / "installed-skills/sage-kit"
+            shutil.copytree(REPOSITORY / "sagekit", site_packages / "sagekit")
+            shutil.copytree(REPOSITORY / "skills/sage-kit", installed_skill)
+            sibling_decoy = installed_skill / "sagekit/resources/docs/agent/AGENT_HARNESS.md"
+            sibling_decoy.parent.mkdir(parents=True)
+            sibling_decoy.write_text("sibling-relative decoy", encoding="utf-8")
+
+            script = (
+                "import sys\n"
+                f"sys.path.insert(0, {str(site_packages)!r})\n"
+                "from importlib import resources\n"
+                "from pathlib import Path\n"
+                "resource = resources.files('sagekit').joinpath("
+                "'resources/docs/agent/AGENT_HARNESS.md')\n"
+                "print(Path(str(resource)).resolve())\n"
+                "print(resource.read_text(encoding='utf-8')[:32])\n"
+            )
+            completed = subprocess.run(
+                [sys.executable, "-I", "-c", script],
+                cwd=installed_skill,
+                env=os.environ.copy(),
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            lines = completed.stdout.splitlines()
+            self.assertTrue(lines[0].startswith(str(site_packages.resolve())))
+            self.assertNotEqual("sibling-relative decoy", lines[1])
 
     def test_contract_manifests_name_the_package_resource_owner(self):
         for family in CONTRACT_FAMILIES:

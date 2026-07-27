@@ -1,6 +1,6 @@
 ---
 name: sage-kit
-description: "Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt/bootstrap SAGE-Kit, or references SAGE-Kit-owned docs or constructs such as docs/ACTIVE_CONTEXT.md, docs/DOC_ROUTING.md, sagekit/resources/docs/agent/AGENT_HARNESS.md, SAGE-Kit Governance Levels, Authority Matrix, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch Profile, or Capability Adapters. Do not use for generic milestones, gates, phase docs, planning, review, or debugging unless tied to SAGE-Kit."
+description: 'Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt/bootstrap SAGE-Kit, or references SAGE-Kit-owned docs or constructs such as docs/ACTIVE_CONTEXT.md, docs/DOC_ROUTING.md, package-doc("docs/agent/AGENT_HARNESS.md"), SAGE-Kit Governance Levels, Authority Matrix, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch Profile, or Capability Adapters. Do not use for generic milestones, gates, phase docs, planning, review, or debugging unless tied to SAGE-Kit.'
 disable-model-invocation: true
 ---
 
@@ -22,9 +22,16 @@ Installed Skill is not project authority. Project-owned SPEC and configuration,
 plus any explicitly named Project Manager decision, remain authoritative. The
 Skill interprets and routes that authority; it must not manufacture missing
 scope, permission, gates, file ownership, evidence, fallback, or completion.
+
+Every `package-doc("<relative-path>[#anchor]")` reference below is a
+package-owned resource locator. Separate any optional anchor, then resolve the
+path as `importlib.resources.files("sagekit").joinpath("resources/", relative_path)`;
+never resolve it relative to the Skill installation, repository root, current
+working directory, or a sibling `sagekit/` directory.
+
 Authority precedence and completion ownership remain canonical at
-`sagekit/resources/docs/SAGE_CORE.md#sage-auth-001`; mutation and approval boundaries remain at
-`sagekit/resources/docs/SAGE_CORE.md#sage-auth-009`.
+`package-doc("docs/SAGE_CORE.md#sage-auth-001")`; mutation and approval boundaries remain at
+`package-doc("docs/SAGE_CORE.md#sage-auth-009")`.
 
 For a governed project:
 
@@ -36,8 +43,8 @@ For a governed project:
    `execution_document_model`, then load only the active `legacy-markdown` or
    `thin-v1` execution authority selected for this task.
 4. Apply source precedence and scope classification from
-   `sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and
-   `sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`.
+   `package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001")` and
+   `package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002")`.
 5. Before writable work, resolve allowed, read-only, and forbidden files;
    approval gates; verification; and stop conditions.
 
@@ -55,7 +62,7 @@ Select the lightest level that preserves the active authority and risk:
   environment writes, submit operations, or elevated risk.
 
 Resolve the matching read-only, write, corrective, environment-write, or submit
-permission mode from `sagekit/resources/docs/agent/GOVERNANCE_LEVELS.md`. A Heavy controller may
+permission mode from `package-doc("docs/agent/GOVERNANCE_LEVELS.md")`. A Heavy controller may
 delegate Light or Standard work, but delegation never transfers broader
 authority than the launch packet states.
 
@@ -70,15 +77,15 @@ do not load the whole SAGE-Kit or every Skill body by default.
 | Milestone, roadmap, or phase planning | `references/planning.md` |
 | Implementation, debugging, refactor, or bounded workers | Relevant sections of `references/execution.md` |
 | Review, handoff, completion, or closeout | `references/review-completion.md` |
-| Context loading and controller launch | `sagekit/resources/docs/agent/AGENT_HARNESS.md#sage-ctx-005` and `sagekit/resources/docs/agent/AGENT_HARNESS.md#sage-auth-010` |
-| Execution economy, verification, convergence, re-review, or normalization | Stable `sage-loop-*` anchors in `sagekit/resources/docs/agent/EXECUTION_ECONOMY.md` |
-| Deterministic Closure | `sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011` |
-| Graph admission | `sagekit/resources/docs/SAGE_CORE.md#sage-grf-001` |
-| Wave execution | `sagekit/resources/docs/agent/WAVE_EXECUTION.md#sage-grf-002` |
-| Capability selection and lifecycle | `sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003` |
-| Runtime adapter override | `sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007` |
-| Checkpoint or resume | `sagekit/resources/docs/agent/CONTINUITY_PROTOCOL.md` plus runtime resume state |
-| Validation compatibility | `sagekit/resources/docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md` |
+| Context loading and controller launch | `package-doc("docs/agent/AGENT_HARNESS.md#sage-ctx-005")` and `package-doc("docs/agent/AGENT_HARNESS.md#sage-auth-010")` |
+| Execution economy, verification, convergence, re-review, or normalization | Stable `sage-loop-*` anchors in `package-doc("docs/agent/EXECUTION_ECONOMY.md")` |
+| Deterministic Closure | `package-doc("docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011")` |
+| Graph admission | `package-doc("docs/SAGE_CORE.md#sage-grf-001")` |
+| Wave execution | `package-doc("docs/agent/WAVE_EXECUTION.md#sage-grf-002")` |
+| Capability selection and lifecycle | `package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003")` |
+| Runtime adapter override | `package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007")` |
+| Checkpoint or resume | `package-doc("docs/agent/CONTINUITY_PROTOCOL.md")` plus runtime resume state |
+| Validation compatibility | `package-doc("docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md")` |
 
 Load Advanced Execution Economy only for relevant Heavy, corrective, or final
 verification work. Preserve accepted history: never infer a new contract,
@@ -98,7 +105,7 @@ metadata to select task-relevant specialist skills, plugins, MCP tools, CI,
 browser, database, frontend, document, and review capabilities. Load only the
 selected instructions. External capability use remains inside project
 authority and the lifecycle at
-`sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`.
+`package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003")`.
 
 Optional capability absence does not become a false product blocker when a safe
 native path exists. Fallback must preserve scope, gates, authority,
@@ -122,7 +129,7 @@ Host enforcement must be described honestly. Managed execution may report
 `HARD` or `MANAGED` containment through its platform adapter, while arbitrary
 direct commands that bypass the managed runtime remain a `SOFT` guarantee.
 For `conservative-host-v1` resource governance, use
-`sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md` for workspace verification, managed
+`package-doc("docs/agent/HOST_RESOURCE_GOVERNANCE.md")` for workspace verification, managed
 execution, leases, process trees, and limitations.
 
 Stop and return the narrow authority gap or handoff when required authority is
@@ -134,7 +141,7 @@ when an equivalent safe native workflow exists.
 For planning-only closeout, preserve separate Planning Author, Planning Review,
 Targeted Fix, Closure Verification (`strict Deterministic Closure` or `Targeted
 Re-Review`), Closeout/Status, and Submit Controller authority. Under
-`sagekit/resources/docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`, only Final Review may record
+`package-doc("docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011")`, only Final Review may record
 `VERDICT_FINALIZED_FROM_RECEIPT`; that is not milestone acceptance.
 
 At handoff, report the authority used, changed files, focused verification,

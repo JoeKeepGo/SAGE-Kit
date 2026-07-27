@@ -47,8 +47,9 @@ tree without proof against escape, and `SOFT` when cooperation can bypass the
 boundary. Evidence records results and limitations; it never creates authority,
 widens scope, passes a gate, or establishes acceptance.
 
-Canonical contracts: [adapter lifecycle](../../../sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003),
-[runtime policy](../../../sagekit/resources/docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007), and
-[Host Resource Governance](../../../sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md).
+Canonical contracts: adapter lifecycle at
+`package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003")`, runtime policy at
+`package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007")`, and
+`package-doc("docs/agent/HOST_RESOURCE_GOVERNANCE.md")`.
 They remain authoritative for adapter lifecycle, runtime-policy semantics, Root
 supervision, containment, and evidence ownership.

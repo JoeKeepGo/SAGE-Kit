@@ -27,8 +27,8 @@ select it merely because the project contains Markdown.
 
 Milestone documents remain first-class project assets and may live at any
 authorized project path. Resolve current execution authority under
-`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001` and classify it under
-`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. Adoption remains responsible
+`package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001")` and classify it under
+`package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002")`. Adoption remains responsible
 for recording the selected project source, adapter, and any required mapping,
 not for redefining precedence or fallback.
 
@@ -63,7 +63,7 @@ risk, authority, and reviewability to choose the shape.
 ## History And Runtime State
 
 Apply active, handoff, history, reference, and runtime-state classification from
-`sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002`. Adoption keeps accepted
+`package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002")`. Adoption keeps accepted
 history unchanged, places transient execution data under `.sagekit`, and keeps
 the configured handoff view compact.
 
