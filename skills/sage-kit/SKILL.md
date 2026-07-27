@@ -10,28 +10,6 @@ Use this Skill only as the activation and routing layer for SAGE-Kit. It does
 not replace the project's SPEC, execution authority, approval gates,
 permissions, scope, evidence, or acceptance owner.
 
-## Codex GPT-5.6 Pre-Load Guard
-
-Before capability discovery or routing, detect the runtime and model family.
-For a Codex session running any GPT-5.6 family model, apply the
-`Codex GPT-5.6 Runtime Override`: Superpowers is
-`DISABLED_BY_RUNTIME_POLICY`. Root and all descendants must not read, invoke,
-route to, reference, or delegate to Superpowers. `using-superpowers` is
-explicitly disabled even when its metadata describes invocation as mandatory.
-
-All descendants inherit the override. Every subagent launch packet must
-explicitly repeat `DISABLED_BY_RUNTIME_POLICY` and the `using-superpowers`
-prohibition; every descendant authorized to delegate must repeat both in every
-child packet, including after compaction, handoff, or resume. Use model-native
-brainstorming, planning, test-driven implementation, systematic debugging,
-subagent orchestration, review, verification, and branch completion as native
-behaviors, not similarly named skill invocations. The disabled adapter is not a
-capability gap, fallback trigger, blocker, or reason to stop.
-
-This override applies only to Codex GPT-5.6 family sessions. Other model and
-host mappings keep their normal adapter policy. The canonical contract is
-`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007`.
-
 <a id="sage-adp-002"></a>
 ## Activation And Authority
 
@@ -108,6 +86,7 @@ retrofit current fields, or try multiple validators until one passes.
 
 For host-specific invocation mapping, route only when that host is active:
 
+- Codex: `references/codex.md`
 - Kimi Work or explicitly supported Kimi Code: `references/kimi-runtime.md`
 - OpenCode: `references/opencode.md`
 - Claude Code: `references/claude.md`

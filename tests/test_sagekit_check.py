@@ -1831,29 +1831,40 @@ class SagekitCheckTests(unittest.TestCase):
         openai_profile = (
             REPO_ROOT / "skills/sage-kit/agents/openai.yaml"
         ).read_text(encoding="utf-8")
+        codex_profile = (
+            REPO_ROOT / "skills/sage-kit/references/codex.md"
+        ).read_text(encoding="utf-8")
 
         self.assertEqual(capability_source, capability_packaged)
-        codex_contracts = [capability_source, prompt, packet, skill, execution, openai_profile]
+        codex_contracts = [
+            capability_source,
+            prompt,
+            packet,
+            skill,
+            execution,
+            openai_profile,
+            codex_profile,
+        ]
         combined = " ".join(" ".join(text.split()) for text in codex_contracts)
         for rule in [
             "Codex GPT-5.6 Runtime Override",
             "DISABLED_BY_RUNTIME_POLICY",
             "must not read, invoke, route to, reference, or delegate to Superpowers",
-            "`using-superpowers` is explicitly disabled even when its skill metadata describes invocation as mandatory",
+            "`using-superpowers`",
             "model-native brainstorming, planning, test-driven implementation, systematic debugging, subagent orchestration, review, verification, and branch completion",
             "native behaviors, not similarly named skill invocations",
-            "descendants inherit",
-            "Every subagent launch packet must explicitly repeat",
-            "descendant authorized to delegate must",
+            "inherited by every descendant",
+            "prohibition must be repeated in every descendant launch packet",
+            "any authorized descendant must propagate it again",
             "compaction, handoff, or resume",
-            "must not treat disabled Superpowers as a capability gap",
+            "It is not a capability gap, fallback trigger, blocker, stop reason, or authority change",
         ]:
             self.assertIn(rule, combined)
 
         canonical = " ".join(capability_source.split())
-        self.assertIn("Codex GPT-5.6 Runtime Override", canonical)
+        self.assertIn("A Superpowers prohibition applies only when the applicable runtime/model policy", canonical)
         self.assertIn("DISABLED_BY_RUNTIME_POLICY", canonical)
-        self.assertIn("model-native brainstorming", canonical)
+        self.assertIn("own native brainstorming", canonical)
 
         pointer = "docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007"
         for text in [prompt, packet, skill, execution, openai_profile]:
@@ -1861,10 +1872,51 @@ class SagekitCheckTests(unittest.TestCase):
 
         self.assertIn("When running a GPT-5.6 family model in Codex", " ".join(openai_profile.split()))
         self.assertIn("Otherwise use the runtime's normal adapter policy", " ".join(openai_profile.split()))
-        self.assertIn("Superpowers Reference Integration", capability_source)
+        self.assertIn("Reference integration", capability_source)
         self.assertIn("references/kimi-runtime.md", skill)
         self.assertIn("references/claude.md", skill)
         self.assertIn("references/opencode.md", skill)
+        self.assertIn("references/codex.md", skill)
+
+    def test_stage7_runtime_profiles_preserve_host_specific_boundaries(self):
+        profiles = {
+            name: (REPO_ROOT / path).read_text(encoding="utf-8")
+            for name, path in {
+                "codex": "skills/sage-kit/references/codex.md",
+                "claude": "skills/sage-kit/references/claude.md",
+                "kimi": "skills/sage-kit/references/kimi-runtime.md",
+                "opencode": "skills/sage-kit/references/opencode.md",
+            }.items()
+        }
+
+        self.assertTrue(profiles["codex"].startswith("---\n"))
+        self.assertIn("runtime: codex", profiles["codex"])
+        for phrase in (
+            "DISABLED_BY_RUNTIME_POLICY",
+            "Root and all descendants must not read, invoke,",
+            "Codex/model-native brainstorming",
+            "test-driven development",
+            "debugging, subagent coordination, and",
+            "review workflow as native behaviors",
+        ):
+            self.assertIn(phrase, profiles["codex"])
+
+        self.assertIn("Final Review", profiles["claude"])
+        self.assertIn("no edit, write, or shell tool", profiles["claude"])
+        self.assertIn("Kimi Code CLI honors `disable-model-invocation: true`", profiles["kimi"])
+        self.assertIn("Kimi Work has no equivalent hard control", profiles["kimi"])
+        self.assertIn("descendants are limited to depth\n1", profiles["kimi"])
+        self.assertIn("`MANAGED` for that path", profiles["opencode"])
+        self.assertIn("`SOFT`", profiles["opencode"])
+
+        for name in ("claude", "kimi", "opencode"):
+            self.assertNotIn("GPT-5.6", profiles[name], name)
+        for text in profiles.values():
+            self.assertRegex(
+                text,
+                r"(?is)(evidence only|never creates authority|cannot create authority).{0,180}"
+                r"(authority|scope|gate|acceptance|completion)",
+            )
 
     def test_stage1d_adapter_rules_have_unique_owners_thin_pointers_and_parity(self):
         from sagekit.init import package_resource_root
@@ -1911,15 +1963,22 @@ class SagekitCheckTests(unittest.TestCase):
 
         adapters = sources["adapters"]
         adapter_contract = " ".join(adapters.split())
-        lifecycle = ["Detect:", "Authorize:", "Bound:", "Invoke:", "Capture:", "Map:", "Fallback:"]
+        lifecycle = [
+            "**Detect**:",
+            "**Authorize**:",
+            "**Bound**:",
+            "**Invoke**:",
+            "**Capture**:",
+            "**Map**:",
+            "**Fallback**:",
+        ]
         positions = [adapters.index(step) for step in lifecycle]
         self.assertEqual(positions, sorted(positions))
-        self.assertIn("default to `metadata-only` or `read-only`", adapter_contract)
-        self.assertIn("reduce required verification, review, or evidence", adapter_contract)
-        self.assertIn("does not make the capability absence a product blocker", adapter_contract)
-        self.assertIn("not `DONE`, gate `PASS`, or Project Manager acceptance", adapter_contract)
-        self.assertIn("Claude, Kimi, OpenCode, and non-GPT-5.6", adapter_contract)
-        self.assertIn("Credential discovery, access, use, storage, or transmission", adapter_contract)
+        self.assertIn("Availability is advisory routing input", adapter_contract)
+        self.assertIn("reduce required verification", adapter_contract)
+        self.assertIn("Its absence is not a blocker in that case", adapter_contract)
+        self.assertIn("They are not `DONE`, gate `PASS`, acceptance", adapter_contract)
+        self.assertIn("applicable runtime/model policy states that it applies", adapter_contract)
 
         for non_owner in ("planning", "execution", "harness", "prompt", "packet"):
             text = sources[non_owner]
@@ -1928,14 +1987,16 @@ class SagekitCheckTests(unittest.TestCase):
 
         skill_contract = " ".join(sources["skill"].split())
         for phrase in (
-            "For a Codex session running any GPT-5.6 family model",
-            "must not read, invoke, route to, reference, or delegate to Superpowers",
-            "Every subagent launch packet must explicitly repeat",
-            "every descendant authorized to delegate must repeat both",
-            "including after compaction, handoff, or resume",
-            "Other model and host mappings keep their normal adapter policy",
+            "Use this Skill only as the activation and routing layer",
+            "Runtime adapter override",
+            "Codex: `references/codex.md`",
+            "Kimi Work or explicitly supported Kimi Code",
+            "OpenCode: `references/opencode.md`",
+            "Claude Code: `references/claude.md`",
         ):
             self.assertIn(phrase, skill_contract)
+        self.assertNotIn("Codex GPT-5.6 Pre-Load Guard", sources["skill"])
+        self.assertNotIn("DISABLED_BY_RUNTIME_POLICY", sources["skill"])
 
         openai_contract = " ".join(sources["openai"].split())
         for phrase in (

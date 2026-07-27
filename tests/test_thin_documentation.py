@@ -296,6 +296,20 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertNotIn("## End Of Run", skill)
         self.assertNotIn("## Guardrails", skill)
 
+    def test_runtime_profiles_are_narrow_and_root_routing_is_complete(self):
+        skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(skill.splitlines()), 170)
+        self.assertNotIn("## Codex GPT-5.6 Pre-Load Guard", skill)
+        self.assertNotIn("DISABLED_BY_RUNTIME_POLICY", skill)
+        for runtime, profile in {
+            "Codex": "references/codex.md",
+            "Claude Code": "references/claude.md",
+            "Kimi Work or explicitly supported Kimi Code": "references/kimi-runtime.md",
+            "OpenCode": "references/opencode.md",
+        }.items():
+            self.assertIn(f"- {runtime}: `{profile}`", skill)
+
     def test_readmes_describe_embedded_harness_without_public_cli_guidance(self):
         for filename in ("README.md", "README.zh-CN.md"):
             with self.subTest(readme=filename):
@@ -503,15 +517,13 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertIn("explicit embedded API source", harness)
         self.assertIn("`snapshot_authority` field", economy)
         self.assertIn("`snapshot_authority` API/config field", packet)
-        self.assertIn("Invoke explicitly with `/sage-kit`", claude)
-        self.assertIn("Other clients that describe themselves as compatible", kimi)
-        self.assertIn("treat unknown behavior as a soft capability", kimi)
+        self.assertIn("supports that field", claude)
+        self.assertIn("An unknown Kimi host capability", kimi)
+        self.assertIn("authority-preserving safe native fallback", kimi)
         self.assertIn("normalized `ACTIVE_SPEC` or execution packet", claude)
-        self.assertIn("normalized active SPEC", kimi)
-        self.assertIn("normalized active SPEC", opencode)
-        self.assertIn("Persist a packet only when", claude)
-        self.assertIn("Persist a packet only when", opencode)
-        self.assertIn("Persist a lane packet", " ".join(kimi.split()))
+        self.assertIn("descendants are limited to depth", kimi)
+        self.assertIn("Those contracts retain authority", opencode)
+        self.assertIn("Permission configuration is absent", opencode)
 
         for path in (
             "docs/agent/MILESTONE_PLANNING.md",
