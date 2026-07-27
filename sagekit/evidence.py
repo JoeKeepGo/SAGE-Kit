@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from .candidate import CandidateFingerprint
 from .change_control import ChangeClass
-from .graph_contract import canonical_graph_digest, validate_graph_contract
+from .graph_contract import validate_graph_contract
 from .pathing import paths_overlap
 from .ready_resolver import (
     canonical_ready_input_digest,
@@ -26,6 +26,9 @@ LINEAGE_SCHEMA_VERSION = 1
 NODE_INPUT_FINGERPRINT_DOMAIN = b"sagekit-evidence-lineage-node-input-v1\0"
 JOIN_INTEGRATION_FINGERPRINT_DOMAIN = (
     b"sagekit-evidence-lineage-join-integration-v1\0"
+)
+JOIN_DEFINITION_FINGERPRINT_DOMAIN = (
+    b"sagekit-evidence-lineage-join-definition-v1\0"
 )
 MAX_INPUT_CANONICAL_BYTES = 8 * 1024 * 1024
 MAX_RESULT_CANONICAL_BYTES = 8 * 1024 * 1024
@@ -569,6 +572,42 @@ def canonical_node_output_fingerprint(
     return canonical_node_result_digest(graph_or_candidate, node_result)
 
 
+def _join_definition_projection(
+    graph: dict[str, Any],
+    join: dict[str, Any],
+) -> dict[str, Any]:
+    contributor_ids = set(join["requires"])
+    return {
+        "join_definition": {
+            "id": join["id"],
+            "policy": join["policy"],
+            "requires": sorted(join["requires"]),
+        },
+        "optional_member_node_ids": sorted(
+            item["id"]
+            for item in graph["nodes"]
+            if item["id"] in contributor_ids
+            and item["classification"] == "optional"
+        ),
+    }
+
+
+def _canonical_join_definition_fingerprint(
+    graph: dict[str, Any],
+    join: dict[str, Any],
+) -> str | None:
+    try:
+        canonical = _canonical_json_bytes(
+            _join_definition_projection(graph, join),
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        )
+    except (KeyError, TypeError, _StrictJSONError):
+        return None
+    return hashlib.sha256(
+        JOIN_DEFINITION_FINGERPRINT_DOMAIN + canonical
+    ).hexdigest()
+
+
 def canonical_join_integration_fingerprint(
     graph: Any,
     ready_input: Any,
@@ -614,7 +653,7 @@ def canonical_join_integration_fingerprint(
         external_refs.extend(external[0].get("evidence_refs", []))
     projection = {
         "graph_digest": graph_validation.semantic_digest,
-        "join_definition": joins[0],
+        "join_definition": _join_definition_projection(graph, joins[0]),
         "contributor_node_ids": sorted(joins[0]["requires"]),
         "ready_input_digest": ready_digest,
         "ready_join_decision": decisions[0],
@@ -920,6 +959,9 @@ def _snapshot_semantic_issues(
     graph_lineage = [
         item for item in nodes_list if item["owner_kind"] == "GRAPH_NODE"
     ]
+    join_lineage = [
+        item for item in nodes_list if item["owner_kind"] == "JOIN"
+    ]
     if set(transitions) != {item["owner_id"] for item in graph_lineage}:
         issues.append(
             _issue(
@@ -942,6 +984,40 @@ def _snapshot_semantic_issues(
         if current and item["owner_id"] not in graph_nodes:
             issues.append(
                 _issue(f"{prefix}.lineage_nodes", "GRAPH_NODE_NOT_FOUND")
+            )
+    if current:
+        graph_node_ids = set(graph_nodes)
+        graph_lineage_ids = [item["owner_id"] for item in graph_lineage]
+        if (
+            len(graph_lineage_ids) != len(graph_node_ids)
+            or set(graph_lineage_ids) != graph_node_ids
+        ):
+            issues.append(
+                _issue(f"{prefix}.lineage_nodes", "GRAPH_NODE_NOT_FOUND")
+            )
+        if (
+            len(transitions_list) != len(graph_node_ids)
+            or set(transitions) != graph_node_ids
+        ):
+            issues.append(
+                _issue(
+                    f"{prefix}.stage4_bindings.transition_bindings",
+                    "TRANSITION_BINDING_MISMATCH",
+                )
+            )
+        graph_join_ids = set(graph_joins)
+        join_lineage_ids = [item["owner_id"] for item in join_lineage]
+        if (
+            len(join_lineage_ids) != len(graph_join_ids)
+            or set(join_lineage_ids) != graph_join_ids
+            or len(joins_list) != len(graph_join_ids)
+            or set(joins) != graph_join_ids
+        ):
+            issues.append(
+                _issue(
+                    f"{prefix}.join_integrations",
+                    "JOIN_DEFINITION_MISMATCH",
+                )
             )
 
     ready_digest = snapshot["stage4_bindings"]["ready_input_digest"]
@@ -968,6 +1044,8 @@ def _snapshot_semantic_issues(
                 graph_join is None
                 or graph_join["policy"] != join["policy"]
                 or sorted(graph_join["requires"]) != sorted(contributors)
+                or join["definition_fingerprint"]
+                != _canonical_join_definition_fingerprint(graph, graph_join)
             ):
                 issues.append(_issue(join_location, "JOIN_DEFINITION_MISMATCH"))
 
@@ -997,33 +1075,6 @@ def _snapshot_semantic_issues(
             )
             break
     return tuple(sorted(set(issues)))[:MAX_ISSUES]
-
-
-def _has_cycle(snapshot: dict[str, Any]) -> bool:
-    node_ids = {
-        item["lineage_node_id"] for item in snapshot["lineage_nodes"]
-    }
-    adjacency: dict[str, set[str]] = {node_id: set() for node_id in node_ids}
-    indegree = {node_id: 0 for node_id in node_ids}
-    for edge in snapshot["lineage_edges"]:
-        source = edge["source_node_id"]
-        target = edge["target_node_id"]
-        if target not in adjacency[source]:
-            adjacency[source].add(target)
-            indegree[target] += 1
-    ready = sorted(
-        node_id for node_id, degree in indegree.items() if degree == 0
-    )
-    processed = 0
-    while ready:
-        current = ready.pop(0)
-        processed += 1
-        for target in sorted(adjacency[current]):
-            indegree[target] -= 1
-            if indegree[target] == 0:
-                ready.append(target)
-                ready.sort()
-    return processed != len(node_ids)
 
 
 def _normalized_join_record(join: dict[str, Any]) -> dict[str, Any]:
@@ -1088,24 +1139,43 @@ def _changed_incoming_edges(
     return changed
 
 
-def _candidate_adjacency(
+def _propagation_adjacency(
     graph: dict[str, Any],
-    candidate: dict[str, Any],
+    snapshot: dict[str, Any],
+    *,
+    current_graph: bool,
 ) -> dict[str, set[str]]:
     nodes = {
         item["lineage_node_id"]: item
-        for item in candidate["lineage_nodes"]
+        for item in snapshot["lineage_nodes"]
     }
     adjacency: dict[str, set[str]] = {node_id: set() for node_id in nodes}
-    for edge in candidate["lineage_edges"]:
+    for edge in snapshot["lineage_edges"]:
         adjacency[edge["source_node_id"]].add(edge["target_node_id"])
 
     by_graph_owner = {
         item["owner_id"]: item["lineage_node_id"]
-        for item in candidate["lineage_nodes"]
+        for item in snapshot["lineage_nodes"]
         if item["owner_kind"] == "GRAPH_NODE"
     }
-    for graph_node in graph["nodes"]:
+    join_owners = {
+        item["owner_id"]: item["lineage_node_id"]
+        for item in snapshot["lineage_nodes"]
+        if item["owner_kind"] == "JOIN"
+    }
+    if current_graph:
+        graph_nodes = graph["nodes"]
+        joins = (
+            {
+                "join_id": item["id"],
+                "contributor_node_ids": item["requires"],
+            }
+            for item in graph["joins"]
+        )
+    else:
+        graph_nodes = ()
+        joins = snapshot["join_integrations"]
+    for graph_node in graph_nodes:
         target = by_graph_owner.get(graph_node["id"])
         if target is None:
             continue
@@ -1113,13 +1183,7 @@ def _candidate_adjacency(
             predecessor = by_graph_owner.get(predecessor_id)
             if predecessor is not None:
                 adjacency[predecessor].add(target)
-
-    join_owners = {
-        item["owner_id"]: item["lineage_node_id"]
-        for item in candidate["lineage_nodes"]
-        if item["owner_kind"] == "JOIN"
-    }
-    for join in candidate["join_integrations"]:
+    for join in joins:
         target = join_owners.get(join["join_id"])
         if target is None:
             continue
@@ -1166,9 +1230,10 @@ def _ordered_targeted_types(values: set[str]) -> list[str]:
 
 
 def _classify(
-    graph: dict[str, Any],
     baseline: dict[str, Any],
     candidate: dict[str, Any],
+    adjacency: dict[str, set[str]],
+    order: list[str],
 ) -> dict[str, dict[str, Any]]:
     old_nodes = {
         item["lineage_node_id"]: item
@@ -1178,6 +1243,22 @@ def _classify(
         item["lineage_node_id"]: item
         for item in candidate["lineage_nodes"]
     }
+    graph_identity_changed = any(
+        baseline["graph_binding"][field] != candidate["graph_binding"][field]
+        for field in ("graph_id", "graph_generation", "graph_digest")
+    )
+    if graph_identity_changed:
+        return {
+            node_id: {
+                "disposition": "INVALIDATE",
+                "input_fingerprint": new_nodes[node_id]["input_fingerprint"],
+                "output_fingerprint": new_nodes[node_id]["output_fingerprint"],
+                "changed_edge_types": [],
+                "reason_codes": ["GRAPH_IDENTITY_CHANGED"],
+            }
+            for node_id in sorted(new_nodes)
+        }
+
     direct = _changed_incoming_edges(baseline, candidate)
 
     for node_id, node in new_nodes.items():
@@ -1222,6 +1303,13 @@ def _classify(
             lineage_id = graph_lineage.get(owner_id)
             if lineage_id is not None:
                 direct.setdefault(lineage_id, set()).add("NODE_OUTPUT")
+    ready_input_changed = (
+        baseline["stage4_bindings"]["ready_input_digest"]
+        != candidate["stage4_bindings"]["ready_input_digest"]
+    )
+    if ready_input_changed:
+        for lineage_id in graph_lineage.values():
+            direct.setdefault(lineage_id, set()).add("NODE_OUTPUT")
 
     old_joins = {
         item["join_id"]: _normalized_join_record(item)
@@ -1236,18 +1324,15 @@ def _classify(
         for item in candidate["lineage_nodes"]
         if item["owner_kind"] == "JOIN"
     }
+    if ready_input_changed:
+        for lineage_id in join_lineage.values():
+            direct.setdefault(lineage_id, set()).add("JOIN_INTEGRATION")
     for join_id in set(old_joins) | set(new_joins):
         if old_joins.get(join_id) != new_joins.get(join_id):
             lineage_id = join_lineage.get(join_id)
             if lineage_id is not None:
                 direct.setdefault(lineage_id, set()).add("JOIN_INTEGRATION")
 
-    graph_identity_changed = any(
-        baseline["graph_binding"][field] != candidate["graph_binding"][field]
-        for field in ("graph_id", "graph_generation", "graph_digest")
-    )
-    adjacency = _candidate_adjacency(graph, candidate)
-    order = _topological_order(adjacency)
     inherited_invalid: dict[str, set[str]] = {
         node_id: set() for node_id in new_nodes
     }
@@ -1263,17 +1348,7 @@ def _classify(
         targeted_types = (
             local & _TARGETED_EDGE_SET
         ) | inherited_targeted[node_id]
-        if graph_identity_changed:
-            decision = {
-                "disposition": "INVALIDATE",
-                "input_fingerprint": node["input_fingerprint"],
-                "output_fingerprint": node["output_fingerprint"],
-                "changed_edge_types": [],
-                "reason_codes": ["GRAPH_IDENTITY_CHANGED"],
-            }
-            propagated_invalid = {"CONTRACT"}
-            propagated_targeted: set[str] = set()
-        elif invalid_types:
+        if invalid_types:
             primary = _primary_invalid_type(invalid_types)
             assert primary is not None
             decision = {
@@ -1361,13 +1436,7 @@ def resolve_evidence_lineage(
             "INPUT_INVALID",
             [_issue("$", "GRAPH_INVALID")],
         )
-    try:
-        graph_digest = canonical_graph_digest(graph_snapshot)
-    except (KeyError, TypeError, ValueError, RecursionError):
-        return _failure(
-            "INPUT_INVALID",
-            [_issue("$", "GRAPH_INVALID")],
-        )
+    graph_digest = graph_validation.semantic_digest
 
     candidate = input_snapshot["candidate"]
     candidate_binding = candidate["graph_binding"]
@@ -1381,6 +1450,10 @@ def resolve_evidence_lineage(
             [_issue("$.candidate.graph_binding", "GRAPH_BINDING_MISMATCH")],
         )
 
+    same_graph_digest = (
+        input_snapshot["baseline"]["graph_binding"]["graph_digest"]
+        == candidate_binding["graph_digest"]
+    )
     semantic_issues: list[EvidenceLineageIssue] = []
     for name in ("baseline", "candidate"):
         semantic_issues.extend(
@@ -1388,23 +1461,36 @@ def resolve_evidence_lineage(
                 input_snapshot[name],
                 graph_snapshot,
                 name,
-                current=name == "candidate",
+                current=name == "candidate" or same_graph_digest,
             )
         )
     if semantic_issues:
         return _failure("LINEAGE_INVALID", semantic_issues)
 
+    propagation_orders: dict[
+        str,
+        tuple[dict[str, set[str]], list[str]],
+    ] = {}
     for name in ("baseline", "candidate"):
-        if _has_cycle(input_snapshot[name]):
+        adjacency = _propagation_adjacency(
+            graph_snapshot,
+            input_snapshot[name],
+            current_graph=name == "candidate" or same_graph_digest,
+        )
+        order = _topological_order(adjacency)
+        if len(order) != len(adjacency):
             return _failure(
                 "LINEAGE_CYCLE",
                 [_issue(f"$.{name}.lineage_edges", "LINEAGE_CYCLE")],
             )
+        propagation_orders[name] = (adjacency, order)
 
+    candidate_adjacency, candidate_order = propagation_orders["candidate"]
     decisions = _classify(
-        graph_snapshot,
         input_snapshot["baseline"],
         candidate,
+        candidate_adjacency,
+        candidate_order,
     )
     result = {
         "schema_id": LINEAGE_RESULT_SCHEMA_ID,

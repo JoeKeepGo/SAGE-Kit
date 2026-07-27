@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import unittest
 
 from sagekit.candidate import CandidateFingerprint
@@ -44,6 +46,9 @@ SHA = {
         start=1,
     )
 }
+JOIN_DEFINITION_FINGERPRINT_DOMAIN = (
+    b"sagekit-evidence-lineage-join-definition-v1\0"
+)
 
 
 def graph_node(
@@ -127,6 +132,38 @@ def ready_input(candidate_graph: dict[str, object]) -> dict[str, object]:
     }
 
 
+def join_definition_fingerprint(
+    candidate_graph: dict[str, object],
+    join_id: str,
+) -> str:
+    join = next(
+        item for item in candidate_graph["joins"] if item["id"] == join_id
+    )
+    contributor_ids = set(join["requires"])
+    projection = {
+        "join_definition": {
+            "id": join["id"],
+            "policy": join["policy"],
+            "requires": sorted(join["requires"]),
+        },
+        "optional_member_node_ids": sorted(
+            item["id"]
+            for item in candidate_graph["nodes"]
+            if item["id"] in contributor_ids
+            and item["classification"] == "optional"
+        ),
+    }
+    canonical = json.dumps(
+        projection,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(
+        JOIN_DEFINITION_FINGERPRINT_DOMAIN + canonical
+    ).hexdigest()
+
+
 def _node(
     node_id: str,
     owner_kind: str,
@@ -186,6 +223,11 @@ def _refresh_fingerprints(snapshot: dict[str, object]) -> None:
 
 def snapshot(candidate_graph: dict[str, object]) -> dict[str, object]:
     digest = canonical_graph_digest(candidate_graph)
+    graph_join = next(
+        item
+        for item in candidate_graph["joins"]
+        if item["id"] == "join/review"
+    )
     value: dict[str, object] = {
         "graph_binding": {
             "graph_id": candidate_graph["graph_id"],
@@ -260,9 +302,12 @@ def snapshot(candidate_graph: dict[str, object]) -> dict[str, object]:
         "join_integrations": [
             {
                 "join_id": "join/review",
-                "policy": "all-required",
-                "definition_fingerprint": SHA["join"],
-                "contributor_node_ids": ["node/root", "node/successor"],
+                "policy": graph_join["policy"],
+                "definition_fingerprint": join_definition_fingerprint(
+                    candidate_graph,
+                    "join/review",
+                ),
+                "contributor_node_ids": list(graph_join["requires"]),
                 "ready_input_digest": SHA["ready"],
                 "external_decision_refs": [],
             }
@@ -393,6 +438,19 @@ class EvidenceLineageFingerprintTests(unittest.TestCase):
             ),
         )
 
+        reordered = copy.deepcopy(candidate_graph)
+        reordered["joins"][0]["requires"].reverse()
+        reordered_ready = copy.deepcopy(original)
+        reordered_ready["graph_digest"] = canonical_graph_digest(reordered)
+        self.assertEqual(
+            baseline,
+            canonical_join_integration_fingerprint(
+                reordered,
+                reordered_ready,
+                "join/review",
+            ),
+        )
+
 
 class EvidenceLineageResolutionTests(unittest.TestCase):
     def test_narrow_path_targets_overlap_successor_and_join_not_sibling(
@@ -494,39 +552,255 @@ class EvidenceLineageResolutionTests(unittest.TestCase):
         )
         self.assertEqual("REUSE", decision(outcome, "node/root")["disposition"])
 
-    def test_join_definition_contributors_and_ready_binding_are_targeted(
+    def test_ready_join_binding_change_is_targeted(
         self,
     ) -> None:
         candidate_graph = graph()
-        mutations = (
-            lambda payload: payload["candidate"]["join_integrations"][
-                0
-            ].__setitem__("definition_fingerprint", "f" * 64),
-            lambda payload: payload["baseline"]["join_integrations"][
-                0
-            ].__setitem__(
-                "contributor_node_ids", ["node/root"]
-            ),
-            lambda payload: payload["candidate"]["join_integrations"][
-                0
-            ].__setitem__("ready_input_digest", "e" * 64),
+        payload = lineage_input(candidate_graph)
+        candidate = payload["candidate"]
+        candidate["join_integrations"][0]["ready_input_digest"] = "e" * 64
+        candidate["stage4_bindings"]["ready_input_digest"] = "e" * 64
+
+        outcome = resolve_evidence_lineage(candidate_graph, payload)
+
+        self.assertIsNone(outcome.error)
+        self.assertEqual(
+            "REVERIFY_TARGETED",
+            decision(outcome, "join/review")["disposition"],
         )
-        for mutate in mutations:
-            with self.subTest(mutate=mutate):
+
+    def test_complete_propagation_graph_cycle_is_error_only(self) -> None:
+        candidate_graph = graph()
+        for snapshot_name in ("baseline", "candidate"):
+            with self.subTest(snapshot=snapshot_name):
                 payload = lineage_input(candidate_graph)
-                candidate = payload["candidate"]
-                mutate(payload)
-                join = candidate["join_integrations"][0]
-                if join["ready_input_digest"] != SHA["ready"]:
-                    candidate["stage4_bindings"][
-                        "ready_input_digest"
-                    ] = join["ready_input_digest"]
-                outcome = resolve_evidence_lineage(candidate_graph, payload)
-                self.assertIsNone(outcome.error)
-                self.assertEqual(
-                    "REVERIFY_TARGETED",
-                    decision(outcome, "join/review")["disposition"],
+                selected = payload[snapshot_name]
+                selected["lineage_edges"].append(
+                    _edge("node/successor", "node/root", "NODE_OUTPUT")
                 )
+                _refresh_fingerprints(selected)
+
+                outcome = resolve_evidence_lineage(candidate_graph, payload)
+
+                self.assertEqual("LINEAGE_CYCLE", outcome.error["error_code"])
+                self.assertIsNone(outcome.result)
+                self.assertNotIn("decisions", outcome.error)
+
+    def test_ready_digest_change_without_join_reverifies_graph_lineage(
+        self,
+    ) -> None:
+        candidate_graph = graph()
+        candidate_graph["joins"] = []
+        payload = lineage_input(graph())
+        digest = canonical_graph_digest(candidate_graph)
+        for selected in (payload["baseline"], payload["candidate"]):
+            selected["graph_binding"]["graph_digest"] = digest
+            selected["lineage_nodes"] = [
+                item
+                for item in selected["lineage_nodes"]
+                if item["owner_kind"] != "JOIN"
+            ]
+            selected["lineage_edges"] = [
+                item
+                for item in selected["lineage_edges"]
+                if item["source_node_id"] != "join/review"
+                and item["target_node_id"] != "join/review"
+            ]
+            selected["join_integrations"] = []
+            _refresh_fingerprints(selected)
+        payload["candidate"]["stage4_bindings"]["ready_input_digest"] = "f" * 64
+
+        outcome = resolve_evidence_lineage(candidate_graph, payload)
+
+        self.assertIsNone(outcome.error)
+        for node_id in ("node/root", "node/successor", "node/sibling"):
+            self.assertEqual(
+                "REVERIFY_TARGETED",
+                decision(outcome, node_id)["disposition"],
+            )
+            self.assertEqual(
+                ["NODE_OUTPUT"],
+                decision(outcome, node_id)["changed_edge_types"],
+            )
+        self.assertEqual("REUSE", decision(outcome, "path/src")["disposition"])
+
+    def test_same_graph_digest_requires_complete_snapshot_closure(self) -> None:
+        candidate_graph = graph()
+
+        def missing_graph_node(selected: dict[str, object]) -> None:
+            selected["lineage_nodes"] = [
+                item
+                for item in selected["lineage_nodes"]
+                if item["lineage_node_id"] != "node/sibling"
+            ]
+            selected["stage4_bindings"]["transition_bindings"] = [
+                item
+                for item in selected["stage4_bindings"]["transition_bindings"]
+                if item["node_id"] != "node/sibling"
+            ]
+
+        def extra_graph_node(selected: dict[str, object]) -> None:
+            selected["lineage_nodes"].append(
+                _node("node/extra", "GRAPH_NODE", "node/extra", "f" * 64)
+            )
+            selected["stage4_bindings"]["transition_bindings"].append(
+                {
+                    "node_id": "node/extra",
+                    "transition_input_digest": "e" * 64,
+                    "node_result_digest": "f" * 64,
+                }
+            )
+
+        def missing_transition(selected: dict[str, object]) -> None:
+            selected["stage4_bindings"]["transition_bindings"] = [
+                item
+                for item in selected["stage4_bindings"]["transition_bindings"]
+                if item["node_id"] != "node/sibling"
+            ]
+
+        def extra_transition(selected: dict[str, object]) -> None:
+            selected["stage4_bindings"]["transition_bindings"].append(
+                {
+                    "node_id": "node/extra",
+                    "transition_input_digest": "e" * 64,
+                    "node_result_digest": "f" * 64,
+                }
+            )
+
+        def missing_join(selected: dict[str, object]) -> None:
+            selected["join_integrations"] = []
+
+        def extra_join(selected: dict[str, object]) -> None:
+            selected["lineage_nodes"].append(
+                _node("join/extra", "JOIN", "join/extra", "e" * 64)
+            )
+            selected["join_integrations"].append(
+                {
+                    "join_id": "join/extra",
+                    "policy": "all-required",
+                    "definition_fingerprint": "d" * 64,
+                    "contributor_node_ids": ["node/root"],
+                    "ready_input_digest": SHA["ready"],
+                    "external_decision_refs": [],
+                }
+            )
+
+        for snapshot_name in ("baseline", "candidate"):
+            for mutation in (
+                missing_graph_node,
+                extra_graph_node,
+                missing_transition,
+                extra_transition,
+                missing_join,
+                extra_join,
+            ):
+                with self.subTest(
+                    snapshot=snapshot_name,
+                    mutation=mutation.__name__,
+                ):
+                    payload = lineage_input(candidate_graph)
+                    selected = payload[snapshot_name]
+                    mutation(selected)
+                    _refresh_fingerprints(selected)
+
+                    outcome = resolve_evidence_lineage(candidate_graph, payload)
+
+                    self.assertEqual(
+                        "LINEAGE_INVALID",
+                        outcome.error["error_code"],
+                    )
+                    self.assertIsNone(outcome.result)
+
+    def test_join_definition_fingerprint_is_graph_owned(self) -> None:
+        candidate_graph = graph()
+        expected = join_definition_fingerprint(
+            candidate_graph,
+            "join/review",
+        )
+        self.assertEqual(
+            expected,
+            lineage_input(candidate_graph)["candidate"]["join_integrations"][0][
+                "definition_fingerprint"
+            ],
+        )
+        for snapshot_name in ("baseline", "candidate"):
+            for field, forged in (
+                ("definition_fingerprint", "f" * 64),
+                ("contributor_node_ids", ["node/root"]),
+            ):
+                with self.subTest(snapshot=snapshot_name, field=field):
+                    payload = lineage_input(candidate_graph)
+                    payload[snapshot_name]["join_integrations"][0][
+                        field
+                    ] = forged
+
+                    outcome = resolve_evidence_lineage(candidate_graph, payload)
+
+                    self.assertEqual(
+                        "LINEAGE_INVALID",
+                        outcome.error["error_code"],
+                    )
+                    self.assertIsNone(outcome.result)
+
+        optional_graph = graph()
+        optional_graph["nodes"][1]["classification"] = "optional"
+        optional_graph["joins"][0]["policy"] = "required-plus-optional"
+        payload = lineage_input(optional_graph)
+        self.assertIsNone(
+            resolve_evidence_lineage(optional_graph, payload).error
+        )
+        forged_graph = copy.deepcopy(optional_graph)
+        forged_graph["nodes"][1]["classification"] = "required"
+        payload["candidate"]["join_integrations"][0][
+            "definition_fingerprint"
+        ] = join_definition_fingerprint(forged_graph, "join/review")
+
+        outcome = resolve_evidence_lineage(optional_graph, payload)
+
+        self.assertEqual("LINEAGE_INVALID", outcome.error["error_code"])
+        self.assertIsNone(outcome.result)
+
+    def test_graph_digest_change_fails_closed_without_old_graph_comparison(
+        self,
+    ) -> None:
+        candidate_graph = graph()
+        payload = lineage_input(candidate_graph)
+        baseline = payload["baseline"]
+        baseline["graph_binding"]["graph_digest"] = "f" * 64
+        baseline["lineage_nodes"] = [
+            item
+            for item in baseline["lineage_nodes"]
+            if item["lineage_node_id"] != "node/sibling"
+        ]
+        baseline["stage4_bindings"]["transition_bindings"] = [
+            item
+            for item in baseline["stage4_bindings"]["transition_bindings"]
+            if item["node_id"] != "node/sibling"
+        ]
+        baseline["lineage_nodes"] = [
+            item
+            for item in baseline["lineage_nodes"]
+            if item["lineage_node_id"] != "join/review"
+        ]
+        baseline["lineage_edges"] = [
+            item
+            for item in baseline["lineage_edges"]
+            if item["source_node_id"] != "join/review"
+            and item["target_node_id"] != "join/review"
+        ]
+        baseline["join_integrations"] = []
+        _refresh_fingerprints(baseline)
+
+        outcome = resolve_evidence_lineage(candidate_graph, payload)
+
+        self.assertIsNone(outcome.error)
+        self.assertTrue(
+            all(
+                item["disposition"] == "INVALIDATE"
+                and item["reason_codes"] == ["GRAPH_IDENTITY_CHANGED"]
+                for item in outcome.result["decisions"].values()
+            )
+        )
 
     def test_invalid_input_is_deterministic_immutable_and_has_no_partial_result(
         self,
