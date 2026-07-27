@@ -30,6 +30,12 @@ STAGE5_OWNER_PATHS = {
     "tests/unit/test_risk_based_evaluator.py",
     "tests/unit/test_stage5_observed_failure_corpus.py",
 }
+STAGE5_OWNER_CONTENT_MANIFEST = (
+    REPOSITORY / "tests/fixtures/stage5_owner_content_manifest_v1.json"
+)
+STAGE5_OWNER_DIGESTS = json.loads(
+    STAGE5_OWNER_CONTENT_MANIFEST.read_text(encoding="utf-8")
+)
 STAGE5_OWNED_PATHS = STAGE5_CONTRACT_PATHS | STAGE5_OWNER_PATHS
 STAGE5_CONTRACT_RESOURCE_DIGESTS = {
     "contract.json": (
@@ -444,6 +450,11 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
             path for path in STAGE5_OWNED_PATHS if not (REPOSITORY / path).is_file()
         }
         self.assertEqual(set(), missing)
+
+    def test_stage5_owner_content_manifest_binds_every_owner_file(self):
+        self.assertEqual(STAGE5_OWNER_PATHS, set(STAGE5_OWNER_DIGESTS))
+        for path, expected in STAGE5_OWNER_DIGESTS.items():
+            self.assertEqual(expected, sha256(REPOSITORY / path), path)
 
     def test_stage5_contract_resources_match_fixed_canonical_digests(self):
         self.assertEqual(set(RESOURCE_NAMES), set(STAGE5_CONTRACT_RESOURCE_DIGESTS))

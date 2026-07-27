@@ -1,0 +1,9 @@
+{
+  "sagekit/evidence.py": "ed8f2a0d1f3ed1549428c8e593792499edd177becb93ee11326c0bd9219b7ce8",
+  "sagekit/review.py": "3f2029ea3cb8133d1aee37fe748a9512a6254e2c00a49f09a88b5b38b41aadeb",
+  "tests/fixtures/stage5_observed_failure_corpus_v1.json": "6670ff4da289f5fa44ef332494d7495ebbdd4bed16fb25ee1b792b6caca85e29",
+  "tests/unit/test_evidence_lineage.py": "5a2b5471a2bdb86bfad175d7fa667b22fbc8aab01d0a819769234ae823df526b",
+  "tests/unit/test_evidence_lineage_contract_v1.py": "2a90c23a09d6bf83b6b4e9885abf309e2fa443d41d6846dc6407a68763e58fb4",
+  "tests/unit/test_risk_based_evaluator.py": "d1605d76c7f850c84de6eeca03e0b030dfcd0e8aaed70c20c79cb6856282591f",
+  "tests/unit/test_stage5_observed_failure_corpus.py": "7a5e3ce69ba635cc6dc208dc537490e0ffd69fac4ddb3ef847277cb5c0e33377"
+}
