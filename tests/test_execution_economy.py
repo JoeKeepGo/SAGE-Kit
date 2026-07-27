@@ -227,7 +227,7 @@ class ChangeControlTests(unittest.TestCase):
         decision = decide_change(Path.cwd(), request)
 
         self.assertEqual(RunState.HUMAN_DECISION_REQUIRED, decision.state)
-        self.assertEqual(("semantic-lane",), decision.required_verification)
+        self.assertEqual(("contract-scoped",), decision.required_verification)
 
     def test_c3_requires_human_decision(self):
         request = ChangeRequest(
