@@ -5,6 +5,7 @@ import copy
 from dataclasses import replace
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -1031,6 +1032,13 @@ class SafetyAndFailureTests(unittest.TestCase):
     def test_import_and_repeated_calls_have_no_filesystem_side_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PYTHONPATH": str(REPOSITORY),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
             script = (
                 "from sagekit.graph_normalization import "
                 "GraphAdmissionRequest, assess_graph_admission\n"
@@ -1041,10 +1049,7 @@ class SafetyAndFailureTests(unittest.TestCase):
             completed = subprocess.run(
                 [sys.executable, "-B", "-c", script],
                 cwd=root,
-                env={
-                    "PYTHONPATH": str(REPOSITORY),
-                    "PYTHONDONTWRITEBYTECODE": "1",
-                },
+                env=environment,
                 capture_output=True,
                 text=True,
                 check=False,
