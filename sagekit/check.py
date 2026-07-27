@@ -333,7 +333,12 @@ def run_check(
             manifest_error=manifest_error,
         )
     )
-    return findings
+    return _finalize_scope_manifest_audit(
+        root,
+        findings,
+        manifest=manifest,
+        rule="validation-scope-manifest",
+    ) if scope == "all" else findings
 
 
 def _run_active_check(
@@ -634,7 +639,12 @@ def _run_history_check(
         )
     )
     if not accepted:
-        return findings
+        return _finalize_scope_manifest_audit(
+            root,
+            findings,
+            manifest=manifest,
+            rule="history-scope",
+        )
     audited = [
         *check_execution_documents(
             root,
@@ -663,7 +673,52 @@ def _run_history_check(
             for prefix in accepted
         ):
             findings.append(finding)
-    return findings
+    return _finalize_scope_manifest_audit(
+        root,
+        findings,
+        manifest=manifest,
+        rule="history-scope",
+    )
+
+
+def _finalize_scope_manifest_audit(
+    root: Path,
+    findings: list[Finding],
+    *,
+    manifest: ValidationScopeManifest | None,
+    rule: str,
+) -> list[Finding]:
+    """Fail closed when explicit history/all audit authority changes mid-run."""
+
+    if manifest is None:
+        return findings
+    try:
+        refreshed = load_validation_scope_manifest(manifest.path)
+    except ScopeManifestError as exc:
+        stability_failure = Finding(
+            "FAIL",
+            rule,
+            relpath(root, manifest.path),
+            None,
+            f"validation scope manifest became unreadable during audit: {exc}",
+            "Restore the audited authority source and rerun the audit.",
+        )
+    else:
+        if refreshed.digest == manifest.digest:
+            return findings
+        stability_failure = Finding(
+            "FAIL",
+            rule,
+            relpath(root, manifest.path),
+            None,
+            "validation scope manifest changed during audit; refusing to retain the initial scope authority",
+            "Restore stable authority and rerun the audit; no fallback scope is used.",
+        )
+    return [
+        finding
+        for finding in findings
+        if not (finding.rule == rule and finding.level == "PASS")
+    ] + [stability_failure]
 
 
 def resolve_check_scope_manifest(
@@ -732,12 +787,12 @@ def run_source_repo_check(start: Path) -> list[Finding]:
     except ManagedExecutionError as exc:
         findings.append(
             Finding(
-                "WARN",
+                "FAIL",
                 "source-tracked-snapshot",
                 None,
                 None,
                 f"could not collect managed git ls-files snapshot: {exc}",
-                "Resolve the Git capability failure before submit verification.",
+                "Resolve the Git capability failure before source-repository verification.",
             )
         )
     else:
@@ -1228,12 +1283,12 @@ def check_source_tracked_runtime(root: Path) -> list[Finding]:
     except ManagedExecutionError as exc:
         return [
             Finding(
-                "WARN",
+                "FAIL",
                 "source-tracked-runtime",
                 None,
                 None,
                 f"could not run git ls-files: {exc}",
-                "Run git ls-files manually before committing.",
+                "Resolve the Git capability failure before source-repository verification.",
             )
         ]
     return check_source_tracked_runtime_paths(tracked)
@@ -1270,12 +1325,12 @@ def check_source_forbidden_runtime_stack(root: Path) -> list[Finding]:
     except ManagedExecutionError as exc:
         return [
             Finding(
-                "WARN",
+                "FAIL",
                 "source-runtime-stack",
                 None,
                 None,
                 f"could not run git ls-files: {exc}",
-                "Confirm no Node or TypeScript runtime files were introduced.",
+                "Resolve the Git capability failure before source-repository verification.",
             )
         ]
     return check_source_forbidden_runtime_paths(tracked)
@@ -1317,6 +1372,12 @@ def collect_source_tracked_paths(root: Path) -> tuple[str, ...]:
         run_id="source-check-git-ls-files",
         timeout=30.0,
     )
+    if not result.ok or result.exit_code != 0:
+        detail = result.stderr_tail.strip() or result.stdout_tail.strip()
+        raise ManagedExecutionError(
+            f"managed git ls-files exited nonzero ({result.exit_code}): "
+            + (detail or "no diagnostic output")
+        )
     return tuple(
         part.decode("utf-8", errors="replace")
         for part in result.stdout.split(b"\0")

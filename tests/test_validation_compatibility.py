@@ -9,6 +9,7 @@ from unittest.mock import patch
 from sagekit.check import (
     SOURCE_REQUIRED_FILES,
     check_task_dispatch,
+    run_check,
     validate_task_dispatch_pair,
 )
 from sagekit.compatibility import (
@@ -752,6 +753,64 @@ class ContractResourceTests(unittest.TestCase):
 
 
 class ProjectCheckCompatibilityTests(unittest.TestCase):
+    def test_history_audit_fails_closed_when_scope_manifest_drifts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_validation_scope_manifest(root)
+
+            def mutate_manifest(*args, **kwargs):
+                payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                payload["authority"]["source"] = "mutated during history audit"
+                manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+                return []
+
+            with (
+                patch("sagekit.check.check_execution_documents", side_effect=mutate_manifest),
+                patch("sagekit.check.check_phase_docs", return_value=[]),
+                patch("sagekit.check.check_task_dispatch", return_value=[]),
+            ):
+                findings = run_check(
+                    root,
+                    scope="history",
+                    scope_manifest_path=manifest_path,
+                )
+
+        scope_findings = [finding for finding in findings if finding.rule == "history-scope"]
+        self.assertEqual(["FAIL"], [finding.level for finding in scope_findings])
+        self.assertIn("changed during audit", scope_findings[0].message)
+
+    def test_explicit_all_audit_fails_closed_when_scope_manifest_drifts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = write_validation_scope_manifest(root)
+
+            def mutate_manifest(*args, **kwargs):
+                payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                payload["authority"]["source"] = "mutated during all audit"
+                manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+                return []
+
+            with (
+                patch("sagekit.check.check_required_docs", side_effect=mutate_manifest),
+                patch("sagekit.check.check_recommended_docs", return_value=[]),
+                patch("sagekit.check.check_active_context", return_value=[]),
+                patch("sagekit.check.check_doc_routing", return_value=[]),
+                patch("sagekit.check.check_execution_documents", return_value=[]),
+                patch("sagekit.check.check_completion_reports", return_value=[]),
+                patch("sagekit.check.check_task_dispatch", return_value=[]),
+            ):
+                findings = run_check(
+                    root,
+                    scope="all",
+                    scope_manifest_path=manifest_path,
+                )
+
+        scope_findings = [
+            finding for finding in findings if finding.rule == "validation-scope-manifest"
+        ]
+        self.assertEqual(["FAIL"], [finding.level for finding in scope_findings])
+        self.assertIn("changed during audit", scope_findings[0].message)
+
     def test_ambiguous_scope_is_reported_once_but_all_pairs_are_reconciled(self):
         lock = {
             "resource": "src/shared",

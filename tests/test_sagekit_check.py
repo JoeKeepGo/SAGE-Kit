@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sagekit.check import (
@@ -14,6 +15,7 @@ from sagekit.check import (
     run_source_repo_check,
 )
 from sagekit.check import detect_root
+from sagekit.managed_execution import ManagedExecutionError
 from sagekit.reporting import build_finding_report, finding_report_payload
 
 
@@ -1330,6 +1332,62 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertNotIn("docs/MILESTONE_GUIDE.md", findings[0].message)
         self.assertNotIn("docs/MODEL_ASSURANCE.md", findings[0].message)
         self.assertNotIn("docs/agent/MODEL_ASSURANCE_POLICY.md", findings[0].message)
+
+    def test_source_repo_tracking_collection_failure_fails_without_runtime_classification(self):
+        failure_modes = (
+            ManagedExecutionError("managed git unavailable"),
+            SimpleNamespace(
+                ok=False,
+                exit_code=1,
+                stderr_tail="git ls-files failed",
+                stdout_tail="",
+            ),
+        )
+        for failure in failure_modes:
+            with self.subTest(failure=type(failure).__name__), (
+                patch(
+                    "sagekit.check.collect_source_tracked_paths",
+                    side_effect=failure,
+                )
+                if isinstance(failure, ManagedExecutionError)
+                else patch("sagekit.check.run_managed_git", return_value=failure)
+            ), patch("sagekit.check.check_source_tracked_runtime_paths") as runtime_paths, patch(
+                "sagekit.check.check_source_forbidden_runtime_paths"
+            ) as forbidden_paths:
+                findings = run_source_repo_check(REPO_ROOT)
+
+            snapshot = [item for item in findings if item.rule == "source-tracked-snapshot"]
+            self.assertEqual(["FAIL"], [item.level for item in snapshot])
+            runtime_paths.assert_not_called()
+            forbidden_paths.assert_not_called()
+
+    def test_individual_tracked_path_checks_fail_without_classification(self):
+        from sagekit.check import (
+            check_source_forbidden_runtime_stack,
+            check_source_tracked_runtime,
+        )
+
+        checks = (
+            (
+                check_source_tracked_runtime,
+                "sagekit.check.check_source_tracked_runtime_paths",
+                "source-tracked-runtime",
+            ),
+            (
+                check_source_forbidden_runtime_stack,
+                "sagekit.check.check_source_forbidden_runtime_paths",
+                "source-runtime-stack",
+            ),
+        )
+        for check, classifier, rule in checks:
+            with self.subTest(rule=rule), patch(
+                "sagekit.check.collect_source_tracked_paths",
+                side_effect=ManagedExecutionError("managed git unavailable"),
+            ), patch(classifier) as path_classifier:
+                findings = check(REPO_ROOT)
+
+            self.assertEqual(["FAIL"], [item.level for item in findings])
+            path_classifier.assert_not_called()
 
     def test_packaged_resources_include_canonical_heavy_docs(self):
         from sagekit.init import package_resource_root
