@@ -1,0 +1,252 @@
+{
+  "schema_id": "spec.compatibility-map.v1",
+  "map_id": "stage-8a-compatibility-map",
+  "stage_owner": "stage-8a-compatibility-map",
+  "status": "ACTIVE_CURRENT_MAP",
+  "scope": "stable compatibility classification and routing constraints",
+  "compatibility_entries": [
+    {
+      "id": "COMPAT-CONTRACT-V0",
+      "owner_pointer": {
+        "owner": "contract-version-authority",
+        "pointer": "contract.version.v0"
+      },
+      "status": "FROZEN_ACCEPTED_HISTORY_ONLY",
+      "compatibility_rule": "v0 is valid only for explicitly selected immutable accepted history. It must not authorize active or current work, and validation failure remains a v0 failure without fallback.",
+      "evidence_refs": [
+        "EVIDENCE-CONTRACT-VERSION-SELECTION",
+        "EVIDENCE-IMMUTABLE-HISTORY-BOUNDARY"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-CONTRACT-V1",
+      "owner_pointer": {
+        "owner": "contract-version-authority",
+        "pointer": "contract.version.v1"
+      },
+      "status": "FROZEN_ACCEPTED_HISTORY_ONLY",
+      "compatibility_rule": "v1 is valid only for explicitly selected immutable accepted history. It must not authorize active or current work, and validation failure remains a v1 failure without fallback.",
+      "evidence_refs": [
+        "EVIDENCE-CONTRACT-VERSION-SELECTION",
+        "EVIDENCE-IMMUTABLE-HISTORY-BOUNDARY"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-CONTRACT-V2",
+      "owner_pointer": {
+        "owner": "contract-version-authority",
+        "pointer": "contract.version.v2"
+      },
+      "status": "CURRENT_ACTIVE",
+      "compatibility_rule": "v2 is the current active contract and requires explicit matching current metadata. It does not retroactively replace frozen accepted history.",
+      "evidence_refs": [
+        "EVIDENCE-CONTRACT-VERSION-SELECTION",
+        "EVIDENCE-CURRENT-METADATA-REQUIREMENT"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-CONTRACT-V2-PLUS",
+      "owner_pointer": {
+        "owner": "contract-version-authority",
+        "pointer": "contract.version.v2-plus"
+      },
+      "status": "CURRENT_SUCCESSOR_SPACE",
+      "compatibility_rule": "A post-v2 contract is current only when explicitly selected by its own matching current metadata and contract authority. It is never inferred from a version label and never rewrites v0 or v1 history.",
+      "evidence_refs": [
+        "EVIDENCE-CONTRACT-VERSION-SELECTION",
+        "EVIDENCE-EXPLICIT-SELECTION-NO-FALLBACK"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-SCOPE-CLASSIFICATION",
+      "owner_pointer": {
+        "owner": "scope-classification-authority",
+        "pointer": "scope.classification"
+      },
+      "status": "FAIL_CLOSED_ON_AMBIGUITY",
+      "compatibility_rule": "Active or current work, accepted immutable history, and ambiguous scope are distinct classifications. Only explicit immutable acceptance authorizes frozen history; mixed, incomplete, or ambiguous classification fails closed.",
+      "evidence_refs": [
+        "EVIDENCE-IMMUTABLE-HISTORY-BOUNDARY",
+        "EVIDENCE-MIXED-SCOPE-FAIL-CLOSED"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-AUTHORITY-PRECEDENCE",
+      "owner_pointer": {
+        "owner": "project-authority",
+        "pointer": "authority.project-over-defaults"
+      },
+      "status": "PROJECT_AUTHORITATIVE",
+      "compatibility_rule": "Project authority overrides framework defaults. Defaults supply no product, scope, acceptance, or compatibility authority when project authority is explicit.",
+      "evidence_refs": [
+        "EVIDENCE-PROJECT-AUTHORITY-PRECEDENCE"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-HOST-UPPER-BOUND",
+      "owner_pointer": {
+        "owner": "host-authority",
+        "pointer": "authority.host.upper-bound"
+      },
+      "status": "UPPER_BOUND_ONLY",
+      "compatibility_rule": "Host authority can restrict execution and containment but cannot widen project authority, alter compatibility classification, or create acceptance authority.",
+      "evidence_refs": [
+        "EVIDENCE-HOST-BOUNDARY",
+        "EVIDENCE-PROJECT-AUTHORITY-PRECEDENCE"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-EXPLICIT-FAILURE-NO-FALLBACK",
+      "owner_pointer": {
+        "owner": "contract-selection-authority",
+        "pointer": "selection.explicit-current-failure"
+      },
+      "status": "NO_FALLBACK",
+      "compatibility_rule": "An explicitly selected current contract that fails remains failed under that contract. Another version, mode, or legacy interpretation must not be tried as fallback.",
+      "evidence_refs": [
+        "EVIDENCE-EXPLICIT-SELECTION-NO-FALLBACK"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-MIXED-AMBIGUOUS-FAIL-CLOSED",
+      "owner_pointer": {
+        "owner": "compatibility-resolution-authority",
+        "pointer": "resolution.mixed-or-ambiguous"
+      },
+      "status": "FAIL_CLOSED",
+      "compatibility_rule": "Mixed version, mixed scope, conflicting authority, missing selection, or ambiguous identity fails closed as one compatibility resolution failure and cannot activate a permissive interpretation.",
+      "evidence_refs": [
+        "EVIDENCE-MIXED-SCOPE-FAIL-CLOSED",
+        "EVIDENCE-EXPLICIT-SELECTION-NO-FALLBACK"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-TASK-DISPATCH-OPTIONAL",
+      "owner_pointer": {
+        "owner": "optional-capability-authority",
+        "pointer": "capability.task-dispatch"
+      },
+      "status": "OPTIONAL_NON_ACTIVATING",
+      "compatibility_rule": "Task Dispatch is optional. Its presence, records, or metadata do not activate it; activation requires explicit project or execution authority.",
+      "evidence_refs": [
+        "EVIDENCE-OPTIONAL-CAPABILITY-ACTIVATION",
+        "EVIDENCE-CONTRACT-VERSION-SELECTION"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-LEGACY-ALIASES",
+      "owner_pointer": {
+        "owner": "legacy-compatibility-authority",
+        "pointer": "legacy.aliases"
+      },
+      "status": "POINTER_ONLY",
+      "compatibility_rule": "Legacy aliases are provenance pointers only. They do not create identity, authority, activation, routing, or fallback behavior.",
+      "evidence_refs": [
+        "EVIDENCE-LEGACY-POINTER-ONLY"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-PLANNING-GRANULARITY",
+      "owner_pointer": {
+        "owner": "planning-structure-authority",
+        "pointer": "planning.zero-to-product.granularity"
+      },
+      "status": "PRESERVED",
+      "compatibility_rule": "Zero-to-product and Milestone, Wave, Phase, Lane, Light, Standard, and Heavy classifications are preserved as project-defined planning and execution structure. No compatibility interpretation collapses, invents, or reclassifies them.",
+      "evidence_refs": [
+        "EVIDENCE-PROJECT-AUTHORITY-PRECEDENCE",
+        "EVIDENCE-PLANNING-STRUCTURE-PRESERVATION"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-STAGE2-TO-STAGE7-OPTIONAL",
+      "owner_pointer": {
+        "owner": "optional-capability-authority",
+        "pointer": "capability.stage2-to-stage7.graph-runtime-adapters"
+      },
+      "status": "OPTIONAL_NON_ACTIVATING",
+      "compatibility_rule": "Stage 2 through Stage 7 Graph, runtime, and adapter surfaces remain optional. Their presence or discoverability does not activate them, grant authority, select a contract, or alter current versus history classification.",
+      "evidence_refs": [
+        "EVIDENCE-GRAPH-RUNTIME-ADAPTER-BOUNDARY",
+        "EVIDENCE-OPTIONAL-CAPABILITY-ACTIVATION"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    },
+    {
+      "id": "COMPAT-REMOVED-DEPRECATED-SURFACES",
+      "owner_pointer": {
+        "owner": "surface-lifecycle-authority",
+        "pointer": "surface.removed-or-deprecated"
+      },
+      "status": "PRESERVE_UNTIL_EXPLICITLY_CHANGED",
+      "compatibility_rule": "Removed or deprecated surfaces are not physically removed in this stage. Compatibility mapping records their status without changing availability, content, identity, or history.",
+      "evidence_refs": [
+        "EVIDENCE-STAGE-8A-WRITE-BOUNDARY",
+        "EVIDENCE-LEGACY-POINTER-ONLY"
+      ],
+      "stage_owner": "stage-8a-compatibility-map"
+    }
+  ],
+  "evidence_catalog": [
+    {
+      "id": "EVIDENCE-CONTRACT-VERSION-SELECTION",
+      "pointer": "evidence.contract-version-selection"
+    },
+    {
+      "id": "EVIDENCE-CURRENT-METADATA-REQUIREMENT",
+      "pointer": "evidence.current-metadata-requirement"
+    },
+    {
+      "id": "EVIDENCE-IMMUTABLE-HISTORY-BOUNDARY",
+      "pointer": "evidence.immutable-history-boundary"
+    },
+    {
+      "id": "EVIDENCE-MIXED-SCOPE-FAIL-CLOSED",
+      "pointer": "evidence.mixed-scope-fail-closed"
+    },
+    {
+      "id": "EVIDENCE-PROJECT-AUTHORITY-PRECEDENCE",
+      "pointer": "evidence.project-authority-precedence"
+    },
+    {
+      "id": "EVIDENCE-HOST-BOUNDARY",
+      "pointer": "evidence.host-boundary"
+    },
+    {
+      "id": "EVIDENCE-EXPLICIT-SELECTION-NO-FALLBACK",
+      "pointer": "evidence.explicit-selection-no-fallback"
+    },
+    {
+      "id": "EVIDENCE-OPTIONAL-CAPABILITY-ACTIVATION",
+      "pointer": "evidence.optional-capability-activation"
+    },
+    {
+      "id": "EVIDENCE-LEGACY-POINTER-ONLY",
+      "pointer": "evidence.legacy-pointer-only"
+    },
+    {
+      "id": "EVIDENCE-PLANNING-STRUCTURE-PRESERVATION",
+      "pointer": "evidence.planning-structure-preservation"
+    },
+    {
+      "id": "EVIDENCE-GRAPH-RUNTIME-ADAPTER-BOUNDARY",
+      "pointer": "evidence.graph-runtime-adapter-boundary"
+    },
+    {
+      "id": "EVIDENCE-STAGE-8A-WRITE-BOUNDARY",
+      "pointer": "evidence.stage-8a-write-boundary"
+    }
+  ]
+}
