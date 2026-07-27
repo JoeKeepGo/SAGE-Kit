@@ -438,7 +438,7 @@ def _collect_repository_snapshot(
         errors += (active_error,)
     if snapshot_mode == "working-tree":
         try:
-            working_tree = _working_tree_snapshot(root)
+            working_tree = _working_tree_snapshot(root, head_sha)
         except ValueError as exc:
             errors = errors + (f"working-tree snapshot unavailable: {exc}",)
     else:
@@ -1307,8 +1307,7 @@ def _required_snapshot_authority(value: object) -> str:
     return value
 
 
-def _working_tree_snapshot(root: Path) -> WorkingTreeSnapshot:
-    initial_head = _git_text(root, "rev-parse", "HEAD")
+def _working_tree_snapshot(root: Path, initial_head: str) -> WorkingTreeSnapshot:
     status = _snapshot_status(root)
     _reject_unsupported_worktree_states(status)
     index_state = _git_bytes(root, "ls-files", "--stage", "-z")
