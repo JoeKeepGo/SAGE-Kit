@@ -20,8 +20,8 @@
   "dependencies": {
     "graph_contract_v1": {
       "contract_id": "urn:sagekit:graph-contract:v1",
-      "contract_resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_contract_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
+      "contract_resource": "sagekit/resources/contracts/graph/v1/contract.json",
+      "canonical_contract_sha256": "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9",
       "canonical_resource_integrity": {
         "graph_schema_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466"
       },
@@ -29,14 +29,14 @@
     },
     "node_result_v1": {
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
-      "schema_resource": "docs/contracts/graph/v1/node-result.schema.json",
+      "schema_resource": "sagekit/resources/contracts/graph/v1/node-result.schema.json",
       "canonical_schema_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
       "relation": "Node status and terminal meaning remain those of Node Result v1; this contract introduces dispositions without introducing runtime node statuses."
     },
     "runtime_state_contract_v1": {
       "contract_id": "urn:sagekit:runtime-state-contract:v1",
-      "contract_resource": "docs/contracts/runtime-state/v1/contract.json",
-      "canonical_contract_sha256": "b74ede0245a124b49e8078a2388099f17084624a815fb4812231a04b52020728",
+      "contract_resource": "sagekit/resources/contracts/runtime-state/v1/contract.json",
+      "canonical_contract_sha256": "f5966f9e394cefd6473048877f328442e9337a2d3f4e5f10ec5d269597eb0da6",
       "canonical_resource_integrity": {
         "state_schema_sha256": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
         "event_schema_sha256": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9"
@@ -134,6 +134,6 @@
   },
   "packaged_mirror": {
     "path": "sagekit/resources/contracts/ready-resolution/v1",
-    "expectation": "All resources are byte-identical mirrors of canonical resources in docs/contracts/ready-resolution/v1."
+    "expectation": "This package-resource directory is the canonical owner of all Ready Resolution Contract v1 resources; distributed copies must remain byte-identical."
   }
 }

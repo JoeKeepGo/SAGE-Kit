@@ -17,7 +17,7 @@ RESOURCE_NAMES = (
     "node-result.schema.json",
 )
 EXPECTED_GRAPH_CONTRACT_SHA256 = (
-    "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4"
+    "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9"
 )
 EXPECTED_STAGE4D_PATHS = {
     "docs/contracts/graph/v1/contract.json",

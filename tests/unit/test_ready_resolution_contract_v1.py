@@ -29,12 +29,12 @@ EXPECTED_STAGE4A_PATHS = {
     "tests/unit/test_ready_resolution_contract_v1.py",
 }
 DEPENDENCY_DIGESTS = {
-    "docs/contracts/graph/v1/contract.json": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
-    "docs/contracts/graph/v1/graph.schema.json": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
-    "docs/contracts/graph/v1/node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
-    "docs/contracts/runtime-state/v1/contract.json": "b74ede0245a124b49e8078a2388099f17084624a815fb4812231a04b52020728",
-    "docs/contracts/runtime-state/v1/state.schema.json": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
-    "docs/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
+    "sagekit/resources/contracts/graph/v1/contract.json": "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9",
+    "sagekit/resources/contracts/graph/v1/graph.schema.json": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
+    "sagekit/resources/contracts/graph/v1/node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
+    "sagekit/resources/contracts/runtime-state/v1/contract.json": "f5966f9e394cefd6473048877f328442e9337a2d3f4e5f10ec5d269597eb0da6",
+    "sagekit/resources/contracts/runtime-state/v1/state.schema.json": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
+    "sagekit/resources/contracts/runtime-state/v1/event.schema.json": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
 }
 BASELINE_SCHEMA_DIGESTS = {
     "input.schema.json": "fc6d9edfdd50c66959ed55c59cda6b78cd7ac44b508081ce896aa2efdcc2b481",
@@ -925,27 +925,34 @@ class ReadyResolutionContractV1Tests(unittest.TestCase):
         )
         graph = dependencies["graph_contract_v1"]
         self.assertEqual("urn:sagekit:graph-contract:v1", graph["contract_id"])
-        self.assertEqual(DEPENDENCY_DIGESTS["docs/contracts/graph/v1/contract.json"], graph["canonical_contract_sha256"])
         self.assertEqual(
-            DEPENDENCY_DIGESTS["docs/contracts/graph/v1/graph.schema.json"],
+            DEPENDENCY_DIGESTS["sagekit/resources/contracts/graph/v1/contract.json"],
+            graph["canonical_contract_sha256"],
+        )
+        self.assertEqual(
+            DEPENDENCY_DIGESTS["sagekit/resources/contracts/graph/v1/graph.schema.json"],
             graph["canonical_resource_integrity"]["graph_schema_sha256"],
         )
         node_result = dependencies["node_result_v1"]
         self.assertEqual("urn:sagekit:graph-contract:v1:node-result", node_result["schema_id"])
         self.assertEqual(
-            DEPENDENCY_DIGESTS["docs/contracts/graph/v1/node-result.schema.json"],
+            DEPENDENCY_DIGESTS["sagekit/resources/contracts/graph/v1/node-result.schema.json"],
             node_result["canonical_schema_sha256"],
         )
         runtime = dependencies["runtime_state_contract_v1"]
         self.assertEqual("urn:sagekit:runtime-state-contract:v1", runtime["contract_id"])
         self.assertEqual(
-            DEPENDENCY_DIGESTS["docs/contracts/runtime-state/v1/contract.json"],
+            DEPENDENCY_DIGESTS["sagekit/resources/contracts/runtime-state/v1/contract.json"],
             runtime["canonical_contract_sha256"],
         )
         self.assertEqual(
             {
-                "state_schema_sha256": DEPENDENCY_DIGESTS["docs/contracts/runtime-state/v1/state.schema.json"],
-                "event_schema_sha256": DEPENDENCY_DIGESTS["docs/contracts/runtime-state/v1/event.schema.json"],
+                "state_schema_sha256": DEPENDENCY_DIGESTS[
+                    "sagekit/resources/contracts/runtime-state/v1/state.schema.json"
+                ],
+                "event_schema_sha256": DEPENDENCY_DIGESTS[
+                    "sagekit/resources/contracts/runtime-state/v1/event.schema.json"
+                ],
             },
             runtime["canonical_resource_integrity"],
         )

@@ -23,67 +23,67 @@
   "dependencies": {
     "graph_contract_v1": {
       "contract_id": "urn:sagekit:graph-contract:v1",
-      "resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
+      "resource": "sagekit/resources/contracts/graph/v1/contract.json",
+      "canonical_sha256": "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9",
       "relation": "Owns Graph shape, identity, generation, topology, semantic projection, and validate_graph_contract.semantic_digest. Evidence Lineage consumes those values without copying the Graph contract or defining another Graph digest."
     },
     "graph_schema_v1": {
       "schema_id": "urn:sagekit:graph-contract:v1:graph",
-      "resource": "docs/contracts/graph/v1/graph.schema.json",
+      "resource": "sagekit/resources/contracts/graph/v1/graph.schema.json",
       "canonical_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
       "relation": "Owns Graph instance structure. Evidence Lineage Input carries only exact Graph identity bindings."
     },
     "node_result_v1": {
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
-      "resource": "docs/contracts/graph/v1/node-result.schema.json",
+      "resource": "sagekit/resources/contracts/graph/v1/node-result.schema.json",
       "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
       "relation": "Owns Node Result shape and semantics. The existing Stage 4 node_result_digest is the final GRAPH_NODE output fingerprint; this contract does not define a second Node Result projection."
     },
     "ready_resolution_contract_v1": {
       "contract_id": "urn:sagekit:ready-resolution:v1",
-      "resource": "docs/contracts/ready-resolution/v1/contract.json",
-      "canonical_sha256": "9eb5f0f94b3b01f6c71a525bb3ef65ddca31fc9f3fb1eb9b59a1d093aae78f67",
+      "resource": "sagekit/resources/contracts/ready-resolution/v1/contract.json",
+      "canonical_sha256": "f5a8503146b2f3bb45e61ccf92f28897c67c3808648bbb19c60a0912f8471bb6",
       "relation": "Owns Stage 4 readiness and semantic input_digest. Evidence Lineage binds the final Ready input_digest and never re-evaluates or copies join satisfaction."
     },
     "ready_resolution_input_v1": {
       "schema_id": "urn:sagekit:ready-resolution:v1:input",
-      "resource": "docs/contracts/ready-resolution/v1/input.schema.json",
+      "resource": "sagekit/resources/contracts/ready-resolution/v1/input.schema.json",
       "canonical_sha256": "e1cdead10ca7f172ac34423eccabba248e4e9b695406896df4c14567a87fbbaa",
       "relation": "Supplies the Ready input whose existing input_digest binds node state, resources, external join decisions, and their evidence."
     },
     "ready_resolution_result_v1": {
       "schema_id": "urn:sagekit:ready-resolution:v1:result",
-      "resource": "docs/contracts/ready-resolution/v1/result.schema.json",
+      "resource": "sagekit/resources/contracts/ready-resolution/v1/result.schema.json",
       "canonical_sha256": "79827b17047510fa22959bae9068f9b6accf540a4c25194ac24d08bfa031e5fc",
       "relation": "Supplies the consumed Ready input_digest binding. A Ready Result is neither copied nor treated as reuse authority."
     },
     "ready_resolution_error_v1": {
       "schema_id": "urn:sagekit:ready-resolution:v1:error",
-      "resource": "docs/contracts/ready-resolution/v1/error.schema.json",
+      "resource": "sagekit/resources/contracts/ready-resolution/v1/error.schema.json",
       "canonical_sha256": "c4558f940511c9313ebbc234502f7a2c1f8d282dae826f21f73a1502fd534d52",
       "relation": "Preserves the Stage 4 Result/Error boundary. A Ready Error cannot be converted into lineage success."
     },
     "transition_resolution_contract_v1": {
       "contract_id": "urn:sagekit:transition-resolution:v1",
-      "resource": "docs/contracts/transition-resolution/v1/contract.json",
-      "canonical_sha256": "385a33f82ea9a65cb90649a4ba7a87fda7eb7035b696766339c691093f7d1291",
+      "resource": "sagekit/resources/contracts/transition-resolution/v1/contract.json",
+      "canonical_sha256": "cae9bda1762dd552ea9d7d04a413e7c6c999b76878b2b323d318cde52c93417c",
       "relation": "Owns Stage 4 transition classification, transition input_digest, and Node Result digest binding. Evidence Lineage consumes those exact final digests."
     },
     "transition_resolution_input_v1": {
       "schema_id": "urn:sagekit:transition-resolution:v1:input",
-      "resource": "docs/contracts/transition-resolution/v1/input.schema.json",
+      "resource": "sagekit/resources/contracts/transition-resolution/v1/input.schema.json",
       "canonical_sha256": "e12126b674fd6db172284230d462e5665b849b23a862a6d8d4afd388790780fc",
       "relation": "Supplies the exact Stage 4 Transition input snapshot whose owner computes transition input_digest."
     },
     "transition_resolution_result_v1": {
       "schema_id": "urn:sagekit:transition-resolution:v1:result",
-      "resource": "docs/contracts/transition-resolution/v1/result.schema.json",
+      "resource": "sagekit/resources/contracts/transition-resolution/v1/result.schema.json",
       "canonical_sha256": "d79c7c3a5ce97b7098125a3d15feb820be9fb72888cccdce3dd6ee8b5b6ec5dd",
       "relation": "Supplies the existing transition input_digest and node_result_digest bindings. Evidence Lineage does not reinterpret transition legality."
     },
     "transition_resolution_error_v1": {
       "schema_id": "urn:sagekit:transition-resolution:v1:error",
-      "resource": "docs/contracts/transition-resolution/v1/error.schema.json",
+      "resource": "sagekit/resources/contracts/transition-resolution/v1/error.schema.json",
       "canonical_sha256": "e050cc8d44d130177a4510f37d088ab89be259dd4f7e28081963a77a933d9a84",
       "relation": "Preserves the Stage 4 Result/Error boundary. A Transition Error cannot produce reusable lineage."
     }
@@ -305,6 +305,6 @@
   },
   "packaged_mirror": {
     "path": "sagekit/resources/contracts/evidence-lineage/v1",
-    "expectation": "All four resources are byte-identical mirrors of canonical resources in docs/contracts/evidence-lineage/v1."
+    "expectation": "This package-resource directory is the canonical owner of all Evidence Lineage Contract v1 resources; distributed copies must remain byte-identical."
   }
 }

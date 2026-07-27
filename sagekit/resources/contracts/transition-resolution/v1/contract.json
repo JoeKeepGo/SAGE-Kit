@@ -23,31 +23,31 @@
   "dependencies": {
     "graph_contract_v1": {
       "contract_id": "urn:sagekit:graph-contract:v1",
-      "resource": "docs/contracts/graph/v1/contract.json",
-      "canonical_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
+      "resource": "sagekit/resources/contracts/graph/v1/contract.json",
+      "canonical_sha256": "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9",
       "relation": "Supplies the immutable valid Graph identity, unbounded positive generation domain, and external-gate topology; this contract neither copies nor mutates the Graph. Dependencies within one external join are valid, while an edge leaving any containing manual-gate or corrective-join is GRAPH_INVALID before transition binding."
     },
     "node_result_v1": {
       "schema_id": "urn:sagekit:graph-contract:v1:node-result",
-      "resource": "docs/contracts/graph/v1/node-result.schema.json",
+      "resource": "sagekit/resources/contracts/graph/v1/node-result.schema.json",
       "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
       "relation": "The Input schema carries only a Node Result object envelope. After basic Input envelope structural admission and bounded canonical byte admission, the complete proposed Node Result is validated through the existing validate_node_result owner and content-digest bound without defining a second Node Result shape."
     },
     "runtime_state_contract_v1": {
       "contract_id": "urn:sagekit:runtime-state-contract:v1",
-      "resource": "docs/contracts/runtime-state/v1/contract.json",
-      "canonical_sha256": "b74ede0245a124b49e8078a2388099f17084624a815fb4812231a04b52020728",
+      "resource": "sagekit/resources/contracts/runtime-state/v1/contract.json",
+      "canonical_sha256": "f5966f9e394cefd6473048877f328442e9337a2d3f4e5f10ec5d269597eb0da6",
       "relation": "Defines the language-neutral snapshot and writer boundary; this contract consumes observed identity labels only."
     },
     "runtime_state_v1": {
       "schema_id": "urn:sagekit:runtime-state-contract:v1:state",
-      "resource": "docs/contracts/runtime-state/v1/state.schema.json",
+      "resource": "sagekit/resources/contracts/runtime-state/v1/state.schema.json",
       "canonical_sha256": "5a24d050bff9ecd23b50ae1d21240d3f2d959e69908bb374198a0a65276b9481",
       "relation": "Supplies graph, run, authority, controller, revision, sequence, node, attempt, and previous-status snapshot identities."
     },
     "runtime_event_v1": {
       "schema_id": "urn:sagekit:runtime-state-contract:v1:event",
-      "resource": "docs/contracts/runtime-state/v1/event.schema.json",
+      "resource": "sagekit/resources/contracts/runtime-state/v1/event.schema.json",
       "canonical_sha256": "d7419489668ac25172e311d6ef53232746e7c778cd6af3ff2391765d13f6f4a9",
       "relation": "Supplies the last-event sequence correlation boundary. A transition Result is not a Runtime Event."
     }
@@ -345,6 +345,6 @@
   },
   "packaged_mirror": {
     "path": "sagekit/resources/contracts/transition-resolution/v1",
-    "expectation": "All four resources are byte-identical mirrors of canonical resources in docs/contracts/transition-resolution/v1."
+    "expectation": "This package-resource directory is the canonical owner of all Transition Resolution Contract v1 resources; distributed copies must remain byte-identical."
   }
 }

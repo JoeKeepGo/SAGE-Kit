@@ -41,6 +41,6 @@
   },
   "packaged_mirror": {
     "path": "sagekit/resources/contracts/graph/v1",
-    "expectation": "All resources are byte-identical mirrors of canonical resources in docs/contracts/graph/v1."
+    "expectation": "This package-resource directory is the canonical owner of all Graph Contract v1 resources; distributed copies must remain byte-identical."
   }
 }

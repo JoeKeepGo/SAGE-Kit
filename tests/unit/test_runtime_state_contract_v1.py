@@ -33,7 +33,7 @@ EXPECTED_STAGE3D_PATHS = {
     "tests/unit/test_runtime_views.py",
 }
 GRAPH_RESOURCE_DIGESTS = {
-    "contract.json": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
+    "contract.json": "32024892f107bd6015a58b9cd04a30b0b15863186f2cebc1d0f24426a185bfe9",
     "graph.schema.json": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
     "node-result.schema.json": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379",
 }
@@ -405,7 +405,10 @@ class RuntimeStateContractV1Tests(unittest.TestCase):
             self.assertRegex(resource["canonical_sha256"], r"^[0-9a-f]{64}$")
         dependency = self.manifest["dependencies"]["graph_contract_v1"]
         self.assertEqual("urn:sagekit:graph-contract:v1", dependency["contract_id"])
-        self.assertEqual("docs/contracts/graph/v1/contract.json", dependency["contract_resource"])
+        self.assertEqual(
+            "sagekit/resources/contracts/graph/v1/contract.json",
+            dependency["contract_resource"],
+        )
         self.assertEqual(GRAPH_RESOURCE_DIGESTS["contract.json"], dependency["canonical_contract_sha256"])
         graph_manifest = load_json(current_resource_path(dependency["contract_resource"]))
         self.assertEqual(
