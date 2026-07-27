@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:evidence-lineage:v1:error",
+  "title": "SAGE-Kit Evidence Lineage Error v1",
+  "description": "A bounded, closed failure envelope mutually exclusive with Evidence Lineage Result v1. Invalid, cyclic, over-limit, oversized, or binding-mismatched input returns only Error and no partial Result. Error contains no reuse decision, final-evidence selection, arbitrary payload, private text, command, path, runtime mutation, or authority grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "error_code",
+    "message_code",
+    "issues"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:evidence-lineage:v1:error"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "error_code": {
+      "type": "string",
+      "enum": [
+        "INPUT_INVALID",
+        "INPUT_TOO_LARGE",
+        "LINEAGE_LIMIT_EXCEEDED",
+        "LINEAGE_CYCLE",
+        "GRAPH_BINDING_MISMATCH",
+        "LINEAGE_INVALID",
+        "RESULT_TOO_LARGE"
+      ]
+    },
+    "message_code": {
+      "type": "string",
+      "enum": [
+        "STRICT_INPUT_REQUIRED",
+        "INPUT_BYTE_BUDGET_EXCEEDED",
+        "STRUCTURAL_LIMIT_EXCEEDED",
+        "ACYCLIC_LINEAGE_REQUIRED",
+        "GRAPH_BINDING_REQUIRED",
+        "VALID_LINEAGE_REQUIRED",
+        "RESULT_BYTE_BUDGET_EXCEEDED"
+      ]
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_code",
+        "location"
+      ],
+      "properties": {
+        "issue_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[0-9]+\\])*$",
+          "description": "A bounded logical instance location, never a filesystem path."
+        }
+      }
+    }
+  }
+}

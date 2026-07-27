@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:evidence-lineage:v1:result",
+  "title": "SAGE-Kit Evidence Lineage Result v1",
+  "description": "A complete, closed, bounded evidence-lineage reuse classification for one valid admitted Input. It is mutually exclusive with Error. Every lineage decision is explicit and preserves node input/output fingerprints. Result is analysis only: REUSE is not execution, acceptance, authority, or permission, and no disposition applies unless the independently authorized host revalidates the current bindings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "graph_id",
+    "graph_generation",
+    "graph_digest",
+    "decisions",
+    "final_evidence_node_id"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:evidence-lineage:v1:result"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "graph_id": {
+      "$ref": "#/$defs/opaque_id"
+    },
+    "graph_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "graph_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "final_evidence_node_id": {
+      "$ref": "#/$defs/opaque_id"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "opaque_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "edge_type": {
+      "type": "string",
+      "enum": [
+        "NODE_OUTPUT",
+        "JOIN_INTEGRATION",
+        "PATH",
+        "CONTRACT",
+        "AUTHORITY",
+        "DEPENDENCY_SET",
+        "TOOLCHAIN",
+        "PLATFORM",
+        "CANDIDATE"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "FINGERPRINTS_MATCH",
+        "DIRECT_INPUT_CHANGED",
+        "TRANSITIVE_INPUT_CHANGED",
+        "GRAPH_IDENTITY_CHANGED",
+        "CONTRACT_CHANGED",
+        "AUTHORITY_CHANGED",
+        "CANDIDATE_CHANGED"
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineage_node_id",
+        "disposition",
+        "input_fingerprint",
+        "output_fingerprint",
+        "changed_edge_types",
+        "reason_codes"
+      ],
+      "properties": {
+        "lineage_node_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "REUSE",
+            "REVERIFY_TARGETED",
+            "INVALIDATE"
+          ]
+        },
+        "input_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "output_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "changed_edge_types": {
+          "type": "array",
+          "maxItems": 9,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/edge_type"
+          }
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reason_code"
+          }
+        }
+      }
+    }
+  }
+}

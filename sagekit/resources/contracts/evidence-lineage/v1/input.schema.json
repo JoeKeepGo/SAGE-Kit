@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:evidence-lineage:v1:input",
+  "title": "SAGE-Kit Evidence Lineage Input v1",
+  "description": "A closed, bounded, language-neutral evidence-lineage comparison request. It binds one baseline Graph identity, one candidate Graph identity, existing Stage 4 Ready/Transition/Node Result digests, typed lineage nodes and edges, join integration references, and one final-evidence target. Unknown fields are invalid. Complete identity, referential-integrity, fingerprint, acyclicity, join, and final-candidate checks are semantic contract validation. Input is inert data and grants no execution, reuse, authority, gate, write, or Graph-mutation permission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "baseline_graph",
+    "candidate_graph",
+    "stage4_bindings",
+    "lineage_nodes",
+    "lineage_edges",
+    "join_integrations",
+    "final_evidence_node_id"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:evidence-lineage:v1:input"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "baseline_graph": {
+      "$ref": "#/$defs/graph_binding"
+    },
+    "candidate_graph": {
+      "$ref": "#/$defs/graph_binding"
+    },
+    "stage4_bindings": {
+      "$ref": "#/$defs/stage4_bindings"
+    },
+    "lineage_nodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/lineage_node"
+      }
+    },
+    "lineage_edges": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/edge"
+      },
+      "contains": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/edge"
+          },
+          {
+            "required": [
+              "edge_type"
+            ],
+            "properties": {
+              "edge_type": {
+                "const": "CANDIDATE"
+              }
+            }
+          }
+        ]
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "join_integrations": {
+      "type": "array",
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/join_integration"
+      }
+    },
+    "final_evidence_node_id": {
+      "$ref": "#/$defs/opaque_id",
+      "description": "The EVIDENCE-owned lineage node targeted by the one CANDIDATE edge."
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "opaque_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "An opaque Unicode scalar identity preserved exactly. Aggregate canonical byte admission, rather than truncation or path interpretation, bounds the containing instance."
+    },
+    "bounded_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!\\\\)(?!file:)(?!https?://)[^\\r\\n]{1,512}$",
+      "description": "A bounded repository-neutral reference. Absolute, rooted, file-URI, HTTP(S), and newline-bearing values are forbidden."
+    },
+    "graph_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graph_id",
+        "graph_generation",
+        "graph_digest"
+      ],
+      "properties": {
+        "graph_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "graph_generation": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The existing unbounded positive mathematical Graph generation. JSON booleans are not integers."
+        },
+        "graph_digest": {
+          "$ref": "#/$defs/sha256",
+          "description": "The existing validate_graph_contract.semantic_digest; this contract does not recalculate or redefine it."
+        }
+      }
+    },
+    "stage4_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ready_input_digest",
+        "transition_bindings"
+      ],
+      "properties": {
+        "ready_input_digest": {
+          "$ref": "#/$defs/sha256",
+          "description": "The exact Stage 4 Ready Resolution input_digest bound by the consumed Ready Result."
+        },
+        "transition_bindings": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/transition_binding"
+          }
+        }
+      }
+    },
+    "transition_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "transition_input_digest",
+        "node_result_digest"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "transition_input_digest": {
+          "$ref": "#/$defs/sha256",
+          "description": "The existing Stage 4 Transition Resolution input_digest."
+        },
+        "node_result_digest": {
+          "$ref": "#/$defs/sha256",
+          "description": "The existing Stage 4 Node Result digest; it is also the output fingerprint for the corresponding final GRAPH_NODE lineage node."
+        }
+      }
+    },
+    "lineage_node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lineage_node_id",
+        "owner_kind",
+        "owner_id",
+        "input_fingerprint",
+        "output_fingerprint"
+      ],
+      "properties": {
+        "lineage_node_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "owner_kind": {
+          "type": "string",
+          "enum": [
+            "GRAPH_NODE",
+            "JOIN",
+            "PATH",
+            "CONTRACT",
+            "AUTHORITY",
+            "DEPENDENCY_SET",
+            "TOOLCHAIN",
+            "PLATFORM",
+            "EVIDENCE",
+            "CANDIDATE"
+          ]
+        },
+        "owner_id": {
+          "$ref": "#/$defs/opaque_id",
+          "description": "An owner-scoped opaque identity, never an implicitly dereferenceable path."
+        },
+        "input_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "output_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_node_id",
+        "target_node_id",
+        "edge_type",
+        "source_output_fingerprint",
+        "target_input_fingerprint"
+      ],
+      "properties": {
+        "source_node_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "target_node_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "edge_type": {
+          "type": "string",
+          "enum": [
+            "NODE_OUTPUT",
+            "JOIN_INTEGRATION",
+            "PATH",
+            "CONTRACT",
+            "AUTHORITY",
+            "DEPENDENCY_SET",
+            "TOOLCHAIN",
+            "PLATFORM",
+            "CANDIDATE"
+          ]
+        },
+        "source_output_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "target_input_fingerprint": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "join_integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "join_id",
+        "policy",
+        "definition_fingerprint",
+        "contributor_node_ids",
+        "ready_input_digest",
+        "external_decision_refs"
+      ],
+      "properties": {
+        "join_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "all-required",
+            "required-plus-optional",
+            "first-success",
+            "manual-gate",
+            "corrective-join"
+          ]
+        },
+        "definition_fingerprint": {
+          "$ref": "#/$defs/sha256",
+          "description": "A fingerprint of the exact Graph-owned join definition, including policy and requires membership; it does not decide the join."
+        },
+        "contributor_node_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/opaque_id"
+          }
+        },
+        "ready_input_digest": {
+          "$ref": "#/$defs/sha256",
+          "description": "The same existing Ready Resolution input_digest as stage4_bindings.ready_input_digest."
+        },
+        "external_decision_refs": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/bounded_ref"
+          },
+          "description": "References already bound by the Stage 4 Ready input for manual-gate or corrective-join evidence. Empty for automatic joins. This is not a join disposition or satisfaction copy."
+        }
+      }
+    }
+  }
+}
