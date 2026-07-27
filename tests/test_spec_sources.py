@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from sagekit.check import run_check
 from sagekit.packet import PacketError, _compile_packet
+from sagekit.pathing import canonical_path
 from sagekit.spec_sources import (
     DocumentClass,
     PUBLIC_CONTRACT_MANIFEST_VERSION,
@@ -51,13 +52,15 @@ class SpecSourceTests(unittest.TestCase):
                 },
             )
             configured = resolve_doc_routing_path(root)
+            expected_configured = canonical_path(root, "routing/PROJECT.md")
             payload = json.loads((root / "SAGEKIT_CONFIG.json").read_text(encoding="utf-8"))
             del payload["doc_routing"]
             write_json(root / "SAGEKIT_CONFIG.json", payload)
             legacy = resolve_doc_routing_path(root)
+            expected_legacy = canonical_path(root, "docs/DOC_ROUTING.md")
 
-        self.assertEqual(root / "routing/PROJECT.md", configured)
-        self.assertEqual(root / "docs/DOC_ROUTING.md", legacy)
+        self.assertEqual(expected_configured, configured)
+        self.assertEqual(expected_legacy, legacy)
 
     def test_active_task_dispatch_requires_explicit_profile_and_records(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -124,10 +127,11 @@ class SpecSourceTests(unittest.TestCase):
 
             with patch("sagekit.check.check_active_task_dispatch", return_value=[]) as dispatch:
                 findings = run_check(root, gate_ready=True, mode="heavy")
+            expected_container = canonical_path(root, "docs/M36")
 
         self.assertTrue(any(item.rule == "check-mode" for item in findings))
         self.assertFalse(any(item.rule == "required-docs" for item in findings))
-        self.assertEqual(root / "docs/M36", dispatch.call_args.args[2])
+        self.assertEqual(expected_container, dispatch.call_args.args[2])
         self.assertTrue(dispatch.call_args.kwargs["gate_ready"])
 
     def test_active_check_uses_explicit_manifest_for_history_source_rejection(self):
