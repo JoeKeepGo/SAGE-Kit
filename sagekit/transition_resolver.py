@@ -14,7 +14,6 @@ import math
 import re
 from types import MappingProxyType
 from typing import Any, Mapping
-import weakref
 
 from .graph_contract import (
     NODE_STATUSES,
@@ -31,10 +30,6 @@ SCHEMA_VERSION = 1
 
 NODE_RESULT_DIGEST_DOMAIN = b"sagekit-node-result-v1\0"
 TRANSITION_INPUT_DIGEST_DOMAIN = b"sagekit-transition-resolution-input-v1\0"
-ADMITTED_GRAPH_SOURCE_DOMAIN = b"sagekit-transition-admitted-graph-v1\0"
-ADMITTED_INPUT_SOURCE_DOMAIN = b"sagekit-transition-admitted-input-v1\0"
-ADMITTED_RESULT_SOURCE_DOMAIN = b"sagekit-transition-admitted-result-v1\0"
-
 MAX_INPUT_CANONICAL_BYTES = 16 * 1024 * 1024
 MAX_GRAPH_CANONICAL_BYTES = 8 * 1024 * 1024
 MAX_RESULT_CANONICAL_BYTES = 16 * 1024 * 1024
@@ -147,63 +142,42 @@ class TransitionResolutionOutcome:
         transition_input: Any,
         result: Mapping[str, Any],
         *,
-        _admitted_source: _AdmittedTransitionSource | None = None,
+        _admitted_source: Any = None,
     ) -> TransitionResolutionOutcome:
-        if _admitted_source is None:
-            validation = _validate_transition_resolution(graph, transition_input)
-            admitted_source = validation.admitted_source
-        else:
-            admitted_source = _admitted_source
-        if (
-            admitted_source is None
-            or admitted_source not in _TRUSTED_ADMITTED_SOURCES
-        ):
+        validation = _validate_transition_resolution(graph, transition_input)
+        if validation.error_code is not None:
             raise ValueError("success source is not a valid transition")
-        if not _canonical_source_matches(
-            graph,
-            admitted_source.graph_snapshot,
-            domain=ADMITTED_GRAPH_SOURCE_DOMAIN,
-            limit=MAX_GRAPH_CANONICAL_BYTES,
-        ):
-            raise ValueError("graph does not match its admitted source")
-        if not _canonical_source_matches(
-            transition_input,
-            admitted_source.input_snapshot,
-            domain=ADMITTED_INPUT_SOURCE_DOMAIN,
-            limit=MAX_INPUT_CANONICAL_BYTES,
-        ):
-            raise ValueError("input does not match its admitted source")
-
-        normalized_input = _thaw_json(
-            admitted_source.normalized_input_snapshot
-        )
+        normalized_input = _thaw_json(validation.normalized_input_snapshot)
         if type(normalized_input) is not dict:
             raise ValueError("admitted input snapshot is invalid")
-        if not _canonical_source_matches(
-            normalized_input,
-            admitted_source.input_snapshot,
-            domain=ADMITTED_INPUT_SOURCE_DOMAIN,
-            limit=MAX_INPUT_CANONICAL_BYTES,
-        ):
-            raise ValueError("normalized input does not match its admitted source")
-        if normalized_input.get("graph_digest") != admitted_source.graph_digest:
+        if normalized_input.get("graph_digest") != validation.graph_digest:
             raise ValueError("input graph digest does not match its admitted graph")
 
         expected = _build_transition_result(normalized_input)
-        _canonical_json_size(expected, limit=MAX_RESULT_CANONICAL_BYTES)
+        expected_snapshot = _freeze_json(
+            expected,
+            limit=MAX_RESULT_CANONICAL_BYTES,
+        )
+        result_snapshot = _freeze_json(
+            result,
+            limit=MAX_RESULT_CANONICAL_BYTES,
+        )
         if (
             type(result) is not dict
-            or result != expected
-            or not _canonical_source_matches(
-                result,
-                _freeze_json(expected),
-                domain=ADMITTED_RESULT_SOURCE_DOMAIN,
+            or _canonical_json_bytes(
+                _thaw_json(result_snapshot),
+                limit=MAX_RESULT_CANONICAL_BYTES,
+            )
+            != _canonical_json_bytes(
+                _thaw_json(expected_snapshot),
                 limit=MAX_RESULT_CANONICAL_BYTES,
             )
         ):
             raise ValueError("result does not match its validated source")
+        if _admitted_source is not None:
+            raise ValueError("caller-supplied admitted sources are not trusted")
         instance = object.__new__(cls)
-        object.__setattr__(instance, "_result_snapshot", _freeze_json(expected))
+        object.__setattr__(instance, "_result_snapshot", expected_snapshot)
         object.__setattr__(instance, "_error_snapshot", None)
         object.__setattr__(instance, "_sealed", True)
         return instance
@@ -229,26 +203,103 @@ class TransitionResolutionOutcome:
         )
 
 
-def _freeze_json(value: Any) -> Any:
-    if value is None:
-        return None
-    if type(value) is dict:
-        return MappingProxyType(
-            {key: _freeze_json(item) for key, item in value.items()}
-        )
-    if type(value) is list:
-        return tuple(_freeze_json(item) for item in value)
-    return value
+def _freeze_json(value: Any, *, limit: int | None = None) -> Any:
+    """Build a deep immutable strict-JSON snapshot with bounded work."""
+
+    if limit is not None:
+        _canonical_json_size(value, limit=limit)
+
+    root: list[Any] = [None]
+    active: set[int] = set()
+    visited = 0
+    stack: list[tuple[Any, ...]] = [("visit", value, root, 0)]
+    while stack:
+        action, *frame = stack.pop()
+        if action == "finish":
+            kind, builder, identity, parent, slot = frame
+            active.remove(identity)
+            parent[slot] = (
+                MappingProxyType(builder) if kind == "object" else tuple(builder)
+            )
+            continue
+
+        item, parent, slot = frame
+        visited += 1
+        if limit is not None and visited > limit:
+            raise _CanonicalSizeExceeded
+        if item is None or type(item) is bool:
+            parent[slot] = item
+            continue
+        integer = _mathematical_integer(item)
+        if integer is not None:
+            parent[slot] = integer
+            continue
+        if type(item) is float:
+            raise _CanonicalJSONError(
+                "only finite mathematical integers are admitted"
+            )
+        if type(item) is str:
+            parent[slot] = _normalized_string(item)
+            continue
+        if type(item) is list:
+            identity = id(item)
+            if identity in active:
+                raise _CanonicalJSONError("cyclic array")
+            active.add(identity)
+            children = tuple(item)
+            builder: list[Any] = [None] * len(children)
+            stack.append(
+                ("finish", "array", builder, identity, parent, slot)
+            )
+            for index in range(len(children) - 1, -1, -1):
+                stack.append(("visit", children[index], builder, index))
+            continue
+        if type(item) is dict:
+            identity = id(item)
+            if identity in active:
+                raise _CanonicalJSONError("cyclic object")
+            active.add(identity)
+            entries: list[tuple[str, Any]] = []
+            seen: set[str] = set()
+            for key, child in tuple(item.items()):
+                if type(key) is not str:
+                    raise _CanonicalJSONError("object keys must be strings")
+                normalized_key = _normalized_string(key)
+                if normalized_key in seen:
+                    raise _CanonicalJSONError(
+                        "object keys collapse to one Unicode scalar sequence"
+                    )
+                seen.add(normalized_key)
+                entries.append((normalized_key, child))
+            object_builder: dict[str, Any] = {}
+            stack.append(
+                ("finish", "object", object_builder, identity, parent, slot)
+            )
+            for key, child in reversed(entries):
+                stack.append(("visit", child, object_builder, key))
+            continue
+        raise _CanonicalJSONError("value is not strict JSON")
+    return root[0]
 
 
 def _thaw_json(value: Any) -> Any:
-    if value is None:
-        return None
-    if isinstance(value, Mapping):
-        return {key: _thaw_json(item) for key, item in value.items()}
-    if type(value) is tuple:
-        return [_thaw_json(item) for item in value]
-    return value
+    root: list[Any] = [None]
+    stack: list[tuple[Any, Any, Any]] = [(value, root, 0)]
+    while stack:
+        item, parent, slot = stack.pop()
+        if isinstance(item, Mapping):
+            builder: dict[str, Any] = {}
+            parent[slot] = builder
+            for key, child in reversed(tuple(item.items())):
+                stack.append((child, builder, key))
+        elif type(item) is tuple:
+            builder = [None] * len(item)
+            parent[slot] = builder
+            for index in range(len(item) - 1, -1, -1):
+                stack.append((item[index], builder, index))
+        else:
+            parent[slot] = item
+    return root[0]
 
 
 class _CanonicalJSONError(ValueError):
@@ -259,51 +310,15 @@ class _CanonicalSizeExceeded(_CanonicalJSONError):
     pass
 
 
-class _AdmittedTransitionSource:
-    __slots__ = (
-        "graph_snapshot",
-        "input_snapshot",
-        "normalized_input_snapshot",
-        "graph_digest",
-        "__weakref__",
-    )
-
-    def __init__(
-        self,
-        *,
-        graph_snapshot: Any,
-        input_snapshot: Any,
-        normalized_input_snapshot: Any,
-        graph_digest: str,
-    ) -> None:
-        object.__setattr__(self, "graph_snapshot", graph_snapshot)
-        object.__setattr__(self, "input_snapshot", input_snapshot)
-        object.__setattr__(
-            self,
-            "normalized_input_snapshot",
-            normalized_input_snapshot,
-        )
-        object.__setattr__(self, "graph_digest", graph_digest)
-
-    def __setattr__(self, _name: str, _value: Any) -> None:
-        raise AttributeError("admitted transition source is immutable")
-
-    def __delattr__(self, _name: str) -> None:
-        raise AttributeError("admitted transition source is immutable")
-
-
-_TRUSTED_ADMITTED_SOURCES: weakref.WeakSet[_AdmittedTransitionSource] = (
-    weakref.WeakSet()
-)
-
-
 @dataclass(frozen=True)
 class _ResolutionValidation:
     error_code: str | None
     issues: tuple[TransitionResolutionIssue, ...]
-    normalized_input: dict[str, Any] | None = None
     graph_digest: str | None = None
-    admitted_source: _AdmittedTransitionSource | None = None
+    graph_snapshot: Any = None
+    input_snapshot: Any = None
+    node_result_snapshot: Any = None
+    normalized_input_snapshot: Any = None
 
 
 class _IssueCollector:
@@ -845,30 +860,6 @@ def _canonical_json_digest(
     return digest.hexdigest()
 
 
-def _canonical_source_matches(
-    value: Any,
-    frozen_snapshot: Any,
-    *,
-    domain: bytes,
-    limit: int,
-) -> bool:
-    """Compare a live source with a defensive snapshot by canonical content."""
-
-    try:
-        snapshot = _thaw_json(frozen_snapshot)
-        return _canonical_json_digest(
-            value,
-            domain=domain,
-            limit=limit,
-        ) == _canonical_json_digest(
-            snapshot,
-            domain=domain,
-            limit=limit,
-        )
-    except (_CanonicalJSONError, RecursionError):
-        return False
-
-
 def _field_path(field: Any) -> str:
     if type(field) is str and _SIMPLE_PATH_KEY.fullmatch(field):
         return f"$.{field}"
@@ -1084,15 +1075,34 @@ def _admit_graph(graph: Any) -> _ResolutionValidation:
             ),
         )
 
-    admission_issues = _graph_admission_issues(graph)
+    try:
+        graph_snapshot = _freeze_json(
+            graph,
+            limit=MAX_GRAPH_CANONICAL_BYTES,
+        )
+        graph_view = _thaw_json(graph_snapshot)
+    except (_CanonicalJSONError, RecursionError):
+        return _ResolutionValidation(
+            "GRAPH_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "STRICT_JSON_REQUIRED",
+                    "Graph could not be defensively snapshotted.",
+                ),
+            ),
+        )
+
+    admission_issues = _graph_admission_issues(graph_view)
     if admission_issues:
         return _ResolutionValidation(
             "RESOLUTION_LIMIT_EXCEEDED",
             admission_issues,
+            graph_snapshot=graph_snapshot,
         )
 
     try:
-        graph_validation = validate_graph_contract(graph)
+        graph_validation = validate_graph_contract(graph_view)
     except (KeyError, TypeError, ValueError, RecursionError):
         return _ResolutionValidation(
             "GRAPH_INVALID",
@@ -1103,6 +1113,7 @@ def _admit_graph(graph: Any) -> _ResolutionValidation:
                     "Graph Contract v1 validation could not be completed.",
                 ),
             ),
+            graph_snapshot=graph_snapshot,
         )
     if not graph_validation.valid:
         return _ResolutionValidation(
@@ -1111,6 +1122,7 @@ def _admit_graph(graph: Any) -> _ResolutionValidation:
                 graph_validation,
                 message="The supplied Graph does not satisfy Graph Contract v1.",
             ),
+            graph_snapshot=graph_snapshot,
         )
     graph_digest = graph_validation.semantic_digest
     if graph_digest is None:
@@ -1123,11 +1135,13 @@ def _admit_graph(graph: Any) -> _ResolutionValidation:
                     "The valid Graph digest could not be calculated.",
                 ),
             ),
+            graph_snapshot=graph_snapshot,
         )
     return _ResolutionValidation(
         None,
         (),
         graph_digest=graph_digest,
+        graph_snapshot=graph_snapshot,
     )
 
 
@@ -1182,13 +1196,19 @@ def canonical_node_result_digest(graph: Any, node_result: Any) -> str | None:
             node_result,
             limit=MAX_INPUT_CANONICAL_BYTES,
         )
-        graph_view = _graph_identity_view(graph)
-        node_view = _node_result_identity_view(node_result)
+        node_snapshot = _freeze_json(
+            node_result,
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        )
+        graph_view = _graph_identity_view(
+            _thaw_json(graph_admission.graph_snapshot)
+        )
+        node_view = _node_result_identity_view(_thaw_json(node_snapshot))
         validation = validate_node_result(node_view, graph_view)
         if not validation.valid:
             return None
         return _canonical_json_digest(
-            node_result,
+            _thaw_json(node_snapshot),
             domain=NODE_RESULT_DIGEST_DOMAIN,
             limit=MAX_INPUT_CANONICAL_BYTES,
         )
@@ -1339,6 +1359,9 @@ def _validate_transition_resolution(
     graph_digest = graph_admission.graph_digest
     if graph_digest is None:
         raise AssertionError("successful Graph admission must retain its digest")
+    graph_snapshot = graph_admission.graph_snapshot
+    if graph_snapshot is None:
+        raise AssertionError("successful Graph admission must retain its snapshot")
 
     try:
         _canonical_json_size(
@@ -1368,30 +1391,58 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
         )
 
-    input_issues = _input_structure_issues(transition_input)
+    try:
+        input_snapshot = _freeze_json(
+            transition_input,
+            limit=MAX_INPUT_CANONICAL_BYTES,
+        )
+        input_view = _thaw_json(input_snapshot)
+        graph_source = _thaw_json(graph_snapshot)
+    except (_CanonicalJSONError, RecursionError):
+        return _ResolutionValidation(
+            "REQUIRED_INPUT_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "STRICT_JSON_REQUIRED",
+                    "Transition input could not be defensively snapshotted.",
+                ),
+            ),
+            graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+        )
+
+    input_issues = _input_structure_issues(input_view)
     if input_issues:
         return _ResolutionValidation(
             "REQUIRED_INPUT_INVALID",
             input_issues,
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
         )
     binding_issues = _graph_binding_issues(
-        graph,
+        graph_source,
         graph_digest,
-        transition_input,
+        input_view,
     )
     if binding_issues:
         return _ResolutionValidation(
             "GRAPH_BINDING_MISMATCH",
             binding_issues,
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
         )
 
     try:
-        normalized = _transition_input_identity_view(transition_input)
-        graph_view = _graph_identity_view(graph)
+        normalized = _transition_input_identity_view(
+            _thaw_json(input_snapshot)
+        )
+        graph_view = _graph_identity_view(_thaw_json(graph_snapshot))
     except (_CanonicalJSONError, TypeError, ValueError):
         return _ResolutionValidation(
             "REQUIRED_INPUT_INVALID",
@@ -1403,9 +1454,12 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
         )
 
     node_payload = normalized["node_result"]
+    node_result_snapshot = input_snapshot["node_result"]
     try:
         node_validation = validate_node_result(node_payload, graph_view)
     except (KeyError, TypeError, ValueError, RecursionError):
@@ -1419,6 +1473,9 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
         )
     if not node_validation.valid:
         return _ResolutionValidation(
@@ -1429,7 +1486,31 @@ def _validate_transition_resolution(
                 prefix="$.node_result",
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
         )
+
+    try:
+        normalized = _transition_input_identity_view(
+            _thaw_json(input_snapshot)
+        )
+    except (_CanonicalJSONError, TypeError, ValueError):
+        return _ResolutionValidation(
+            "REQUIRED_INPUT_INVALID",
+            (
+                TransitionResolutionIssue(
+                    "$",
+                    "STRICT_JSON_REQUIRED",
+                    "The admitted transition snapshot could not be normalized.",
+                ),
+            ),
+            graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
+        )
+    node_payload = normalized["node_result"]
 
     if normalized["node_id"] != node_payload.get("node_id"):
         return _ResolutionValidation(
@@ -1442,6 +1523,9 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
         )
 
     if (
@@ -1458,6 +1542,9 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
         )
 
     transition = validate_node_transition(
@@ -1475,20 +1562,17 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
         )
 
     try:
-        admitted_source = _AdmittedTransitionSource(
-            graph_snapshot=_freeze_json(graph),
-            input_snapshot=_freeze_json(transition_input),
-            normalized_input_snapshot=_freeze_json(normalized),
-            graph_digest=graph_digest,
+        normalized_input_snapshot = _freeze_json(
+            normalized,
+            limit=MAX_INPUT_CANONICAL_BYTES,
         )
-        _TRUSTED_ADMITTED_SOURCES.add(admitted_source)
-        normalized_snapshot = _thaw_json(
-            admitted_source.normalized_input_snapshot
-        )
-    except RecursionError:
+    except (_CanonicalJSONError, RecursionError):
         return _ResolutionValidation(
             "REQUIRED_INPUT_INVALID",
             (
@@ -1499,16 +1583,21 @@ def _validate_transition_resolution(
                 ),
             ),
             graph_digest=graph_digest,
+            graph_snapshot=graph_snapshot,
+            input_snapshot=input_snapshot,
+            node_result_snapshot=node_result_snapshot,
         )
-    if type(normalized_snapshot) is not dict:
+    if type(_thaw_json(normalized_input_snapshot)) is not dict:
         raise AssertionError("admitted normalized input must be an object")
 
     return _ResolutionValidation(
         None,
         (),
-        normalized_input=normalized_snapshot,
         graph_digest=graph_digest,
-        admitted_source=admitted_source,
+        graph_snapshot=graph_snapshot,
+        input_snapshot=input_snapshot,
+        node_result_snapshot=node_result_snapshot,
+        normalized_input_snapshot=normalized_input_snapshot,
     )
 
 
@@ -1519,11 +1608,14 @@ def canonical_transition_input_digest(
     """Return a digest only for a fully admissible graph-bound transition."""
 
     validation = _validate_transition_resolution(graph, transition_input)
-    if validation.error_code is not None or validation.normalized_input is None:
+    if (
+        validation.error_code is not None
+        or validation.normalized_input_snapshot is None
+    ):
         return None
     try:
         return _canonical_transition_input_digest_raw(
-            validation.normalized_input
+            _thaw_json(validation.normalized_input_snapshot)
         )
     except (_CanonicalJSONError, RecursionError):
         return None
@@ -1596,9 +1688,11 @@ def resolve_node_transition(
     validation = _validate_transition_resolution(graph, transition_input)
     if validation.error_code is not None:
         return _failure(validation.error_code, validation.issues)
-    if validation.normalized_input is None:
+    if validation.normalized_input_snapshot is None:
         raise AssertionError("successful validation must retain normalized input")
-    normalized_input = validation.normalized_input
+    normalized_input = _thaw_json(validation.normalized_input_snapshot)
+    if type(normalized_input) is not dict:
+        raise AssertionError("normalized input snapshot must be an object")
 
     try:
         result = _build_transition_result(normalized_input)
@@ -1638,12 +1732,15 @@ def resolve_node_transition(
             ],
         )
     try:
-        return TransitionResolutionOutcome._from_validated_source(
-            graph,
-            transition_input,
+        result_snapshot = _freeze_json(
             result,
-            _admitted_source=validation.admitted_source,
+            limit=MAX_RESULT_CANONICAL_BYTES,
         )
+        instance = object.__new__(TransitionResolutionOutcome)
+        object.__setattr__(instance, "_result_snapshot", result_snapshot)
+        object.__setattr__(instance, "_error_snapshot", None)
+        object.__setattr__(instance, "_sealed", True)
+        return instance
     except (KeyError, TypeError, ValueError, _CanonicalJSONError):
         return _failure(
             "REQUIRED_INPUT_INVALID",

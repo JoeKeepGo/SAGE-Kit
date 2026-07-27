@@ -455,7 +455,7 @@ class TransitionResolverAdmissionAndValidationTests(unittest.TestCase):
         self.assertEqual("REQUIRED_INPUT_INVALID", error_code(outcome))
         self.assertEqual("STRICT_JSON_REQUIRED", outcome.error["issues"][0]["code"])
 
-    def test_success_path_owner_validation_oracle_includes_outcome_rebind(
+    def test_success_path_owner_validation_oracle_stays_bounded(
         self,
     ) -> None:
         from sagekit import transition_resolver
@@ -490,7 +490,59 @@ class TransitionResolverAdmissionAndValidationTests(unittest.TestCase):
             len(owner_calls),
             "Graph admission plus graph-aware Node Result validation are required",
         )
-        self.assertEqual(1, rebound.call_count)
+        self.assertEqual(
+            0,
+            rebound.call_count,
+            "Resolver construction must not re-enter the public success factory.",
+        )
+
+    def test_owner_validation_mutations_cannot_change_admitted_snapshots(
+        self,
+    ) -> None:
+        from sagekit import transition_resolver
+
+        candidate_graph = graph()
+        candidate = transition_input(candidate_graph)
+        expected_graph = copy.deepcopy(candidate_graph)
+        expected_input = copy.deepcopy(candidate)
+        expected = resolve_node_transition(expected_graph, expected_input)
+        self.assertTrue(expected.succeeded, expected.error)
+
+        owner_graph_validation = transition_resolver.validate_graph_contract
+        owner_node_validation = transition_resolver.validate_node_result
+
+        def mutate_graph_after_validation(payload: object):
+            validation = owner_graph_validation(payload)
+            candidate_graph["nodes"][0]["depends_on"].append("missing")
+            return validation
+
+        def mutate_findings_after_validation(payload: object, graph_view: object):
+            validation = owner_node_validation(payload, graph_view)
+            candidate["node_result"]["findings"].append(
+                {
+                    "finding_id": "late/unvalidated",
+                    "severity": "P1",
+                    "summary": "Injected after owner validation.",
+                    "evidence_refs": [],
+                }
+            )
+            return validation
+
+        with mock.patch.object(
+            transition_resolver,
+            "validate_graph_contract",
+            side_effect=mutate_graph_after_validation,
+        ), mock.patch.object(
+            transition_resolver,
+            "validate_node_result",
+            side_effect=mutate_findings_after_validation,
+        ):
+            outcome = resolve_node_transition(candidate_graph, candidate)
+
+        self.assertTrue(outcome.succeeded, outcome.error)
+        self.assertEqual(expected.result, outcome.result)
+        self.assertEqual(["missing"], candidate_graph["nodes"][0]["depends_on"])
+        self.assertEqual(1, len(candidate["node_result"]["findings"]))
 
     def test_structural_cardinality_boundaries_are_inclusive(self) -> None:
         from sagekit import transition_resolver
@@ -1044,14 +1096,7 @@ class TransitionResolverDeterminismAndPurityTests(unittest.TestCase):
                 forged,
             )
 
-        fabricated_source = transition_resolver._AdmittedTransitionSource(
-            graph_snapshot=transition_resolver._freeze_json(candidate_graph),
-            input_snapshot=transition_resolver._freeze_json(candidate),
-            normalized_input_snapshot=transition_resolver._freeze_json(
-                transition_resolver._transition_input_identity_view(candidate)
-            ),
-            graph_digest=str(candidate["graph_digest"]),
-        )
+        fabricated_source = object()
         with self.assertRaises(ValueError):
             TransitionResolutionOutcome._from_validated_source(
                 candidate_graph,
@@ -1059,6 +1104,61 @@ class TransitionResolverDeterminismAndPurityTests(unittest.TestCase):
                 copy.deepcopy(original),
                 _admitted_source=fabricated_source,
             )
+
+        invalid_graph = graph()
+        invalid_input = transition_input(invalid_graph)
+        invalid_graph["nodes"][0]["depends_on"].append("missing")
+        invalid_input["graph_digest"] = "0" * 64
+        normalized_invalid = transition_resolver._transition_input_identity_view(
+            invalid_input
+        )
+        fabricated_source = object()
+        fabricated_result = transition_resolver._build_transition_result(
+            normalized_invalid
+        )
+
+        class InjectedRegistry:
+            def __contains__(self, _source: object) -> bool:
+                return True
+
+        owner_validation = transition_resolver.validate_graph_contract
+        owner_calls: list[object] = []
+
+        def counted_owner(payload: object):
+            owner_calls.append(payload)
+            return owner_validation(payload)
+
+        missing_registry = object()
+        original_registry = getattr(
+            transition_resolver,
+            "_TRUSTED_ADMITTED_SOURCES",
+            missing_registry,
+        )
+        self.assertIs(original_registry, missing_registry)
+        transition_resolver._TRUSTED_ADMITTED_SOURCES = InjectedRegistry()
+        try:
+            with mock.patch.object(
+                transition_resolver,
+                "validate_graph_contract",
+                side_effect=counted_owner,
+            ):
+                with self.assertRaises(ValueError):
+                    TransitionResolutionOutcome._from_validated_source(
+                        invalid_graph,
+                        invalid_input,
+                        fabricated_result,
+                        _admitted_source=fabricated_source,
+                    )
+        finally:
+            if original_registry is missing_registry:
+                del transition_resolver._TRUSTED_ADMITTED_SOURCES
+            else:
+                transition_resolver._TRUSTED_ADMITTED_SOURCES = original_registry
+        self.assertGreater(
+            len(owner_calls),
+            0,
+            "Direct factory calls must revalidate instead of trusting a registry.",
+        )
 
         changed_input = copy.deepcopy(candidate)
         changed_input["state_revision"] = 4
