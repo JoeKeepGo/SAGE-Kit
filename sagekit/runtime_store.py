@@ -315,31 +315,65 @@ def _issue(
     )
 
 
-def _canonical_json_bytes(payload: Any) -> bytes:
+def _integer_decimal_bytes(value: int) -> bytes:
+    return format(Decimal(value), "f").encode("ascii")
+
+
+def _minimum_integer_decimal_bytes(value: int) -> int:
+    if value == 0:
+        return 1
+    magnitude = abs(value)
+    # 30102 / 100000 is a conservative lower bound for log10(2).
+    digits = ((magnitude.bit_length() - 1) * 30102) // 100000 + 1
+    return digits + int(value < 0)
+
+
+def _canonical_json_bytes(
+    payload: Any,
+    *,
+    maximum: int | None = None,
+) -> bytes:
+    if maximum is not None and (type(maximum) is not int or maximum < 1):
+        raise RuntimeStoreIntegrityError(
+            "canonical JSON size bound must be a positive integer"
+        )
     output = bytearray()
     active: set[int] = set()
 
+    def remaining() -> int | None:
+        if maximum is None:
+            return None
+        return maximum - len(output)
+
+    def emit(data: bytes) -> None:
+        available = remaining()
+        if available is not None and len(data) > available:
+            raise RuntimeStoreIntegrityError(
+                "canonical JSON payload exceeds its size bound"
+            )
+        output.extend(data)
+
     def emit_string(value: str) -> None:
-        output.extend(b'"')
+        emit(b'"')
         index = 0
         while index < len(value):
             codepoint = ord(value[index])
             if value[index] == '"':
-                output.extend(b'\\"')
+                emit(b'\\"')
             elif value[index] == "\\":
-                output.extend(b"\\\\")
+                emit(b"\\\\")
             elif codepoint == 0x08:
-                output.extend(b"\\b")
+                emit(b"\\b")
             elif codepoint == 0x09:
-                output.extend(b"\\t")
+                emit(b"\\t")
             elif codepoint == 0x0A:
-                output.extend(b"\\n")
+                emit(b"\\n")
             elif codepoint == 0x0C:
-                output.extend(b"\\f")
+                emit(b"\\f")
             elif codepoint == 0x0D:
-                output.extend(b"\\r")
+                emit(b"\\r")
             elif codepoint <= 0x1F:
-                output.extend(f"\\u{codepoint:04x}".encode("ascii"))
+                emit(f"\\u{codepoint:04x}".encode("ascii"))
             elif 0xD800 <= codepoint <= 0xDBFF:
                 if index + 1 >= len(value):
                     raise RuntimeStoreIntegrityError(
@@ -351,28 +385,39 @@ def _canonical_json_bytes(payload: Any) -> bytes:
                         "payload contains an unpaired UTF-16 surrogate"
                     )
                 scalar = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00)
-                output.extend(chr(scalar).encode("utf-8"))
+                emit(chr(scalar).encode("utf-8"))
                 index += 1
             elif 0xDC00 <= codepoint <= 0xDFFF:
                 raise RuntimeStoreIntegrityError(
                     "payload contains an unpaired UTF-16 surrogate"
                 )
             else:
-                output.extend(value[index].encode("utf-8"))
+                emit(value[index].encode("utf-8"))
             index += 1
-        output.extend(b'"')
+        emit(b'"')
+
+    def emit_integer(value: int) -> None:
+        available = remaining()
+        if (
+            available is not None
+            and _minimum_integer_decimal_bytes(value) > available
+        ):
+            raise RuntimeStoreIntegrityError(
+                "canonical JSON payload exceeds its size bound"
+            )
+        emit(_integer_decimal_bytes(value))
 
     def encode(value: Any) -> None:
         if value is None:
-            output.extend(b"null")
+            emit(b"null")
         elif value is True:
-            output.extend(b"true")
+            emit(b"true")
         elif value is False:
-            output.extend(b"false")
+            emit(b"false")
         elif type(value) is int:
-            output.extend(format(Decimal(value), "f").encode("ascii"))
+            emit_integer(value)
         elif type(value) is float and math.isfinite(value) and value.is_integer():
-            output.extend(format(Decimal(int(value)), "f").encode("ascii"))
+            emit_integer(int(value))
         elif type(value) is str:
             emit_string(value)
         elif type(value) is list:
@@ -381,12 +426,12 @@ def _canonical_json_bytes(payload: Any) -> bytes:
                 raise RuntimeStoreIntegrityError("payload contains a cyclic array")
             active.add(identity)
             try:
-                output.extend(b"[")
+                emit(b"[")
                 for index, item in enumerate(value):
                     if index:
-                        output.extend(b",")
+                        emit(b",")
                     encode(item)
-                output.extend(b"]")
+                emit(b"]")
             finally:
                 active.remove(identity)
         elif type(value) is dict:
@@ -399,14 +444,14 @@ def _canonical_json_bytes(payload: Any) -> bytes:
                 raise RuntimeStoreIntegrityError("payload contains a cyclic object")
             active.add(identity)
             try:
-                output.extend(b"{")
+                emit(b"{")
                 for index, key in enumerate(sorted(value)):
                     if index:
-                        output.extend(b",")
+                        emit(b",")
                     emit_string(key)
-                    output.extend(b":")
+                    emit(b":")
                     encode(value[key])
-                output.extend(b"}")
+                emit(b"}")
             finally:
                 active.remove(identity)
         else:
@@ -416,7 +461,7 @@ def _canonical_json_bytes(payload: Any) -> bytes:
         encode(payload)
     except RecursionError as exc:
         raise RuntimeStoreIntegrityError("payload nesting is too deep") from exc
-    output.extend(b"\n")
+    emit(b"\n")
     return bytes(output)
 
 
@@ -827,13 +872,24 @@ def _read_regular_bytes(
 
 
 def _validate_graph(graph: Any) -> str:
-    result = validate_graph_contract(graph)
+    normalized_graph = graph
+    if type(graph) is dict and "generation" in graph:
+        generation = _require_mathematical_integer(
+            graph["generation"],
+            "graph.generation",
+            minimum=1,
+        )
+        if type(graph["generation"]) is not int:
+            normalized_graph = dict(graph)
+            normalized_graph["generation"] = generation
+
+    result = validate_graph_contract(normalized_graph)
     if not result.valid or result.semantic_digest is None:
         details = ", ".join(
             f"{issue.code}@{issue.path}" for issue in result.issues[:5]
         )
         raise RuntimeStoreIntegrityError(f"graph contract is invalid: {details}")
-    digest = canonical_graph_digest(graph)
+    digest = canonical_graph_digest(normalized_graph)
     if digest != result.semantic_digest:
         raise RuntimeStoreIntegrityError("graph digest authority is inconsistent")
     return digest
@@ -948,7 +1004,10 @@ def validate_runtime_state(
                 raise RuntimeStoreIntegrityError(
                     f"{label}.blocker_reason must be bounded single-line text"
                 )
-        encoded = _canonical_json_bytes(node_state)
+        encoded = _canonical_json_bytes(
+            node_state,
+            maximum=MAX_STATE_BYTES,
+        )
         if encoded in serialized_nodes:
             raise RuntimeStoreIntegrityError("state.node_states must be unique")
         serialized_nodes.add(encoded)
@@ -971,8 +1030,7 @@ def validate_runtime_state(
         raise RuntimeStoreIntegrityError("state authority binding is invalid")
     if controller_id is not None and state["controller_id"] != controller_id:
         raise RuntimeStoreIntegrityError("state controller binding is invalid")
-    if len(_canonical_json_bytes(state)) > MAX_STATE_BYTES:
-        raise RuntimeStoreIntegrityError("runtime state exceeds its size bound")
+    _canonical_json_bytes(state, maximum=MAX_STATE_BYTES)
 
 
 def validate_runtime_event(
@@ -1081,8 +1139,7 @@ def validate_runtime_event(
         raise RuntimeStoreIntegrityError("event authority binding is invalid")
     if actor_id is not None and event["actor_id"] != actor_id:
         raise RuntimeStoreIntegrityError("event actor binding is invalid")
-    if len(_canonical_json_bytes(event)) > MAX_EVENT_BYTES:
-        raise RuntimeStoreIntegrityError("runtime event exceeds its size bound")
+    _canonical_json_bytes(event, maximum=MAX_EVENT_BYTES)
 
 
 def _validate_lock_payload(
@@ -1357,6 +1414,7 @@ def acquire_runtime_writer(
     run_key: str,
     writer_id: str,
 ) -> RuntimeWriter:
+    _canonical_json_bytes(graph, maximum=MAX_GRAPH_BYTES)
     graph_digest = _validate_graph(graph)
     _require_identity(authority_id, "authority_id")
     _require_identity(controller_id, "controller_id")
@@ -1836,6 +1894,10 @@ def _initialize_runtime_store_locked(
     clock: Callable[[], Any] | None = None,
 ) -> RuntimeStoreInspection:
     paths = _verify_writer(writer)
+    graph_bytes = _canonical_json_bytes(
+        graph,
+        maximum=MAX_GRAPH_BYTES,
+    )
     graph_digest = _validate_graph(graph)
     if graph_digest != writer.graph_digest:
         raise RuntimeStoreIntegrityError(
@@ -1861,11 +1923,14 @@ def _initialize_runtime_store_locked(
             actor_id=writer.controller_id,
         )
 
-    graph_bytes = _canonical_json_bytes(graph)
-    if len(graph_bytes) > MAX_GRAPH_BYTES:
-        raise RuntimeStoreIntegrityError("graph snapshot exceeds its size bound")
-    event_bytes = b"".join(_canonical_json_bytes(event) for event in events)
-    state_bytes = _canonical_json_bytes(state)
+    event_bytes = b"".join(
+        _canonical_json_bytes(event, maximum=MAX_EVENT_BYTES)
+        for event in events
+    )
+    state_bytes = _canonical_json_bytes(
+        state,
+        maximum=MAX_STATE_BYTES,
+    )
     if len(event_bytes) > MAX_EVENTS_BYTES:
         raise RuntimeStoreIntegrityError("initial event log exceeds its total size bound")
     if len(state_bytes) > MAX_STATE_BYTES:
@@ -2238,7 +2303,10 @@ def _inspect_runtime_store(
             paths.graph, maximum=MAX_GRAPH_BYTES
         )
         graph = _strict_json_loads(graph_bytes, "graph snapshot")
-        if _canonical_json_bytes(graph) != graph_bytes:
+        if (
+            _canonical_json_bytes(graph, maximum=MAX_GRAPH_BYTES)
+            != graph_bytes
+        ):
             raise RuntimeStoreIntegrityError("graph snapshot is not canonical")
         graph_digest = _validate_graph(graph)
     except RuntimeStoreIntegrityError as exc:
@@ -2251,7 +2319,10 @@ def _inspect_runtime_store(
             paths.state, maximum=MAX_STATE_BYTES
         )
         state = _strict_json_loads(state_bytes, "runtime state")
-        if _canonical_json_bytes(state) != state_bytes:
+        if (
+            _canonical_json_bytes(state, maximum=MAX_STATE_BYTES)
+            != state_bytes
+        ):
             raise RuntimeStoreIntegrityError("runtime state is not canonical")
         validate_runtime_state(
             state,
@@ -2846,10 +2917,14 @@ def _append_runtime_event_locked(
         event,
         updated_state,
     )
-    event_bytes = _canonical_json_bytes(event)
-    if len(event_bytes) > MAX_EVENT_BYTES:
-        raise RuntimeStoreIntegrityError("runtime event exceeds its size bound")
-    state_bytes = _canonical_json_bytes(updated_state)
+    event_bytes = _canonical_json_bytes(
+        event,
+        maximum=MAX_EVENT_BYTES,
+    )
+    state_bytes = _canonical_json_bytes(
+        updated_state,
+        maximum=MAX_STATE_BYTES,
+    )
 
     owner = _owner_token(writer.writer_id)
     state_temp: Path | None = None
@@ -3009,9 +3084,13 @@ def _commit_runtime_recovery_locked(
         raise RuntimeStoreIntegrityError(
             "recovery state is not the canonical event projection"
         )
-    state_payload = _canonical_json_bytes(recovered_state)
+    state_payload = _canonical_json_bytes(
+        recovered_state,
+        maximum=MAX_STATE_BYTES,
+    )
     event_payloads = tuple(
-        _canonical_json_bytes(event) for event in recovery_events
+        _canonical_json_bytes(event, maximum=MAX_EVENT_BYTES)
+        for event in recovery_events
     )
     if len(event_bytes) + sum(map(len, event_payloads)) > MAX_EVENTS_BYTES:
         raise RuntimeStoreIntegrityError(

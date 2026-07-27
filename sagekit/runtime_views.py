@@ -125,13 +125,11 @@ def _freeze(value: Any) -> Any:
 
 
 def _canonical_json_bytes(value: Any) -> bytes:
-    return json.dumps(
+    encoded = _store._canonical_json_bytes(
         value,
-        allow_nan=False,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
+        maximum=_store.MAX_STATE_BYTES,
+    )
+    return encoded[:-1]
 
 
 def _reference_is_export_safe(value: str) -> bool:
@@ -216,11 +214,10 @@ def _validate_and_normalize_state(value: Any) -> dict[str, Any]:
 
     _store._require_identity(state["run_id"], "source state run_id")
     _store._require_sha256(state["graph_digest"], "source state graph_digest")
-    _store._require_integer(
+    graph_generation = _store._require_mathematical_integer(
         state["graph_generation"],
         "source state graph_generation",
         minimum=1,
-        maximum=_store.MAX_GRAPH_GENERATION,
     )
     _store._require_integer(
         state["revision"],
@@ -346,14 +343,15 @@ def _validate_and_normalize_state(value: Any) -> dict[str, Any]:
         normalized_nodes.append(normalized_node)
 
     normalized = dict(state)
+    normalized["graph_generation"] = graph_generation
     normalized["node_states"] = sorted(
         normalized_nodes,
         key=lambda item: item["node_id"],
     )
-    if len(_store._canonical_json_bytes(normalized)) > _store.MAX_STATE_BYTES:
-        raise _store.RuntimeStoreIntegrityError(
-            "source state exceeds its size bound"
-        )
+    _store._canonical_json_bytes(
+        normalized,
+        maximum=_store.MAX_STATE_BYTES,
+    )
     return normalized
 
 
@@ -633,6 +631,8 @@ def _csv_value(value: Any) -> str:
         text = "true"
     elif value is False:
         text = "false"
+    elif type(value) is int:
+        text = _store._integer_decimal_bytes(value).decode("ascii")
     else:
         text = str(value)
     if text.lstrip().startswith(("=", "+", "-", "@")):

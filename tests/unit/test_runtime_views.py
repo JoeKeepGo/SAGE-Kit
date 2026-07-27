@@ -7,6 +7,7 @@ import os
 import unittest
 from unittest.mock import patch
 
+import sagekit.runtime_store as runtime_store
 from sagekit.runtime_recovery import (
     RecoveryAssessment,
     RecoveryClassification,
@@ -232,6 +233,34 @@ class HandoffViewTests(unittest.TestCase):
             view["run_id"] = "run:changed"
         with self.assertRaises(TypeError):
             view["node_status_counts"]["RUNNING"] = 99
+
+    def test_generation_uses_unbounded_mathematical_integer_semantics(self):
+        integral_float = state(node("build"))
+        integral_float["graph_generation"] = 1.0
+        float_view = build_runtime_handoff_view(assessment(integral_float))
+        self.assertEqual(1, float_view["graph_generation"])
+        self.assertIs(type(float_view["graph_generation"]), int)
+        self.assertEqual("REFERENCE_ONLY", float_view["authority_class"])
+        self.assertFalse(float_view["valid_for_execution"])
+
+        huge = 10**5000
+        huge_state = state(node("build"))
+        huge_state["graph_generation"] = huge
+        huge_source = assessment(huge_state)
+        huge_view = build_runtime_handoff_view(huge_source)
+        self.assertEqual(huge, huge_view["graph_generation"])
+        self.assertFalse(huge_view["valid_for_execution"])
+        self.assertIn(
+            runtime_store._integer_decimal_bytes(huge).decode("ascii")[:64],
+            render_runtime_csv(huge_source),
+        )
+
+        bool_state = state(node("build"))
+        bool_state["graph_generation"] = True
+        bool_view = build_runtime_handoff_view(assessment(bool_state))
+        self.assertIsNone(bool_view["graph_generation"])
+        self.assertIn("SOURCE_STATE_INVALID", bool_view["diagnostic_codes"])
+        self.assertFalse(bool_view["valid_for_execution"])
 
     def test_semantic_input_order_does_not_change_handoff_identity(self):
         first_state = state(

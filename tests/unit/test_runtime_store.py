@@ -739,6 +739,38 @@ class InitializationAndSchemaTests(unittest.TestCase):
                 inspect_runtime_store(root).status,
             )
 
+    def test_bounded_writer_rejects_oversize_integer_before_encoding_or_io(self):
+        maximum = runtime_store.MAX_GRAPH_BYTES
+        generation = 1 << (maximum * 4)
+        graph = minimal_graph()
+        graph["generation"] = generation
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(
+                runtime_store,
+                "_integer_decimal_bytes",
+                side_effect=AssertionError("full integer encoder must not run"),
+            ):
+                with self.assertRaises(RuntimeStoreIntegrityError) as raised:
+                    acquire(root, graph)
+
+            self.assertIn("size bound", str(raised.exception))
+            self.assertFalse((root / ".sagekit").exists())
+
+    def test_bounded_canonical_writer_roundtrips_integer_within_boundary(self):
+        generation = 10**5000
+        encoded = runtime_store._canonical_json_bytes(
+            {"generation": generation},
+            maximum=runtime_store.MAX_GRAPH_BYTES,
+        )
+
+        decoded = runtime_store._strict_json_loads(
+            encoded,
+            "bounded canonical payload",
+        )
+        self.assertEqual(generation, decoded["generation"])
+
     def test_malformed_and_oversized_runtime_json_fail_closed_with_typed_status(self):
         corrupt_payloads = (
             b'{"generation":' + (b"9" * 5000) + b"x}\n",
