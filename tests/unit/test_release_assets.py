@@ -27,6 +27,12 @@ def load_release_builder():
     return module
 
 
+def write_prebuilt_wheel(repository: Path, output: Path, version: str) -> Path:
+    wheel = output / f"sagekit-{version}-py3-none-any.whl"
+    wheel.write_bytes(b"prebuilt deterministic unit fixture\n")
+    return wheel
+
+
 class ReleaseAssetTests(unittest.TestCase):
     def init_git_repository(self, root: Path) -> None:
         subprocess.run(["git", "init", "-q", str(root)], check=True)
@@ -62,9 +68,14 @@ class ReleaseAssetTests(unittest.TestCase):
         release = load_release_builder()
         with tempfile.TemporaryDirectory() as temp_name:
             output = Path(temp_name) / "release"
-            with patch.object(release, "verify_tracked_worktree_clean") as clean:
+            with patch.object(release, "verify_tracked_worktree_clean") as clean, patch.object(
+                release, "build_wheel", side_effect=write_prebuilt_wheel
+            ) as build_wheel:
                 assets = release.build_release_assets(REPOSITORY, output)
             clean.assert_called_once_with(REPOSITORY.resolve())
+            build_wheel.assert_called_once_with(
+                REPOSITORY.resolve(), output, "2026.7.28.4"
+            )
             release.verify_release_assets(assets)
 
             self.assertEqual(

@@ -90,7 +90,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install package build capability
-        run: python -m pip install "setuptools>=68"
+        run: python -m pip install "setuptools>=68" wheel
       - name: Run source-repository check once
         if: matrix.os == 'ubuntu-latest'
         run: python -B -m scripts.run_tests source-repo --repository .

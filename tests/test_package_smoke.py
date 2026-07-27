@@ -93,13 +93,46 @@ class WheelSmokeScriptTests(unittest.TestCase):
     def test_offline_build_backend_has_a_deterministic_preflight(self):
         wheel_smoke = load_wheel_smoke()
 
-        with patch.object(wheel_smoke.importlib.metadata, "version", return_value="68.0"):
+        with patch.object(
+            wheel_smoke.importlib.metadata,
+            "version",
+            side_effect=lambda package: {"setuptools": "68.0", "wheel": "0.42.0"}[package],
+        ):
             self.assertEqual("68.0", wheel_smoke.preflight_build_backend())
-        with patch.object(wheel_smoke.importlib.metadata, "version", return_value="80.1"):
+        with patch.object(
+            wheel_smoke.importlib.metadata,
+            "version",
+            side_effect=lambda package: {"setuptools": "80.1", "wheel": "0.45.0"}[package],
+        ):
             self.assertEqual("80.1", wheel_smoke.preflight_build_backend())
-        with patch.object(wheel_smoke.importlib.metadata, "version", return_value="67.9"):
+        with patch.object(
+            wheel_smoke.importlib.metadata,
+            "version",
+            side_effect=lambda package: {"setuptools": "67.9", "wheel": "0.45.0"}[package],
+        ):
             with self.assertRaises(wheel_smoke.SmokeCapabilityFailure):
                 wheel_smoke.preflight_build_backend()
+        with patch.object(
+            wheel_smoke.importlib.metadata,
+            "version",
+            side_effect=wheel_smoke.importlib.metadata.PackageNotFoundError,
+        ):
+            with self.assertRaises(wheel_smoke.SmokeCapabilityFailure):
+                wheel_smoke.preflight_build_backend()
+
+    def test_package_smoke_runs_the_complete_release_asset_builder(self):
+        wheel_smoke = load_wheel_smoke()
+        repository = Path("repository")
+        assets = object()
+
+        with patch.object(wheel_smoke, "build_release_assets", return_value=assets) as build, patch.object(
+            wheel_smoke, "verify_release_assets"
+        ) as verify:
+            wheel_smoke.run_release_asset_smoke(repository)
+
+        build.assert_called_once()
+        self.assertEqual(repository, build.call_args.args[0])
+        verify.assert_called_once_with(assets)
 
     def test_installed_smoke_uses_isolated_no_bytecode_python(self):
         wheel_smoke = load_wheel_smoke()
