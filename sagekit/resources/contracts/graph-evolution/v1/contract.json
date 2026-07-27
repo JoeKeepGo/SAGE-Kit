@@ -1,0 +1,190 @@
+{
+  "contract_id": "urn:sagekit:graph-evolution:v1",
+  "contract_family": "sagekit-graph-evolution-contract",
+  "version": "v1",
+  "manifest_version": 1,
+  "resources": {
+    "request_schema": {
+      "resource": "request.schema.json",
+      "schema_id": "urn:sagekit:graph-evolution:v1:request",
+      "canonical_sha256": "ac049775ed8e46fba68e7c4dc4a372cae6a967c7877fc12e2a8d257ecfe32a5a"
+    },
+    "preauthorization_schema": {
+      "resource": "preauthorization.schema.json",
+      "schema_id": "urn:sagekit:graph-evolution:v1:preauthorization",
+      "canonical_sha256": "0cc9288d7c5a961597ce04a0d442c83fb7bd18cc000617bc63264d0ecdda924f"
+    },
+    "proposal_schema": {
+      "resource": "proposal.schema.json",
+      "schema_id": "urn:sagekit:graph-evolution:v1:proposal",
+      "canonical_sha256": "170faae3e5d37dd78ad20c40138aa901d9f4d47c0c29908d869ae74e78703254"
+    },
+    "acceptance_schema": {
+      "resource": "acceptance.schema.json",
+      "schema_id": "urn:sagekit:graph-evolution:v1:acceptance",
+      "canonical_sha256": "764428a768c6709dada554a13f2c5b709d6f6b2fc128389def95364791c4887f"
+    },
+    "result_schema": {
+      "resource": "result.schema.json",
+      "schema_id": "urn:sagekit:graph-evolution:v1:result",
+      "canonical_sha256": "49007c1ac3256afee2cb725e0387afe636bab03c4101e39cf574d24f9a72ba53"
+    },
+    "error_schema": {
+      "resource": "error.schema.json",
+      "schema_id": "urn:sagekit:graph-evolution:v1:error",
+      "canonical_sha256": "2b663255766ccea3195ad868be0270423a70f9f72d30cf8ab397f2e6243edf0e"
+    }
+  },
+  "dependencies": {
+    "evidence_lineage_contract_v1": {
+      "contract_id": "urn:sagekit:evidence-lineage:v1",
+      "resource": "docs/contracts/evidence-lineage/v1/contract.json",
+      "canonical_sha256": "240c98234e04e1c97414dae86fadd6a94de16649f71c2dc023e1a2ddf04cbe2a",
+      "relation": "Owns Stage 5 lineage comparison semantics. Graph Evolution binds an externally supplied Stage 5 lineage digest and reuses this exact frozen contract resource digest without defining another Stage 5 lineage model."
+    },
+    "graph_contract_v1": {
+      "contract_id": "urn:sagekit:graph-contract:v1",
+      "resource": "docs/contracts/graph/v1/contract.json",
+      "canonical_sha256": "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4",
+      "relation": "The existing validate_graph_contract owner alone validates target Graph structure, topology, permission vocabulary, generation, and semantic digest. Graph Evolution consumes that result and does not redefine or copy Graph semantics."
+    },
+    "graph_schema_v1": {
+      "schema_id": "urn:sagekit:graph-contract:v1:graph",
+      "resource": "docs/contracts/graph/v1/graph.schema.json",
+      "canonical_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466",
+      "relation": "Proposal target_graph references the existing Graph schema identity. This contract carries no duplicate Graph definition."
+    }
+  },
+  "operations": {
+    "ADD_CORRECTIVE": "Propose one bounded corrective node associated with observed failure evidence.",
+    "ADD_VERIFICATION": "Propose one focused verification node tied to a current acceptance, gate, changed surface, or observed evidence.",
+    "ADD_INVESTIGATION": "Propose one read-only investigation node for blocking uncertainty that can change an execution or acceptance decision.",
+    "SPLIT_PENDING": "Propose splitting one still-pending node without rewriting completed history.",
+    "DISABLE_OPTIONAL_PENDING": "Propose disabling one optional still-pending node without removing required work, gates, or verifiers.",
+    "NO_CHANGE": "Explicitly recommend retaining the parent Graph. NO_CHANGE has no target_graph, target_generation, or target_graph_digest."
+  },
+  "binding": {
+    "request_and_proposal": "Each Request and Proposal binds operation, Graph ID, parent generation and existing Graph semantic digest, external authority, proposer node/role/permission, subject node, change class, closed reason code, bounded evidence and decision references, bounded affected paths, and Stage 5 lineage digest.",
+    "decision_chain": "Proposal binds exact Request and PM Preauthorization digests. Acceptance binds exact Proposal and PM Preauthorization digests plus Project Manager authority and independent evaluator decision. Result binds exact Request, Preauthorization, Proposal, and Acceptance digests.",
+    "generation_lineage": "Every changed Proposal target generation is exactly parent_generation plus one and the Graph owner must reproduce graph_id, target_generation, and target_graph_digest. NO_CHANGE crosses no generation.",
+    "completed_history": "This contract records parent and target identities but does not implement semantic Graph differencing. Preservation of immutable completed-node history, required gates, and required verifiers remains an acceptance and host admission obligation for later explicitly authorized behavior."
+  },
+  "pm_preauthorization": {
+    "closed_world": "Allowed operations, change classes, nodes, roles, permissions, path patterns, generation budget, all six per-operation budgets, independent evaluator, stop conditions, and Project Manager authority are explicit closed fields. Missing or unlisted values are denied.",
+    "budget_alignment": "Every allowed operation has a positive remaining budget and every disallowed operation has zero budget. Generation and operation budgets are inclusive bounded counters and confer no authority after exhaustion.",
+    "ordinary_scope": "C0 and C1 can be listed for ordinary preauthorized continuation. C2 or C3 may be represented only when Project Manager authority explicitly lists them; classification never upgrades itself.",
+    "stop_rule": "Budget exhaustion, no progress, evaluator rejection, authority or contract change, permission expansion, and gate or verifier removal are closed fail-stop conditions."
+  },
+  "canonical_digest": {
+    "algorithm": "SHA-256",
+    "construction": "For kind K, SHA-256(UTF-8('sagekit-graph-evolution-' + K + '-v1') + NUL + canonical strict JSON document bytes). A digest exists only after complete kind-specific validation.",
+    "normalization": "Object keys sort by logical Unicode scalar sequence; arrays preserve supplied order; UTF-8 has no BOM or insignificant whitespace; integers use shortest decimal form; mandatory JSON escapes are fixed; all other Unicode scalars encode directly. Duplicate object names, non-integer numbers, non-JSON values, cycles, and lone UTF-16 surrogates are invalid.",
+    "domain_separators": {
+      "request": "sagekit-graph-evolution-request-v1\u0000",
+      "preauthorization": "sagekit-graph-evolution-preauthorization-v1\u0000",
+      "proposal": "sagekit-graph-evolution-proposal-v1\u0000",
+      "acceptance": "sagekit-graph-evolution-acceptance-v1\u0000",
+      "result": "sagekit-graph-evolution-result-v1\u0000",
+      "error": "sagekit-graph-evolution-error-v1\u0000"
+    },
+    "fixed_vectors": [
+      {
+        "vector_id": "request-001",
+        "document_kind": "request",
+        "document": {
+          "schema_id": "urn:sagekit:graph-evolution:v1:request",
+          "schema_version": 1,
+          "request_id": "request/verify-001",
+          "operation": "ADD_VERIFICATION",
+          "graph_id": "graph/spec",
+          "parent_generation": 7,
+          "parent_graph_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "authority": {
+            "authority_id": "pm/rebuild",
+            "authority_role": "PROJECT_MANAGER",
+            "authority_ref": "authority/stage6"
+          },
+          "proposer": {
+            "node_id": "node/controller",
+            "role": "Controller",
+            "permission": "WRITE_AUTHORIZED"
+          },
+          "node_id": "node/verify",
+          "change_class": "C1",
+          "reason_code": "VERIFICATION_GAP",
+          "evidence_refs": [
+            "evidence/stage5/failure-001"
+          ],
+          "decision_refs": [
+            "decision/review-001"
+          ],
+          "affected_paths": [
+            "sagekit/graph_contract.py"
+          ],
+          "stage5_lineage_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "expected_sha256": "2dd7d8e6920358c559224d338e286c61105c3ed1a65dedca7220066fd77e5dc0"
+      }
+    ],
+    "distinctions": "Document digests bind complete validated contract documents. They are not Graph semantic identity, Stage 5 lineage identity, authority, permission, acceptance, execution identity, or resource-integrity digests."
+  },
+  "admission_bounds": {
+    "max_request_canonical_bytes": 1048576,
+    "max_preauthorization_canonical_bytes": 1048576,
+    "max_proposal_canonical_bytes": 8388608,
+    "max_acceptance_canonical_bytes": 1048576,
+    "max_result_canonical_bytes": 1048576,
+    "max_error_canonical_bytes": 1048576,
+    "max_references_per_collection": 100,
+    "max_affected_paths": 100,
+    "max_allowlist_items": 1000,
+    "max_generation_budget": 100,
+    "max_operation_budget": 100,
+    "max_error_issues": 100,
+    "max_opaque_id_characters": 256,
+    "max_reference_characters": 512,
+    "max_path_characters": 512
+  },
+  "strict_validation": {
+    "order": [
+      "strict_json",
+      "canonical_byte_budget",
+      "closed_schema_shape",
+      "field_bounds_and_allowlists",
+      "conditional_fields",
+      "target_graph_owner_validation",
+      "graph_identity_and_digest_binding",
+      "domain_separated_digest"
+    ],
+    "unknown_fields": "Every document and nested control object rejects unknown fields. No extension bag, free-form metadata, or arbitrary content field exists.",
+    "reference_boundary": "Authority, evidence, decision, and document references are bounded repository-neutral strings and reject absolute, rooted, drive-prefixed, UNC, file URI, HTTP(S) URI, backslash, and newline forms.",
+    "path_boundary": "Affected paths and allowed path patterns are repository-relative slash-separated values. They reject roots, drives, URIs, backslashes, newlines, empty segments, and parent traversal.",
+    "allowlist_boundary": "Operations, change classes, Graph-owned permission names, reason codes, evaluator decisions, stop conditions, outcomes, messages, document kinds, and errors are closed enumerations."
+  },
+  "failure_semantics": {
+    "INPUT_INVALID": "Malformed strict JSON, duplicate object names, invalid Unicode, unknown fields, schema mismatch, bound violation other than aggregate bytes, or conditional mismatch.",
+    "INPUT_TOO_LARGE": "The complete canonical document exceeds its kind-specific byte budget.",
+    "GRAPH_INVALID": "A changed Proposal target_graph fails the existing Graph owner validation.",
+    "GRAPH_BINDING_MISMATCH": "A valid target Graph does not reproduce Proposal Graph ID, target generation, or target_graph_digest.",
+    "RESULT_ERROR_EXCLUSIVITY": "Exactly one complete Result or one complete Error is required.",
+    "bounded_errors": "Errors contain at most 100 closed machine issues and never echo arbitrary invalid values, private content, a partial Proposal, or a target Graph."
+  },
+  "semantic_boundaries": {
+    "proposal_inertness": "A Proposal does not grant permission or authority, does not execute any node, and does not mutate, create, activate, persist, or apply a Graph generation.",
+    "acceptance_boundary": "Acceptance is an external digest-bound decision record. Proposal presence alone is never acceptance; evaluator approval alone is never Project Manager authority.",
+    "apply_ownership": "The independently authorized host retains all apply ownership and must revalidate current parent Graph, authority, budgets, stop conditions, acceptance, and target Graph before any later application.",
+    "result_error_exclusivity": "A valid outcome contains exactly one complete Result or exactly one complete Error. Error never masquerades as rejection, no-change success, or partial acceptance.",
+    "privacy": "Documents exclude prompts, private reasoning, chain of thought, transcripts, stdout, stderr, environment dumps, credentials, secrets, commands, callbacks, arbitrary payloads, mutable handles, complete project history, and absolute local paths. Reasons and decisions use bounded closed codes.",
+    "non_goals": "This contract adds no command interface, scheduling component, database, network API, filesystem traversal, process launch, runtime writer, proposal builder, Graph apply implementation, or later-stage adapter behavior."
+  },
+  "digest_semantics": "canonical_sha256 values in resources and dependencies are LF-normalized resource-integrity digests only. The canonical_digest section separately owns Graph Evolution document digests. Neither digest family grants authority or execution.",
+  "compatibility": "Graph Evolution Contract v1 is additive and execution-inert. It consumes the frozen Stage 5 contract resource digest and the existing Graph owner without changing their schemas, digest domains, semantic projections, topology, status, permission, gate, verifier, lineage, runtime, or apply semantics.",
+  "source_authority": {
+    "identity": "SAGE-Kit rebuild Stage 6A",
+    "reference": "Graph Evolution Contract v1 objective"
+  },
+  "packaged_mirror": {
+    "path": "sagekit/resources/contracts/graph-evolution/v1",
+    "expectation": "All seven resources are byte-identical mirrors of canonical resources in docs/contracts/graph-evolution/v1."
+  }
+}

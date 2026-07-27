@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:graph-evolution:v1:proposal",
+  "title": "SAGE-Kit Graph Evolution Proposal v1",
+  "description": "A bounded digest-bound proposal. A proposal is inert: it does not grant authority, execute work, mutate a Graph, or create a generation. Changed proposals carry a complete Graph Contract v1 target for validation by the existing Graph owner. NO_CHANGE carries no target Graph, generation, or target digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "proposal_id",
+    "request_digest",
+    "preauthorization_digest",
+    "operation",
+    "graph_id",
+    "parent_generation",
+    "parent_graph_digest",
+    "authority",
+    "proposer",
+    "node_id",
+    "change_class",
+    "reason_code",
+    "evidence_refs",
+    "decision_refs",
+    "affected_paths",
+    "stage5_lineage_digest"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:graph-evolution:v1:proposal"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "request_id": {
+      "$ref": "#/$defs/reference"
+    },
+    "proposal_id": {
+      "$ref": "#/$defs/reference"
+    },
+    "request_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "preauthorization_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "operation": {
+      "$ref": "#/$defs/operation"
+    },
+    "graph_id": {
+      "$ref": "#/$defs/opaque_id"
+    },
+    "parent_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parent_graph_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authority": {
+      "$ref": "#/$defs/authority"
+    },
+    "proposer": {
+      "$ref": "#/$defs/proposer"
+    },
+    "node_id": {
+      "$ref": "#/$defs/opaque_id"
+    },
+    "change_class": {
+      "enum": [
+        "C0",
+        "C1",
+        "C2",
+        "C3"
+      ]
+    },
+    "reason_code": {
+      "$ref": "#/$defs/reason_code"
+    },
+    "evidence_refs": {
+      "$ref": "#/$defs/references"
+    },
+    "decision_refs": {
+      "$ref": "#/$defs/references"
+    },
+    "affected_paths": {
+      "$ref": "#/$defs/paths"
+    },
+    "stage5_lineage_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "target_generation": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "target_graph": {
+      "$ref": "urn:sagekit:graph-contract:v1:graph",
+      "description": "Validated only by the existing Graph Contract v1 owner. This schema does not copy Graph shape or semantic rules."
+    },
+    "target_graph_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Existing Graph owner semantic digest of target_graph."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "NO_CHANGE"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "target_generation"
+              ]
+            },
+            {
+              "required": [
+                "target_graph"
+              ]
+            },
+            {
+              "required": [
+                "target_graph_digest"
+              ]
+            }
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "target_generation",
+          "target_graph",
+          "target_graph_digest"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "operation": {
+      "type": "string",
+      "enum": [
+        "ADD_CORRECTIVE",
+        "ADD_VERIFICATION",
+        "ADD_INVESTIGATION",
+        "SPLIT_PENDING",
+        "DISABLE_OPTIONAL_PENDING",
+        "NO_CHANGE"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "OBSERVED_FAILURE",
+        "VERIFICATION_GAP",
+        "BLOCKING_UNCERTAINTY",
+        "NODE_TOO_BROAD",
+        "OPTIONAL_NODE_NO_LONGER_DECISIVE",
+        "EXISTING_GRAPH_SUFFICIENT",
+        "NO_PROGRESS",
+        "AUTHORITY_CHANGE_REQUIRED",
+        "WITHIN_PREAUTHORIZATION",
+        "EVALUATOR_REJECTED",
+        "BUDGET_EXHAUSTED",
+        "CONTRACT_CHANGED"
+      ]
+    },
+    "permission": {
+      "type": "string",
+      "enum": [
+        "READ_ONLY_REVIEW",
+        "WRITE_AUTHORIZED",
+        "CORRECTIVE_AUTHORIZED",
+        "ENVIRONMENT_WRITE_AUTHORIZED",
+        "SUBMIT_AUTHORIZED"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "opaque_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\r\\n]+$"
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:file|https?|unc):)[^\\r\\n\\\\]+$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:file|https?|unc):)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\r\\n\\\\*]+$"
+    },
+    "references": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "paths": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/path"
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_id",
+        "authority_role",
+        "authority_ref"
+      ],
+      "properties": {
+        "authority_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "authority_role": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "authority_ref": {
+          "$ref": "#/$defs/reference"
+        }
+      }
+    },
+    "proposer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "role",
+        "permission"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "role": {
+          "$ref": "#/$defs/opaque_id"
+        },
+        "permission": {
+          "$ref": "#/$defs/permission"
+        }
+      }
+    }
+  }
+}

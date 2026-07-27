@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:graph-evolution:v1:error",
+  "title": "SAGE-Kit Graph Evolution Error v1",
+  "description": "A bounded machine-readable failure. Error is mutually exclusive with Result, contains no partial proposal or target Graph, and cannot imply acceptance, authority, execution, or mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "error_code",
+    "message_code",
+    "document_kind",
+    "issues"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:graph-evolution:v1:error"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "error_code": {
+      "enum": [
+        "INPUT_INVALID",
+        "INPUT_TOO_LARGE",
+        "GRAPH_INVALID",
+        "GRAPH_BINDING_MISMATCH",
+        "RESULT_ERROR_EXCLUSIVITY"
+      ]
+    },
+    "message_code": {
+      "enum": [
+        "STRICT_DOCUMENT_REQUIRED",
+        "DOCUMENT_BYTE_BUDGET_EXCEEDED",
+        "VALID_TARGET_GRAPH_REQUIRED",
+        "TARGET_GRAPH_BINDING_REQUIRED",
+        "EXACTLY_ONE_OUTCOME_REQUIRED"
+      ]
+    },
+    "document_kind": {
+      "enum": [
+        "request",
+        "preauthorization",
+        "proposal",
+        "acceptance",
+        "result",
+        "error"
+      ]
+    },
+    "document_digest": {
+      "$ref": "#/$defs/sha256",
+      "description": "Optional only when strict parsing, shape validation, and canonicalization have already succeeded."
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "location",
+          "issue_code"
+        ],
+        "properties": {
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^\\$(?:(?:\\.[A-Za-z_][A-Za-z0-9_]*)|\\[[0-9]{1,7}\\])*$"
+          },
+          "issue_code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "error_code": {
+          "const": "INPUT_INVALID"
+        },
+        "message_code": {
+          "const": "STRICT_DOCUMENT_REQUIRED"
+        }
+      }
+    },
+    {
+      "properties": {
+        "error_code": {
+          "const": "INPUT_TOO_LARGE"
+        },
+        "message_code": {
+          "const": "DOCUMENT_BYTE_BUDGET_EXCEEDED"
+        }
+      }
+    },
+    {
+      "properties": {
+        "error_code": {
+          "const": "GRAPH_INVALID"
+        },
+        "message_code": {
+          "const": "VALID_TARGET_GRAPH_REQUIRED"
+        }
+      }
+    },
+    {
+      "properties": {
+        "error_code": {
+          "const": "GRAPH_BINDING_MISMATCH"
+        },
+        "message_code": {
+          "const": "TARGET_GRAPH_BINDING_REQUIRED"
+        }
+      }
+    },
+    {
+      "properties": {
+        "error_code": {
+          "const": "RESULT_ERROR_EXCLUSIVITY"
+        },
+        "message_code": {
+          "const": "EXACTLY_ONE_OUTCOME_REQUIRED"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

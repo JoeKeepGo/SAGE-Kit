@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sagekit:graph-evolution:v1:result",
+  "title": "SAGE-Kit Graph Evolution Result v1",
+  "description": "A bounded decision-chain result bound to exact Request, Preauthorization, Proposal, and Acceptance digests. It records accepted, rejected, or no-change disposition and is mutually exclusive with Error. It does not apply or execute a Graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_digest",
+    "preauthorization_digest",
+    "proposal_digest",
+    "acceptance_digest",
+    "operation",
+    "outcome",
+    "graph_id",
+    "parent_generation",
+    "parent_graph_digest",
+    "message_code"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "urn:sagekit:graph-evolution:v1:result"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "request_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "preauthorization_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "proposal_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "acceptance_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "operation": {
+      "$ref": "#/$defs/operation"
+    },
+    "outcome": {
+      "enum": [
+        "ACCEPTED",
+        "REJECTED",
+        "NO_CHANGE"
+      ]
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\r\\n]+$"
+    },
+    "parent_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parent_graph_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "target_generation": {
+      "type": "integer",
+      "minimum": 2
+    },
+    "target_graph_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "message_code": {
+      "enum": [
+        "EVOLUTION_ACCEPTED",
+        "EVOLUTION_REJECTED",
+        "NO_CHANGE_ACCEPTED"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "operation": {
+          "const": "NO_CHANGE"
+        },
+        "outcome": {
+          "const": "NO_CHANGE"
+        },
+        "message_code": {
+          "const": "NO_CHANGE_ACCEPTED"
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "target_generation"
+            ]
+          },
+          {
+            "required": [
+              "target_graph_digest"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "properties": {
+        "operation": {
+          "not": {
+            "const": "NO_CHANGE"
+          }
+        },
+        "outcome": {
+          "const": "ACCEPTED"
+        },
+        "message_code": {
+          "const": "EVOLUTION_ACCEPTED"
+        }
+      },
+      "required": [
+        "target_generation",
+        "target_graph_digest"
+      ]
+    },
+    {
+      "properties": {
+        "operation": {
+          "not": {
+            "const": "NO_CHANGE"
+          }
+        },
+        "outcome": {
+          "const": "REJECTED"
+        },
+        "message_code": {
+          "const": "EVOLUTION_REJECTED"
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "target_generation"
+            ]
+          },
+          {
+            "required": [
+              "target_graph_digest"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "operation": {
+      "type": "string",
+      "enum": [
+        "ADD_CORRECTIVE",
+        "ADD_VERIFICATION",
+        "ADD_INVESTIGATION",
+        "SPLIT_PENDING",
+        "DISABLE_OPTIONAL_PENDING",
+        "NO_CHANGE"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
