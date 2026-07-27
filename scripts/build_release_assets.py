@@ -24,19 +24,6 @@ sys.modules[_BUNDLE_SPEC.name] = skill_bundle
 _BUNDLE_SPEC.loader.exec_module(skill_bundle)
 
 
-SOURCE_EXCLUDED_PARTS = frozenset(
-    {
-        ".git",
-        ".worktrees",
-        ".pytest_cache",
-        "__pycache__",
-        "build",
-        "dist",
-        "sagekit.egg-info",
-    }
-)
-
-
 @dataclass(frozen=True)
 class ReleaseAssets:
     version: str
@@ -85,6 +72,26 @@ def asset_names(version: str) -> frozenset[str]:
             f"sage-kit-skill-{version}.manifest.json",
         }
     )
+
+
+def verify_tracked_worktree_clean(repository: Path) -> None:
+    checks = (
+        ("unstaged tracked changes", ("diff", "--quiet", "--exit-code")),
+        ("staged tracked changes", ("diff", "--cached", "--quiet", "--exit-code")),
+    )
+    for label, arguments in checks:
+        completed = subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode == 1:
+            raise ValueError(
+                f"release source archive requires no {label}; commit or revert them first"
+            )
+        if completed.returncode:
+            raise RuntimeError(f"could not verify {label} before source archive build")
 
 
 def _safe_tracked_path(value: bytes) -> PurePosixPath:
@@ -168,6 +175,7 @@ def write_source_archive(
 
 
 def build_source_archive(repository: Path, output_directory: Path, version: str) -> Path:
+    verify_tracked_worktree_clean(repository)
     archive = output_directory / f"sagekit-{version}.tar.gz"
     return write_source_archive(archive, tracked_source_entries(repository), version)
 

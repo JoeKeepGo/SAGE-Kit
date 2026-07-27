@@ -10,6 +10,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -27,6 +28,25 @@ def load_release_builder():
 
 
 class ReleaseAssetTests(unittest.TestCase):
+    def init_git_repository(self, root: Path) -> None:
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "commit",
+                "-qm",
+                "baseline",
+            ],
+            check=True,
+        )
+
     def test_direct_script_entrypoint_is_importable(self):
         completed = subprocess.run(
             [sys.executable, "-B", str(SCRIPT), "--help"],
@@ -42,7 +62,9 @@ class ReleaseAssetTests(unittest.TestCase):
         release = load_release_builder()
         with tempfile.TemporaryDirectory() as temp_name:
             output = Path(temp_name) / "release"
-            assets = release.build_release_assets(REPOSITORY, output)
+            with patch.object(release, "verify_tracked_worktree_clean") as clean:
+                assets = release.build_release_assets(REPOSITORY, output)
+            clean.assert_called_once_with(REPOSITORY.resolve())
             release.verify_release_assets(assets)
 
             self.assertEqual(
@@ -82,8 +104,7 @@ class ReleaseAssetTests(unittest.TestCase):
             root.mkdir()
             tracked = root / "tracked.txt"
             tracked.write_text("tracked\n", encoding="utf-8")
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
-            subprocess.run(["git", "-C", str(root), "add", "tracked.txt"], check=True)
+            self.init_git_repository(root)
             (root / ".env").write_text("secret=value\n", encoding="utf-8")
             (root / ".sagekit").mkdir()
             (root / ".sagekit" / "runtime.json").write_text("{}\n", encoding="utf-8")
@@ -93,6 +114,23 @@ class ReleaseAssetTests(unittest.TestCase):
             with tarfile.open(archive, "r:gz") as source:
                 names = set(source.getnames())
             self.assertEqual({"sagekit-test/tracked.txt"}, names)
+
+    def test_source_archive_rejects_unstaged_and_staged_tracked_changes(self):
+        release = load_release_builder()
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name) / "repository"
+            root.mkdir()
+            tracked = root / "tracked.txt"
+            tracked.write_text("baseline\n", encoding="utf-8")
+            self.init_git_repository(root)
+
+            tracked.write_text("unstaged\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "no unstaged tracked changes"):
+                release.build_source_archive(root, Path(temp_name), "test")
+
+            subprocess.run(["git", "-C", str(root), "add", "tracked.txt"], check=True)
+            with self.assertRaisesRegex(ValueError, "no staged tracked changes"):
+                release.build_source_archive(root, Path(temp_name), "test")
 
     def test_source_archive_normalizes_tar_metadata_across_host_modes(self):
         release = load_release_builder()
@@ -124,7 +162,8 @@ class ReleaseAssetTests(unittest.TestCase):
     def test_tampered_skill_payload_fails_even_when_outer_checksum_is_regenerated(self):
         release = load_release_builder()
         with tempfile.TemporaryDirectory() as temp_name:
-            assets = release.build_release_assets(REPOSITORY, Path(temp_name))
+            with patch.object(release, "verify_tracked_worktree_clean"):
+                assets = release.build_release_assets(REPOSITORY, Path(temp_name))
             with zipfile.ZipFile(assets.skill_bundle) as original:
                 payloads = {
                     name: original.read(name)
