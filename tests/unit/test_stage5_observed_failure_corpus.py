@@ -8,6 +8,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
+from unittest.mock import patch
 
 from sagekit.candidate import CandidateAssessment, CandidateFingerprint
 from sagekit.change_control import RunState
@@ -25,11 +26,17 @@ from sagekit.execution_limits import (
     begin_verification_run,
     prepare_verification_run,
 )
+from sagekit.evidence import (
+    canonical_node_input_fingerprint,
+    resolve_evidence_lineage,
+)
+from sagekit.graph_contract import canonical_graph_digest
 from sagekit.normalization import (
     apply_auto_normalization,
     classify_bytes,
     non_whitespace_digest,
 )
+from sagekit.review import EvaluatorRisk, select_evaluator
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -101,6 +108,184 @@ def _candidate() -> CandidateFingerprint:
     )
 
 
+def _lineage_graph() -> dict[str, Any]:
+    return {
+        "schema_id": "urn:sagekit:graph-contract:v1:graph",
+        "schema_version": 1,
+        "graph_id": "graph/stage5-corpus",
+        "generation": 1,
+        "source_authority": {
+            "identity": "Stage 5 corpus fixture",
+            "reference": "stage5-observed-failure-corpus-v1",
+        },
+        "governance_level": "Standard",
+        "autonomy_level": "turn-based",
+        "human_gates": [],
+        "nodes": [
+            {
+                "id": "node/review",
+                "role": "stage5-corpus-review",
+                "depends_on": [],
+                "permission": "READ_ONLY_REVIEW",
+                "verifier": "stage5-corpus-oracle",
+                "output_contract": "urn:sagekit:graph-contract:v1:node-result",
+                "resources": [],
+                "classification": "required",
+            }
+        ],
+        "joins": [],
+    }
+
+
+def _refresh_lineage_fingerprints(snapshot: dict[str, Any]) -> None:
+    nodes = {
+        item["lineage_node_id"]: item for item in snapshot["lineage_nodes"]
+    }
+    incoming: dict[str, list[dict[str, str]]] = {
+        node_id: [] for node_id in nodes
+    }
+    for edge in snapshot["lineage_edges"]:
+        source = nodes[edge["source_node_id"]]
+        edge["source_output_fingerprint"] = source["output_fingerprint"]
+        incoming[edge["target_node_id"]].append(
+            {
+                "edge_type": edge["edge_type"],
+                "source_node_id": edge["source_node_id"],
+                "source_output_fingerprint": source["output_fingerprint"],
+            }
+        )
+    for node_id, node in nodes.items():
+        node["input_fingerprint"] = canonical_node_input_fingerprint(
+            snapshot["graph_binding"],
+            incoming[node_id],
+        )
+    for edge in snapshot["lineage_edges"]:
+        edge["target_input_fingerprint"] = nodes[edge["target_node_id"]][
+            "input_fingerprint"
+        ]
+
+
+def _lineage_snapshot(
+    candidate_graph: dict[str, Any],
+    path_material: bytes,
+) -> dict[str, Any]:
+    snapshot = {
+        "graph_binding": {
+            "graph_id": candidate_graph["graph_id"],
+            "graph_generation": candidate_graph["generation"],
+            "graph_digest": canonical_graph_digest(candidate_graph),
+        },
+        "stage4_bindings": {
+            "ready_input_digest": "1" * 64,
+            "transition_bindings": [
+                {
+                    "node_id": "node/review",
+                    "transition_input_digest": "2" * 64,
+                    "node_result_digest": "3" * 64,
+                }
+            ],
+        },
+        "lineage_nodes": [
+            {
+                "lineage_node_id": "path/observed",
+                "owner_kind": "PATH",
+                "owner_id": "observed.json",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": hashlib.sha256(path_material).hexdigest(),
+            },
+            {
+                "lineage_node_id": "node/review",
+                "owner_kind": "GRAPH_NODE",
+                "owner_id": "node/review",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": "3" * 64,
+            },
+            {
+                "lineage_node_id": "candidate/release",
+                "owner_kind": "CANDIDATE",
+                "owner_id": "candidate/release",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": "4" * 64,
+            },
+            {
+                "lineage_node_id": "evidence/final",
+                "owner_kind": "EVIDENCE",
+                "owner_id": "evidence/final",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": "5" * 64,
+            },
+        ],
+        "lineage_edges": [
+            {
+                "source_node_id": "path/observed",
+                "target_node_id": "node/review",
+                "edge_type": "PATH",
+                "source_output_fingerprint": "0" * 64,
+                "target_input_fingerprint": "0" * 64,
+            },
+            {
+                "source_node_id": "candidate/release",
+                "target_node_id": "evidence/final",
+                "edge_type": "CANDIDATE",
+                "source_output_fingerprint": "0" * 64,
+                "target_input_fingerprint": "0" * 64,
+            },
+        ],
+        "join_integrations": [],
+        "final_evidence_node_id": "evidence/final",
+    }
+    _refresh_lineage_fingerprints(snapshot)
+    return snapshot
+
+
+def _stage5_api_fields(
+    evaluator_input: dict[str, Any],
+    baseline_path: bytes,
+    candidate_path: bytes,
+) -> dict[str, Any]:
+    selection = select_evaluator(
+        tuple(EvaluatorRisk(item) for item in evaluator_input["risk_flags"]),
+        machine_oracle_ref=evaluator_input["machine_oracle_ref"],
+        semantic_judgment_required=evaluator_input[
+            "semantic_judgment_required"
+        ],
+    )
+    candidate_graph = _lineage_graph()
+    baseline = _lineage_snapshot(candidate_graph, baseline_path)
+    candidate = _lineage_snapshot(candidate_graph, candidate_path)
+    outcome = resolve_evidence_lineage(
+        candidate_graph,
+        {
+            "schema_id": "urn:sagekit:evidence-lineage:v1:input",
+            "schema_version": 1,
+            "baseline": baseline,
+            "candidate": candidate,
+        },
+    )
+    if outcome.error is not None or outcome.result is None:
+        raise AssertionError(f"synthetic Stage 5 lineage failed: {outcome.error}")
+    return {
+        "evaluator": selection.evaluator.value,
+        "topology": selection.topology.value,
+        "oracle_ref": selection.oracle_ref,
+        "lineage_disposition": outcome.result["decisions"]["node/review"][
+            "disposition"
+        ],
+    }
+
+
+def _decode_lineage_paths(inputs: dict[str, Any]) -> tuple[bytes, bytes]:
+    lineage = inputs["lineage"]
+    return (
+        base64.b64decode(lineage["baseline_path_b64"], validate=True),
+        base64.b64decode(lineage["candidate_path_b64"], validate=True),
+    )
+
+
+def _bounded_material(chunks: list[bytes]) -> bytes:
+    return b"".join(len(chunk).to_bytes(4, "big") + chunk for chunk in chunks)
+
+
 def _duplicate_full_review_adapter(case: dict[str, Any]) -> dict[str, Any]:
     candidate = _candidate()
     inputs = case["input"]
@@ -137,6 +322,7 @@ def _duplicate_full_review_adapter(case: dict[str, Any]) -> dict[str, Any]:
         candidate=candidate,
         assessment=assessment,
     )
+    baseline_path, candidate_path = _decode_lineage_paths(inputs)
     return {
         "decision": "reject",
         "state": decision.state.value,
@@ -144,6 +330,11 @@ def _duplicate_full_review_adapter(case: dict[str, Any]) -> dict[str, Any]:
         "final_runs_after": decision.counters.final_full_suite_runs.get(
             candidate.digest,
             0,
+        ),
+        **_stage5_api_fields(
+            inputs["evaluator"],
+            baseline_path,
+            candidate_path,
         ),
     }
 
@@ -190,6 +381,7 @@ def _status_only_targeted_review_adapter(case: dict[str, Any]) -> dict[str, Any]
         replace(evidence, targeted_review_closed=True),
         previous_no_progress_rounds=0,
     )
+    baseline_path, candidate_path = _decode_lineage_paths(change)
     return {
         "selected_scope": selected_scope,
         "full_review": selected_scope == "full",
@@ -197,11 +389,17 @@ def _status_only_targeted_review_adapter(case: dict[str, Any]) -> dict[str, Any]
         "state_after_targeted_close": (
             RunState.CONTINUE.value if after_close is None else after_close.state.value
         ),
+        **_stage5_api_fields(
+            change["evaluator"],
+            baseline_path,
+            candidate_path,
+        ),
     }
 
 
 def _deterministic_whitespace_adapter(case: dict[str, Any]) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
+    normalized_vectors: list[bytes] = []
     for vector in case["input"]["vectors"]:
         before = base64.b64decode(vector["before_b64"], validate=True)
         after = base64.b64decode(vector["after_b64"], validate=True)
@@ -217,6 +415,7 @@ def _deterministic_whitespace_adapter(case: dict[str, Any]) -> dict[str, Any]:
                 writable_paths=("sample.py",),
             )
             normalized = target.read_bytes()
+        normalized_vectors.append(normalized)
         results.append(
             {
                 "kind": vector["kind"],
@@ -232,8 +431,17 @@ def _deterministic_whitespace_adapter(case: dict[str, Any]) -> dict[str, Any]:
                 ),
             }
         )
+    baseline_vectors = [
+        base64.b64decode(value, validate=True)
+        for value in case["input"]["lineage_baseline_b64"]
+    ]
     return {
         "decision": "AUTO_NORMALIZATION_CORRECTIVE",
+        **_stage5_api_fields(
+            case["input"]["evaluator"],
+            _bounded_material(baseline_vectors),
+            _bounded_material(normalized_vectors),
+        ),
         "vectors": results,
     }
 
@@ -340,6 +548,16 @@ class Stage5ObservedFailureCorpusTests(unittest.TestCase):
                 },
                 set(case),
             )
+            evaluator = case["input"]["evaluator"]
+            self.assertEqual(
+                {
+                    "risk_flags",
+                    "machine_oracle_ref",
+                    "semantic_judgment_required",
+                },
+                set(evaluator),
+            )
+            self.assertLessEqual(len(evaluator["risk_flags"]), 16)
         for case in self.cases:
             if case not in executable:
                 self.assertEqual("reference_only", case["disposition"])
@@ -409,7 +627,29 @@ class Stage5ObservedFailureCorpusTests(unittest.TestCase):
             if case["disposition"] != "executable":
                 continue
             with self.subTest(case=case["case_id"]):
-                self.assertEqual(case["expected"], ADAPTERS[case["adapter"]](case))
+                adapter = ADAPTERS[case["adapter"]]
+                observed = adapter(case)
+                self.assertEqual(case["expected"], observed)
+                self.assertEqual(observed, adapter(case))
+
+    def test_every_executable_adapter_calls_both_stage5_apis(self) -> None:
+        executable = [
+            case for case in self.cases if case["disposition"] == "executable"
+        ]
+        with (
+            patch(
+                f"{__name__}.select_evaluator",
+                wraps=select_evaluator,
+            ) as evaluator,
+            patch(
+                f"{__name__}.resolve_evidence_lineage",
+                wraps=resolve_evidence_lineage,
+            ) as lineage,
+        ):
+            for case in executable:
+                ADAPTERS[case["adapter"]](case)
+        self.assertEqual(len(executable), evaluator.call_count)
+        self.assertEqual(len(executable), lineage.call_count)
 
 
 if __name__ == "__main__":

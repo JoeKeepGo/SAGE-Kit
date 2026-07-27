@@ -22,7 +22,15 @@ EXPECTED_PATHS = {
 } | {
     f"sagekit/resources/contracts/evidence-lineage/v1/{name}"
     for name in RESOURCE_NAMES
-} | {"tests/unit/test_evidence_lineage_contract_v1.py"}
+} | {
+    "sagekit/evidence.py",
+    "sagekit/review.py",
+    "tests/fixtures/stage5_observed_failure_corpus_v1.json",
+    "tests/unit/test_evidence_lineage.py",
+    "tests/unit/test_evidence_lineage_contract_v1.py",
+    "tests/unit/test_risk_based_evaluator.py",
+    "tests/unit/test_stage5_observed_failure_corpus.py",
+}
 
 EDGE_TYPES = {
     "NODE_OUTPUT",
@@ -435,9 +443,9 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         cls.result_schema = load_json(CANONICAL / "result.schema.json")
         cls.error_schema = load_json(CANONICAL / "error.schema.json")
 
-    def test_exact_manifest_is_nine_files(self):
+    def test_exact_manifest_is_final_fifteen_files(self):
         self.assertEqual(EXPECTED_PATHS, changed_paths())
-        self.assertEqual(9, len(EXPECTED_PATHS))
+        self.assertEqual(15, len(EXPECTED_PATHS))
 
     def test_resources_are_valid_json_byte_identical_and_digest_bound(self):
         resource_keys = {

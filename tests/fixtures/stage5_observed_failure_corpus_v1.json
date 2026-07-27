@@ -101,13 +101,28 @@
       "input": {
         "candidate_unchanged": true,
         "prior_final_runs": 1,
-        "proposed_run_kind": "full-suite"
+        "proposed_run_kind": "full-suite",
+        "evaluator": {
+          "risk_flags": [
+            "semantic"
+          ],
+          "machine_oracle_ref": "stage5-oracle/duplicate-full-review-v1",
+          "semantic_judgment_required": true
+        },
+        "lineage": {
+          "baseline_path_b64": "cmV2aWV3ZWQK",
+          "candidate_path_b64": "cmV2aWV3ZWQK"
+        }
       },
       "expected": {
         "decision": "reject",
         "state": "HANDOFF_READY",
         "allowed_to_run": false,
-        "final_runs_after": 1
+        "final_runs_after": 1,
+        "evaluator": "FRESH_CONTEXT",
+        "topology": "STANDARD",
+        "oracle_ref": null,
+        "lineage_disposition": "REUSE"
       }
     },
     {
@@ -129,13 +144,28 @@
           "status"
         ],
         "semantic_change": false,
-        "authority_change": false
+        "authority_change": false,
+        "evaluator": {
+          "risk_flags": [
+            "mechanical"
+          ],
+          "machine_oracle_ref": "stage5-oracle/status-only-v1",
+          "semantic_judgment_required": false
+        },
+        "lineage": {
+          "baseline_path_b64": "eyJzdGF0dXMiOiJvcGVuIn0K",
+          "candidate_path_b64": "eyJzdGF0dXMiOiJjbG9zZWQifQo="
+        }
       },
       "expected": {
         "selected_scope": "targeted",
         "full_review": false,
         "state_before_targeted_close": "HANDOFF_READY",
-        "state_after_targeted_close": "CONTINUE"
+        "state_after_targeted_close": "CONTINUE",
+        "evaluator": "DETERMINISTIC",
+        "topology": "STANDARD",
+        "oracle_ref": "stage5-oracle/status-only-v1",
+        "lineage_disposition": "REVERIFY_TARGETED"
       }
     },
     {
@@ -169,10 +199,26 @@
             "before_b64": "dmFsdWUK",
             "after_b64": "dmFsdWUgCQo="
           }
+        ],
+        "evaluator": {
+          "risk_flags": [
+            "mechanical"
+          ],
+          "machine_oracle_ref": "stage5-oracle/whitespace-v1",
+          "semantic_judgment_required": false
+        },
+        "lineage_baseline_b64": [
+          "dmFsdWUK",
+          "dmFsdWUK",
+          "dmFsdWUK"
         ]
       },
       "expected": {
         "decision": "AUTO_NORMALIZATION_CORRECTIVE",
+        "evaluator": "DETERMINISTIC",
+        "topology": "STANDARD",
+        "oracle_ref": "stage5-oracle/whitespace-v1",
+        "lineage_disposition": "REUSE",
         "vectors": [
           {
             "kind": "extra-blank-line-at-eof",
