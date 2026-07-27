@@ -385,6 +385,36 @@ class GraphEvolutionAcceptanceTests(unittest.TestCase):
                     outcome.receipt_status,
                 )
 
+    def test_pm_authority_cannot_be_contract_evaluator_with_external_receipt(self) -> None:
+        graph = parent_graph()
+        graph["nodes"][1]["id"] = "pm/rebuild"
+        graph["joins"][0]["requires"][1] = "pm/rebuild"
+        graph_digest = canonical_graph_digest(graph)
+        req = request("ADD_VERIFICATION")
+        req["parent_graph_digest"] = graph_digest
+        preauth = preauthorization()
+        preauth["parent_graph_digest"] = graph_digest
+        preauth["allowed_node_ids"][1] = "pm/rebuild"
+        preauth["evaluator"]["node_id"] = "pm/rebuild"
+        selection, receipt, assignment = fresh_evaluator_inputs()
+
+        outcome = resolve(
+            "ADD_VERIFICATION",
+            req=req,
+            preauth=preauth,
+            lineage=lineage_outcome(graph=graph),
+            evaluator_selection=selection,
+            evaluator_receipt=receipt,
+            evaluator_assignment=assignment,
+            parent=graph,
+        )
+
+        self.assertEqual(GraphEvolutionAcceptanceCode.REJECTED, outcome.code)
+        self.assertEqual(
+            ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED,
+            outcome.receipt_status,
+        )
+
     def test_external_fresh_evaluator_is_bound_to_assignment_digests(self) -> None:
         selection, receipt, assignment = fresh_evaluator_inputs()
 

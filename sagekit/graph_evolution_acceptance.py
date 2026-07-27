@@ -332,10 +332,15 @@ def _independent_evaluator(
         request["authority"]["authority_id"],
         preauthorization["authority"]["authority_id"],
     )
+    authority_principals = {
+        _identity_key(authority_id) for authority_id in authority_ids
+    }
+    if _identity_key(acceptor_id) in authority_principals:
+        return False
     internal_principals = {
         _identity_key(proposer_id),
         _identity_key(acceptor_id),
-        *(_identity_key(authority_id) for authority_id in authority_ids),
+        *authority_principals,
     }
 
     if type(assignment) is _review.FreshContextEvaluatorAssignment:
@@ -351,7 +356,7 @@ def _independent_evaluator(
         evaluator_key = _identity_key(acceptor_id)
         return evaluator_key not in {
             _identity_key(proposer_id),
-            *(_identity_key(authority_id) for authority_id in authority_ids),
+            *authority_principals,
         }
     return False
 
