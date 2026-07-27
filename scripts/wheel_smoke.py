@@ -19,6 +19,7 @@ from sagekit.spec_sources import package_identity
 from scripts.build_skill_bundle import (
     build_skill_bundle,
     extract_and_verify_skill_bundle,
+    package_doc_locators,
 )
 
 
@@ -74,7 +75,9 @@ def install_command(python: Path, wheel: Path) -> list[str]:
     ]
 
 
-def installed_smoke_commands(python: Path) -> list[list[str]]:
+def installed_smoke_commands(
+    python: Path, *, package_doc_paths: Sequence[str] = ()
+) -> list[list[str]]:
     api_probe = (
         "from sagekit import __version__; "
         "from sagekit.harness import compile_ephemeral_packet, discover_project_workspace; "
@@ -116,12 +119,35 @@ def installed_smoke_commands(python: Path) -> list[list[str]]:
         "missing=[item for item in required if not root.joinpath(item).is_file()]; "
         "assert not missing, f'missing packaged resources: {missing}'"
     )
+    locator_paths = tuple(sorted(package_doc_paths))
+    locator_probe = (
+        "import importlib.resources, json, sagekit, sysconfig; "
+        "from pathlib import Path; "
+        "site_packages={Path(value).resolve() for key,value in sysconfig.get_paths().items() "
+        "if key in ('purelib','platlib')}; "
+        "resources_root=Path(str(importlib.resources.files('sagekit').joinpath('resources'))).resolve(); "
+        "assert any(resources_root.is_relative_to(root) for root in site_packages), "
+        "f'package resources are outside installed site-packages: {resources_root}'; "
+        "locators=json.loads("
+        + json.dumps(json.dumps(locator_paths))
+        + "); "
+        "forbidden={'docs/ACTIVE_CONTEXT.md','docs/DOC_ROUTING.md'}; "
+        "assert not forbidden.intersection(locators), 'consumer project paths must not be package-doc locators'; "
+        "targets={locator:resources_root.joinpath(*locator.split('/')) for locator in locators}; "
+        "missing=[locator for locator,target in targets.items() if not target.is_file()]; "
+        "external=[locator for locator,target in targets.items() if target.is_file() and not target.resolve().is_relative_to(resources_root)]; "
+        "assert not missing, f'missing package-doc resources: {missing}'; "
+        "assert not external, f'package-doc resources escaped installed wheel: {external}'"
+    )
     prefix = [str(python), "-I", "-B"]
-    return [
+    commands = [
         [*prefix, "-c", api_probe],
         [*prefix, "-c", metadata_probe],
         [*prefix, "-c", resource_probe],
     ]
+    if locator_paths:
+        commands.append([*prefix, "-c", locator_probe])
+    return commands
 
 
 def thin_smoke_commands(python: Path, project: Path) -> list[list[str]]:
@@ -384,6 +410,7 @@ def run_trivial_probe(
     *,
     cwd: Path,
     environment: Mapping[str, str],
+    package_doc_paths: Sequence[str] = (),
     timeout: float = 30.0,
     max_output_bytes: int = 256 * 1024,
 ) -> subprocess.CompletedProcess[bytes]:
@@ -393,7 +420,10 @@ def run_trivial_probe(
     if not joined:
         raise SmokeFailure("trivial probe admission rejected empty command")
     allowed = {
-        tuple(candidate) for candidate in installed_smoke_commands(Path(joined[0]))
+        tuple(candidate)
+        for candidate in installed_smoke_commands(
+            Path(joined[0]), package_doc_paths=package_doc_paths
+        )
     }
     if joined not in allowed:
         raise SmokeFailure("trivial probe admission rejected non-metadata command")
@@ -500,16 +530,25 @@ def run_wheel_smoke(repository: Path) -> None:
         bundle = build_skill_bundle(source_snapshot, workspace / "skill-release")
         extract_and_verify_skill_bundle(bundle.archive, outside_source / "installed-skills")
         installed_skill = outside_source / "installed-skills" / "sage-kit"
+        package_doc_paths = package_doc_locators(installed_skill)
+        if not package_doc_paths:
+            raise SmokeFailure("installed Skill bundle has no package-doc locators")
+        consumer_paths = {"docs/ACTIVE_CONTEXT.md", "docs/DOC_ROUTING.md"}
+        if consumer_paths.intersection(package_doc_paths):
+            raise SmokeFailure("consumer project paths were treated as package resources")
         sibling_decoy = (
             installed_skill / "sagekit/resources/docs/agent/AGENT_HARNESS.md"
         )
         sibling_decoy.parent.mkdir(parents=True)
         sibling_decoy.write_text("external Skill sibling decoy", encoding="utf-8")
-        for command in installed_smoke_commands(python):
+        for command in installed_smoke_commands(
+            python, package_doc_paths=package_doc_paths
+        ):
             run_trivial_probe(
                 command,
                 cwd=installed_skill,
                 environment=environment,
+                package_doc_paths=package_doc_paths,
             )
 
         synthetic_project = outside_source / "synthetic-project"
