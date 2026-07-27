@@ -4,6 +4,7 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from sagekit.graph_contract import canonical_graph_digest
 from sagekit.graph_evolution_contract import (
@@ -26,6 +27,8 @@ from sagekit.graph_evolution_contract import (
 REPOSITORY = Path(__file__).resolve().parents[2]
 CANONICAL = REPOSITORY / "sagekit/resources/contracts/graph-evolution/v1"
 PACKAGED = REPOSITORY / "sagekit/resources/contracts/graph-evolution/v1"
+# Includes first-use PowerShell and Test-Json startup on a cold Windows runner.
+POWERSHELL_TEST_JSON_COLD_WINDOWS_TIMEOUT_SECONDS = 45
 RESOURCE_NAMES = (
     "contract.json",
     "request.schema.json",
@@ -606,21 +609,61 @@ def rebind_chain(chain):
     return chain
 
 
-def powershell_test_json(schema_path, value):
+def powershell_test_json_batch(probes):
+    payload = [
+        {"label": label, "schema_path": str(schema_path), "value": value}
+        for label, schema_path, value in probes
+    ]
     command = (
-        "$json = [Console]::In.ReadToEnd(); "
-        f"$json | Test-Json -SchemaFile '{schema_path}' "
-        "-ErrorAction SilentlyContinue"
+        "$probes = [Console]::In.ReadToEnd() | ConvertFrom-Json; "
+        "$results = @($probes | ForEach-Object { "
+        "$json = $_.value | ConvertTo-Json -Depth 100 -Compress; "
+        "$json | Test-Json -SchemaFile $_.schema_path "
+        "-ErrorAction SilentlyContinue }); "
+        "ConvertTo-Json -InputObject $results -Compress"
     )
-    completed = subprocess.run(
-        ["pwsh", "-NoProfile", "-Command", command],
-        input=json.dumps(value, ensure_ascii=False),
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=10,
-    )
-    return completed.returncode == 0 and completed.stdout.strip().endswith("True")
+    try:
+        completed = subprocess.run(
+            ["pwsh", "-NoProfile", "-Command", command],
+            input=json.dumps(payload, ensure_ascii=False),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=POWERSHELL_TEST_JSON_COLD_WINDOWS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        labels = ", ".join(item["label"] for item in payload)
+        raise AssertionError(
+            "PowerShell Test-Json parity batch timed out after "
+            f"{POWERSHELL_TEST_JSON_COLD_WINDOWS_TIMEOUT_SECONDS} seconds "
+            f"for {len(payload)} probes [{labels}]; "
+            f"partial stdout={error.stdout!r}; partial stderr={error.stderr!r}"
+        ) from error
+
+    if completed.returncode != 0:
+        raise AssertionError(
+            "PowerShell Test-Json parity batch exited with "
+            f"{completed.returncode}; stdout={completed.stdout!r}; "
+            f"stderr={completed.stderr!r}"
+        )
+    try:
+        results = json.loads(completed.stdout)
+    except json.JSONDecodeError as error:
+        raise AssertionError(
+            "PowerShell Test-Json parity batch returned malformed output; "
+            f"stdout={completed.stdout!r}; stderr={completed.stderr!r}"
+        ) from error
+    if (
+        not isinstance(results, list)
+        or len(results) != len(payload)
+        or any(type(result) is not bool for result in results)
+    ):
+        raise AssertionError(
+            "PowerShell Test-Json parity batch returned unexpected results; "
+            f"expected {len(payload)} booleans, got {results!r}; "
+            f"stderr={completed.stderr!r}"
+        )
+    return results
 
 
 class GraphEvolutionContractV1Tests(unittest.TestCase):
@@ -1076,16 +1119,138 @@ class GraphEvolutionContractV1Tests(unittest.TestCase):
         exhausted_mutation["generation_budget"]["remaining_generations"] = 0
         cases.append(("preauthorization", exhausted_mutation, False))
 
-        for kind, value, expected in cases:
+        python_results = []
+        probes = []
+        for index, (kind, value, expected) in enumerate(cases):
             with self.subTest(kind=kind, value=value):
                 python_valid = validators[kind](value).valid
-                schema_valid = powershell_test_json(
-                    CANONICAL / f"{kind}.schema.json",
-                    value,
+                python_results.append(python_valid)
+                probes.append(
+                    (
+                        f"{index}:{kind}",
+                        CANONICAL / f"{kind}.schema.json",
+                        value,
+                    )
                 )
                 self.assertEqual(expected, python_valid)
+
+        schema_results = powershell_test_json_batch(probes)
+        for (kind, value, expected), python_valid, schema_valid in zip(
+            cases, python_results, schema_results
+        ):
+            with self.subTest(kind=kind, value=value):
                 self.assertEqual(expected, schema_valid)
                 self.assertEqual(python_valid, schema_valid)
+
+    def test_python_mismatch_preserves_later_powershell_parity_checks(self):
+        original_validators = {
+            "request": validate_graph_evolution_request,
+            "preauthorization": validate_graph_evolution_preauthorization,
+            "result": validate_graph_evolution_result,
+            "error": validate_graph_evolution_error,
+        }
+        request_calls = 0
+        probe_labels = []
+
+        def request_validator_with_first_mismatch(value):
+            nonlocal request_calls
+            request_calls += 1
+            validation = original_validators["request"](value)
+            if request_calls == 1:
+                return mock.Mock(valid=not validation.valid)
+            return validation
+
+        def powershell_results_with_last_mismatch(probes):
+            probe_list = list(probes)
+            probe_labels.extend(label for label, _, _ in probe_list)
+            results = [
+                original_validators[
+                    schema_path.name.removesuffix(".schema.json")
+                ](value).valid
+                for _, schema_path, value in probe_list
+            ]
+            results[-1] = not results[-1]
+            return results
+
+        parity_test = self.__class__(
+            "test_powershell_test_json_and_python_validation_have_real_parity_probes"
+        )
+        parity_result = unittest.TestResult()
+        with mock.patch.dict(
+            globals(),
+            {
+                "validate_graph_evolution_request": (
+                    request_validator_with_first_mismatch
+                ),
+                "powershell_test_json_batch": powershell_results_with_last_mismatch,
+            },
+        ):
+            parity_test.run(parity_result)
+
+        self.assertFalse(parity_result.errors, parity_result.errors)
+        self.assertEqual(3, len(parity_result.failures), parity_result.failures)
+        self.assertEqual(15, len(probe_labels))
+        self.assertEqual("0:request", probe_labels[0])
+        self.assertEqual("14:preauthorization", probe_labels[-1])
+        self.assertTrue(
+            any(
+                subtest.params["kind"] == "preauthorization"
+                and subtest.params["value"]["generation_budget"][
+                    "remaining_generations"
+                ]
+                == 0
+                for subtest, _ in parity_result.failures
+            ),
+            parity_result.failures,
+        )
+
+    def test_powershell_test_json_batch_runs_all_probes_in_one_bounded_process(self):
+        probes = (
+            ("valid request", CANONICAL / "request.schema.json", request()),
+            ("invalid request", CANONICAL / "request.schema.json", {"invalid": True}),
+        )
+        completed = subprocess.CompletedProcess(
+            args=["pwsh"],
+            returncode=0,
+            stdout="[true,false]\n",
+            stderr="",
+        )
+
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            results = powershell_test_json_batch(probes)
+
+        self.assertEqual([True, False], results)
+        run.assert_called_once()
+        self.assertEqual(
+            POWERSHELL_TEST_JSON_COLD_WINDOWS_TIMEOUT_SECONDS,
+            run.call_args.kwargs["timeout"],
+        )
+        payload = json.loads(run.call_args.kwargs["input"])
+        self.assertEqual(
+            ["valid request", "invalid request"],
+            [item["label"] for item in payload],
+        )
+        self.assertEqual(2, len(payload))
+
+    def test_powershell_test_json_batch_timeout_reports_probe_context(self):
+        timeout = subprocess.TimeoutExpired(
+            cmd=["pwsh"],
+            timeout=POWERSHELL_TEST_JSON_COLD_WINDOWS_TIMEOUT_SECONDS,
+            output="partial stdout",
+            stderr="partial stderr",
+        )
+
+        with mock.patch("subprocess.run", side_effect=timeout):
+            with self.assertRaisesRegex(
+                AssertionError,
+                (
+                    "PowerShell Test-Json parity batch timed out.*"
+                    "slow request.*partial stdout.*partial stderr"
+                ),
+            ):
+                powershell_test_json_batch(
+                    (("slow request", CANONICAL / "request.schema.json", request()),)
+                )
 
     def test_valid_decision_chains_bind_all_documents_and_parent_graph(self):
         for operation in OPERATIONS:
