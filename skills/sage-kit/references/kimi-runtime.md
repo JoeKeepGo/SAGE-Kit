@@ -25,19 +25,20 @@ review. Availability is runtime- and deployment-specific: discover it at use
 time and do not assume a named skill, plugin, tool, or enforcement feature is
 present.
 
-Kimi Code CLI honors `disable-model-invocation: true` as a hard explicit-only
-skill-invocation control. Kimi Work has no equivalent hard control; there, the
-same restriction is a soft instruction carried by the skill description and
-the active authority.
+Only in a Kimi Code CLI deployment where the installed version and effective
+deployment are verified to honor `disable-model-invocation: true` is that
+setting a `HARD` explicit-only invocation control. A Kimi Work deployment, or
+an unknown or unverified Kimi Code deployment, supplies no hard enforcement
+claim. Apply the active authority and the canonical adapter lifecycle instead.
 
-Nested delegation is disabled by default and descendants are limited to depth
-1. Any exception requires explicit controller authorization that names the
-child boundary, scope, limits, expected evidence, and stop condition.
-Descendants inherit the controller's authority, allowed and forbidden scope,
-and every applicable prohibition; they must propagate those constraints to an
-authorized child. A descendant that cannot do so must not delegate further.
+This profile does not establish a delegation default or depth limit. Detect
+delegation and inherited-bound behavior from the installed Kimi version and
+deployment before relying on either. The active authority and canonical adapter
+lifecycle decide whether delegation is authorized and name any child boundary,
+scope, limits, expected evidence, and stop condition. A descendant that cannot
+preserve those canonical constraints must use the authority-defined handoff.
 
 An unknown Kimi host capability is never assumed to provide enforcement or
 containment. Fail closed when that capability is required by the active
-authority; otherwise use only an authority-preserving safe native fallback and
-record the limitation as evidence.
+authority; otherwise use only the fallback selected by the canonical adapter
+lifecycle and record the limitation as evidence.

@@ -298,6 +298,9 @@ class ThinDocumentationTests(unittest.TestCase):
 
     def test_runtime_profiles_are_narrow_and_root_routing_is_complete(self):
         skill = (REPO_ROOT / "skills/sage-kit/SKILL.md").read_text(encoding="utf-8")
+        codex_profile = (
+            REPO_ROOT / "skills/sage-kit/references/codex.md"
+        ).read_text(encoding="utf-8")
 
         self.assertLessEqual(len(skill.splitlines()), 170)
         self.assertNotIn("## Codex GPT-5.6 Pre-Load Guard", skill)
@@ -309,6 +312,9 @@ class ThinDocumentationTests(unittest.TestCase):
             "OpenCode": "references/opencode.md",
         }.items():
             self.assertIn(f"- {runtime}: `{profile}`", skill)
+
+        self.assertNotIn("codex exec", codex_profile.casefold())
+        self.assertNotIn("external cli", codex_profile.casefold())
 
     def test_readmes_describe_embedded_harness_without_public_cli_guidance(self):
         for filename in ("README.md", "README.zh-CN.md"):

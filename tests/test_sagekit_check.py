@@ -1893,6 +1893,7 @@ class SagekitCheckTests(unittest.TestCase):
         self.assertIn("runtime: codex", profiles["codex"])
         for phrase in (
             "DISABLED_BY_RUNTIME_POLICY",
+            "any GPT-5.6 family model",
             "Root and all descendants must not read, invoke,",
             "Codex/model-native brainstorming",
             "test-driven development",
@@ -1903,9 +1904,18 @@ class SagekitCheckTests(unittest.TestCase):
 
         self.assertIn("Final Review", profiles["claude"])
         self.assertIn("no edit, write, or shell tool", profiles["claude"])
-        self.assertIn("Kimi Code CLI honors `disable-model-invocation: true`", profiles["kimi"])
-        self.assertIn("Kimi Work has no equivalent hard control", profiles["kimi"])
-        self.assertIn("descendants are limited to depth\n1", profiles["kimi"])
+        kimi_profile = " ".join(profiles["kimi"].split())
+        self.assertIn("Only in a Kimi Code CLI deployment", kimi_profile)
+        self.assertIn("installed version and effective deployment are verified", kimi_profile)
+        self.assertIn("`HARD` explicit-only invocation control", kimi_profile)
+        self.assertIn(
+            "does not establish a delegation default or depth limit", kimi_profile
+        )
+        self.assertIn(
+            "docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003", kimi_profile
+        )
+        self.assertNotIn("Nested delegation is disabled by default", kimi_profile)
+        self.assertNotIn("descendants are limited to depth 1", kimi_profile)
         self.assertIn("`MANAGED` for that path", profiles["opencode"])
         self.assertIn("`SOFT`", profiles["opencode"])
 
