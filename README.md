@@ -2,155 +2,245 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-AI can write code quickly. Keeping a long-running project coherent is harder.
+[![SAGE-Kit self-check](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)
+[![Latest release](https://img.shields.io/github/v/release/JoeKeepGo/SAGE-Kit)](https://github.com/JoeKeepGo/SAGE-Kit/releases)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
+[![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-SAGE-Kit keeps project-owned SPEC contracts and an embeddable Harness core that
-projects can run in their own runtime.
+SAGE-Kit is a project-governance and evidence runtime for long-running,
+agent-assisted software work.
 
-It does not require a public command-line app. The project remains the authority
-for scope, approval gates, completion criteria, and release decisions. SAGE-Kit
-provides shared contracts and a portable execution model that project tools and
-agents use under those rules.
+It combines project-owned SPEC contracts, an embeddable Python Harness, frozen
+validation contracts, resource-aware execution, and an optional multi-runtime
+Skill. The project remains authoritative for product requirements, scope,
+permissions, approval gates, and acceptance. SAGE-Kit supplies the mechanisms
+used to execute and verify those decisions without turning framework defaults
+into product policy.
 
-SAGE-Kit is open source, stdlib-only at runtime, and its companion skill can be
-used in Codex, Claude Code, OpenCode, and Kimi Work as an assistant entrypoint.
+Project-owned SPEC and configuration are authoritative. The Harness interprets
+and enforces their boundaries; it does not own project policy.
 
-## What This Means After the CLI Removal
+## Current Status
 
-- Project-owned SPEC and configuration remain the source of truth. Markdown
-  documents are one supported source format, not the authority model itself.
-- The Harness core is embedded into and bound to the project; it does not own
-  project policy.
-- The project binding config is read by local tooling to resolve authority,
-  active context, and admissible operations.
-- Completion is decided by project SPEC/configuration and explicit approval
-  gates, not by external completion signals.
-- `ACTIVE_CONTEXT` is still valuable, but optional and configurable per project.
-- External tools remain optional sources of execution and evidence; they are not
-  authority.
+- Current release: `v2026.7.28.1`
+- Release line: CLI-free embedded Harness and canonical package resources
+- Runtime: Python 3.10+, standard library only
+- Public CLI: removed; use the Python Harness API
+- Canonical framework resources: [`sagekit/resources`](sagekit/resources)
+- Optional assistant entrypoint: [`skills/sage-kit`](skills/sage-kit)
 
-## Quick Start For a Project
+Pin the release tag for reproducible adoption.
 
-1. Add SAGE-Kit as a dependency where your project runtime is built.
-2. Choose where the project stores project-owned SPEC sources and configure that
-   mapping.
-3. Initialize local project harness binding using your host runtime.
-4. Route all execution decisions through project contracts, not through public
-   completion indicators.
+## What Changed
 
-Python 3.10 or newer is required.
+SAGE-Kit is no longer a CLI-driven documentation compliance system.
 
-## SPEC Sources and Packet Model
+- SPEC sources are location-independent and normalized before execution.
+- Markdown is a supported source format, not the authority model.
+- Accepted history is immutable provenance and is not startup context.
+- Runtime state, candidate identity, checkpoints, leases, and counters stay out
+  of milestone prose.
+- The Harness is embedded by project tooling and returns structured results.
+- Read-only review, corrective work, verification, and submission remain
+  separate authority boundaries.
+- CPU-heavy commands run serially under one Root Controller unless explicit,
+  conflict-free parallel authority exists.
+- Review findings must trace to project authority; generic preferences cannot
+  manufacture product requirements.
 
-SAGE-Kit governs SPEC semantics and execution contracts, not a required folder
-structure.
-
-Legacy projects continue to work without migration when their explicit source path
-remains authorized.
-
-The project may use one of:
-
-- native SPEC docs under project control;
-- configured legacy `docs/<M>` mapping;
-- an explicit adapter source path.
-
-Source paths are provenance. Project authority, acceptance rules, and gates remain
-in project-owned SPEC and configuration.
-
-## Optional Legacy Layout and Continuity
-
-Projects may keep the following conventional Markdown layout for compatibility
-and human-readable continuity. It is optional: configured SPEC sources and
-adapters may provide the same normalized facts without recreating this tree.
-
-- `docs/PROJECT_PROFILE.md`
-- `docs/QUALITY_GATES.md`
-- `docs/APPROVAL_GATES.md`
-- configurable `ACTIVE_CONTEXT`
-- `docs/DOC_ROUTING.md`
-- `docs/MILESTONE_ROADMAP.md`
-- milestone ledgers and phase documents
-- milestone closeout documents
-
-Canonical templates and framework contracts live under
-[`sagekit/resources`](sagekit/resources). Project-local `docs/...` paths remain
-supported as a consumer layout, but they are not duplicated in this repository.
-
-## Integration Architecture
-
-The project decides whether to use:
-
-- the local harness runtime;
-- a minimal continuity checker;
-- optional adapters for skills, CI, MCP tools, or reviewers.
-
-Adapters provide execution methods and evidence, and can be configured with
-approval and fallback behavior. They do not replace project-owned acceptance
-logic.
-
-## Compatibility And Legacy Behavior
-
-SAGE-Kit preserves:
-
-- `thin-v1` execution-document compatibility alongside `legacy-markdown`;
-- `legacy-markdown` contract compatibility;
-- existing `SAGE_PROJECT.json` and related legacy project baselines.
-
-The Installed Skill is optional assistance, not project authority.
-
-Compatibility exceptions are project-local only and do not reduce target project
-gates.
-
-## How Work Moves
+## Architecture
 
 ```mermaid
 flowchart LR
-  A["Current project facts"] --> B["Approved scope"]
-  B --> C["Agent or human executes"]
-  C --> D["Verification and evidence"]
-  D --> E["Review or correction"]
-  E --> F["Accepted, handoff, or continuation"]
+  A["Project authority and SPEC"] --> B["Source adapter"]
+  B --> C["Normalized SPEC"]
+  C --> D["Execution packet or direct Harness call"]
+  D --> E["Controller and bounded workers"]
+  E --> F["Focused verification and evidence"]
+  F --> G["Independent review"]
+  G --> H["PM acceptance or handoff"]
 ```
 
-A work sequence typically reads `ACTIVE_CONTEXT`, confirms scope and permissions,
-performs the smallest authorized change, runs required checks, and updates
-hardened project handoff state.
+Paths provide provenance. Semantic identity is bound to project authority,
+contracts, normalized inputs, workspace state, and candidate evidence rather
+than one mandatory `docs/<milestone>` layout.
 
-## How to Use the Public Skill (Optional)
+## Install
 
-The repository contains one skill at [`skills/sage-kit`](skills/sage-kit).
-Install it in your runtime only if you want assistant-assisted workflow orchestration.
+Install the latest tagged release directly from GitHub:
 
-It is optional and does not become project authority.
+```bash
+python -m pip install \
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.1"
+```
 
-## Other Skills And Tools
+For local development:
 
-Coding skills, plugins, MCP tools, CI, browser automation, and reviewers are
-execution inputs. They may run inside SAGE boundaries, but none may:
+```bash
+git clone https://github.com/JoeKeepGo/SAGE-Kit.git
+cd SAGE-Kit
+python -m pip install -e .
+```
 
-- expand scope;
-- bypass locks, approvals, or gates;
-- declare work complete by themselves.
+The package has no third-party runtime dependencies.
 
-## Repository Guide
+## Minimal Harness Use
+
+The public API is exported from `sagekit`:
+
+```python
+from pathlib import Path
+
+from sagekit import check_project
+
+result = check_project(Path("."))
+for finding in result.findings:
+    print(finding.to_text())
+
+if not result.ok:
+    raise SystemExit(1)
+```
+
+Project tools can also:
+
+- load configured, normalized SPEC sources;
+- compile ephemeral execution packets;
+- discover and verify workspace bindings;
+- freeze and assess candidate fingerprints;
+- create and resume checkpoints;
+- validate versioned Task/Evidence records;
+- run resource-managed commands and Git operations.
+
+These APIs provide evidence and enforcement primitives. Their return values do
+not grant PM acceptance or redefine project completion.
+
+## Project Binding
+
+New integrations should prefer:
+
+- `SAGEKIT_CONFIG.json` for package binding, source mapping, active context, and
+  active-only versus legacy scope;
+- `SAGE_PROJECT.json` when using Thin documents (machine contract ID:
+  `thin-v1`);
+- project-owned milestone/phase manifests or an explicit Markdown source
+  adapter;
+- a compact, configurable `ACTIVE_CONTEXT` for current handoff facts.
+
+Supported adoption profiles:
+
+- `package-bound`: use installed package contracts and resources;
+- `vendored-legacy`: retain an explicitly authorized legacy framework layout.
+
+Supported execution scopes:
+
+- `active-only`: evaluate the active authority without rescanning accepted
+  history;
+- `legacy-all`: preserve explicitly selected legacy behavior.
+
+Explicit source mappings fail closed. SAGE-Kit does not silently fall back to a
+different authority source.
+
+## Optional Legacy Layout
+
+Legacy Markdown layouts remain available when a project explicitly selects
+`legacy-markdown`. They are compatibility inputs, not a second framework copy
+and not the default for a new package-bound project.
+
+## Controller Workflow
+
+A normal milestone uses three logical controllers:
+
+1. **PM Controller** defines the milestone, DAG, scope, acceptance criteria,
+   resource policy, and approval boundaries.
+2. **Coder Controller** delegates bounded implementation and focused testing,
+   reconciles evidence, and freezes a candidate.
+3. **Final Review Controller** runs independent review lanes, routes authorized
+   correctives, and returns a verdict to the PM.
+
+Subagents inherit the caller's allowed, read-only, and forbidden boundaries.
+They do not gain product authority and do not recursively launch executable
+descendants unless explicitly authorized.
+
+## Verification Economy
+
+SAGE-Kit uses an affected-evidence model:
 
 ```text
-sagekit/              Harness core and canonical packaged resources
-skills/sage-kit/      Runtime skill entrypoints and profiles
-scripts/              Standalone validation helpers
-tests/                Unit and compatibility tests
+worker change        -> focused verification
+lane closure         -> affected-lane verification
+frozen candidate     -> one serial final verification graph
+unchanged inputs     -> reuse bound evidence
 ```
 
-For full contract text, start with:
+`WAIVED`, `SKIPPED`, `HOST_UNAVAILABLE`, and incomplete verification are never
+reported as `PASS`. Timeout or resource exhaustion produces a truthful handoff,
+not a fabricated engineering failure or success.
 
-- [`sagekit/resources/docs/SAGE_CORE.md`](sagekit/resources/docs/SAGE_CORE.md)
-- [`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
+## Compatibility
 
-## Is It A Good Fit?
+SAGE-Kit preserves:
 
-- The project spans many sessions and needs durable contracts.
-- Scope, authority, or evidence mistakes are high risk.
-- Multiple humans/agents need a single durable completion model.
+- Thin documents and explicitly selected `legacy-markdown` documents;
+- frozen validation contracts and versioned compatibility;
+- existing `SAGE_PROJECT.json` projects;
+- configurable legacy `docs/...` consumer layouts;
+- immutable accepted-history provenance.
 
-It is likely too much for short one-off scripts, disposable prototypes, or
-projects where one person can keep full state in memory.
+Consumer projects may still use `docs/...`. This source repository does not
+duplicate package resources into a second top-level `docs` mirror.
+
+## Optional Skill
+
+The public Skill is located at [`skills/sage-kit`](skills/sage-kit). An
+Installed Skill provides activation, routing, authority, delegation, review,
+and completion guidance for Codex, Claude Code, OpenCode, Kimi Work, and
+compatible hosts.
+
+The Skill is optional. It is not project authority and cannot create missing
+requirements, threat models, migrations, gates, or acceptance criteria.
+
+## Repository Layout
+
+```text
+sagekit/                    Embeddable Harness and runtime modules
+sagekit/resources/docs/     Canonical governance docs and templates
+sagekit/resources/contracts Frozen machine-readable contracts
+skills/sage-kit/            Optional multi-runtime assistant Skill
+scripts/                    Serial test and package helpers
+tests/                      Unit, integration, compatibility, and smoke tests
+```
+
+Start with:
+
+- [`SAGE_CORE.md`](sagekit/resources/docs/SAGE_CORE.md)
+- [`AGENT_HARNESS.md`](sagekit/resources/docs/agent/AGENT_HARNESS.md)
+- [`EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
+- [`SPEC_SOURCE_CONTRACT.md`](sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md)
+
+## Development
+
+Run the same serial lanes used by CI:
+
+```bash
+python -B -m scripts.run_tests focused --repository .
+python -B -m scripts.run_tests unit --repository .
+python -B -m scripts.run_tests integration --repository .
+python -B -m scripts.run_tests source-repo --repository .
+python -B -m scripts.run_tests package --repository .
+```
+
+CI covers Python 3.10-3.12 on Linux, Windows, and macOS. Package smoke verifies a
+fresh environment and execution outside the source checkout.
+
+## Fit
+
+SAGE-Kit is useful when:
+
+- work spans many sessions, milestones, people, or agents;
+- authority, scope, evidence, and completion must remain distinguishable;
+- verification is expensive enough to require evidence reuse and resource
+  coordination;
+- accepted history must remain auditable without becoming current authority.
+
+It is intentionally more structure than a short script or disposable prototype
+usually needs.

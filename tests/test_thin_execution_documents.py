@@ -2,7 +2,6 @@ import hashlib
 import json
 import os
 import stat
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -20,6 +19,14 @@ from sagekit.policy_resolution import PolicyResolutionError, resolve_policy
 
 
 CONTRACT_VERSION = "2026.7.19.3"
+V19_FROZEN_RESOURCE_SHA256 = {
+    "contract.json": "97bdac770ed27bdaa296a1f19a2e2a4d119c3a975d0479e05fab4d9b63b36010",
+    "milestone.schema.json": "2b32a54dcf9b869c7610c31663d478ba115c094f7f30cb749f6b6ed125864f63",
+    "phase.schema.json": "8e2c3b193f8d3ec6860c5111a97c8db73c48c76f9c1410464b8ecd6088233b18",
+    "profiles/standard-milestone-v1.json": "379305271c7b4385ae72e2b55630e58dd882f8e051d217dd6af13e3dd49e5582",
+    "profiles/standard-phase-v1.json": "d69ffae66df68c6a050f27f3c9c9c704b346f24d5651461a3226fde49b1f1835",
+    "project.schema.json": "fe33e2c6982bc969d5637ce808bafbc51015f4befe8d5dd3cc341ff0d3eea13a",
+}
 
 
 def canonical_digest(payload):
@@ -171,25 +178,18 @@ def create_project(root, contract_root):
 
 
 class ThinExecutionDocumentTests(unittest.TestCase):
-    def test_v19_contract_resources_match_base_commit_bytes(self):
+    def test_v19_contract_resources_match_frozen_digests(self):
         repository = Path(__file__).resolve().parents[1]
-        roots = (
-            "docs/contracts/execution-documents",
-            "sagekit/resources/docs/contracts/execution-documents",
-            "sagekit/resources/execution_documents",
+        frozen_root = (
+            repository / "sagekit/resources/execution_documents/2026.7.19.3"
         )
-        for root in roots:
-            frozen_root = repository / root / "2026.7.19.3"
-            for path in sorted(frozen_root.rglob("*.json")):
-                relative = path.relative_to(repository).as_posix()
-                with self.subTest(relative=relative):
-                    expected = subprocess.run(
-                        ["git", "show", f"6669ba279169dfc2ccf3cc202788ae709f98b772:{relative}"],
-                        cwd=repository,
-                        check=True,
-                        stdout=subprocess.PIPE,
-                    ).stdout
-                    self.assertEqual(expected, path.read_bytes())
+        actual = {
+            path.relative_to(frozen_root).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in sorted(frozen_root.rglob("*.json"))
+        }
+        self.assertEqual(V19_FROZEN_RESOURCE_SHA256, actual)
 
     def test_v20_uses_urn_ids_and_has_a_distinct_contract_digest(self):
         repository = Path(__file__).resolve().parents[1]

@@ -2,135 +2,228 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-AI 写代码很快，但让长期项目长期保持一致更难。
+[![SAGE-Kit self-check](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)
+[![Latest release](https://img.shields.io/github/v/release/JoeKeepGo/SAGE-Kit)](https://github.com/JoeKeepGo/SAGE-Kit/releases)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB)](https://www.python.org/)
+[![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-SAGE-Kit 用项目自有 SPEC 合同和可嵌入的 Harness 核心，让项目继续在自己掌握的
-合同中前进。
+SAGE-Kit 是面向长期、Agent 辅助软件工程的项目治理与证据运行时。
 
-本仓库不再依赖公开 CLI 作为产品入口。项目的范围、授权、门禁和验收标准仍由项
-目文档决定；SAGE-Kit 提供可嵌入的共享执行模型，供本地工具与 Agent 在其边界
-内协作。
+它由项目自有 SPEC 合同、可嵌入的 Python Harness、冻结验证合同、资源感知执行
+以及可选的多运行时 Skill 组成。产品需求、范围、权限、审批门和验收始终由项目
+决定；SAGE-Kit 提供执行和验证这些决定的机制，不会把框架默认值变成产品策略。
 
-SAGE-Kit 运行时只用标准库，开源；配套 Skill 可在 Codex、Claude Code、OpenCode
-和 Kimi Work 及兼容的运行时配置中使用。
+项目自有的 SPEC 与配置是权威来源。Harness 解释并执行这些边界，但不拥有项目
+策略。
 
-## 去掉公开 CLI 后的定位
+## 当前状态
 
-- 项目自有的 SPEC 与配置是权威来源；Markdown 文档只是可选的 source 格式，
-  不是 authority 模型本身。
-- Harness 以嵌入方式绑定到项目，但不拥有或替代项目策略。
-- 项目绑定配置决定项目如何解析 authority、ACTIVE_CONTEXT 与可执行范围。
-- 完成状态由项目 SPEC、配置、门禁与审批决定，而不是某条工具命令。
-- `ACTIVE_CONTEXT` 仍有价值，但保持可配置、可替换，不再强绑定固定拓扑。
-- 外部工具和插件仍是执行手段，不能成为项目决策来源。
+- 当前 release：`v2026.7.28.1`
+- Release 主线：无公开 CLI、可嵌入 Harness、package resources 单一来源
+- 运行环境：Python 3.10+，仅使用标准库
+- 公开 CLI：已移除，改用 Python Harness API
+- 框架规范资源：[`sagekit/resources`](sagekit/resources)
+- 可选 Assistant 入口：[`skills/sage-kit`](skills/sage-kit)
 
-## 典型接入流程
+正式接入时应固定 release tag。
 
-1. 在项目运行时引入 SAGE-Kit 作为依赖。
-2. 在项目配置中明确 SPEC source 来源路径（本地文档、可选适配器、legacy 布局）。
-3. 初始化并绑定项目级 Harness 配置。
-4. 所有执行与验收都走项目合同与审批门禁，而不是把外部运行结果当作完成判定。
+## 当前版本的核心变化
 
-要求 Python 3.10+。
+SAGE-Kit 已不再是 CLI 驱动的文档合规系统。
 
-## SPEC 来源与运行模型
+- SPEC 来源位置无关，执行前统一规范化。
+- Markdown 是可选 source 格式，不是 authority 模型。
+- 已接受历史是不可变 provenance，不作为启动上下文。
+- candidate、checkpoint、lease、attempt 和 counter 等运行状态不写入
+  milestone 叙事文档。
+- Harness 由项目工具嵌入调用，并返回结构化结果。
+- 只读审查、纠正、验证和提交保持独立权限边界。
+- CPU-heavy 命令默认由单一 Root Controller 串行执行；只有获得明确授权且资源
+  不冲突时才并行。
+- Review finding 必须指向项目权威；通用偏好不能自行制造产品需求。
 
-SAGE-Kit 规范 SPEC 语义与执行合同，但不要求固定文档目录。
-
-兼容的旧项目在不迁移下可继续使用，只要保留可授权的 source 路径即可。
-
-项目可选择：
-
-- 本项目原生 SPEC 文档；
-- 显式配置的 legacy `docs/<M>`；
-- 外部适配器提供的显式 source。
-
-source path 是 provenance，项目 authority、history 与 acceptance 规则仍在项目自有
-SPEC 和配置里。
-
-## 可选传统布局与连续性
-
-为兼容旧项目和便于人工阅读，项目可以保留以下传统 Markdown 布局，但这不是
-Harness 的强制目录；配置化 SPEC source 或 adapter 可以提供同一 normalized facts：
-
-- `docs/PROJECT_PROFILE.md`
-- `docs/QUALITY_GATES.md`
-- `docs/APPROVAL_GATES.md`
-- 可配置 `ACTIVE_CONTEXT`
-- `docs/DOC_ROUTING.md`
-- `docs/MILESTONE_ROADMAP.md`
-- milestone ledger、phase 文档、closeout 文档
-
-规范模板和框架契约统一放在 [`sagekit/resources`](sagekit/resources)。项目仍可使用
-`docs/...` 作为 consumer 布局，但本仓库不再维护重复的物理副本。
-
-## 集成方式
-
-项目可启用以下能力：
-
-- 本地 Harness 执行；
-- 连续性/检查点；
-- 可选插件：skill、CI、MCP、Reviewer（带授权与回退策略）。
-
-外部能力只产出执行证据，不替换项目自身通过门禁决定的完成判断。
-
-## 兼容性
-
-- `thin-v1` execution-document 与 `legacy-markdown` 保持兼容；
-- `legacy-markdown` 与既有 `SAGE_PROJECT.json` 流程兼容；
-- 已接受历史不做静默迁移；
-- 兼容性例外仅适用于项目本地策略，不得用于弱化目标项目门禁。
-
-Installed Skill 是可选执行辅助，不是项目权威。
-
-## 工作流程
+## 架构
 
 ```mermaid
 flowchart LR
-  A["当前项目事实"] --> B["已批准范围"]
-  B --> C["人或 Agent 执行"]
-  C --> D["验证与证据"]
-  D --> E["评审或修订"]
-  E --> F["接受、交接或继续"]
+  A["项目 authority 与 SPEC"] --> B["Source adapter"]
+  B --> C["Normalized SPEC"]
+  C --> D["Execution packet 或直接 Harness 调用"]
+  D --> E["Controller 与受限 workers"]
+  E --> F["Focused verification 与 evidence"]
+  F --> G["Independent review"]
+  G --> H["PM acceptance 或 handoff"]
 ```
 
-建议先读 `ACTIVE_CONTEXT`（或项目配置的当前上下文入口），确认范围和授权，再做最小
-授权变更，最后补齐证据并更新 handoff。
+路径只提供 provenance。执行身份绑定项目 authority、合同、规范化输入、workspace
+状态和 candidate evidence，不再依赖唯一固定的 `docs/<milestone>` 目录。
 
-## 可选 Skill 使用方式
+## 安装
 
-仓库提供的 Skill 在 [`skills/sage-kit`](skills/sage-kit)。如果你希望让 Assistant
-拥有固定的工作流提示入口，可在你的运行时按需安装。
+从 GitHub 安装当前正式版本：
 
-Skill 只是入口，不能替代项目合同与治理决定。
+```bash
+python -m pip install \
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.1"
+```
 
-## 其他技能与工具关系
+本地开发：
 
-Coding skill、插件、MCP、CI、浏览器自动化、Reviewer 都是执行输入。它们可在批准边界内工
-作，但不能：
+```bash
+git clone https://github.com/JoeKeepGo/SAGE-Kit.git
+cd SAGE-Kit
+python -m pip install -e .
+```
 
-- 扩大范围；
-- 绕过锁与审批；
-- 由它们单独判定完成。
+package 没有第三方运行时依赖。
+
+## 最小 Harness 示例
+
+公共 API 由 `sagekit` 直接导出：
+
+```python
+from pathlib import Path
+
+from sagekit import check_project
+
+result = check_project(Path("."))
+for finding in result.findings:
+    print(finding.to_text())
+
+if not result.ok:
+    raise SystemExit(1)
+```
+
+项目工具还可以通过公共 API：
+
+- 加载并规范化配置的 SPEC source；
+- 编译临时 execution packet；
+- 发现和验证 workspace binding；
+- 冻结、复算 candidate fingerprint；
+- 创建和恢复 checkpoint；
+- 验证版本化 Task/Evidence records；
+- 执行受资源治理的命令和 Git 操作。
+
+这些 API 提供执行、证据和约束机制。API 返回值不会授予 PM acceptance，也不会
+重新定义项目完成条件。
+
+## 项目绑定
+
+新项目建议使用：
+
+- `SAGEKIT_CONFIG.json`：绑定 package、SPEC source、active context 和
+  active-only/legacy scope；
+- `SAGE_PROJECT.json`：使用 Thin documents 时固定合同；其机器合同 ID 是
+  `thin-v1`；
+- 项目自有 milestone/phase manifests，或显式 Markdown source adapter；
+- 可配置的紧凑 `ACTIVE_CONTEXT`：只保存当前 handoff 事实。
+
+支持的 adoption profile：
+
+- `package-bound`：使用已安装 package 的合同和资源；
+- `vendored-legacy`：保留明确授权的传统 framework 布局。
+
+支持的 execution scope：
+
+- `active-only`：只检查当前 authority，不追溯扫描 accepted history；
+- `legacy-all`：保留明确选择的旧版行为。
+
+显式 source mapping 会 fail closed。SAGE-Kit 不会静默回退到其他 authority 来源。
+
+## 可选传统布局
+
+项目明确选择 `legacy-markdown` 时仍可使用传统 Markdown 布局。它是兼容输入，
+不是第二份 framework 副本，也不是 package-bound 新项目的默认方式。
+
+## Controller 工作流
+
+一个正常 Milestone 使用三个逻辑 Controller：
+
+1. **PM Controller**：确定 milestone、DAG、范围、验收条件、资源策略和审批边界。
+2. **Coder Controller**：派发受限实现和 focused tests，汇总 evidence 并冻结
+   candidate。
+3. **Final Review Controller**：执行独立 review lanes，路由已授权纠正，把 verdict
+   返回 PM。
+
+Subagent 继承调用方的 allowed、read-only 和 forbidden 边界，不获得产品决策权；
+除非明确授权，也不能继续派发可执行 descendants。
+
+## 验证经济性
+
+SAGE-Kit 使用 affected-evidence 模型：
+
+```text
+worker change        -> focused verification
+lane closure         -> affected-lane verification
+frozen candidate     -> 一次串行 final verification graph
+unchanged inputs     -> 复用已绑定 evidence
+```
+
+`WAIVED`、`SKIPPED`、`HOST_UNAVAILABLE` 和未完成验证都不能记为 `PASS`。超时或
+资源耗尽应返回真实 handoff，而不是伪造工程失败或成功。
+
+## 兼容性
+
+SAGE-Kit 保留：
+
+- Thin documents 和明确选择的 `legacy-markdown` documents；
+- 冻结 validation contracts 与版本兼容；
+- 既有 `SAGE_PROJECT.json` 项目；
+- 可配置的传统 `docs/...` consumer 布局；
+- accepted history 的不可变 provenance。
+
+Consumer 项目仍可使用 `docs/...`。SAGE-Kit 源码仓库不再把 package resources
+复制为第二套顶层 `docs` 镜像。
+
+## 可选 Skill
+
+公共 Skill 位于 [`skills/sage-kit`](skills/sage-kit)。Installed Skill 为 Codex、
+Claude Code、OpenCode、Kimi Work 和兼容运行时提供 activation、routing、
+authority、delegation、review 与 completion 指导。
+
+Skill 是可选入口，不是项目 authority，不能自行创建缺失的产品需求、threat model、
+migration、Gate 或验收条件。
 
 ## 仓库结构
 
 ```text
-sagekit/              Harness 核心与规范打包资源
-skills/sage-kit/      runtime 技能入口与环境画像
-scripts/              独立验证脚本
-tests/                单元与兼容测试
+sagekit/                    可嵌入 Harness 与运行时模块
+sagekit/resources/docs/     唯一规范治理文档与模板
+sagekit/resources/contracts 冻结机器可读合同
+skills/sage-kit/            可选多运行时 Assistant Skill
+scripts/                    串行测试与 package helpers
+tests/                      Unit、integration、compatibility 与 smoke tests
 ```
 
-完整契约先看：
+建议从以下文件开始：
 
-- [`sagekit/resources/docs/SAGE_CORE.md`](sagekit/resources/docs/SAGE_CORE.md)
-- [`sagekit/resources/docs/agent/EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
+- [`SAGE_CORE.md`](sagekit/resources/docs/SAGE_CORE.md)
+- [`AGENT_HARNESS.md`](sagekit/resources/docs/agent/AGENT_HARNESS.md)
+- [`EXECUTION_ECONOMY.md`](sagekit/resources/docs/agent/EXECUTION_ECONOMY.md)
+- [`SPEC_SOURCE_CONTRACT.md`](sagekit/resources/docs/agent/SPEC_SOURCE_CONTRACT.md)
 
-## 适用性
+## 开发与验证
 
-- 多会话、多人协作、AI 与人混合执行的项目。
-- 范围/授权/证据错位代价高的项目。
-- 需要跨会话持久事实与可审计 handoff 的项目。
+运行与 CI 相同的串行 lanes：
 
-短脚本、一次性原型、或一人可完整记忆状态的项目通常不需要这一整套治理。
+```bash
+python -B -m scripts.run_tests focused --repository .
+python -B -m scripts.run_tests unit --repository .
+python -B -m scripts.run_tests integration --repository .
+python -B -m scripts.run_tests source-repo --repository .
+python -B -m scripts.run_tests package --repository .
+```
+
+CI 覆盖 Linux、Windows、macOS 和 Python 3.10-3.12。Package smoke 会在全新环境
+以及源码 checkout 之外验证安装结果。
+
+## 适用场景
+
+SAGE-Kit 适合：
+
+- 工作跨越多个 Session、Milestone、人员或 Agent；
+- 必须区分 authority、scope、evidence 和 completion；
+- 验证成本较高，需要 evidence reuse 和资源协调；
+- accepted history 必须可审计，但不能成为当前 authority。
+
+对于短脚本或一次性原型，这套治理通常会显得过重。
