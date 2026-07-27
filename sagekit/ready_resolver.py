@@ -335,9 +335,9 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
     active: set[int] = set()
 
     def emit(data: bytes) -> None:
-        output.extend(data)
-        if limit is not None and len(output) > limit:
+        if limit is not None and len(data) > limit - len(output):
             raise _CanonicalSizeExceeded
+        output.extend(data)
 
     def emit_string(value: str) -> None:
         value = _normalized_string(value)
@@ -373,8 +373,17 @@ def _canonical_json_bytes(value: Any, *, limit: int | None = None) -> bytes:
             emit(b"true")
         elif item is False:
             emit(b"false")
-        elif _mathematical_integer(item) is not None:
-            emit(_integer_text(_mathematical_integer(item)).encode("ascii"))
+        elif (integer := _mathematical_integer(item)) is not None:
+            if limit is not None:
+                decimal_capacity = limit - len(output) - int(integer < 0)
+                bit_length = integer.bit_length()
+                # 2**10 > 10**3, so this rejects only values guaranteed not to fit.
+                if decimal_capacity <= 0 or (
+                    bit_length
+                    and 3 * (bit_length - 1) >= 10 * decimal_capacity
+                ):
+                    raise _CanonicalSizeExceeded
+            emit(_integer_text(integer).encode("ascii"))
         elif type(item) is float:
             raise _CanonicalJSONError("only finite mathematical integers are admitted")
         elif type(item) is str:

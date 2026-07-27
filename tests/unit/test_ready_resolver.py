@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import sagekit.ready_resolver as ready_resolver
 from sagekit.graph_contract import canonical_graph_digest
 from sagekit.ready_resolver import (
     ReadyResolutionIssue,
@@ -253,6 +254,50 @@ class ReadyResolverInterfaceAndDigestTests(unittest.TestCase):
                 invalid = resolution_input(graph())
                 invalid["graph_generation"] = value
                 self.assertIsNone(canonical_ready_input_digest(invalid))
+
+    def test_bounded_writer_rejects_obvious_huge_integer_before_encoding(self) -> None:
+        probe = 1 << 100000
+
+        with mock.patch.object(
+            ready_resolver,
+            "_integer_text",
+            side_effect=AssertionError("full integer encoder must not run"),
+        ) as encoder:
+            with self.assertRaises(ready_resolver._CanonicalSizeExceeded):
+                ready_resolver._canonical_json_bytes(probe, limit=32)
+
+        encoder.assert_not_called()
+
+    def test_bounded_writer_checks_emit_before_appending(self) -> None:
+        output = bytearray()
+
+        with mock.patch.object(
+            ready_resolver,
+            "bytearray",
+            return_value=output,
+            create=True,
+        ):
+            with self.assertRaises(ready_resolver._CanonicalSizeExceeded):
+                ready_resolver._canonical_json_bytes("a", limit=1)
+
+        self.assertEqual(b'"', bytes(output))
+
+    def test_bounded_writer_preserves_integer_boundary_and_digest(self) -> None:
+        positive = (10**32) - 1
+        negative = -((10**31) - 1)
+
+        self.assertEqual(
+            str(positive).encode("ascii"),
+            ready_resolver._canonical_json_bytes(positive, limit=32),
+        )
+        self.assertEqual(
+            str(negative).encode("ascii"),
+            ready_resolver._canonical_json_bytes(negative, limit=32),
+        )
+        self.assertEqual(
+            "bd07a64dc93757fd3ae5ec288cab34549de19dcc2341b227434bff708bc9f738",
+            canonical_ready_input_digest(resolution_input(graph())),
+        )
 
     def test_fixed_input_digest_vector(self) -> None:
         candidate = {

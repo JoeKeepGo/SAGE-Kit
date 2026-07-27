@@ -16,6 +16,9 @@ RESOURCE_NAMES = (
     "graph.schema.json",
     "node-result.schema.json",
 )
+EXPECTED_GRAPH_CONTRACT_SHA256 = (
+    "bdd68d8b252de9095831d9d6b802aecee133d85002f1281d1d836ff0a98b52a4"
+)
 EXPECTED_STAGE4D_PATHS = {
     "docs/contracts/graph/v1/contract.json",
     "docs/contracts/graph/v1/graph.schema.json",
@@ -129,6 +132,10 @@ class GraphContractV1Tests(unittest.TestCase):
             self.assertTrue(self.canonical[name].is_file())
             self.assertTrue(self.packaged[name].is_file())
             self.assertEqual(self.canonical[name].read_bytes(), self.packaged[name].read_bytes())
+        contract_digest = hashlib.sha256(
+            self.canonical["contract.json"].read_bytes().replace(b"\r\n", b"\n")
+        ).hexdigest()
+        self.assertEqual(EXPECTED_GRAPH_CONTRACT_SHA256, contract_digest)
 
     def test_resources_parse_and_use_stable_repository_neutral_identifiers(self):
         for path in (*self.canonical.values(), *self.packaged.values()):
@@ -300,14 +307,19 @@ class GraphContractV1Tests(unittest.TestCase):
         self.assertIn("light remains graph-artifact optional", compatibility)
         self.assertIn("does not activate graph execution", compatibility)
 
-    def test_terminal_external_gate_topology_is_language_neutral_and_inert(self):
-        topology = self.manifest["terminal_external_gate_topology"]
+    def test_external_gate_topology_migrates_to_requires_membership_semantics(self):
+        topology = self.manifest["external_gate_requires_topology"]
         self.assertEqual(
             ["manual-gate", "corrective-join"],
             topology["policies"],
         )
-        self.assertIn("Dependencies among nodes", topology["sink_rule"])
-        self.assertIn("every one of those joins", topology["sink_rule"])
+        membership_rule = topology["membership_rule"]
+        self.assertIn("within", membership_rule)
+        self.assertIn("are allowed", membership_rule)
+        self.assertIn("outside", membership_rule)
+        self.assertIn("is rejected", membership_rule)
+        self.assertIn("every such join", membership_rule)
+        self.assertIn("all external joins", topology["shared_membership_rule"])
         self.assertEqual(
             "nonterminal-external-join-prerequisite",
             topology["issue_code"],
@@ -319,6 +331,10 @@ class GraphContractV1Tests(unittest.TestCase):
         self.assertIn("no WAITING_GATE or SKIPPED", topology["non_goals"])
         schema_text = json.dumps(self.graph, ensure_ascii=False)
         self.assertIn("Dependencies among members", schema_text)
+        contract_text = json.dumps(self.manifest, ensure_ascii=False)
+        self.assertNotIn("terminal_external_gate_topology", contract_text)
+        self.assertNotIn("dependency sinks", contract_text)
+        self.assertNotIn("terminal topology", contract_text)
         reachability = self.manifest["reachability_truth"]
         self.assertIn("no entry or target", reachability["root_definition"])
         self.assertIn("UNREACHABLE", reachability["non_goal"])
