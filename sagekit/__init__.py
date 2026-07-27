@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "2026.7.28.3"
+__version__ = "2026.7.28.4"
 
 from .harness import (
     CompiledPacket,

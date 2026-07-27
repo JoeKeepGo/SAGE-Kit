@@ -57,7 +57,7 @@ Install the latest tagged release directly from GitHub:
 
 ```bash
 python -m pip install \
-  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.3"
+  "git+https://github.com/JoeKeepGo/SAGE-Kit.git@v2026.7.28.4"
 ```
 
 For local development:
@@ -184,8 +184,8 @@ compatible hosts.
 
 The Python package and the host Skill are deliberately separate installs. The
 package provides the Embedded Harness and canonical resources. To add agent
-routing, download the matching `sage-kit-skill-v2026.7.28.3.zip` and `.sha256`
-assets from the [release](https://github.com/JoeKeepGo/SAGE-Kit/releases/tag/v2026.7.28.3),
+routing, download the matching `sage-kit-skill-2026.7.28.4.zip`, its manifest,
+and `.sha256` asset from the [release](https://github.com/JoeKeepGo/SAGE-Kit/releases/tag/v2026.7.28.4),
 verify the checksum, then explicitly extract or sync the bundle through your
 host's Skill mechanism. Installing the Python package does not change a host
 Skill automatically.

@@ -94,7 +94,7 @@ def load_json(path: Path) -> object:
 
 class ThinExecutionContractResourceTests(unittest.TestCase):
     def test_frozen_execution_contract_is_independent_of_package_release(self):
-        self.assertEqual(__version__, "2026.7.28.3")
+        self.assertEqual(__version__, "2026.7.28.4")
         self.assertEqual(CONTRACT_VERSION, "2026.7.20.1")
         self.assertNotEqual(CONTRACT_VERSION, __version__)
 
