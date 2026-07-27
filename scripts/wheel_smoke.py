@@ -88,8 +88,17 @@ def installed_smoke_commands(python: Path) -> list[list[str]]:
         "assert not metadata.requires"
     )
     resource_probe = (
-        "import importlib.resources; "
+        "import importlib.resources, sagekit, sysconfig; "
+        "from pathlib import Path; "
+        "package_origin=Path(sagekit.__file__).resolve(); "
+        "site_packages={Path(value).resolve() for key,value in sysconfig.get_paths().items() "
+        "if key in ('purelib','platlib')}; "
+        "assert any(package_origin.is_relative_to(root) for root in site_packages), "
+        "f'sagekit imported outside installed site-packages: {package_origin}'; "
         "root=importlib.resources.files('sagekit').joinpath('resources'); "
+        "agent_harness=root.joinpath('docs/agent/AGENT_HARNESS.md'); "
+        "assert agent_harness.read_text(encoding='utf-8') != 'external Skill sibling decoy', "
+        "f'package resource resolved to external Skill sibling: {agent_harness}'; "
         "required=('contracts/v0/policy.json','contracts/v1/policy.json',"
         "'contracts/v2/policy.json',"
         "'execution_documents/2026.7.20.1/contract.json',"
@@ -484,10 +493,17 @@ def run_wheel_smoke(repository: Path) -> None:
             stage="wheel-install",
             temp_root=workspace,
         )
+        installed_skill = outside_source / "installed-skills" / "sage-kit"
+        shutil.copytree(source_snapshot / "skills/sage-kit", installed_skill)
+        sibling_decoy = (
+            installed_skill / "sagekit/resources/docs/agent/AGENT_HARNESS.md"
+        )
+        sibling_decoy.parent.mkdir(parents=True)
+        sibling_decoy.write_text("external Skill sibling decoy", encoding="utf-8")
         for command in installed_smoke_commands(python):
             run_trivial_probe(
                 command,
-                cwd=outside_source,
+                cwd=installed_skill,
                 environment=environment,
             )
 

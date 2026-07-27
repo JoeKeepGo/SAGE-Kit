@@ -1,9 +1,5 @@
 import json
-import os
 import re
-import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -81,38 +77,27 @@ class CanonicalResourceInventoryTests(unittest.TestCase):
             Path(str(resource)).resolve(),
         )
 
-    def test_site_packages_and_external_installed_skill_use_package_resources(self):
+    def test_source_package_locator_ignores_external_installed_skill_sibling(self):
+        from importlib import resources
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            site_packages = root / "site-packages"
             installed_skill = root / "installed-skills/sage-kit"
-            shutil.copytree(REPOSITORY / "sagekit", site_packages / "sagekit")
-            shutil.copytree(REPOSITORY / "skills/sage-kit", installed_skill)
             sibling_decoy = installed_skill / "sagekit/resources/docs/agent/AGENT_HARNESS.md"
             sibling_decoy.parent.mkdir(parents=True)
             sibling_decoy.write_text("sibling-relative decoy", encoding="utf-8")
 
-            script = (
-                "import sys\n"
-                f"sys.path.insert(0, {str(site_packages)!r})\n"
-                "from importlib import resources\n"
-                "from pathlib import Path\n"
-                "resource = resources.files('sagekit').joinpath("
-                "'resources/docs/agent/AGENT_HARNESS.md')\n"
-                "print(Path(str(resource)).resolve())\n"
-                "print(resource.read_text(encoding='utf-8')[:32])\n"
+            resource = resources.files("sagekit").joinpath(
+                "resources/docs/agent/AGENT_HARNESS.md"
             )
-            completed = subprocess.run(
-                [sys.executable, "-I", "-c", script],
-                cwd=installed_skill,
-                env=os.environ.copy(),
-                text=True,
-                capture_output=True,
-                check=True,
+            self.assertEqual(
+                (REPOSITORY / "sagekit/resources/docs/agent/AGENT_HARNESS.md").resolve(),
+                Path(str(resource)).resolve(),
             )
-            lines = completed.stdout.splitlines()
-            self.assertTrue(lines[0].startswith(str(site_packages.resolve())))
-            self.assertNotEqual("sibling-relative decoy", lines[1])
+            self.assertNotEqual(
+                sibling_decoy.read_text(encoding="utf-8"),
+                resource.read_text(encoding="utf-8"),
+            )
 
     def test_contract_manifests_name_the_package_resource_owner(self):
         for family in CONTRACT_FAMILIES:
