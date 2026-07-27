@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "corpus_id": "stage5-observed-failure-corpus-v1",
+  "role": "regression_fixture",
+  "normative": false,
+  "can_grant_authority": false,
+  "bounded_stage": 5,
+  "source_document_canonical_sha256": "d161a167e8815d2589a5e4b538ee3ffd36a7a950610a9addf83482e3c7f43d74",
+  "cases": [
+    {
+      "case_id": "case-001",
+      "source_scenario_sha256": "dad232269d5acd826f6c4be8e7bc624c0fb21daae4a95852a5fb40fd2e508917",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 8,
+      "source_ref_sha256": [
+        "70fde1994e7c8a1fe51c7b34f6d8f1c3034400987ee05b338ac9078785ca8a45",
+        "2e83066b8945a1c6a1fa6725394db8f5da3701f6613001286cd543adefbf2e01",
+        "d2e0894c3b5d5b254a43cce4cd078ff3bbdf32dea16be424169e6a34e96c37ee"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "case_id": "case-002",
+      "source_scenario_sha256": "c1a9398ae93edccc70dc6d3200f3135b0678193e86e8051c08e94503c5c201f4",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 8,
+      "source_ref_sha256": [
+        "0d3907b70920b645e39528083e0a9f0712638bef10501663b31cfbb9bbf7d7f9",
+        "495ce83c0699f93f732edc6c3896b0af8402526d229ef70760d9500f04538c2a",
+        "f9d405674b94eacba3907c1e59649d582d4102d1e46148ec78fa1373c1302dd6"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "case_id": "case-003",
+      "source_scenario_sha256": "5467c854a2fef165cb5b09925ddcc1820a66cc43b67ea7be843d781964b58b76",
+      "provenance_status": "prospective_hypothesis",
+      "admission_status": "hypothesis_unadmitted",
+      "first_relevant_stage": 3,
+      "source_ref_sha256": [],
+      "disposition": "reference_only",
+      "can_block": false,
+      "test_execution": false
+    },
+    {
+      "case_id": "case-004",
+      "source_scenario_sha256": "6d902bf60e901fefd4c50ea68bbe3b648c67317db5d7f9ce58ed1d92216bbfe0",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 3,
+      "source_ref_sha256": [
+        "a707b7cf1775cd904fc006cf5dc7b122fa466b17946b6675eaeea80370a55f08",
+        "fc5afe608181670e19e812ff2f26774af6bbb57f28a51cc06a19b53b620ea46f",
+        "53be8f90d97392c58482b10649b13bd64a65d19db8e80b7adfdbc5cfe7b4b06c",
+        "7c51e82ff3f55b9965c88769baf19e687cf27b2563251453187c9f6748204443"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "case_id": "case-005",
+      "source_scenario_sha256": "c0cf15be63787e3b515e5b0c55f275d7829359f6db44a0e738bdde05c8248661",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 3,
+      "source_ref_sha256": [
+        "b60fd60fb5ba2cc09ff69724507dfc6ee4557dda87dd91cb3e83c9d105648f4b",
+        "09769c926ce9e13bab986f78505ad60df01b1ef0b53c6f8555c7f44d8d499a20",
+        "da494224fdb2d92c75b2631a98d5d9c856bcfd5bba19abc01a043486350b0d09",
+        "9dd3723e318e0e21d20867d118c8ea3471aaa59e6f6ce972bbb540b7effb5f96"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "case_id": "case-006",
+      "source_scenario_sha256": "07f3313f7abdbf75b1c98b1ee2e2394c0f3b7d3463ead098bdf1183c2823029f",
+      "provenance_status": "observed_failure",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 3,
+      "source_ref_sha256": [
+        "008dbdebcb2621310958f259ac747cbb53c66947ce877b6bb466f9c4751ccd71",
+        "bde155d47f8d308b4704e2042b6ade7c318a1755732278eaea35ff87fb9db2df",
+        "48e9be59abe2f1c147f440b532e6cbe67949e228af2ac66efd8e9577b8595b03"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "case_id": "case-007",
+      "source_scenario_sha256": "91e18455b06fb363eae7663450d8aa1cef5dd846d7431920c93acfc91ec2feea",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 5,
+      "source_ref_sha256": [
+        "233df8cf1593395dbf8ab77fa88db914168334bf56a74f7ecf349ce741d51464",
+        "9a3aeb311095a42300be22ac233e13f8b2a00caa781b4c78a9c25b835a11c952",
+        "59f18cab7bcddecf032c48d42522fdbe48ffd48dc7829ba3eae7463dcee1e0c9"
+      ],
+      "disposition": "executable",
+      "adapter": "duplicate-full-review",
+      "input": {
+        "candidate_unchanged": true,
+        "prior_final_runs": 1,
+        "proposed_run_kind": "full-suite"
+      },
+      "expected": {
+        "decision": "reject",
+        "state": "HANDOFF_READY",
+        "allowed_to_run": false,
+        "final_runs_after": 1
+      }
+    },
+    {
+      "case_id": "case-008",
+      "source_scenario_sha256": "954adb73a1a858cdfc47102a1d42c1af8c21b0451bedaef5fd4f0e38ffa18e58",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 5,
+      "source_ref_sha256": [
+        "6bad70794c0a4e8251d1231fff842b400907f439e59870d88bb0eaa0f9bfd8f1",
+        "4da4df8e5089919c23f251c1e7e188f73985496e9e026962c68a6978805cdb97",
+        "7de775dd0e287f91eaf59419094245754b664e13d4467751bc0674f4fc395dbd"
+      ],
+      "disposition": "executable",
+      "adapter": "status-only-targeted-review",
+      "input": {
+        "initial_review_complete": true,
+        "changed_fields": [
+          "status"
+        ],
+        "semantic_change": false,
+        "authority_change": false
+      },
+      "expected": {
+        "selected_scope": "targeted",
+        "full_review": false,
+        "state_before_targeted_close": "HANDOFF_READY",
+        "state_after_targeted_close": "CONTINUE"
+      }
+    },
+    {
+      "case_id": "case-009",
+      "source_scenario_sha256": "54c2fe6444982015e0fe31a575dc78c1adf75abdc53eadf0ae74fa212a36c39e",
+      "provenance_status": "observed_failure",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 5,
+      "source_ref_sha256": [
+        "51e3613844c403c662ef549874740b974d03f7e86111f40db35d4426d14fd54d",
+        "c130213516880d658aa437e91f4d14383b8a0825b14bd4b2ab3d99b1eeeef15f",
+        "1a6f1202da3c6f00274a05f5b6adf8338f9fe649d5487a2357008fd0fba03b6b",
+        "355331650aefc7a229c0ca183f77d51a9ddc8aefc0926092f6d000e5ad54a003"
+      ],
+      "disposition": "executable",
+      "adapter": "deterministic-whitespace-normalization",
+      "input": {
+        "vectors": [
+          {
+            "kind": "extra-blank-line-at-eof",
+            "before_b64": "dmFsdWUK",
+            "after_b64": "dmFsdWUKCg=="
+          },
+          {
+            "kind": "missing-final-newline",
+            "before_b64": "dmFsdWUK",
+            "after_b64": "dmFsdWU="
+          },
+          {
+            "kind": "trailing-spaces-tabs",
+            "before_b64": "dmFsdWUK",
+            "after_b64": "dmFsdWUgCQo="
+          }
+        ]
+      },
+      "expected": {
+        "decision": "AUTO_NORMALIZATION_CORRECTIVE",
+        "vectors": [
+          {
+            "kind": "extra-blank-line-at-eof",
+            "auto_eligible": true,
+            "normalized_b64": "dmFsdWUK",
+            "semantic_digest_preserved": true
+          },
+          {
+            "kind": "missing-final-newline",
+            "auto_eligible": true,
+            "normalized_b64": "dmFsdWUK",
+            "semantic_digest_preserved": true
+          },
+          {
+            "kind": "trailing-spaces-tabs",
+            "auto_eligible": true,
+            "normalized_b64": "dmFsdWUK",
+            "semantic_digest_preserved": true
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "case-010",
+      "source_scenario_sha256": "835c51fdda41f9e87379726aa727d12218241a3fd70494f2c2b9a25befbad4e9",
+      "provenance_status": "prospective_hypothesis",
+      "admission_status": "hypothesis_unadmitted",
+      "first_relevant_stage": 7,
+      "source_ref_sha256": [
+        "00a7f2f6ff6679af58a82d3c341f6bc4648975f5bf5a22b02ff4a8744efc8b4d",
+        "57c5bcccfff77a91402a33d38af1da6e75e31f1a18a4e3ccde96cb73f9098908"
+      ],
+      "disposition": "reference_only",
+      "can_block": false,
+      "test_execution": false
+    },
+    {
+      "case_id": "case-011",
+      "source_scenario_sha256": "2521e968b6226dc951510ce51f2230ddc04b7e2657f99a1b7baf0ce8cb65456c",
+      "provenance_status": "direct_regression",
+      "admission_status": "admitted_candidate",
+      "first_relevant_stage": 7,
+      "source_ref_sha256": [
+        "0fc3a9d78f233c79e9a457c72c6b915b91b61f8c29673ac8fb1fe379981ea0a2",
+        "ebf9f2baa674200ebabedeec0ce4832e8beed622f9356628441b79250f490be0",
+        "17ed5d6f1492f8b0ed604a63a1050c3460d6211efc5b23e21c5db5d361f55554"
+      ],
+      "disposition": "reference_only"
+    },
+    {
+      "case_id": "case-012",
+      "source_scenario_sha256": "47e913e167fd396ce904d2a2f99d1dbc539f3a94bd39ca47188e5d0646b916cf",
+      "provenance_status": "prospective_hypothesis",
+      "admission_status": "hypothesis_unadmitted",
+      "first_relevant_stage": 2,
+      "source_ref_sha256": [],
+      "disposition": "reference_only",
+      "can_block": false,
+      "test_execution": false
+    }
+  ]
+}
