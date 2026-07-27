@@ -1,157 +1,64 @@
 # Host Resource Governance
 
-This document defines the reusable execution boundary for adopted SAGE-Kit
-projects. Milestone and phase manifests reference the versioned
-`conservative-host-v1` profile instead of copying these rules.
+This document defines the runtime-neutral canonical host boundary for adopted
+SAGE-Kit projects. A runtime adapter may implement this contract, but it must
+report its actual capability and limitations rather than extend the contract.
+Authority precedence remains with `docs/SAGE_CORE.md#sage-auth-001`.
 
-## Runtime and leases
+This document does not redefine Core, Loop, Graph, or Harness authority. Their
+Stage 1 owner anchors remain authoritative; host governance only constrains how
+an already-authorized operation uses host resources.
 
-Host records use the current user's runtime location:
+## Root Supervision
 
-- Windows: `%LOCALAPPDATA%\SAGE-Kit\runtime`.
-- macOS and Linux: `XDG_RUNTIME_DIR/sage-kit` when available; otherwise the
-  current user's platform cache directory.
+The Root controller is the sole host-resource supervisor. Only Root may
+authorize, launch, observe, release, or decide the outcome of a managed host
+operation. Workers and adapters may request a bounded operation and return its
+evidence, but cannot acquire an independent host authority, elevate a bound,
+or decide a host gate.
 
-Git projects store claim records below the Git common directory at
-`.git/sagekit/runtime`. Claim names keep `repo-write` scoped to the canonical
-worktree identity, while `submit-exclusive` and Git index/commit/push mutation
-remain scoped to the Git common directory. Non-Git projects use
-`.sagekit/runtime`. These records are runtime state and must not be committed.
+Before a managed operation, Root binds the active authority, workspace,
+writable and forbidden surface, resource class, concurrency limit, timeout,
+expected evidence, and stop condition. A changed binding, occupied resource,
+or failed precondition must use the authority-defined wait, handoff, or blocker
+state; it must not silently widen execution.
 
-Each schema-v2 atomic lease record binds its ID, class,
-host/project/worktree identities, run, controller, owner PID and
-process-creation identity, nonce, timestamps, stage, authority digest,
-permission mode, allowed classes, exclusive resources, claims, optional parent
-lease, and only the SHA-256 of a delegation secret. The secret itself is held
-by the Root controller and passed only to an explicitly delegated direct child.
-Heartbeat and release verify the owner. Expired leases are reclaimed only when
-the process probe proves the recorded instance dead or reused; an unknown probe
-result remains occupied instead of being reclaimed.
+## Descendant Inheritance
 
-The profile permits one host `cpu-heavy` claim, one host `package-build`
-claim, one writer per worktree, and one Git-common-dir submit/index mutation.
-Named runtime resources cover values such as a database or port. A
-reasoning-only authority cannot start a local command. A normal descendant
-cannot acquire a lease or start another managed command. Product-internal
-delegation additionally verifies the private secret, direct parent PID,
-reliable process-creation identity, workspace, authority, permission, and class
-ceiling. On first use, the capability is atomically bound to that direct
-child's PID and creation identity; unknown creation identity fails closed. A
-delegated lease cannot delegate again, and delegation credentials are scrubbed
-before it launches a managed child. Root-managed children receive no lease ID
-or secret unless the Root explicitly names executable delegated classes.
+Every managed descendant inherits the Root-approved binding, including the
+workspace, authority ceiling, resource limit, timeout, and containment
+expectation. A descendant cannot transfer, re-delegate, or elevate that binding
+unless the Root-approved contract explicitly permits the next boundary and it
+is bound again there. Compaction, handoff, resume, and re-entry do not clear
+these restrictions.
 
-On Windows, the trusted gated Job bootstrap is the physical direct child. It
-verifies the parent lease and pre-binds the real target's PID and creation
-identity before delegated reuse is accepted. Only that exact target identity is
-accepted; its children cannot reuse or transfer the delegation capability.
+Runtime adapters must report whether descendant inheritance was established
+for the operation. A missing or incomplete inheritance report is evidence of a
+limited boundary, not proof of complete containment.
 
-## Workspace binding
+## Enforcement Levels
 
-Execution packet schema v2 binds the canonical repository, worktree and project
-roots, Git common directory, branch, HEAD/base HEAD, permission, controller,
-allowed/read-only/forbidden paths, and a SHA-256 binding digest.
-`base_head` is signed compile-time provenance. Runtime verification rejects a
-different bound `head`; it does not infer or enforce an ancestor relationship
-from `base_head`.
+Containment is reported per managed operation with one of these levels:
 
-Check the binding before execution:
+| Level | Meaning |
+|---|---|
+| `HARD` | The selected host mechanism demonstrably constrains the complete launched process tree for the declared boundary. |
+| `MANAGED` | The runtime manages the normal launched process group or tree, but cannot prove that deliberate or malicious escape is impossible. |
+| `SOFT` | The boundary relies on command, agent, or provider cooperation and can be bypassed outside the managed path. |
 
-```text
-sagekit.verify_project_workspace(binding, ...)
-```
+`HARD` is never inferred from intent, an adapter name, or a successful command.
+`MANAGED` and `SOFT` must preserve their stated limitations. The broader
+interception guarantee remains `SOFT` whenever an agent, plugin, shell, or
+arbitrary child can bypass the managed boundary. No adapter may report a
+stronger level than the selected host mechanism actually supplies.
 
-A different repository, worktree, branch, HEAD, Git common directory, or an
-allowed path crossing a symlink/reparse point fails verification. Binding is
-verified again after any lease wait and immediately before process launch, so
-the lease and Workspace Binding must be valid together. `repo-write` supplies
-the worktree writer claim; `submit-exclusive` also supplies the Git-common-dir
-index/commit/push claim.
+## Resource and Evidence Boundary
 
-## Profiles and concurrency
+Root serializes conflicting resource use according to the active contract and
+keeps waiting distinct from test, review, or implementation failure. A managed
+operation records its binding, resource decision, containment level, descendant
+inheritance result, result, cleanup status, limitations, and concise output.
 
-- Light: Root only, one writer, and one local managed command.
-- Standard: Root plus at most two active reasoning-only subagents, one writer,
-  and one host CPU-heavy/package node.
-- Heavy: Root plus at most four active reasoning-only/review subagents. At most
-  two writers are allowed only in different worktrees with disjoint writable
-  paths, an explicit integration owner, and no concurrent edits to main or
-  shared integration files. Host CPU-heavy and package-build leases remain one.
-
-Agents may analyze or edit independent files concurrently when their authority
-allows it. Conflicting test/build nodes enter `WAITING_FOR_RESOURCE` and
-continue automatically after lease release. Total historical subagent
-invocations are not a blocking limit; active concurrency is. Do not dispatch
-duplicate readers, duplicate tests, or unbounded descendant trees.
-
-## Managed commands
-
-The Harness owns lease lifecycle and exposes one supervised command boundary:
-
-```text
-sagekit.verify_project_workspace(binding, ...)
-sagekit.run_managed_command(project_root, packet, command, ...)
-```
-
-When a claim is occupied, the default bounded wait is 30 seconds unless the
-packet policy sets a lower ceiling. The runtime
-emits `WAITING_FOR_RESOURCE` immediately and every 30 seconds, polls once per
-second, continues automatically after release, and returns `HANDOFF_READY`
-when the wait bound expires. Waiting is recorded separately from verification
-and is not a test failure.
-
-Commands use argv with `shell=False`. Child environments set the supported
-thread hints to one and disable interactive Git prompts. Output pipes are
-drained concurrently while only a bounded tail is retained.
-The conservative policy stops a node when low-frequency sampling observes more
-than 32 owned processes. This sampled guard is not a cgroup/PID hard limit.
-
-Containment levels are explicit. `HARD` means the OS constrains the complete
-launched process tree, including intentional or accidental descendants.
-`MANAGED` means SAGE-Kit manages the normal process group/job and descendants
-but cannot prove malicious escape impossible. `SOFT` means only command/agent
-cooperation with `sagekit.run_managed_command(...)` supplies the boundary. The conservative
-profile requires at least `MANAGED`; a request for `HARD` is rejected before
-target launch when the selected adapter cannot supply it.
-
-On Windows, `windows-job-object-gated-v1` starts a trusted bootstrap that waits
-for `GO`. The parent binds that bootstrap to a kill-on-close Job Object before
-releasing it to launch the target argv. Binding failure never starts the target.
-Descendants inherit the Job, and timeout terminates the Job and waits for zero
-active processes. A successful gated run reports `HARD`.
-
-On macOS and Linux, `posix-session-process-group-v1` starts the child in a new
-session/process group. Cleanup
-uses SIGTERM, a bounded grace period, SIGKILL when needed, and reap/wait. Linux
-also enables subreaper behavior when the kernel call is available. A child can
-deliberately call `setsid`, so the adapter reports `MANAGED`, not `HARD`.
-Linux cgroup v2 and stronger macOS sandbox adapters are optional future `HARD`
-adapters, not missing v1 gates. The current implementation does not impose
-cgroup memory/PID limits or an FD hard limit.
-
-Every `sagekit.run_managed_command(...)` process result reports `containment_level`,
-`containment_complete`, `cleanup_complete`, `orphan_check`, `platform_adapter`,
-and `limitations`.
-
-## Serial verification
-
-The root verification controller is the only launcher for expensive local
-nodes. It validates project and gate state with `sagekit.check_project(...)`
-and launches approved commands with `sagekit.run_managed_command(...)`.
-
-`final` plans `focused -> unit -> integration -> source-repo -> package`.
-Each node has one lease, one temp root, a stage, current-test heartbeat, timeout,
-bounded output, metrics, process-tree cleanup, and release. The
-`waive_high_load=True` records source-repo and package nodes as
-`WAIVED`; it does not record them as passing.
-
-## Enforcement boundary
-
-Commands routed through the Windows gated adapter may receive `HARD` process
-tree containment and POSIX process-group runs receive `MANAGED`. The broader
-runtime interception guarantee remains `SOFT`: SAGE-Kit checks commands routed
-through packet/workspace verification and `sagekit.run_managed_command(...)`. It does not
-intercept an agent, plugin, shell, or arbitrary child that bypasses that
-boundary. Known mutation argv is rejected for read-only authority, but
-arbitrary program behavior remains a soft guarantee and must also be controlled
-by the host runtime and the root controller.
+That record is external execution evidence only. It does not create authority,
+turn a gate into `PASS`, establish `DONE`, or alter Graph, Loop, or Harness
+authority. Final acceptance and completion remain with their Stage 1 owners.
