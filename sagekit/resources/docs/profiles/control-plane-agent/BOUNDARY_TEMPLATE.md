@@ -1,41 +1,17 @@
-# Boundary Template
+# Boundary Template (Compatibility Alias)
 
-This file is retained as a short alias for
-`CONTROL_BOUNDARY_TEMPLATE.md`.
+`BOUNDARY_TEMPLATE.md` remains a stable compatibility pointer to the canonical
+`docs/profiles/control-plane-agent/CONTROL_BOUNDARY_TEMPLATE.md`. Use the
+canonical template for its components,
+trust boundary, forbidden paths, and contract-owner fields; this alias creates
+no second boundary authority.
 
-Prefer using `CONTROL_BOUNDARY_TEMPLATE.md` for new projects.
+The canonical template records only this profile's project-specific capability
+and authority delta. Core authority is canonical at
+`docs/SAGE_CORE.md#sage-auth-001`, adapter authority at
+`docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`, Graph semantics at
+`docs/SAGE_CORE.md#sage-grf-001`, and execution-loop semantics at
+`docs/agent/PHASE_EXECUTION.md#execution-loop`.
 
----
-
-# Control Boundary Template
-
-Use this document to define the boundary between a control plane and an
-execution agent, worker, or runtime component.
-
-## Components
-
-| Component | Owns | Does Not Own |
-|---|---|---|
-| Control plane | Product state, user-facing API, permissions, audit, UI, orchestration. | Local execution internals or hidden side effects. |
-| Execution agent | Scoped execution, local observation, capability report, execution result. | Product users, permissions, durable product state, browser-facing policy. |
-
-## Trust Boundary
-
-- Browser-facing clients talk only to the control plane.
-- The control plane validates requests before calling the execution agent.
-- The execution agent returns scoped observations and results.
-- The control plane redacts and normalizes responses before exposing them.
-
-## Forbidden Paths
-
-- Browser-to-agent direct calls.
-- Agent-owned product authorization.
-- Hidden mutation without audit.
-- Raw secrets in UI, logs, reports, or responses.
-- Protocol fallback that treats unknown errors as success.
-
-## Contract Owner
-
-| Contract | Owner | Consumers | Compatibility Rule |
-|---|---|---|---|
-| `<contract>` | `<owner>` | `<consumers>` | `<rule>` |
+This file's presence does not activate the control-plane-agent profile; project
+authority must activate any optional profile explicitly.
