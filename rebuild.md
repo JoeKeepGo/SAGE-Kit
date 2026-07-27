@@ -1,8 +1,8 @@
 # SAGE-Kit Incremental Rebuild
 
-Status: living product blueprint, not final authority  
-Scope: SAGE-Kit product architecture and implementation sequencing  
-Execution model: incremental, compatibility-preserving, evidence-driven  
+Status: living product blueprint, not final authority
+Scope: SAGE-Kit product architecture and implementation sequencing
+Execution model: incremental, compatibility-preserving, evidence-driven
 
 This file records the current rebuild direction. It is deliberately not a new
 governance contract. Existing project authority remains in the adopted SAGE-Kit
