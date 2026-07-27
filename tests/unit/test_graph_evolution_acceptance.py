@@ -19,11 +19,15 @@ from sagekit.graph_evolution_convergence import (
 )
 from sagekit.graph_evolution_contract import canonical_graph_evolution_digest
 from sagekit.graph_evolution_proposal import build_graph_evolution_proposal
+from sagekit.graph_contract import canonical_graph_digest
 from sagekit.review import (
     DeterministicEvaluatorAssignment,
     DeterministicReceipt,
     EvaluatorKind,
     EvaluatorSelection,
+    EvaluatorVerdict,
+    FreshContextEvaluatorAssignment,
+    FreshContextReceipt,
     ReceiptStatus,
     ReviewTopology,
 )
@@ -38,6 +42,8 @@ from tests.unit.test_graph_evolution_proposal import (
 ORACLE_REF = "oracle/graph-evolution"
 INPUT_FINGERPRINT = "1" * 64
 RESULT_FINGERPRINT = "2" * 64
+AUTHOR_ASSIGNMENT_DIGEST = "3" * 64
+EVALUATOR_ASSIGNMENT_DIGEST = "4" * 64
 
 
 def convergence_authority() -> PreauthorizedConvergenceAuthority:
@@ -93,16 +99,51 @@ def evaluator_inputs():
     return selection, receipt, assignment
 
 
-def lineage_outcome(*, reuse_final: bool = False) -> EvidenceLineageOutcome:
+def fresh_evaluator_inputs(
+    *,
+    author_identity: str = "node/controller",
+    evaluator_identity: str = "principal/external-reviewer",
+):
+    selection = EvaluatorSelection(
+        EvaluatorKind.FRESH_CONTEXT,
+        ReviewTopology.HEAVY,
+        None,
+    )
+    assignment = FreshContextEvaluatorAssignment(
+        author_identity,
+        evaluator_identity,
+        AUTHOR_ASSIGNMENT_DIGEST,
+        EVALUATOR_ASSIGNMENT_DIGEST,
+    )
+    receipt = FreshContextReceipt(
+        author_identity,
+        evaluator_identity,
+        AUTHOR_ASSIGNMENT_DIGEST,
+        EVALUATOR_ASSIGNMENT_DIGEST,
+        EvaluatorVerdict.PASS,
+    )
+    return selection, receipt, assignment
+
+
+def lineage_outcome(
+    *,
+    reuse_final: bool = False,
+    graph=None,
+) -> EvidenceLineageOutcome:
     disposition = "REUSE" if reuse_final else "INVALIDATE"
     reasons = ["FINGERPRINTS_MATCH"] if reuse_final else ["CANDIDATE_CHANGED"]
+    graph_digest = (
+        request("ADD_VERIFICATION")["parent_graph_digest"]
+        if graph is None
+        else canonical_graph_digest(graph)
+    )
     return EvidenceLineageOutcome._from_result(
         {
             "schema_id": "urn:sagekit:evidence-lineage:v1:result",
             "schema_version": 1,
             "graph_id": "graph/spec",
             "graph_generation": 7,
-            "graph_digest": request("ADD_VERIFICATION")["parent_graph_digest"],
+            "graph_digest": graph_digest,
             "decisions": {
                 "evidence/final": {
                     "disposition": disposition,
@@ -130,8 +171,21 @@ def resolve(
     pm_acceptance=None,
     proposal_outcome=None,
     authority=None,
+    evaluator_selection=None,
+    evaluator_receipt=None,
+    evaluator_assignment=None,
+    parent=None,
 ):
-    selection, receipt, assignment = evaluator_inputs()
+    if (
+        evaluator_selection is None
+        and evaluator_receipt is None
+        and evaluator_assignment is None
+    ):
+        (
+            evaluator_selection,
+            evaluator_receipt,
+            evaluator_assignment,
+        ) = evaluator_inputs()
     lineage = (
         lineage_outcome(reuse_final=operation == "NO_CHANGE")
         if lineage is None
@@ -143,7 +197,7 @@ def resolve(
         return_value=lineage,
     ):
         return resolve_graph_evolution_acceptance(
-            parent_graph(),
+            parent_graph() if parent is None else parent,
             request(operation) if req is None else req,
             preauthorization() if preauth is None else preauth,
             {"frozen": "lineage-source"},
@@ -153,9 +207,9 @@ def resolve(
                 if current_evidence is None
                 else current_evidence
             ),
-            selection,
-            receipt,
-            assignment,
+            evaluator_selection,
+            evaluator_receipt,
+            evaluator_assignment,
             previous_convergence=previous,
             pm_acceptance=pm_acceptance,
             proposal_outcome=proposal_outcome,
@@ -284,6 +338,106 @@ class GraphEvolutionAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(GraphEvolutionAcceptanceCode.REJECTED, outcome.code)
         self.assertEqual(ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED, outcome.receipt_status)
+
+    def test_fresh_evaluator_must_be_external_to_acceptor(self) -> None:
+        selection, receipt, assignment = fresh_evaluator_inputs(
+            evaluator_identity="node/verify",
+        )
+
+        outcome = resolve(
+            "ADD_VERIFICATION",
+            evaluator_selection=selection,
+            evaluator_receipt=receipt,
+            evaluator_assignment=assignment,
+        )
+
+        self.assertEqual(GraphEvolutionAcceptanceCode.REJECTED, outcome.code)
+        self.assertEqual(
+            ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED,
+            outcome.receipt_status,
+        )
+
+    def test_fresh_evaluator_aliasing_pm_authority_fails_closed(self) -> None:
+        for authority_id, evaluator_identity in (
+            ("pm/rebuild", "pm/rebuild"),
+            ("pm/rebuild", "ＰＭ／ＲＥＢＵＩＬＤ"),
+        ):
+            with self.subTest(evaluator_identity=evaluator_identity):
+                graph = parent_graph()
+                graph["nodes"][1]["id"] = authority_id
+                graph["joins"][0]["requires"][1] = authority_id
+                graph_digest = canonical_graph_digest(graph)
+                req = request("ADD_VERIFICATION")
+                req["parent_graph_digest"] = graph_digest
+                req["authority"]["authority_id"] = authority_id
+                preauth = preauthorization()
+                preauth["parent_graph_digest"] = graph_digest
+                preauth["authority"]["authority_id"] = authority_id
+                preauth["allowed_node_ids"].append(authority_id)
+                preauth["evaluator"]["node_id"] = authority_id
+                authority = PreauthorizedConvergenceAuthority(
+                    **{
+                        **convergence_authority().to_dict(),
+                        "authority_id": authority_id,
+                    }
+                )
+                selection, receipt, assignment = fresh_evaluator_inputs(
+                    evaluator_identity=evaluator_identity,
+                )
+
+                outcome = resolve(
+                    "ADD_VERIFICATION",
+                    req=req,
+                    preauth=preauth,
+                    lineage=lineage_outcome(graph=graph),
+                    authority=authority,
+                    evaluator_selection=selection,
+                    evaluator_receipt=receipt,
+                    evaluator_assignment=assignment,
+                    parent=graph,
+                )
+
+                self.assertEqual(
+                    GraphEvolutionAcceptanceCode.REJECTED,
+                    outcome.code,
+                )
+                self.assertEqual(
+                    ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED,
+                    outcome.receipt_status,
+                )
+
+    def test_external_fresh_evaluator_is_bound_to_assignment_digests(self) -> None:
+        selection, receipt, assignment = fresh_evaluator_inputs()
+
+        accepted = resolve(
+            "ADD_VERIFICATION",
+            evaluator_selection=selection,
+            evaluator_receipt=receipt,
+            evaluator_assignment=assignment,
+        )
+        forged_receipt = FreshContextReceipt(
+            "node/controller",
+            "principal/receipt-only-reviewer",
+            "5" * 64,
+            "6" * 64,
+            EvaluatorVerdict.PASS,
+        )
+        rejected = resolve(
+            "ADD_VERIFICATION",
+            evaluator_selection=selection,
+            evaluator_receipt=forged_receipt,
+            evaluator_assignment=assignment,
+        )
+
+        self.assertEqual(
+            GraphEvolutionAcceptanceCode.AUTO_ACCEPTED,
+            accepted.code,
+        )
+        self.assertEqual(GraphEvolutionAcceptanceCode.REJECTED, rejected.code)
+        self.assertEqual(
+            ReceiptStatus.INVALID_RECEIPT,
+            rejected.receipt_status,
+        )
 
     def test_sources_are_snapshotted_before_validation(self) -> None:
         req = request("ADD_VERIFICATION")

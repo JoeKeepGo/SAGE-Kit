@@ -327,23 +327,33 @@ def _independent_evaluator(
     assignment: object,
 ) -> bool:
     proposer_id = request["proposer"]["node_id"]
-    evaluator_id = preauthorization["evaluator"]["node_id"]
-    authority_id = preauthorization["authority"]["authority_id"]
-    if (
-        _identity_key(proposer_id) == _identity_key(evaluator_id)
-        or _identity_key(proposer_id) == _identity_key(authority_id)
-    ):
-        return False
+    acceptor_id = preauthorization["evaluator"]["node_id"]
+    authority_ids = (
+        request["authority"]["authority_id"],
+        preauthorization["authority"]["authority_id"],
+    )
+    internal_principals = {
+        _identity_key(proposer_id),
+        _identity_key(acceptor_id),
+        *(_identity_key(authority_id) for authority_id in authority_ids),
+    }
+
     if type(assignment) is _review.FreshContextEvaluatorAssignment:
         return (
             _identity_key(assignment.author_identity)
-            != _identity_key(assignment.evaluator_identity)
+            == _identity_key(proposer_id)
             and _identity_key(assignment.evaluator_identity)
-            == _identity_key(evaluator_id)
-            and _identity_key(assignment.evaluator_identity)
-            != _identity_key(proposer_id)
+            not in internal_principals
+            and assignment.author_assignment_digest
+            != assignment.evaluator_assignment_digest
         )
-    return True
+    if type(assignment) is _review.DeterministicEvaluatorAssignment:
+        evaluator_key = _identity_key(acceptor_id)
+        return evaluator_key not in {
+            _identity_key(proposer_id),
+            *(_identity_key(authority_id) for authority_id in authority_ids),
+        }
+    return False
 
 
 def _lineage_issue_codes(
