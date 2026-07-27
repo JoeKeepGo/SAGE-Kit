@@ -86,7 +86,21 @@ def git(root, *args):
 
 def init_repository(root):
     baseline = _baseline_repository()
-    shutil.copytree(baseline, root, dirs_exist_ok=True, symlinks=True)
+    git_directory = (baseline / ".git").resolve()
+
+    def ignore_git_locks(source, names):
+        source_path = Path(source).resolve()
+        if source_path == git_directory or git_directory in source_path.parents:
+            return [name for name in names if name.endswith(".lock")]
+        return []
+
+    shutil.copytree(
+        baseline,
+        root,
+        dirs_exist_ok=True,
+        symlinks=True,
+        ignore=ignore_git_locks,
+    )
 
 
 def _baseline_repository():
@@ -104,6 +118,52 @@ def _baseline_repository():
     git(baseline, "commit", "-m", "test baseline")
     _BASELINE_REPOSITORY = baseline
     return baseline
+
+
+class RepositoryFixtureTests(unittest.TestCase):
+    def test_init_repository_omits_only_git_lock_artifacts(self):
+        with tempfile.TemporaryDirectory() as baseline_temp:
+            baseline = Path(baseline_temp)
+            git_objects = baseline / ".git" / "objects"
+            git_objects.mkdir(parents=True)
+            (git_objects / "maintenance.lock").write_text("", encoding="utf-8")
+            (baseline / "required.lock").write_text(
+                "repository content\n",
+                encoding="utf-8",
+            )
+
+            with tempfile.TemporaryDirectory() as destination_temp:
+                destination = Path(destination_temp)
+                with mock.patch(
+                    "tests.test_execution_economy._baseline_repository",
+                    return_value=baseline,
+                ):
+                    init_repository(destination)
+
+                self.assertFalse(
+                    (destination / ".git" / "objects" / "maintenance.lock").exists()
+                )
+                self.assertEqual(
+                    "repository content\n",
+                    (destination / "required.lock").read_text(encoding="utf-8"),
+                )
+
+    def test_init_repository_surfaces_unrelated_copy_failure(self):
+        copy_failure = shutil.Error(
+            [("source", "destination", "malformed repository content")]
+        )
+
+        with mock.patch(
+            "tests.test_execution_economy._baseline_repository",
+            return_value=Path("baseline"),
+        ), mock.patch(
+            "tests.test_execution_economy.shutil.copytree",
+            side_effect=copy_failure,
+        ):
+            with self.assertRaises(shutil.Error) as raised:
+                init_repository(Path("destination"))
+
+        self.assertIs(copy_failure, raised.exception)
 
 
 def commit_change(root, content):
