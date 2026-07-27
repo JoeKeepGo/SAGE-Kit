@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from unicodedata import normalize
 
 from .change_control import RunState
 from .execution_limits import ExecutionLimits
@@ -141,6 +142,54 @@ class EvaluatorSelection:
 
 
 @dataclass(frozen=True)
+class DeterministicEvaluatorAssignment:
+    oracle_ref: str
+    input_fingerprint: str
+    result_fingerprint: str
+
+    def __post_init__(self) -> None:
+        _bounded_text(self.oracle_ref, "oracle ref", MAX_ORACLE_REF)
+        _validate_fingerprint(self.input_fingerprint, "input fingerprint")
+        _validate_fingerprint(self.result_fingerprint, "result fingerprint")
+
+
+@dataclass(frozen=True)
+class FreshContextEvaluatorAssignment:
+    author_identity: str
+    evaluator_identity: str
+    author_assignment_digest: str
+    evaluator_assignment_digest: str
+
+    def __post_init__(self) -> None:
+        _bounded_text(
+            self.author_identity,
+            "author identity",
+            MAX_EVALUATOR_IDENTITY,
+        )
+        _bounded_text(
+            self.evaluator_identity,
+            "evaluator identity",
+            MAX_EVALUATOR_IDENTITY,
+        )
+        _validate_fingerprint(
+            self.author_assignment_digest,
+            "author assignment digest",
+        )
+        _validate_fingerprint(
+            self.evaluator_assignment_digest,
+            "evaluator assignment digest",
+        )
+        if (
+            _identity_alias_key(self.author_identity)
+            == _identity_alias_key(self.evaluator_identity)
+            or self.author_assignment_digest == self.evaluator_assignment_digest
+        ):
+            raise ValueError(
+                "fresh-context assignment requires distinct canonical principals"
+            )
+
+
+@dataclass(frozen=True)
 class DeterministicReceipt:
     oracle_ref: str
     input_fingerprint: str
@@ -156,6 +205,8 @@ class DeterministicReceipt:
 class FreshContextReceipt:
     author_identity: str
     evaluator_identity: str
+    author_assignment_digest: str
+    evaluator_assignment_digest: str
     verdict: EvaluatorVerdict
 
     def __post_init__(self) -> None:
@@ -168,6 +219,14 @@ class FreshContextReceipt:
             self.evaluator_identity,
             "evaluator identity",
             MAX_EVALUATOR_IDENTITY,
+        )
+        _validate_fingerprint(
+            self.author_assignment_digest,
+            "author assignment digest",
+        )
+        _validate_fingerprint(
+            self.evaluator_assignment_digest,
+            "evaluator assignment digest",
         )
         if type(self.verdict) is not EvaluatorVerdict:
             raise ValueError("fresh-context evaluator verdict is invalid")
@@ -435,19 +494,49 @@ def select_evaluator(
 def validate_evaluator_receipt(
     selection: EvaluatorSelection,
     receipt: DeterministicReceipt | FreshContextReceipt | object,
+    assignment: (
+        DeterministicEvaluatorAssignment
+        | FreshContextEvaluatorAssignment
+        | object
+    ),
 ) -> ReceiptStatus:
     if type(selection) is not EvaluatorSelection:
         return ReceiptStatus.INVALID_RECEIPT
     if selection.evaluator is EvaluatorKind.DETERMINISTIC:
-        if type(receipt) is not DeterministicReceipt:
+        if (
+            type(receipt) is not DeterministicReceipt
+            or type(assignment) is not DeterministicEvaluatorAssignment
+        ):
             return ReceiptStatus.INVALID_RECEIPT
-        if receipt.oracle_ref != selection.oracle_ref:
+        if (
+            assignment.oracle_ref != selection.oracle_ref
+            or receipt.oracle_ref != assignment.oracle_ref
+            or receipt.input_fingerprint != assignment.input_fingerprint
+            or receipt.result_fingerprint != assignment.result_fingerprint
+        ):
             return ReceiptStatus.INVALID_RECEIPT
         return ReceiptStatus.PASS
-    if type(receipt) is not FreshContextReceipt:
+    if (
+        type(receipt) is not FreshContextReceipt
+        or type(assignment) is not FreshContextEvaluatorAssignment
+    ):
         return ReceiptStatus.INVALID_RECEIPT
-    if receipt.evaluator_identity == receipt.author_identity:
+    if (
+        _identity_alias_key(receipt.author_identity)
+        == _identity_alias_key(receipt.evaluator_identity)
+        or receipt.author_assignment_digest
+        == receipt.evaluator_assignment_digest
+    ):
         return ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED
+    if (
+        receipt.author_identity != assignment.author_identity
+        or receipt.evaluator_identity != assignment.evaluator_identity
+        or receipt.author_assignment_digest
+        != assignment.author_assignment_digest
+        or receipt.evaluator_assignment_digest
+        != assignment.evaluator_assignment_digest
+    ):
+        return ReceiptStatus.INVALID_RECEIPT
     if receipt.verdict is EvaluatorVerdict.PASS:
         return ReceiptStatus.PASS
     return ReceiptStatus.FAIL
@@ -470,3 +559,7 @@ def _validate_fingerprint(value: object, field: str) -> None:
         or any(character not in "0123456789abcdef" for character in value)
     ):
         raise ValueError(f"evaluator {field} must be lowercase sha256")
+
+
+def _identity_alias_key(value: str) -> str:
+    return normalize("NFKC", value).casefold()

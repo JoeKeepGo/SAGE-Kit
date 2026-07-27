@@ -5,11 +5,13 @@ import unittest
 from unittest.mock import patch
 
 from sagekit.review import (
+    DeterministicEvaluatorAssignment,
     DeterministicReceipt,
     EvaluatorKind,
     EvaluatorRisk,
     EvaluatorSelection,
     EvaluatorVerdict,
+    FreshContextEvaluatorAssignment,
     FreshContextReceipt,
     Priority,
     ReceiptStatus,
@@ -23,6 +25,27 @@ from sagekit.review import (
 ORACLE_REF = "ci://review/mechanical-status-v1"
 INPUT_FINGERPRINT = "1" * 64
 RESULT_FINGERPRINT = "2" * 64
+AUTHOR_ASSIGNMENT_DIGEST = "3" * 64
+EVALUATOR_ASSIGNMENT_DIGEST = "4" * 64
+AUTHOR_IDENTITY = "principal://author-1"
+EVALUATOR_IDENTITY = "principal://reviewer-2"
+
+
+def deterministic_assignment() -> DeterministicEvaluatorAssignment:
+    return DeterministicEvaluatorAssignment(
+        ORACLE_REF,
+        INPUT_FINGERPRINT,
+        RESULT_FINGERPRINT,
+    )
+
+
+def fresh_context_assignment() -> FreshContextEvaluatorAssignment:
+    return FreshContextEvaluatorAssignment(
+        AUTHOR_IDENTITY,
+        EVALUATOR_IDENTITY,
+        AUTHOR_ASSIGNMENT_DIGEST,
+        EVALUATOR_ASSIGNMENT_DIGEST,
+    )
 
 
 class RiskBasedEvaluatorSelectionTests(unittest.TestCase):
@@ -156,7 +179,11 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
 
         self.assertEqual(
             ReceiptStatus.PASS,
-            validate_evaluator_receipt(selection, receipt),
+            validate_evaluator_receipt(
+                selection,
+                receipt,
+                deterministic_assignment(),
+            ),
         )
         self.assertEqual(
             ReceiptStatus.INVALID_RECEIPT,
@@ -167,6 +194,7 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
                     INPUT_FINGERPRINT,
                     RESULT_FINGERPRINT,
                 ),
+                deterministic_assignment(),
             ),
         )
         self.assertEqual(
@@ -176,8 +204,26 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
                 FreshContextReceipt(
                     "author",
                     "independent-reviewer",
+                    AUTHOR_ASSIGNMENT_DIGEST,
+                    EVALUATOR_ASSIGNMENT_DIGEST,
                     EvaluatorVerdict.PASS,
                 ),
+                deterministic_assignment(),
+            ),
+        )
+
+    def test_deterministic_receipt_rejects_arbitrary_well_formed_hashes(
+        self,
+    ) -> None:
+        selection = select_evaluator((), machine_oracle_ref=ORACLE_REF)
+        forged = DeterministicReceipt(ORACLE_REF, "a" * 64, "b" * 64)
+
+        self.assertEqual(
+            ReceiptStatus.INVALID_RECEIPT,
+            validate_evaluator_receipt(
+                selection,
+                forged,
+                deterministic_assignment(),
             ),
         )
 
@@ -204,12 +250,18 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
             machine_oracle_ref=ORACLE_REF,
         )
         receipt = FreshContextReceipt(
-            "same-identity",
-            "same-identity",
+            AUTHOR_IDENTITY,
+            AUTHOR_IDENTITY,
+            AUTHOR_ASSIGNMENT_DIGEST,
+            AUTHOR_ASSIGNMENT_DIGEST,
             EvaluatorVerdict.PASS,
         )
 
-        status = validate_evaluator_receipt(selection, receipt)
+        status = validate_evaluator_receipt(
+            selection,
+            receipt,
+            fresh_context_assignment(),
+        )
 
         self.assertEqual(ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED, status)
         self.assertIsNot(ReceiptStatus.PASS, status)
@@ -220,22 +272,75 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
         passed = validate_evaluator_receipt(
             selection,
             FreshContextReceipt(
-                "author",
-                "fresh-reviewer",
+                AUTHOR_IDENTITY,
+                EVALUATOR_IDENTITY,
+                AUTHOR_ASSIGNMENT_DIGEST,
+                EVALUATOR_ASSIGNMENT_DIGEST,
                 EvaluatorVerdict.PASS,
             ),
+            fresh_context_assignment(),
         )
         failed = validate_evaluator_receipt(
             selection,
             FreshContextReceipt(
-                "author",
-                "fresh-reviewer",
+                AUTHOR_IDENTITY,
+                EVALUATOR_IDENTITY,
+                AUTHOR_ASSIGNMENT_DIGEST,
+                EVALUATOR_ASSIGNMENT_DIGEST,
                 EvaluatorVerdict.FAIL,
             ),
+            fresh_context_assignment(),
         )
 
         self.assertEqual(ReceiptStatus.PASS, passed)
         self.assertEqual(ReceiptStatus.FAIL, failed)
+
+    def test_fresh_context_identity_is_bound_to_external_assignment(self) -> None:
+        selection = select_evaluator((EvaluatorRisk.SEMANTIC,))
+        forged = FreshContextReceipt(
+            "principal://forged-author",
+            "principal://forged-reviewer",
+            "a" * 64,
+            "b" * 64,
+            EvaluatorVerdict.PASS,
+        )
+
+        self.assertEqual(
+            ReceiptStatus.INVALID_RECEIPT,
+            validate_evaluator_receipt(
+                selection,
+                forged,
+                fresh_context_assignment(),
+            ),
+        )
+
+    def test_case_alias_receipt_requires_independent_evaluator(self) -> None:
+        selection = select_evaluator((EvaluatorRisk.SEMANTIC,))
+        ambiguous = FreshContextReceipt(
+            "Reviewer",
+            "reviewer",
+            AUTHOR_ASSIGNMENT_DIGEST,
+            EVALUATOR_ASSIGNMENT_DIGEST,
+            EvaluatorVerdict.PASS,
+        )
+
+        self.assertEqual(
+            ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED,
+            validate_evaluator_receipt(
+                selection,
+                ambiguous,
+                fresh_context_assignment(),
+            ),
+        )
+
+    def test_case_alias_assignment_is_ambiguous_and_fails_closed(self) -> None:
+        with self.assertRaises(ValueError):
+            FreshContextEvaluatorAssignment(
+                "Reviewer",
+                "reviewer",
+                AUTHOR_ASSIGNMENT_DIGEST,
+                EVALUATOR_ASSIGNMENT_DIGEST,
+            )
 
     def test_receipts_are_bounded_immutable_and_never_partial(self) -> None:
         with self.assertRaises(ValueError):
@@ -245,7 +350,13 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
                 RESULT_FINGERPRINT,
             )
         with self.assertRaises(ValueError):
-            FreshContextReceipt("author", "x" * 257, EvaluatorVerdict.PASS)
+            FreshContextReceipt(
+                "author",
+                "x" * 257,
+                AUTHOR_ASSIGNMENT_DIGEST,
+                EVALUATOR_ASSIGNMENT_DIGEST,
+                EvaluatorVerdict.PASS,
+            )
         with self.assertRaises(TypeError):
             DeterministicReceipt(ORACLE_REF, INPUT_FINGERPRINT)  # type: ignore[call-arg]
 
@@ -254,13 +365,20 @@ class EvaluatorReceiptValidationTests(unittest.TestCase):
             INPUT_FINGERPRINT,
             RESULT_FINGERPRINT,
         )
+        selection = select_evaluator((), machine_oracle_ref=ORACLE_REF)
+        with self.assertRaises(TypeError):
+            validate_evaluator_receipt(selection, receipt)  # type: ignore[call-arg]
         with self.assertRaises(dataclasses.FrozenInstanceError):
             receipt.oracle_ref = "ci://changed"  # type: ignore[misc]
 
         fresh_selection = select_evaluator((EvaluatorRisk.AUTHORITY,))
         self.assertEqual(
             ReceiptStatus.INVALID_RECEIPT,
-            validate_evaluator_receipt(fresh_selection, object()),
+            validate_evaluator_receipt(
+                fresh_selection,
+                object(),
+                fresh_context_assignment(),
+            ),
         )
 
 
