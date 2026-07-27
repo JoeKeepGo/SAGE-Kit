@@ -17,6 +17,10 @@ BLOCKING_P2_CATEGORIES = {
     "evidence-integrity",
     "validator",
 }
+MAX_EVALUATOR_RISKS = 16
+MAX_EVALUATOR_FINDINGS = 100
+MAX_EVALUATOR_IDENTITY = 256
+MAX_ORACLE_REF = 512
 
 
 class Priority(str, Enum):
@@ -30,6 +34,48 @@ class ReviewTopology(str, Enum):
     LIGHT = "LIGHT"
     STANDARD = "STANDARD"
     HEAVY = "HEAVY"
+
+
+class EvaluatorKind(str, Enum):
+    DETERMINISTIC = "DETERMINISTIC"
+    FRESH_CONTEXT = "FRESH_CONTEXT"
+
+
+class EvaluatorRisk(str, Enum):
+    MECHANICAL = "mechanical"
+    P0 = "p0"
+    P1 = "p1"
+    SECURITY = "security"
+    AUTHORITY = "authority"
+    SAFETY = "safety"
+    CROSS_CONTRACT = "cross-contract"
+    DESTRUCTIVE = "destructive"
+    HARNESS = "harness"
+    SEMANTIC = "semantic"
+
+
+class EvaluatorVerdict(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+
+
+class ReceiptStatus(str, Enum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    INDEPENDENT_EVALUATOR_REQUIRED = "INDEPENDENT_EVALUATOR_REQUIRED"
+    INVALID_RECEIPT = "INVALID_RECEIPT"
+
+
+FRESH_CONTEXT_RISKS = frozenset(
+    {
+        EvaluatorRisk.AUTHORITY,
+        EvaluatorRisk.SAFETY,
+        EvaluatorRisk.CROSS_CONTRACT,
+        EvaluatorRisk.DESTRUCTIVE,
+        EvaluatorRisk.HARNESS,
+        EvaluatorRisk.SEMANTIC,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -75,6 +121,56 @@ class CorrectiveReviewDecision:
     state: ReviewState
     blocking_findings: tuple[ReviewFinding, ...]
     backlog: tuple[ReviewFinding, ...]
+
+
+@dataclass(frozen=True)
+class EvaluatorSelection:
+    evaluator: EvaluatorKind
+    topology: ReviewTopology
+    oracle_ref: str | None
+
+    def __post_init__(self) -> None:
+        if type(self.evaluator) is not EvaluatorKind:
+            raise ValueError("evaluator selection kind is invalid")
+        if type(self.topology) is not ReviewTopology:
+            raise ValueError("evaluator selection topology is invalid")
+        if self.evaluator is EvaluatorKind.DETERMINISTIC:
+            _bounded_text(self.oracle_ref, "oracle ref", MAX_ORACLE_REF)
+        elif self.oracle_ref is not None:
+            raise ValueError("fresh-context selection cannot carry an oracle ref")
+
+
+@dataclass(frozen=True)
+class DeterministicReceipt:
+    oracle_ref: str
+    input_fingerprint: str
+    result_fingerprint: str
+
+    def __post_init__(self) -> None:
+        _bounded_text(self.oracle_ref, "oracle ref", MAX_ORACLE_REF)
+        _validate_fingerprint(self.input_fingerprint, "input fingerprint")
+        _validate_fingerprint(self.result_fingerprint, "result fingerprint")
+
+
+@dataclass(frozen=True)
+class FreshContextReceipt:
+    author_identity: str
+    evaluator_identity: str
+    verdict: EvaluatorVerdict
+
+    def __post_init__(self) -> None:
+        _bounded_text(
+            self.author_identity,
+            "author identity",
+            MAX_EVALUATOR_IDENTITY,
+        )
+        _bounded_text(
+            self.evaluator_identity,
+            "evaluator identity",
+            MAX_EVALUATOR_IDENTITY,
+        )
+        if type(self.verdict) is not EvaluatorVerdict:
+            raise ValueError("fresh-context evaluator verdict is invalid")
 
 
 def is_blocking(finding: ReviewFinding) -> bool:
@@ -283,3 +379,94 @@ def select_topology(risk_flags: tuple[str, ...]) -> ReviewTopology:
     if risks:
         return ReviewTopology.STANDARD
     return ReviewTopology.LIGHT
+
+
+def select_evaluator(
+    risk_flags: tuple[EvaluatorRisk, ...],
+    *,
+    machine_oracle_ref: str | None = None,
+    semantic_judgment_required: bool = False,
+    findings: tuple[ReviewFinding, ...] = (),
+) -> EvaluatorSelection:
+    if type(risk_flags) is not tuple:
+        raise TypeError("evaluator risk flags must be a tuple")
+    if len(risk_flags) > MAX_EVALUATOR_RISKS:
+        raise ValueError(
+            f"evaluator risk flags exceed {MAX_EVALUATOR_RISKS} items"
+        )
+    if any(type(risk) is not EvaluatorRisk for risk in risk_flags):
+        raise ValueError("evaluator risk flags contain an unknown value")
+    if len(risk_flags) != len(set(risk_flags)):
+        raise ValueError("evaluator risk flags must be unique")
+    if type(semantic_judgment_required) is not bool:
+        raise TypeError("semantic judgment requirement must be boolean")
+    if type(findings) is not tuple:
+        raise TypeError("evaluator findings must be a tuple")
+    if len(findings) > MAX_EVALUATOR_FINDINGS:
+        raise ValueError(
+            f"evaluator findings exceed {MAX_EVALUATOR_FINDINGS} items"
+        )
+    if any(type(finding) is not ReviewFinding for finding in findings):
+        raise ValueError("evaluator findings contain an unknown value")
+
+    oracle_ref = (
+        None
+        if machine_oracle_ref is None
+        else _bounded_text(machine_oracle_ref, "oracle ref", MAX_ORACLE_REF)
+    )
+    topology_flags = tuple(risk.value for risk in risk_flags)
+    topology = select_topology(topology_flags)
+    blocking_finding = any(is_blocking(finding) for finding in findings)
+    fresh_context_required = (
+        semantic_judgment_required
+        or blocking_finding
+        or topology is ReviewTopology.HEAVY
+        or bool(FRESH_CONTEXT_RISKS.intersection(risk_flags))
+    )
+    if oracle_ref is not None and not fresh_context_required:
+        return EvaluatorSelection(
+            EvaluatorKind.DETERMINISTIC,
+            topology,
+            oracle_ref,
+        )
+    return EvaluatorSelection(EvaluatorKind.FRESH_CONTEXT, topology, None)
+
+
+def validate_evaluator_receipt(
+    selection: EvaluatorSelection,
+    receipt: DeterministicReceipt | FreshContextReceipt | object,
+) -> ReceiptStatus:
+    if type(selection) is not EvaluatorSelection:
+        return ReceiptStatus.INVALID_RECEIPT
+    if selection.evaluator is EvaluatorKind.DETERMINISTIC:
+        if type(receipt) is not DeterministicReceipt:
+            return ReceiptStatus.INVALID_RECEIPT
+        if receipt.oracle_ref != selection.oracle_ref:
+            return ReceiptStatus.INVALID_RECEIPT
+        return ReceiptStatus.PASS
+    if type(receipt) is not FreshContextReceipt:
+        return ReceiptStatus.INVALID_RECEIPT
+    if receipt.evaluator_identity == receipt.author_identity:
+        return ReceiptStatus.INDEPENDENT_EVALUATOR_REQUIRED
+    if receipt.verdict is EvaluatorVerdict.PASS:
+        return ReceiptStatus.PASS
+    return ReceiptStatus.FAIL
+
+
+def _bounded_text(value: object, field: str, maximum: int) -> str:
+    if type(value) is not str or not value:
+        raise ValueError(f"evaluator {field} must not be empty")
+    if value != value.strip():
+        raise ValueError(f"evaluator {field} must not contain outer whitespace")
+    if len(value) > maximum:
+        raise ValueError(f"evaluator {field} exceeds {maximum} characters")
+    return value
+
+
+def _validate_fingerprint(value: object, field: str) -> None:
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"evaluator {field} must be lowercase sha256")
