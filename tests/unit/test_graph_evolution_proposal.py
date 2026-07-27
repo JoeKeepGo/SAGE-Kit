@@ -221,9 +221,10 @@ def preauthorization():
     }
 
 
-def stage5_lineage(graph=None):
+def stage5_lineage(graph=None, *, reuse_final: bool = True):
     graph = parent_graph() if graph is None else graph
     graph_digest = canonical_graph_digest(graph)
+    graph_join = graph["joins"][0]
     output_digests = {
         node["id"]: format(index, "064x")
         for index, node in enumerate(graph["nodes"], start=1)
@@ -271,7 +272,7 @@ def stage5_lineage(graph=None):
             "source_output_fingerprint": "0" * 64,
             "target_input_fingerprint": "0" * 64,
         }
-        for source in ("node/controller", "node/verify")
+        for source in graph_join["requires"]
     ]
     lineage_edges.extend(
         [
@@ -291,7 +292,6 @@ def stage5_lineage(graph=None):
             },
         ]
     )
-    graph_join = graph["joins"][0]
     join_projection = {
         "join_definition": {
             "id": graph_join["id"],
@@ -340,32 +340,46 @@ def stage5_lineage(graph=None):
         ],
         "final_evidence_node_id": "evidence/final",
     }
-    nodes_by_id = {node["lineage_node_id"]: node for node in lineage_nodes}
-    incoming = {node_id: [] for node_id in nodes_by_id}
-    for edge in lineage_edges:
-        source = nodes_by_id[edge["source_node_id"]]
-        edge["source_output_fingerprint"] = source["output_fingerprint"]
-        incoming[edge["target_node_id"]].append(
-            {
-                "edge_type": edge["edge_type"],
-                "source_node_id": edge["source_node_id"],
-                "source_output_fingerprint": source["output_fingerprint"],
-            }
-        )
-    for node_id, node in nodes_by_id.items():
-        node["input_fingerprint"] = canonical_node_input_fingerprint(
-            snapshot["graph_binding"],
-            incoming[node_id],
-        )
-    for edge in lineage_edges:
-        edge["target_input_fingerprint"] = nodes_by_id[edge["target_node_id"]][
-            "input_fingerprint"
-        ]
+    def refresh_fingerprints(snapshot):
+        nodes_by_id = {
+            node["lineage_node_id"]: node
+            for node in snapshot["lineage_nodes"]
+        }
+        incoming = {node_id: [] for node_id in nodes_by_id}
+        for edge in snapshot["lineage_edges"]:
+            source = nodes_by_id[edge["source_node_id"]]
+            edge["source_output_fingerprint"] = source["output_fingerprint"]
+            incoming[edge["target_node_id"]].append(
+                {
+                    "edge_type": edge["edge_type"],
+                    "source_node_id": edge["source_node_id"],
+                    "source_output_fingerprint": source["output_fingerprint"],
+                }
+            )
+        for node_id, node in nodes_by_id.items():
+            node["input_fingerprint"] = canonical_node_input_fingerprint(
+                snapshot["graph_binding"],
+                incoming[node_id],
+            )
+        for edge in snapshot["lineage_edges"]:
+            edge["target_input_fingerprint"] = nodes_by_id[
+                edge["target_node_id"]
+            ]["input_fingerprint"]
+
+    refresh_fingerprints(snapshot)
+    candidate = copy.deepcopy(snapshot)
+    if not reuse_final:
+        next(
+            node
+            for node in candidate["lineage_nodes"]
+            if node["lineage_node_id"] == "candidate/release"
+        )["output_fingerprint"] = "f" * 64
+        refresh_fingerprints(candidate)
     lineage_input = {
         "schema_id": "urn:sagekit:evidence-lineage:v1:input",
         "schema_version": 1,
         "baseline": snapshot,
-        "candidate": copy.deepcopy(snapshot),
+        "candidate": candidate,
     }
     outcome = resolve_evidence_lineage(graph, lineage_input)
     if not outcome.succeeded:

@@ -36,6 +36,7 @@ from tests.unit.test_graph_evolution_proposal import (
     parent_graph,
     preauthorization,
     request,
+    stage5_lineage,
 )
 
 
@@ -130,33 +131,9 @@ def lineage_outcome(
     reuse_final: bool = False,
     graph=None,
 ) -> EvidenceLineageOutcome:
-    disposition = "REUSE" if reuse_final else "INVALIDATE"
-    reasons = ["FINGERPRINTS_MATCH"] if reuse_final else ["CANDIDATE_CHANGED"]
-    graph_digest = (
-        request("ADD_VERIFICATION")["parent_graph_digest"]
-        if graph is None
-        else canonical_graph_digest(graph)
-    )
-    return EvidenceLineageOutcome._from_result(
-        {
-            "schema_id": "urn:sagekit:evidence-lineage:v1:result",
-            "schema_version": 1,
-            "graph_id": "graph/spec",
-            "graph_generation": 7,
-            "graph_digest": graph_digest,
-            "decisions": {
-                "evidence/final": {
-                    "disposition": disposition,
-                    "input_fingerprint": "3" * 64,
-                    "output_fingerprint": "4" * 64,
-                    "changed_edge_types": (
-                        [] if reuse_final else ["CANDIDATE"]
-                    ),
-                    "reason_codes": reasons,
-                }
-            },
-            "final_evidence_node_id": "evidence/final",
-        }
+    return stage5_lineage(
+        parent_graph() if graph is None else graph,
+        reuse_final=reuse_final,
     )
 
 
@@ -191,6 +168,8 @@ def resolve(
         if lineage is None
         else lineage
     )
+    resolved_request = copy.deepcopy(request(operation) if req is None else req)
+    resolved_request["stage5_lineage_digest"] = lineage.binding_digest
     with patch.object(
         evidence,
         "resolve_evidence_lineage",
@@ -198,7 +177,7 @@ def resolve(
     ):
         return resolve_graph_evolution_acceptance(
             parent_graph() if parent is None else parent,
-            request(operation) if req is None else req,
+            resolved_request,
             preauthorization() if preauth is None else preauth,
             {"frozen": "lineage-source"},
             convergence_authority() if authority is None else authority,
@@ -477,9 +456,11 @@ class GraphEvolutionAcceptanceTests(unittest.TestCase):
 
     def test_stale_proposal_cannot_be_substituted(self) -> None:
         lineage = lineage_outcome(reuse_final=False)
+        stale_request = request("ADD_VERIFICATION")
+        stale_request["stage5_lineage_digest"] = lineage.binding_digest
         stale = build_graph_evolution_proposal(
             parent_graph(),
-            request("ADD_VERIFICATION"),
+            stale_request,
             preauthorization(),
             lineage,
         )
