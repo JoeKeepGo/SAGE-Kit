@@ -1380,7 +1380,14 @@ def _validate_graph_delta(
                         )
                     )
             elif operation == "ADD_VERIFICATION":
-                if new_node["permission"] != "READ_ONLY_REVIEW":
+                verifier = new_node["verifier"].casefold()
+                if (
+                    new_node["role"] != "Verifier"
+                    or new_node["permission"] != "READ_ONLY_REVIEW"
+                    or new_node["classification"] != "required"
+                    or "verif" not in verifier
+                    or "investigat" in verifier
+                ):
                     issues.append(
                         _issue(
                             "$.proposal.target_graph.nodes",
@@ -1436,6 +1443,14 @@ def _validate_graph_delta(
                     )
         for join_id, join in parent_joins.items():
             target_join = target_joins.get(join_id)
+            if join_id in parent_graph["human_gates"]:
+                if target_join is None or _canonical_bytes(
+                    target_join
+                ) != _canonical_bytes(join):
+                    issues.append(
+                        _issue("$.proposal.target_graph.joins", "PARENT_JOIN_CHANGED")
+                    )
+                continue
             if target_join is None or target_join["policy"] != join["policy"]:
                 issues.append(
                     _issue("$.proposal.target_graph.joins", "PARENT_JOIN_CHANGED")
@@ -1446,6 +1461,11 @@ def _validate_graph_delta(
             if not old_requires.issubset(new_requires) or (
                 new_requires - old_requires
             ) - added:
+                issues.append(
+                    _issue("$.proposal.target_graph.joins", "PARENT_JOIN_CHANGED")
+                )
+        for join_id in set(parent_graph["human_gates"]) - set(parent_joins):
+            if join_id in target_joins:
                 issues.append(
                     _issue("$.proposal.target_graph.joins", "PARENT_JOIN_CHANGED")
                 )

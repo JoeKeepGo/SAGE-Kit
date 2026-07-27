@@ -57,9 +57,9 @@
   },
   "operations": {
     "ADD_CORRECTIVE": "Add exactly one required CORRECTIVE_AUTHORIZED node. The digest-bound Request must identify the observed finding, accepted root-cause record, and at least one evidence reference.",
-    "ADD_VERIFICATION": "Add exactly one READ_ONLY_REVIEW verification node while preserving every parent node and verifier.",
+    "ADD_VERIFICATION": "Add exactly one required, non-optional Verifier node with READ_ONLY_REVIEW permission and an explicit verification verifier. An Investigator role or investigation verifier cannot satisfy this operation, and every parent node and verifier remains byte-for-byte unchanged without replacement or downgrade.",
     "ADD_INVESTIGATION": "Add exactly one optional READ_ONLY_REVIEW investigation node. It cannot enter a required join; any join that references it must be first-success.",
-    "SPLIT_PENDING": "Add exactly one split node for a Request subject asserted PENDING. The subject remains byte-for-byte unchanged, the split preserves role, permission, verifier, and classification, and gates cannot change.",
+    "SPLIT_PENDING": "Add exactly one split node for a Request subject asserted PENDING. The subject remains byte-for-byte unchanged, the split preserves role, permission, verifier, and classification, the parent human_gates list and every join it references remain byte-for-byte unchanged, and the split node cannot enter a human gate.",
     "DISABLE_OPTIONAL_PENDING": "Remove exactly one optional Request subject asserted PENDING. The subject cannot be referenced by a required join or gate; only a first-success reference may be removed with it.",
     "NO_CHANGE": "Explicitly recommend retaining the parent Graph. NO_CHANGE has no target_graph, target_generation, or target_graph_digest."
   },
@@ -67,7 +67,7 @@
     "request_and_proposal": "Each Request and Proposal binds operation, Graph ID, parent generation and existing Graph semantic digest, external authority, proposer node/role/permission, subject node, change class, closed reason code, bounded evidence and decision references, bounded affected paths, and Stage 5 lineage digest.",
     "decision_chain": "The pure validate_decision_chain operation validates all five documents, recomputes their canonical digests, binds Proposal to Request and PM Preauthorization, binds Acceptance to Proposal, PM authority, and the preauthorized independent evaluator, binds Result to the complete chain, and compares the supplied parent Graph with the inert target Graph. It performs no apply or execution.",
     "generation_lineage": "Every changed Proposal target generation is exactly parent_generation plus one and the Graph owner must reproduce graph_id, target_generation, and target_graph_digest. NO_CHANGE crosses no generation.",
-    "completed_history": "Pure parent/target differencing preserves every unaffected parent node byte-for-byte, preserves split subjects byte-for-byte, and forbids changes to human_gates or completion_verifier. SPLIT_PENDING and DISABLE_OPTIONAL_PENDING require a digest-bound PENDING assertion because Graph Contract v1 intentionally contains no runtime node status. The validator never obtains or dereferences runtime state."
+    "completed_history": "Pure parent/target differencing preserves every unaffected parent node byte-for-byte, preserves split subjects byte-for-byte, and forbids changes to human_gates or completion_verifier. SPLIT_PENDING additionally preserves the canonical bytes of every parent join referenced by human_gates. SPLIT_PENDING and DISABLE_OPTIONAL_PENDING require a digest-bound PENDING assertion because Graph Contract v1 intentionally contains no runtime node status. The validator never obtains or dereferences runtime state."
   },
   "pm_preauthorization": {
     "closed_world": "Allowed operations, change classes, nodes, roles, permissions, path patterns, generation budget, all six per-operation budgets, independent evaluator, stop conditions, and Project Manager authority are explicit closed fields. Missing or unlisted values are denied.",

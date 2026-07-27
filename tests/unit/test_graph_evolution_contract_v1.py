@@ -1192,6 +1192,70 @@ class GraphEvolutionContractV1Tests(unittest.TestCase):
         for chain in cases:
             self.assertFalse(validate_decision_chain(*chain).valid)
 
+    def test_split_pending_cannot_rewrite_or_enter_parent_human_gates(self):
+        attacks = (
+            ("add split to gate", lambda join: join["requires"].append("node/split-part")),
+            ("reorder gate requirements", lambda join: join["requires"].reverse()),
+        )
+        for name, attack in attacks:
+            chain = list(operation_chain("SPLIT_PENDING"))
+            attack(chain[2]["target_graph"]["joins"][0])
+            rebind_chain(chain)
+            with self.subTest(attack=name):
+                validation = validate_decision_chain(*chain)
+                self.assertFalse(validation.valid, validation.issues)
+                self.assertIn(
+                    "PARENT_JOIN_CHANGED",
+                    {issue.issue_code for issue in validation.issues},
+                )
+
+    def test_add_verification_rejects_optional_investigation_and_verifier_attacks(self):
+        attacks = (
+            (
+                "optional node",
+                lambda chain: chain[2]["target_graph"]["nodes"][-1].__setitem__(
+                    "classification", "optional"
+                ),
+            ),
+            (
+                "investigator role",
+                lambda chain: chain[2]["target_graph"]["nodes"][-1].__setitem__(
+                    "role", "Investigator"
+                ),
+            ),
+            (
+                "investigation verifier",
+                lambda chain: chain[2]["target_graph"]["nodes"][-1].__setitem__(
+                    "verifier", "verifier/investigation"
+                ),
+            ),
+            (
+                "replace existing verifier",
+                lambda chain: chain[2]["target_graph"]["nodes"][1].__setitem__(
+                    "verifier", "verifier/replacement"
+                ),
+            ),
+            (
+                "downgrade existing verifier",
+                lambda chain: chain[2]["target_graph"]["nodes"][1].__setitem__(
+                    "classification", "optional"
+                ),
+            ),
+        )
+        for name, attack in attacks:
+            chain = list(operation_chain("ADD_VERIFICATION"))
+            attack(chain)
+            rebind_chain(chain)
+            with self.subTest(attack=name):
+                self.assertFalse(validate_decision_chain(*chain).valid)
+
+    def test_delta_hardening_preserves_all_six_legal_operations(self):
+        self.assertEqual(6, len(OPERATIONS))
+        for operation in sorted(OPERATIONS):
+            with self.subTest(operation=operation):
+                validation = validate_decision_chain(*operation_chain(operation))
+                self.assertTrue(validation.valid, validation.issues)
+
     def test_chain_binds_parent_authority_proposer_and_evaluator_controls(self):
         authority_mismatch = list(operation_chain("ADD_VERIFICATION"))
         authority_mismatch[5]["source_authority"]["identity"] = "pm/other"
