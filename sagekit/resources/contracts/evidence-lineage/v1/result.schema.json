@@ -32,13 +32,16 @@
       "$ref": "#/$defs/sha256"
     },
     "decisions": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 10000,
-      "uniqueItems": true,
-      "items": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 10000,
+      "propertyNames": {
+        "$ref": "#/$defs/opaque_id"
+      },
+      "additionalProperties": {
         "$ref": "#/$defs/decision"
-      }
+      },
+      "description": "A closed identity-keyed map. JSON object-name uniqueness makes one decision per lineage_node_id structural; strict parsing rejects duplicate names."
     },
     "final_evidence_node_id": {
       "$ref": "#/$defs/opaque_id"
@@ -85,7 +88,6 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "lineage_node_id",
         "disposition",
         "input_fingerprint",
         "output_fingerprint",
@@ -93,9 +95,6 @@
         "reason_codes"
       ],
       "properties": {
-        "lineage_node_id": {
-          "$ref": "#/$defs/opaque_id"
-        },
         "disposition": {
           "type": "string",
           "enum": [
@@ -127,7 +126,120 @@
             "$ref": "#/$defs/reason_code"
           }
         }
-      }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "disposition": {
+              "const": "REUSE"
+            },
+            "changed_edge_types": {
+              "const": []
+            },
+            "reason_codes": {
+              "const": [
+                "FINGERPRINTS_MATCH"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "REVERIFY_TARGETED"
+            },
+            "changed_edge_types": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "NODE_OUTPUT",
+                  "JOIN_INTEGRATION",
+                  "PATH",
+                  "DEPENDENCY_SET",
+                  "TOOLCHAIN",
+                  "PLATFORM"
+                ]
+              }
+            },
+            "reason_codes": {
+              "enum": [
+                [
+                  "DIRECT_INPUT_CHANGED"
+                ],
+                [
+                  "TRANSITIVE_INPUT_CHANGED"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "disposition": {
+              "const": "INVALIDATE"
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "changed_edge_types": {
+                  "const": []
+                },
+                "reason_codes": {
+                  "const": [
+                    "GRAPH_IDENTITY_CHANGED"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "changed_edge_types": {
+                  "const": [
+                    "CONTRACT"
+                  ]
+                },
+                "reason_codes": {
+                  "const": [
+                    "CONTRACT_CHANGED"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "changed_edge_types": {
+                  "const": [
+                    "AUTHORITY"
+                  ]
+                },
+                "reason_codes": {
+                  "const": [
+                    "AUTHORITY_CHANGED"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "changed_edge_types": {
+                  "const": [
+                    "CANDIDATE"
+                  ]
+                },
+                "reason_codes": {
+                  "const": [
+                    "CANDIDATE_CHANGED"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 }

@@ -2,19 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:evidence-lineage:v1:input",
   "title": "SAGE-Kit Evidence Lineage Input v1",
-  "description": "A closed, bounded, language-neutral evidence-lineage comparison request. It binds one baseline Graph identity, one candidate Graph identity, existing Stage 4 Ready/Transition/Node Result digests, typed lineage nodes and edges, join integration references, and one final-evidence target. Unknown fields are invalid. Complete identity, referential-integrity, fingerprint, acyclicity, join, and final-candidate checks are semantic contract validation. Input is inert data and grants no execution, reuse, authority, gate, write, or Graph-mutation permission.",
+  "description": "A closed, bounded, language-neutral comparison of one complete baseline lineage snapshot with one complete candidate lineage snapshot. Each snapshot binds its Graph identity, existing Stage 4 Ready/Transition/Node Result digests, typed lineage nodes and edges, join integration references, candidate/evidence fingerprints, and final-evidence target. Unknown fields are invalid. Input is inert data and grants no execution, reuse, authority, gate, write, or Graph-mutation permission.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_id",
     "schema_version",
-    "baseline_graph",
-    "candidate_graph",
-    "stage4_bindings",
-    "lineage_nodes",
-    "lineage_edges",
-    "join_integrations",
-    "final_evidence_node_id"
+    "baseline",
+    "candidate"
   ],
   "properties": {
     "schema_id": {
@@ -23,66 +18,85 @@
     "schema_version": {
       "const": 1
     },
-    "baseline_graph": {
-      "$ref": "#/$defs/graph_binding"
+    "baseline": {
+      "$ref": "#/$defs/lineage_snapshot",
+      "description": "The complete previously admitted lineage used only as comparison history."
     },
-    "candidate_graph": {
-      "$ref": "#/$defs/graph_binding"
-    },
-    "stage4_bindings": {
-      "$ref": "#/$defs/stage4_bindings"
-    },
-    "lineage_nodes": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 10000,
-      "uniqueItems": true,
-      "items": {
-        "$ref": "#/$defs/lineage_node"
-      }
-    },
-    "lineage_edges": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 50000,
-      "uniqueItems": true,
-      "items": {
-        "$ref": "#/$defs/edge"
-      },
-      "contains": {
-        "allOf": [
-          {
-            "$ref": "#/$defs/edge"
-          },
-          {
-            "required": [
-              "edge_type"
-            ],
-            "properties": {
-              "edge_type": {
-                "const": "CANDIDATE"
-              }
-            }
-          }
-        ]
-      },
-      "minContains": 1,
-      "maxContains": 1
-    },
-    "join_integrations": {
-      "type": "array",
-      "maxItems": 10000,
-      "uniqueItems": true,
-      "items": {
-        "$ref": "#/$defs/join_integration"
-      }
-    },
-    "final_evidence_node_id": {
-      "$ref": "#/$defs/opaque_id",
-      "description": "The EVIDENCE-owned lineage node targeted by the one CANDIDATE edge."
+    "candidate": {
+      "$ref": "#/$defs/lineage_snapshot",
+      "description": "The complete proposed final lineage classified against baseline."
     }
   },
   "$defs": {
+    "lineage_snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graph_binding",
+        "stage4_bindings",
+        "lineage_nodes",
+        "lineage_edges",
+        "join_integrations",
+        "final_evidence_node_id"
+      ],
+      "properties": {
+        "graph_binding": {
+          "$ref": "#/$defs/graph_binding"
+        },
+        "stage4_bindings": {
+          "$ref": "#/$defs/stage4_bindings"
+        },
+        "lineage_nodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/lineage_node"
+          }
+        },
+        "lineage_edges": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/edge"
+          },
+          "contains": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/edge"
+              },
+              {
+                "required": [
+                  "edge_type"
+                ],
+                "properties": {
+                  "edge_type": {
+                    "const": "CANDIDATE"
+                  }
+                }
+              }
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        "join_integrations": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/join_integration"
+          }
+        },
+        "final_evidence_node_id": {
+          "$ref": "#/$defs/opaque_id",
+          "description": "The EVIDENCE-owned lineage node targeted by the one CANDIDATE edge."
+        }
+      }
+    },
     "sha256": {
       "type": "string",
       "minLength": 64,
@@ -98,8 +112,8 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 512,
-      "pattern": "^(?![A-Za-z]:)(?!/)(?!\\\\)(?!file:)(?!https?://)[^\\r\\n]{1,512}$",
-      "description": "A bounded repository-neutral reference. Absolute, rooted, file-URI, HTTP(S), and newline-bearing values are forbidden."
+      "pattern": "^(?![A-Za-z]:)(?![/\\\\])(?!(?:[Ff][Ii][Ll][Ee]|[Hh][Tt][Tt][Pp]|[Hh][Tt][Tt][Pp][Ss]|[Uu][Nn][Cc]):)[^\\r\\n]{1,512}$",
+      "description": "A bounded repository-neutral reference. Drive-absolute, rooted, UNC, FILE, HTTP, HTTPS, and newline-bearing values are forbidden case-insensitively without a regex flag."
     },
     "graph_binding": {
       "type": "object",
@@ -251,6 +265,53 @@
     "join_integration": {
       "type": "object",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "policy"
+            ],
+            "properties": {
+              "policy": {
+                "enum": [
+                  "all-required",
+                  "required-plus-optional",
+                  "first-success"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "external_decision_refs": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "policy"
+            ],
+            "properties": {
+              "policy": {
+                "enum": [
+                  "manual-gate",
+                  "corrective-join"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "external_decision_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
       "required": [
         "join_id",
         "policy",

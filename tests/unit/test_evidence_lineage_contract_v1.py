@@ -159,6 +159,10 @@ def is_schema_valid(instance, schema, root=None):
         return False
     if "not" in schema and is_schema_valid(instance, schema["not"], root):
         return False
+    if "if" in schema:
+        branch = "then" if is_schema_valid(instance, schema["if"], root) else "else"
+        if branch in schema and not is_schema_valid(instance, schema[branch], root):
+            return False
     if "const" in schema and not json_equal(instance, schema["const"]):
         return False
     if "enum" in schema and not any(
@@ -218,15 +222,27 @@ def is_schema_valid(instance, schema, root=None):
                 return False
 
     if isinstance(instance, dict):
+        if len(instance) < schema.get("minProperties", 0):
+            return False
+        if "maxProperties" in schema and len(instance) > schema["maxProperties"]:
+            return False
         if any(name not in instance for name in schema.get("required", [])):
             return False
         properties = schema.get("properties", {})
         for name, value in instance.items():
+            if "propertyNames" in schema and not is_schema_valid(
+                name, schema["propertyNames"], root
+            ):
+                return False
             if name in properties and not is_schema_valid(
                 value, properties[name], root
             ):
                 return False
             if name not in properties and schema.get("additionalProperties") is False:
+                return False
+            if name not in properties and isinstance(
+                schema.get("additionalProperties"), dict
+            ) and not is_schema_valid(value, schema["additionalProperties"], root):
                 return False
     return True
 
@@ -260,11 +276,8 @@ def valid_input():
         },
     ]
     verify_input = node_input_fingerprint(graph, incoming)
-    return {
-        "schema_id": "urn:sagekit:evidence-lineage:v1:input",
-        "schema_version": 1,
-        "baseline_graph": graph,
-        "candidate_graph": copy.deepcopy(graph),
+    snapshot = {
+        "graph_binding": graph,
         "stage4_bindings": {
             "ready_input_digest": "d" * 64,
             "transition_bindings": [
@@ -355,6 +368,12 @@ def valid_input():
         ],
         "final_evidence_node_id": "evidence/final",
     }
+    return {
+        "schema_id": "urn:sagekit:evidence-lineage:v1:input",
+        "schema_version": 1,
+        "baseline": snapshot,
+        "candidate": copy.deepcopy(snapshot),
+    }
 
 
 def valid_result():
@@ -364,24 +383,22 @@ def valid_result():
         "graph_id": "graph/spec",
         "graph_generation": 7,
         "graph_digest": "a" * 64,
-        "decisions": [
-            {
-                "lineage_node_id": "node/build",
+        "decisions": {
+            "node/build": {
                 "disposition": "REUSE",
                 "input_fingerprint": "3" * 64,
                 "output_fingerprint": "c" * 64,
                 "changed_edge_types": [],
                 "reason_codes": ["FINGERPRINTS_MATCH"],
             },
-            {
-                "lineage_node_id": "node/verify",
+            "node/verify": {
                 "disposition": "REVERIFY_TARGETED",
                 "input_fingerprint": "9" * 64,
                 "output_fingerprint": "1" * 64,
                 "changed_edge_types": ["NODE_OUTPUT"],
                 "reason_codes": ["TRANSITIVE_INPUT_CHANGED"],
             },
-        ],
+        },
         "final_evidence_node_id": "evidence/final",
     }
 
@@ -485,15 +502,22 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
             {
                 "schema_id",
                 "schema_version",
-                "baseline_graph",
-                "candidate_graph",
-                "stage4_bindings",
-                "lineage_nodes",
-                "lineage_edges",
-                "join_integrations",
-                "final_evidence_node_id",
+                "baseline",
+                "candidate",
             },
             set(self.input_schema["required"]),
+        )
+        snapshot_required = {
+            "graph_binding",
+            "stage4_bindings",
+            "lineage_nodes",
+            "lineage_edges",
+            "join_integrations",
+            "final_evidence_node_id",
+        }
+        self.assertEqual(
+            snapshot_required,
+            set(self.input_schema["$defs"]["lineage_snapshot"]["required"]),
         )
 
     def test_schemas_are_closed_and_every_collection_is_bounded(self):
@@ -511,7 +535,12 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
             self.assertTrue(objects)
             self.assertTrue(arrays)
             for object_schema in objects:
-                self.assertIs(False, object_schema.get("additionalProperties"))
+                if "propertyNames" in object_schema:
+                    self.assertIsInstance(
+                        object_schema.get("additionalProperties"), dict
+                    )
+                else:
+                    self.assertIs(False, object_schema.get("additionalProperties"))
             for array_schema in arrays:
                 self.assertIn("maxItems", array_schema)
 
@@ -522,8 +551,25 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         candidate["unknown"] = True
         self.assertFalse(is_schema_valid(candidate, self.input_schema))
         nested = valid_input()
-        nested["lineage_nodes"][0]["prompt"] = "not lineage"
+        nested["candidate"]["lineage_nodes"][0]["prompt"] = "not lineage"
         self.assertFalse(is_schema_valid(nested, self.input_schema))
+
+    def test_input_requires_two_complete_comparable_lineages(self):
+        candidate = valid_input()
+        del candidate["baseline"]
+        self.assertFalse(is_schema_valid(candidate, self.input_schema))
+
+        candidate = valid_input()
+        del candidate["candidate"]["lineage_edges"]
+        self.assertFalse(is_schema_valid(candidate, self.input_schema))
+
+        candidate = valid_input()
+        candidate["candidate"]["lineage_nodes"][1]["output_fingerprint"] = "9" * 64
+        self.assertTrue(is_schema_valid(candidate, self.input_schema))
+        self.assertNotEqual(
+            candidate["baseline"]["lineage_nodes"],
+            candidate["candidate"]["lineage_nodes"],
+        )
 
     def test_typed_edges_and_dispositions_are_exact(self):
         edge_enum = self.input_schema["$defs"]["edge"]["properties"]["edge_type"][
@@ -555,15 +601,15 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
     def test_final_evidence_requires_exactly_one_candidate_edge(self):
         candidate = valid_input()
         self.assertTrue(is_schema_valid(candidate, self.input_schema))
-        candidate["lineage_edges"] = [
+        candidate["candidate"]["lineage_edges"] = [
             edge
-            for edge in candidate["lineage_edges"]
+            for edge in candidate["candidate"]["lineage_edges"]
             if edge["edge_type"] != "CANDIDATE"
         ]
         self.assertFalse(is_schema_valid(candidate, self.input_schema))
 
         candidate = valid_input()
-        candidate["lineage_edges"].append(
+        candidate["candidate"]["lineage_edges"].append(
             {
                 "source_node_id": "candidate/release",
                 "target_node_id": "evidence/final",
@@ -603,6 +649,96 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         ):
             self.assertIn(phrase, boundary)
 
+    def test_join_policy_conditionally_binds_external_refs(self):
+        candidate = valid_input()
+        join = candidate["candidate"]["join_integrations"][0]
+        join["policy"] = "all-required"
+        self.assertFalse(is_schema_valid(candidate, self.input_schema))
+
+        candidate = valid_input()
+        join = candidate["candidate"]["join_integrations"][0]
+        join["external_decision_refs"] = []
+        self.assertFalse(is_schema_valid(candidate, self.input_schema))
+
+        candidate = valid_input()
+        join = candidate["candidate"]["join_integrations"][0]
+        join["policy"] = "corrective-join"
+        self.assertTrue(is_schema_valid(candidate, self.input_schema))
+
+        candidate = valid_input()
+        join = candidate["candidate"]["join_integrations"][0]
+        join["policy"] = "first-success"
+        join["external_decision_refs"] = []
+        self.assertTrue(is_schema_valid(candidate, self.input_schema))
+
+    def test_bounded_refs_reject_case_insensitive_external_locations(self):
+        forbidden_refs = (
+            "FILE:review.json",
+            "File:///tmp/review.json",
+            "HTTP://example.test/review",
+            "hTtPs://example.test/review",
+            "UNC:server/share/review",
+            "C:/review.json",
+            "c:\\review.json",
+            "/tmp/review.json",
+            "\\\\server\\share\\review.json",
+        )
+        for value in forbidden_refs:
+            with self.subTest(value=value):
+                candidate = valid_input()
+                candidate["candidate"]["join_integrations"][0][
+                    "external_decision_refs"
+                ] = [value]
+                self.assertFalse(is_schema_valid(candidate, self.input_schema))
+
+    def test_result_decisions_are_identity_keyed_and_semantically_consistent(self):
+        schema = self.result_schema["properties"]["decisions"]
+        self.assertEqual("object", schema["type"])
+        self.assertEqual(10000, schema["maxProperties"])
+        self.assertTrue(is_schema_valid(valid_result(), self.result_schema))
+
+        invalid = valid_result()
+        invalid["decisions"]["node/build"]["reason_codes"] = [
+            "DIRECT_INPUT_CHANGED"
+        ]
+        self.assertFalse(is_schema_valid(invalid, self.result_schema))
+
+        invalid = valid_result()
+        invalid["decisions"]["node/build"]["changed_edge_types"] = ["PATH"]
+        self.assertFalse(is_schema_valid(invalid, self.result_schema))
+
+        invalid = valid_result()
+        invalid["decisions"]["node/verify"]["changed_edge_types"] = ["CONTRACT"]
+        self.assertFalse(is_schema_valid(invalid, self.result_schema))
+
+        invalid = valid_result()
+        invalid["decisions"]["node/verify"]["disposition"] = "INVALIDATE"
+        self.assertFalse(is_schema_valid(invalid, self.result_schema))
+
+    def test_error_code_and_message_code_are_conditionally_bound(self):
+        pairs = {
+            "INPUT_INVALID": "STRICT_INPUT_REQUIRED",
+            "INPUT_TOO_LARGE": "INPUT_BYTE_BUDGET_EXCEEDED",
+            "LINEAGE_LIMIT_EXCEEDED": "STRUCTURAL_LIMIT_EXCEEDED",
+            "LINEAGE_CYCLE": "ACYCLIC_LINEAGE_REQUIRED",
+            "GRAPH_BINDING_MISMATCH": "GRAPH_BINDING_REQUIRED",
+            "LINEAGE_INVALID": "VALID_LINEAGE_REQUIRED",
+            "RESULT_TOO_LARGE": "RESULT_BYTE_BUDGET_EXCEEDED",
+        }
+        self.assertEqual(pairs, self.contract["error_code_message_code"])
+        for error_code, message_code in pairs.items():
+            valid = {
+                "schema_id": "urn:sagekit:evidence-lineage:v1:error",
+                "schema_version": 1,
+                "error_code": error_code,
+                "message_code": message_code,
+                "issues": [],
+            }
+            self.assertTrue(is_schema_valid(valid, self.error_schema))
+            invalid = copy.deepcopy(valid)
+            invalid["message_code"] = "STRICT_INPUT_REQUIRED" if error_code != "INPUT_INVALID" else "VALID_LINEAGE_REQUIRED"
+            self.assertFalse(is_schema_valid(invalid, self.error_schema))
+
     def test_fixed_cross_language_node_input_vector(self):
         vector = self.contract["fingerprint_semantics"]["fixed_vectors"][0]
         self.assertEqual("cross-language-node-input-001", vector["vector_id"])
@@ -616,6 +752,27 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
             ),
         )
         self.assertEqual(NODE_INPUT_VECTOR_SHA256, vector["input_fingerprint"])
+        comparison = self.contract["fingerprint_semantics"]["fixed_vectors"][1]
+        self.assertEqual(
+            "baseline-candidate-comparison-001", comparison["vector_id"]
+        )
+        self.assertNotEqual(
+            comparison["baseline"]["node_output_fingerprint"],
+            comparison["candidate"]["node_output_fingerprint"],
+        )
+        self.assertNotEqual(
+            comparison["baseline"]["candidate_output_fingerprint"],
+            comparison["candidate"]["candidate_output_fingerprint"],
+        )
+        self.assertEqual(
+            {
+                "local_change_edge_type": "NODE_OUTPUT",
+                "local_disposition": "REVERIFY_TARGETED",
+                "final_change_edge_type": "CANDIDATE",
+                "final_disposition": "INVALIDATE",
+            },
+            comparison["expected"],
+        )
 
     def test_key_and_normalized_edge_order_invariance(self):
         graph = {
@@ -710,6 +867,28 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         self.assertIn("exactly one decision", completeness)
         self.assertIn("every admitted lineage_node_id", completeness)
         self.assertIn("never returns a reusable subset", completeness)
+        self.assertEqual(
+            [
+                "strict_json",
+                "bounded_input_canonical_bytes",
+                "schema_shape_and_direct_cardinality",
+                "candidate_graph_binding",
+                "identity_uniqueness",
+                "referential_integrity",
+                "stage4_digest_binding",
+                "final_candidate_edge",
+                "edge_fingerprint_binding",
+                "acyclicity",
+                "complete_change_classification",
+                "bounded_complete_result",
+            ],
+            self.contract["deterministic_validation_order"],
+        )
+        classification = self.contract["validation_precedence"]
+        self.assertEqual("INPUT_TOO_LARGE", classification["byte_over_shape"])
+        self.assertEqual("LINEAGE_LIMIT_EXCEEDED", classification["cardinality"])
+        self.assertEqual("LINEAGE_CYCLE", classification["cycle"])
+        self.assertIn("only after", classification["cycle_scope"])
 
     def test_bytes_and_cardinality_are_explicit_and_inclusive(self):
         budgets = self.contract["admission_bounds"]

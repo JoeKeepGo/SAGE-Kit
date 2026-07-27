@@ -7,17 +7,17 @@
     "input_schema": {
       "resource": "input.schema.json",
       "schema_id": "urn:sagekit:evidence-lineage:v1:input",
-      "canonical_sha256": "a2081a830836e1909bb7ee7fdbda81a303cc4a894afc4451488a428572fe7447"
+      "canonical_sha256": "b57340367797f69001afbbcfbcb337412109f415eac99ea9d9e18a412d309901"
     },
     "result_schema": {
       "resource": "result.schema.json",
       "schema_id": "urn:sagekit:evidence-lineage:v1:result",
-      "canonical_sha256": "1d70555b1292ff01375c1e61d1467bbc676057c3bbcf4b5f9c26f99e5c8d5dfc"
+      "canonical_sha256": "46bf939a7b802dde95628079855eb1904e584ff68b574551183ff02c631bae8a"
     },
     "error_schema": {
       "resource": "error.schema.json",
       "schema_id": "urn:sagekit:evidence-lineage:v1:error",
-      "canonical_sha256": "6eaaa5f08b8e9e52cc968f5231a043e01fbe16f1c110c845de920ec10fb1398d"
+      "canonical_sha256": "ed86e040b8fc64e6003dbf163172700faec608d6f73463092005c9ac82aa5019"
     }
   },
   "dependencies": {
@@ -94,8 +94,8 @@
       "algorithm": "SHA-256",
       "domain_separator": "sagekit-evidence-lineage-node-input-v1\u0000",
       "domain_separator_utf8_hex": "736167656b69742d65766964656e63652d6c696e656167652d6e6f64652d696e7075742d763100",
-      "construction": "SHA-256(UTF-8(domain separator) + canonical normalized projection bytes). The projection contains candidate_graph as graph_binding and the complete incoming-edge triples edge_type, source_node_id, and source_output_fingerprint for exactly one target lineage node. This lineage-only comparison fingerprint does not digest or redefine Graph, Ready, Transition, or Node Result semantics.",
-      "coverage": "Every admitted incoming typed edge and the exact candidate Graph ID, generation, and existing Graph digest are bound. Removing, adding, retargeting, retyping, or changing a source output fingerprint changes the target node input fingerprint."
+      "construction": "SHA-256(UTF-8(domain separator) + canonical normalized projection bytes). Within either baseline or candidate snapshot, the projection contains that snapshot's graph_binding and the complete incoming-edge triples edge_type, source_node_id, and source_output_fingerprint for exactly one target lineage node. This lineage-only comparison fingerprint does not digest or redefine Graph, Ready, Transition, or Node Result semantics.",
+      "coverage": "Every admitted incoming typed edge and the exact containing snapshot Graph ID, generation, and existing Graph digest are bound. Removing, adding, retargeting, retyping, or changing a source output fingerprint changes the target node input fingerprint."
     },
     "node_output_fingerprint": "Each output_fingerprint is supplied by the semantic owner of that output. For a final GRAPH_NODE output it must equal the corresponding existing Stage 4 node_result_digest. Contract, path, authority, dependency-set, toolchain, platform, candidate, join, and evidence owners supply their own content fingerprint under their own contract; Evidence Lineage compares it and never silently manufactures one.",
     "normalization": {
@@ -130,13 +130,56 @@
         ],
         "canonical_projection_utf8_hex": "7b2267726170685f62696e64696e67223a7b2267726170685f646967657374223a2230303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030222c2267726170685f67656e65726174696f6e223a372c2267726170685f6964223a2267726170682fe8b7a8e8afade8a880227d2c22696e636f6d696e675f6564676573223a5b7b22656467655f74797065223a2250415448222c22736f757263655f6e6f64655f6964223a22706174682f737263222c22736f757263655f6f75747075745f66696e6765727072696e74223a2231313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131227d2c7b22656467655f74797065223a22544f4f4c434841494e222c22736f757263655f6e6f64655f6964223a22746f6f6c2fe7bc96e8af91222c22736f757263655f6f75747075745f66696e6765727072696e74223a2232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232227d5d7d",
         "input_fingerprint": "150bae360e3f85fb95f4eb5b5f3b82d772eebaabd17a2daa93d57f5b20121b72"
+      },
+      {
+        "vector_id": "baseline-candidate-comparison-001",
+        "purpose": "Pins independent local NODE_OUTPUT and final CANDIDATE comparison outcomes from two explicit snapshots.",
+        "baseline": {
+          "graph_binding": {
+            "graph_id": "graph/spec",
+            "graph_generation": 7,
+            "graph_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "node_output_fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "join_definition_fingerprint": "8888888888888888888888888888888888888888888888888888888888888888",
+          "candidate_output_fingerprint": "5555555555555555555555555555555555555555555555555555555555555555",
+          "evidence_input_fingerprint": "6666666666666666666666666666666666666666666666666666666666666666",
+          "edge_types": [
+            "NODE_OUTPUT",
+            "JOIN_INTEGRATION",
+            "CANDIDATE"
+          ]
+        },
+        "candidate": {
+          "graph_binding": {
+            "graph_id": "graph/spec",
+            "graph_generation": 7,
+            "graph_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "node_output_fingerprint": "9999999999999999999999999999999999999999999999999999999999999999",
+          "join_definition_fingerprint": "8888888888888888888888888888888888888888888888888888888888888888",
+          "candidate_output_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+          "evidence_input_fingerprint": "7777777777777777777777777777777777777777777777777777777777777777",
+          "edge_types": [
+            "NODE_OUTPUT",
+            "JOIN_INTEGRATION",
+            "CANDIDATE"
+          ]
+        },
+        "expected": {
+          "local_change_edge_type": "NODE_OUTPUT",
+          "local_disposition": "REVERIFY_TARGETED",
+          "final_change_edge_type": "CANDIDATE",
+          "final_disposition": "INVALIDATE"
+        }
       }
     ]
   },
   "lineage_validation": {
-    "strict_input": "Parse strict JSON, reject duplicate object names and invalid Unicode scalars, enforce input.schema.json including unknown-field rejection, and perform bounded canonical-byte admission before graph traversal or issue collection.",
-    "identity_uniqueness": "lineage_node_id is unique; transition binding node_id is unique; join_id is unique; each edge tuple is unique; contributor IDs and external decision references are unique. Duplicate or conflicting identities return LINEAGE_INVALID Error and no Result.",
-    "referential_integrity": "Every edge source_node_id and target_node_id resolves to exactly one lineage node. Every contributor resolves to a GRAPH_NODE lineage node and a Graph-owned node. Every transition binding resolves to its exact GRAPH_NODE owner. final_evidence_node_id resolves to one EVIDENCE-owned node.",
+    "strict_input": "Parse strict JSON and reject duplicate object names or invalid Unicode scalars; then perform bounded canonical-byte admission; then enforce input.schema.json including unknown-field rejection and the separately classified direct cardinality bounds. No graph traversal or issue collection begins before those steps.",
+    "snapshot_completeness": "Input contains two complete, independently closed lineage snapshots named baseline and candidate. Each carries its own graph_binding, Stage 4 bindings, lineage nodes with input/output fingerprints, typed edges with endpoint fingerprints, join integrations with definition and Ready fingerprints, CANDIDATE and EVIDENCE owners, and final_evidence_node_id. Neither snapshot may borrow omitted data from the other.",
+    "identity_uniqueness": "Within each snapshot, lineage_node_id is unique; transition binding node_id is unique; join_id is unique; each edge tuple is unique; contributor IDs and external decision references are unique. Duplicate or conflicting identities return LINEAGE_INVALID Error and no Result.",
+    "referential_integrity": "Within each snapshot, every edge source_node_id and target_node_id resolves to exactly one lineage node. Every contributor resolves to a GRAPH_NODE lineage node and a Graph-owned node. Every transition binding resolves to its exact GRAPH_NODE owner. final_evidence_node_id resolves to one EVIDENCE-owned node.",
     "typed_edge_owners": {
       "NODE_OUTPUT": "The source owner_kind is GRAPH_NODE.",
       "JOIN_INTEGRATION": "The source owner_kind is JOIN and resolves to the corresponding complete join_integration record.",
@@ -149,12 +192,12 @@
       "CANDIDATE": "The source owner_kind is CANDIDATE and the target is the final EVIDENCE owner."
     },
     "edge_fingerprint_binding": "Every edge source_output_fingerprint equals its resolved source node output_fingerprint and every target_input_fingerprint equals its resolved target node input_fingerprint. Mismatch is LINEAGE_INVALID; values are never repaired or selected by majority.",
-    "acyclicity": "After structural admission and referential-integrity checks, the complete directed lineage graph must be acyclic. Self-edges and any directed cycle return only LINEAGE_CYCLE Error and no partial Result.",
-    "final_evidence": "There is exactly one CANDIDATE edge in the complete lineage graph. Its source resolves to one CANDIDATE-owned node and its target equals final_evidence_node_id, which resolves to one EVIDENCE-owned node. Missing, duplicate, misdirected, or mistyped final candidate lineage returns LINEAGE_INVALID Error and no Result.",
-    "graph_binding": "candidate_graph must reproduce the current valid Graph ID, generation, and existing semantic digest. A same-ID and same-generation digest mismatch is GRAPH_BINDING_MISMATCH Error with no Result. baseline_graph is comparison history only and cannot authorize reuse.",
-    "stage4_binding": "stage4_bindings.ready_input_digest must equal every join integration ready_input_digest. Each final GRAPH_NODE output fingerprint must equal its unique existing transition binding node_result_digest, and every transition binding carries its existing transition_input_digest. Missing, duplicate, stale, or mismatched binding is LINEAGE_INVALID.",
-    "complete_validation": "No decision is emitted until strict schema, byte, cardinality, Graph binding, identity uniqueness, referential integrity, typed-edge ownership, Stage 4 digest binding, final candidate, edge fingerprint, and acyclicity validation all succeed.",
-    "result_completeness": "A Result contains exactly one decision for every admitted lineage_node_id and no unknown or duplicate lineage_node_id. It never returns a reusable subset, omits an invalidated descendant, or truncates decisions to fit the Result byte budget."
+    "acyclicity": "After the earlier byte, shape, cardinality, binding, identity, reference, and fingerprint checks succeed for both snapshots, each complete directed lineage graph must be acyclic. Only then does a self-edge or directed cycle in either snapshot classify as LINEAGE_CYCLE; an earlier failure retains its earlier error code.",
+    "final_evidence": "In each snapshot there is exactly one CANDIDATE edge. Its source resolves to one CANDIDATE-owned node and its target equals that snapshot's final_evidence_node_id, which resolves to one EVIDENCE-owned node. Missing, duplicate, misdirected, or mistyped final candidate lineage returns LINEAGE_INVALID Error and no Result.",
+    "graph_binding": "candidate.graph_binding must reproduce the current valid Graph ID, generation, and existing semantic digest. A same-ID and same-generation digest mismatch is GRAPH_BINDING_MISMATCH Error with no Result. baseline.graph_binding is comparison history only and cannot authorize reuse.",
+    "stage4_binding": "Within each snapshot, stage4_bindings.ready_input_digest must equal every join integration ready_input_digest. Each final GRAPH_NODE output fingerprint must equal its unique existing transition binding node_result_digest, and every transition binding carries its existing transition_input_digest. Missing, duplicate, stale, or mismatched binding is LINEAGE_INVALID.",
+    "complete_validation": "No decision is emitted until strict JSON, byte, schema shape, direct cardinality, current candidate Graph binding, identity uniqueness, referential integrity, typed-edge ownership, Stage 4 digest binding, final candidate, edge fingerprint, and acyclicity validation all succeed for both complete snapshots.",
+    "result_completeness": "A Result decisions object is keyed by candidate lineage_node_id and contains exactly one decision for every admitted lineage_node_id in candidate, with no unknown or duplicate identity. Strict JSON object-name uniqueness and the closed decision value schema make multiple dispositions for one node unrepresentable. Result never returns a reusable subset, omits an invalidated descendant, or truncates decisions to fit the Result byte budget."
   },
   "join_integration": {
     "boundary": "Each join integration binds the exact Graph join definition fingerprint, the complete contributors set, the existing Stage 4 Ready input_digest, and repository-neutral external decision references already covered by that Ready input. It does not copy join satisfaction, invent a join disposition, re-run join policy, imply an external decision, or treat the lineage record as gate authority.",
@@ -183,8 +226,10 @@
       "CANDIDATE"
     ],
     "locality_rule": "A local source fingerprint change affects only its directly connected targets and their transitive descendants. Nodes outside that descendant closure remain unrelated and retain REUSE when all of their exact fingerprints and bindings match. No global invalidation is inferred from a PATH, TOOLCHAIN, PLATFORM, DEPENDENCY_SET, JOIN_INTEGRATION, or NODE_OUTPUT change alone.",
-    "graph_identity_rule": "If baseline_graph.graph_id differs from candidate_graph.graph_id or baseline_graph.graph_generation differs from candidate_graph.graph_generation, cross-identity REUSE is forbidden and every prior-lineage decision is INVALIDATE. Graph ID and graph_generation are a pair; matching digest text alone cannot cross either identity boundary.",
-    "precedence": "For one node, INVALIDATE dominates REVERIFY_TARGETED, which dominates REUSE. Classification is deterministic over the complete admitted DAG and never emits two dispositions for one lineage_node_id."
+    "graph_identity_rule": "If baseline.graph_binding.graph_id differs from candidate.graph_binding.graph_id or baseline.graph_binding.graph_generation differs from candidate.graph_binding.graph_generation, cross-identity REUSE is forbidden and every candidate decision is INVALIDATE. Graph ID and graph_generation are a pair; matching digest text alone cannot cross either identity boundary.",
+    "comparison_rule": "Match baseline and candidate records by exact opaque identity. Compare graph bindings, node input/output fingerprints, complete typed edge identities and endpoint fingerprints, Stage 4 transition and Ready bindings, join definition/contributor/reference fingerprints, and final CANDIDATE-to-EVIDENCE binding. Added candidate nodes have no reusable baseline. Removed baseline nodes produce no candidate decision. Thus both local source changes and final candidate changes are mechanically computable from Input alone.",
+    "decision_consistency": "decisions is an identity-keyed closed map. REUSE has only FINGERPRINTS_MATCH and no changed edge; REVERIFY_TARGETED has one direct/transitive reason and one or more targeted edge types; INVALIDATE has exactly one precedence-selected graph, CONTRACT, AUTHORITY, or CANDIDATE reason paired with its schema-defined changed-edge form. One node cannot carry multiple dispositions or a changed reason under REUSE.",
+    "precedence": "For one candidate node, INVALIDATE dominates REVERIFY_TARGETED, which dominates REUSE. Within INVALIDATE, GRAPH_IDENTITY_CHANGED, CONTRACT_CHANGED, AUTHORITY_CHANGED, then CANDIDATE_CHANGED is the deterministic primary-reason order. Classification is deterministic over the complete admitted candidate DAG and emits one map value per lineage_node_id."
   },
   "admission_bounds": {
     "max_input_canonical_bytes": 8388608,
@@ -199,12 +244,12 @@
     "max_decisions": 10000,
     "max_error_issues": 100
   },
-  "admission_semantics": "All numeric bounds are inclusive. Canonical byte measurement and direct collection cardinality use bounded counters that stop at boundary plus one; implementations do not materialize unbounded encodings, traverse an over-limit graph, or collect unbounded issues. Input byte overflow is classified before structural traversal; admitted structural overflow is classified before referential integrity or cycle detection. No collection is truncated, sampled, split, or repaired to produce success.",
+  "admission_semantics": "All numeric bounds are inclusive and apply independently to each snapshot collection. After strict JSON parsing, canonical byte measurement precedes schema-shape classification. Direct maxItems/maxProperties violations are classified as LINEAGE_LIMIT_EXCEEDED during the combined shape/cardinality step; other schema failures are INPUT_INVALID. Implementations use bounded counters that stop at boundary plus one and never traverse an over-limit graph or collect unbounded issues. No collection is truncated, sampled, split, or repaired to produce success.",
   "canonical_byte_measurement": "Strict JSON canonical bytes use UTF-8 without BOM, logical Unicode scalar object-key order, no insignificant whitespace, shortest decimal mathematical integers, mandatory lowercase JSON escapes for controls, and direct UTF-8 for all other scalars. Array order is preserved for byte admission even when a separately documented lineage fingerprint normalization sorts identity collections. Byte admission is representation safety, not semantic identity, fingerprint identity, authority, or permission.",
   "deterministic_validation_order": [
-    "strict_json_and_schema",
+    "strict_json",
     "bounded_input_canonical_bytes",
-    "direct_cardinality_preflight",
+    "schema_shape_and_direct_cardinality",
     "candidate_graph_binding",
     "identity_uniqueness",
     "referential_integrity",
@@ -215,8 +260,19 @@
     "complete_change_classification",
     "bounded_complete_result"
   ],
+  "validation_precedence": {
+    "strict_json": "INPUT_INVALID",
+    "byte_over_shape": "INPUT_TOO_LARGE",
+    "shape": "INPUT_INVALID",
+    "cardinality": "LINEAGE_LIMIT_EXCEEDED",
+    "candidate_graph_binding": "GRAPH_BINDING_MISMATCH",
+    "semantic_lineage": "LINEAGE_INVALID",
+    "cycle": "LINEAGE_CYCLE",
+    "cycle_scope": "LINEAGE_CYCLE is selected only after every preceding byte, shape/cardinality, Graph binding, identity, reference, Stage 4, final-candidate, and edge-fingerprint check succeeds for both snapshots. A payload that also has any earlier failure receives that earlier classification, never LINEAGE_CYCLE.",
+    "result_bytes": "RESULT_TOO_LARGE"
+  },
   "failure_semantics": {
-    "INPUT_INVALID": "Malformed strict JSON, schema failure, duplicate object name, invalid Unicode scalar, or unknown field returns only Error and no partial Result.",
+    "INPUT_INVALID": "Malformed strict JSON, schema failure other than a direct collection-cardinality violation, duplicate object name, invalid Unicode scalar, or unknown field returns only Error and no partial Result.",
     "INPUT_TOO_LARGE": "Canonical Input bytes above max_input_canonical_bytes return only Error and no partial Result.",
     "LINEAGE_LIMIT_EXCEEDED": "An admitted collection above its cardinality bound returns only Error and no partial Result before graph traversal.",
     "LINEAGE_CYCLE": "Any self-edge or directed lineage cycle returns only Error and no partial Result; cyclic evidence is never reusable.",
@@ -224,6 +280,15 @@
     "LINEAGE_INVALID": "Identity, reference, Stage 4 binding, fingerprint, join, final candidate, or other semantic lineage failure returns only Error and no partial Result.",
     "RESULT_TOO_LARGE": "A complete candidate Result above max_result_canonical_bytes returns only Error and no partial Result; decisions are never truncated.",
     "error_bound": "Error is bounded to max_error_canonical_bytes and at most max_error_issues deterministic issues. Collection stops at the issue bound and never echoes arbitrary invalid input."
+  },
+  "error_code_message_code": {
+    "INPUT_INVALID": "STRICT_INPUT_REQUIRED",
+    "INPUT_TOO_LARGE": "INPUT_BYTE_BUDGET_EXCEEDED",
+    "LINEAGE_LIMIT_EXCEEDED": "STRUCTURAL_LIMIT_EXCEEDED",
+    "LINEAGE_CYCLE": "ACYCLIC_LINEAGE_REQUIRED",
+    "GRAPH_BINDING_MISMATCH": "GRAPH_BINDING_REQUIRED",
+    "LINEAGE_INVALID": "VALID_LINEAGE_REQUIRED",
+    "RESULT_TOO_LARGE": "RESULT_BYTE_BUDGET_EXCEEDED"
   },
   "semantic_boundaries": {
     "result_error_exclusivity": "A successful invocation produces one complete Result and no Error. Any failure produces one bounded Error and no Result, decisions, final-evidence output, reuse subset, or truncated success.",
