@@ -1308,6 +1308,7 @@ def _required_snapshot_authority(value: object) -> str:
 
 
 def _working_tree_snapshot(root: Path) -> WorkingTreeSnapshot:
+    initial_head = _git_text(root, "rev-parse", "HEAD")
     status = _snapshot_status(root)
     _reject_unsupported_worktree_states(status)
     index_state = _git_bytes(root, "ls-files", "--stage", "-z")
@@ -1345,57 +1346,9 @@ def _working_tree_snapshot(root: Path) -> WorkingTreeSnapshot:
     )
     staged_paths = _git_name_only(root, "diff", "--cached")
     unstaged_paths = _git_name_only(root, "diff")
-
-    final_status = _snapshot_status(root)
-    final_index_state = _git_bytes(root, "ls-files", "--stage", "-z")
-    final_staged_diff = _git_bytes(
-        root,
-        "diff",
-        "--cached",
-        "--binary",
-        "--full-index",
-        "--no-ext-diff",
-        "--no-renames",
-    )
-    final_unstaged_diff = _git_bytes(
-        root,
-        "diff",
-        "--binary",
-        "--full-index",
-        "--no-ext-diff",
-        "--no-renames",
-    )
-    final_untracked_raw = _git_bytes(
-        root,
-        "ls-files",
-        "--others",
-        "--exclude-standard",
-        "-z",
-    )
-    final_untracked_paths = tuple(
-        _decode_repository_path(item)
-        for item in final_untracked_raw.split(b"\0")
-        if item
-    )
-    final_untracked_entries = tuple(
-        _snapshot_untracked_entry(root, relative)
-        for relative in final_untracked_paths
-    )
-    final_staged_paths = _git_name_only(root, "diff", "--cached")
-    final_unstaged_paths = _git_name_only(root, "diff")
-    if (
-        status != final_status
-        or index_state != final_index_state
-        or staged_diff != final_staged_diff
-        or unstaged_diff != final_unstaged_diff
-        or untracked_paths != final_untracked_paths
-        or untracked_entries != final_untracked_entries
-        or staged_paths != final_staged_paths
-        or unstaged_paths != final_unstaged_paths
-    ):
-        raise ValueError(
-            "Git status, index, diff, or untracked content changed while snapshotting"
-        )
+    final_head = _git_text(root, "rev-parse", "HEAD")
+    if initial_head != final_head:
+        raise ValueError("HEAD changed while snapshotting")
 
     paths = tuple(sorted(set(staged_paths) | set(unstaged_paths) | set(untracked_paths)))
     payload = {

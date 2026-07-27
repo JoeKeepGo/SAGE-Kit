@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import sagekit.candidate as candidate_module
 from sagekit.candidate import (
     CandidateFingerprint,
     RepositorySnapshot,
@@ -17,6 +18,124 @@ from sagekit.normalization import NormalizationFinding, NormalizationKind
 
 
 class CandidateSnapshotUnitTests(unittest.TestCase):
+    def test_working_tree_snapshot_uses_one_scan_and_a_closing_head_check(self) -> None:
+        calls: list[tuple[str, ...]] = []
+
+        def git_bytes(_root: Path, *args: str) -> bytes:
+            calls.append(args)
+            outputs = {
+                ("rev-parse", "HEAD"): b"head-1\n",
+                (
+                    "status",
+                    "--porcelain=v2",
+                    "-z",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                ): b"",
+                ("ls-files", "--stage", "-z"): b"",
+                (
+                    "diff",
+                    "--cached",
+                    "--binary",
+                    "--full-index",
+                    "--no-ext-diff",
+                    "--no-renames",
+                ): b"",
+                (
+                    "diff",
+                    "--binary",
+                    "--full-index",
+                    "--no-ext-diff",
+                    "--no-renames",
+                ): b"",
+                ("ls-files", "--others", "--exclude-standard", "-z"): b"",
+                ("diff", "--cached", "--name-only", "-z", "--no-renames"): b"",
+                ("diff", "--name-only", "-z", "--no-renames"): b"",
+            }
+            return outputs[args]
+
+        with patch("sagekit.candidate._git_bytes", side_effect=git_bytes):
+            snapshot = candidate_module._working_tree_snapshot(Path("repo"))
+
+        self.assertEqual((), snapshot.paths)
+        self.assertEqual(("rev-parse", "HEAD"), calls[0])
+        self.assertEqual(("rev-parse", "HEAD"), calls[-1])
+        self.assertEqual(2, calls.count(("rev-parse", "HEAD")))
+        self.assertEqual(
+            1,
+            calls.count(
+                (
+                    "status",
+                    "--porcelain=v2",
+                    "-z",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                )
+            ),
+        )
+        self.assertEqual(4, sum(call[0] == "diff" for call in calls))
+        self.assertEqual(9, len(calls))
+
+    def test_working_tree_snapshot_rejects_head_change_without_rescanning(self) -> None:
+        calls: list[tuple[str, ...]] = []
+        heads = iter((b"head-before\n", b"head-after\n"))
+
+        def git_bytes(_root: Path, *args: str) -> bytes:
+            calls.append(args)
+            if args == ("rev-parse", "HEAD"):
+                return next(heads)
+            outputs = {
+                (
+                    "status",
+                    "--porcelain=v2",
+                    "-z",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                ): b"",
+                ("ls-files", "--stage", "-z"): b"",
+                (
+                    "diff",
+                    "--cached",
+                    "--binary",
+                    "--full-index",
+                    "--no-ext-diff",
+                    "--no-renames",
+                ): b"",
+                (
+                    "diff",
+                    "--binary",
+                    "--full-index",
+                    "--no-ext-diff",
+                    "--no-renames",
+                ): b"",
+                ("ls-files", "--others", "--exclude-standard", "-z"): b"",
+                ("diff", "--cached", "--name-only", "-z", "--no-renames"): b"",
+                ("diff", "--name-only", "-z", "--no-renames"): b"",
+            }
+            return outputs[args]
+
+        with patch("sagekit.candidate._git_bytes", side_effect=git_bytes):
+            with self.assertRaisesRegex(ValueError, "HEAD changed while snapshotting"):
+                candidate_module._working_tree_snapshot(Path("repo"))
+
+        self.assertEqual(("rev-parse", "HEAD"), calls[0])
+        self.assertEqual(("rev-parse", "HEAD"), calls[-1])
+        self.assertEqual(2, calls.count(("rev-parse", "HEAD")))
+        self.assertEqual(
+            1,
+            calls.count(
+                (
+                    "status",
+                    "--porcelain=v2",
+                    "-z",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                )
+            ),
+        )
+        self.assertEqual(4, sum(call[0] == "diff" for call in calls))
+        self.assertEqual(9, len(calls))
+
     def test_freeze_routes_safe_whitespace_to_auto_normalization_corrective(self) -> None:
         finding = NormalizationFinding(
             "src/example.py",
