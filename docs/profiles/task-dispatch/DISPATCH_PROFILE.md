@@ -1,12 +1,14 @@
 # Task Dispatch Profile
 
 Validation contract selection is governed by
-`docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Active/new records use
-explicit v2 metadata. Terminal unversioned history uses only the frozen
-contract selected by trusted accepted immutable container scope. A Validation
-Scope Manifest may provide explicit migration authority and select frozen v0
-or v1 for each declared container, but cannot authorize nonterminal or
-unlisted work.
+`docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md`. Active and new records use
+explicit v2 metadata and are strict: a selected v2 failure fails closed and
+never tries another contract. Frozen v0/v1 are compatibility-only for
+explicitly selected, accepted immutable-history containers. A Validation Scope
+Manifest may provide that explicit migration authority and select frozen v0 or
+v1 for each declared container, but cannot authorize current, nonterminal, or
+unlisted work. Accepted history remains read-only: validation never writes it
+back, batch-rewrites it, or represents it as v2.
 Ambiguous or mixed records fail closed, and validation failure never triggers
 another contract.
 Frozen schema runtime behavior follows the selected historical validator: v0
@@ -14,14 +16,22 @@ retains digest-bound schema artifacts but validates records with its Python
 rules, while the hardened v1 baseline also executes its frozen schema checks.
 
 This profile adds machine-checkable task and evidence records to SAGE-Kit. It
-is optional. Activation must come from project-owned authority, such as the
-milestone entry gate, execution packet, or normalized project configuration.
-The presence of a `dispatch` directory, `task.yaml`, `evidence.yaml`, board, or
-template is discovery input only and never activates this profile.
+is optional. It becomes active only when the active project's authority or its
+active execution packet explicitly adopts Task Dispatch for the current task,
+phase, or gate. A milestone entry gate or normalized project configuration may
+be that active project authority. The presence of a `dispatch` directory,
+`task.yaml`, `evidence.yaml`, board, or template is discovery input only and
+never activates this profile.
+
+Historical use, accepted legacy records, a legacy v0/v1 compatibility result,
+or a `Heavy` governance level never activates Task Dispatch. They may explain
+why an active project authority chooses to adopt it, but they are not adoption
+authority.
 
 ## Activation Criteria
 
-Use this profile when at least one condition is true:
+An active project authority may use these considerations when deciding whether
+to adopt this profile:
 
 - many worker tasks must be dispatched and reconciled;
 - task outcomes need structured evidence rather than narrative summaries;
@@ -33,12 +43,27 @@ Use this profile when at least one condition is true:
 - Final Review needs a compact index of what was tested, blocked, waived, or
   proven.
 
-Do not enable it only because a project uses SAGE-Kit. For small work, normal
-phase docs and completion reports are lighter and usually better.
+Do not enable it only because a project uses SAGE-Kit. These considerations,
+the project history, and the selected governance level are not automatic
+triggers. For small work, normal phase docs and completion reports are lighter
+and usually better.
 
-For `Light` work, Task Dispatch is off unless project authority explicitly
-enables it. The activation criteria help the Project Manager make that decision;
-they are not automatic triggers.
+For `Light`, `Standard`, and `Heavy` work, Task Dispatch remains off unless the
+active project authority or active execution packet explicitly enables it.
+Profile absence does not block the basic Harness, normal phase documents, or
+ordinary quality gates for `Light` and `Standard` work; it only omits this
+profile's structured-record and validator gates.
+
+## Canonical Governance Pointers
+
+This profile does not redefine Core, Loop, or Graph governance. Core authority
+and approval semantics are canonical at `docs/SAGE_CORE.md#sage-auth-001`;
+review, corrective, evidence-reuse, and completion-loop semantics are canonical
+at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`; dependency-graph and
+execution-shape semantics are canonical at `docs/SAGE_CORE.md#sage-grf-001`
+and `docs/agent/WAVE_EXECUTION.md#sage-grf-002`. This profile defines only the
+Task Dispatch-specific record, evidence, lock, reconciliation, and validator
+semantics below.
 
 ## Records
 
@@ -158,13 +183,14 @@ not current authority.
 
 ## Validator Gate
 
-When project authority activates this profile, the host must invoke the
+When the active project authority or active execution packet activates this
+profile, the host must invoke the
 compatibility-aware Task Dispatch validation operation exposed by the embedded
 Harness before accepting the task, phase, or milestone gate. The Harness first
 resolves profile activation, container scope, and the declared validation
-contract, then selects frozen v0/v1 for authorized immutable history or current
-v2 for active work. Ambiguous authority, mixed metadata, and validation failure
-fail closed without contract fallback.
+contract, then selects frozen v0/v1 only for explicitly authorized accepted
+immutable history or strict current v2 for active work. Ambiguous authority,
+mixed metadata, and validation failure fail closed without contract fallback.
 
 The procedural `validate_records` function is an implementation detail of the
 selected current contract. It is not a standalone gate API. SAGE-Kit does not
@@ -193,12 +219,19 @@ Hidden fallback paths are blockers.
 ## Routing Rule
 
 Do not add task-dispatch records to default startup context for every session.
-Read them only when:
+After explicit activation for the current task, phase, or gate, read them only
+when:
 
-- the active task uses this profile;
-- `DOC_ROUTING.md` points to a task or evidence record;
-- a gate, review, or closeout needs structured task evidence;
-- Project Manager, Coder, or Final Review is reconciling dispatched work.
+- the active task, phase, or gate uses this profile;
+- routing points to a task or evidence record for that active use;
+- an active profile gate, review, or closeout needs structured task evidence;
+- Project Manager, Coder, or Final Review is reconciling active dispatched
+  work.
+
+Routing and historical record pointers are read pointers only; neither can
+activate the profile. When the profile is absent, do not require Task Dispatch
+records, reconciliation, or validation for the basic `Light` or `Standard`
+Harness path.
 
 The milestone ledger should link to task records instead of copying their full
 contents.

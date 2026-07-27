@@ -2,14 +2,17 @@
 
 ## Validation Contract
 
-New and active task/evidence pairs declare the v2 `validation_contract` block
-shown in the templates. The policy digest must match the packaged v2 policy.
-Terminal legacy pairs without version metadata use only the frozen v0 or v1
-selected by trusted accepted immutable container authority. Existing projects
-may supply an explicit Validation Scope Manifest as migration authority when
-newer structured active-set fields are unavailable. Each accepted legacy
-container names its target-relative path and exact contract version; unlisted,
-conflicting, mixed, or nonterminal records still fail closed.
+New and active task/evidence pairs declare the strict v2
+`validation_contract` block shown in the templates. The policy digest must
+match the packaged v2 policy, and a selected v2 failure never falls back to
+another version. Frozen v0/v1 are compatibility-only for explicitly selected,
+accepted immutable-history containers. Existing projects may supply an explicit
+Validation Scope Manifest as migration authority when newer structured
+active-set fields are unavailable. Each accepted legacy container names its
+target-relative path and exact contract version; unlisted, conflicting, mixed,
+current, or nonterminal records still fail closed. Accepted history is
+read-only: validation does not write it back, batch-rewrite it, or present it
+as v2.
 Mixed records, unversioned active records, unsupported versions, and policy
 tamper fail closed. Validation never tries another version after a failure.
 
@@ -19,7 +22,9 @@ after its own pair validation.
 
 Task Dispatch is an optional SAGE-Kit profile for milestones that need stronger
 task dispatch, evidence capture, resource coordination, and gate closeout than
-plain phase documents provide.
+plain phase documents provide. It is active only when active project authority
+or the active execution packet explicitly adopts it for the current task,
+phase, or gate.
 
 When project authority activates the profile, the Harness may discover bounded
 record pairs below one `docs/**/dispatch/` segment. Discovery does not activate
@@ -27,12 +32,30 @@ the profile. A manifest may also authorize a generic non-milestone container.
 Framework templates, profile resources, `_TEMPLATE` paths, nested `dispatch`
 paths, and target-external symlinks are excluded.
 
+Historical use, accepted legacy records, v0/v1 compatibility results, and a
+`Heavy` governance level are not activation authority. Record, directory, or
+routing-pointer presence is also not activation authority.
+
 Use it when a milestone has many worker tasks, repeated validation paths,
 resource contention, cross-surface integration, or a high risk of verbal
 green-lighting without machine-checkable evidence.
 
 Do not use it for small single-phase changes where normal phase docs,
 completion reports, and quality gates already provide enough control.
+
+Profile absence does not block the basic Harness, ordinary phase documents, or
+ordinary quality gates for `Light` and `Standard` work. It only omits this
+profile's structured-record, reconciliation, and validator gates.
+
+## Canonical Governance Pointers
+
+Task Dispatch does not redefine Core, Loop, or Graph governance. Core authority
+and approval semantics are canonical at `docs/SAGE_CORE.md#sage-auth-001`;
+review, corrective, evidence-reuse, and completion-loop semantics are canonical
+at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`; dependency-graph and
+execution-shape semantics are canonical at `docs/SAGE_CORE.md#sage-grf-001`
+and `docs/agent/WAVE_EXECUTION.md#sage-grf-002`. This profile supplies only its
+task/evidence, lock, reconciliation, and validation behavior.
 
 ## What It Adds
 
@@ -65,8 +88,10 @@ docs/profiles/task-dispatch/
 
 ## Adoption
 
-Copy the profile into a project only when the project explicitly adopts
-structured task dispatch. A typical project layout is:
+Copy the profile into a project only when active project authority or an active
+execution packet explicitly adopts structured task dispatch. The selection
+considerations above, historical use, and governance level do not activate it.
+A typical project layout is:
 
 ```text
 docs/M<ID>/
@@ -89,7 +114,8 @@ The profile is a structured evidence layer. It does not replace phase docs,
 quality gates, completion reports, milestone ledgers, or Project Manager final
 decision authority.
 
-For `Light` work it remains inactive unless project authority explicitly enables
-it. Record or directory presence is not activation authority.
+For `Light`, `Standard`, and `Heavy` work it remains inactive unless active
+project authority or the active execution packet explicitly enables it. Record
+or directory presence is not activation authority.
 When active, apply the profile reconciliation gate to the whole dispatch set;
 orphan records and overlapping active exclusive locks are invalid.
