@@ -413,6 +413,7 @@ def _run_managed_command(
         allowed_classes=inherited_allowed,
         descendant=descendant,
         delegated=delegated,
+        isolated_test_harness=isolated_test_harness,
     )
     if not decision.ok:
         raise ManagedExecutionError(decision.reason)

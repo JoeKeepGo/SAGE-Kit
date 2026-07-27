@@ -1,11 +1,16 @@
 import json
 import hashlib
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from sagekit import (
+    PacketConfigurationError,
+    PacketError,
+    check_project,
+    compile_ephemeral_packet,
+    write_ephemeral_packet,
+)
 from sagekit.check import check_execution_documents, check_source_execution_document_mirrors
 
 
@@ -110,17 +115,6 @@ def tree_digest(root: Path) -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
-
-
-def run_sagekit(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, "-B", "-m", "sagekit", *args],
-        cwd=REPO_ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
 
 
 class ThinExecutionRoutingTests(unittest.TestCase):
@@ -230,14 +224,16 @@ class ThinExecutionRoutingTests(unittest.TestCase):
 
             findings = check_execution_documents(root)
 
-            self.assertTrue(any(item.rule == "phase-scope-compatibility" for item in findings))
             self.assertTrue(
                 any(
                     item.level == "FAIL"
                     and item.rule == "execution-document-authority"
-                    and "immutable accepted legacy history" in item.message
+                    and "explicit thin-v1 milestone manifest" in item.message
                     for item in findings
                 )
+            )
+            self.assertFalse(
+                any(item.rule == "phase-scope-compatibility" for item in findings)
             )
             self.assertFalse(any(item.rule == "phase-governance" for item in findings))
 
@@ -353,133 +349,93 @@ class ThinExecutionRoutingTests(unittest.TestCase):
                 )
             )
 
-    def test_packet_compile_defaults_to_stdout_and_does_not_write_project(self):
+    def test_packet_compile_defaults_to_memory_and_does_not_write_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_thin_project(root)
             before = tree_digest(root)
 
-            result = run_sagekit(
-                "packet",
-                "compile",
-                "--target",
-                str(root),
-                "--milestone",
-                "M36",
-                "--phase",
-                "P01",
-            )
+            packet = compile_ephemeral_packet(root, "M36", "P01")
 
-            self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            self.assertIn("SAGEKIT_GENERATED_PACKET_V3", result.stdout)
-            self.assertIn('"packet_sha256"', result.stdout)
+            self.assertEqual(
+                "sagekit-packet-compile@v3",
+                packet.payload["_generated_by"],
+            )
+            self.assertIn('"packet_sha256"', packet.to_json())
             self.assertEqual(before, tree_digest(root))
 
-    def test_packet_compile_json_uses_the_same_success_exit_code(self):
+    def test_packet_json_representation_retains_the_compiled_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_thin_project(root)
 
-            result = run_sagekit(
-                "packet",
-                "compile",
-                "--target",
-                str(root),
-                "--milestone",
-                "M36",
-                "--phase",
-                "P01",
-                "--json",
-            )
+            packet = compile_ephemeral_packet(root, "M36", "P01")
 
-            self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            payload = json.loads(result.stdout)
-            self.assertTrue(payload["ok"])
-            self.assertEqual("thin-v1", payload["packet"]["document_model"])
-            self.assertEqual(payload["packet_sha256"], payload["packet"]["packet_sha256"])
+            payload = json.loads(packet.to_json())
+            self.assertEqual("thin-v1", payload["document_model"])
+            self.assertEqual(packet.digest, payload["packet_sha256"])
 
     def test_packet_output_is_project_relative_and_nested_on_windows(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_thin_project(root)
 
-            result = run_sagekit(
-                "packet",
-                "compile",
-                "--target",
-                str(root),
-                "--milestone",
-                "M36",
-                "--phase",
-                "P01",
-                "--json",
-                "--output",
+            packet = compile_ephemeral_packet(root, "M36", "P01")
+            output = write_ephemeral_packet(
+                root,
                 ".sagekit/packets/P01.json",
+                packet,
             )
 
-            self.assertEqual(0, result.returncode, result.stderr or result.stdout)
-            payload = json.loads(result.stdout)
-            self.assertEqual(".sagekit/packets/P01.json", payload["output"])
-            self.assertFalse(Path(payload["output"]).is_absolute())
-            self.assertTrue((root / ".sagekit/packets/P01.json").is_file())
+            self.assertEqual(
+                (root / ".sagekit/packets/P01.json").resolve(),
+                output.resolve(),
+            )
+            self.assertTrue(output.is_file())
 
-    def test_check_and_packet_text_json_exit_codes_match_on_success_and_failure(self):
+    def test_check_and_packet_harness_results_fail_closed_together(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             write_thin_project(root)
             write_required_docs(root)
-            check_text = run_sagekit("check", "--target", str(root))
-            check_json = run_sagekit("check", "--target", str(root), "--json")
-            packet_text = run_sagekit(
-                "packet", "compile", "--target", str(root), "--milestone", "M36", "--phase", "P01"
-            )
-            packet_json = run_sagekit(
-                "packet", "compile", "--target", str(root), "--milestone", "M36", "--phase", "P01", "--json"
-            )
-            self.assertEqual((0, 0), (check_text.returncode, check_json.returncode))
-            self.assertEqual((0, 0), (packet_text.returncode, packet_json.returncode))
+            check = check_project(root)
+            packet = compile_ephemeral_packet(root, "M36", "P01")
+            self.assertTrue(check.ok)
+            self.assertEqual(packet.digest, packet.payload["packet_sha256"])
 
             lock = root / "SAGE_PROJECT.json"
             lock.write_text(
                 '{"schema_version":1,"schema_version":1}\n', encoding="utf-8"
             )
-            failed_check_text = run_sagekit("check", "--target", str(root))
-            failed_check_json = run_sagekit("check", "--target", str(root), "--json")
-            failed_packet_text = run_sagekit(
-                "packet", "compile", "--target", str(root), "--milestone", "M36", "--phase", "P01"
-            )
-            failed_packet_json = run_sagekit(
-                "packet", "compile", "--target", str(root), "--milestone", "M36", "--phase", "P01", "--json"
-            )
-            self.assertEqual(
-                (1, 1), (failed_check_text.returncode, failed_check_json.returncode)
-            )
-            self.assertEqual(
-                (2, 2), (failed_packet_text.returncode, failed_packet_json.returncode)
-            )
-            self.assertIn("project-contract", failed_check_text.stdout)
+            failed_check = check_project(root)
+            self.assertFalse(failed_check.ok)
             self.assertTrue(
                 any(
-                    item["rule"] == "project-contract"
-                    for item in json.loads(failed_check_json.stdout)["findings"]
+                    item.rule == "project-contract"
+                    for item in failed_check.findings
                 )
             )
-            self.assertIn("packet compile: error", failed_packet_text.stderr)
-            self.assertEqual(
-                "configuration",
-                json.loads(failed_packet_json.stdout)["category"],
+            with self.assertRaises(PacketConfigurationError):
+                compile_ephemeral_packet(root, "M36", "P01")
+
+    def test_overwrite_is_available_only_on_the_explicit_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_thin_project(root)
+            packet = compile_ephemeral_packet(root, "M36", "P01")
+            output = ".sagekit/packets/P01.json"
+
+            write_ephemeral_packet(root, output, packet)
+            with self.assertRaisesRegex(PacketError, "already exists"):
+                write_ephemeral_packet(root, output, packet)
+            rewritten = write_ephemeral_packet(
+                root,
+                output,
+                packet,
+                overwrite_generated=True,
             )
 
-    def test_overwrite_generated_requires_output(self):
-        result = run_sagekit(
-            "packet",
-            "compile",
-            "--milestone",
-            "M36",
-            "--overwrite-generated",
-        )
-        self.assertEqual(2, result.returncode)
-        self.assertIn("requires --output", result.stdout)
+            self.assertTrue(rewritten.is_file())
 
 
 if __name__ == "__main__":

@@ -132,6 +132,84 @@ class WorkspaceBindingTests(unittest.TestCase):
 
         self.assertTrue(decision.ok, decision.reason)
 
+    def test_root_isolated_test_harness_allows_only_the_exact_test_node_shape(self) -> None:
+        command = (
+            "python",
+            "-B",
+            "-m",
+            "sagekit.test_node",
+            "focused",
+            "--repository",
+            ".",
+        )
+        allowed = authorize_command(
+            command,
+            resource_class=ResourceClass.CPU_HEAVY,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.CPU_HEAVY,),
+            descendant=False,
+            isolated_test_harness=True,
+        )
+        without_isolation = authorize_command(
+            command,
+            resource_class=ResourceClass.CPU_HEAVY,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.CPU_HEAVY,),
+            descendant=False,
+        )
+        arbitrary_python = authorize_command(
+            ("python", "-B", "-m", "untrusted.module"),
+            resource_class=ResourceClass.CPU_HEAVY,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.CPU_HEAVY,),
+            descendant=False,
+            isolated_test_harness=True,
+        )
+        descendant = authorize_command(
+            command,
+            resource_class=ResourceClass.CPU_HEAVY,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.CPU_HEAVY,),
+            descendant=True,
+            delegated=True,
+            isolated_test_harness=True,
+        )
+
+        self.assertTrue(allowed.ok, allowed.reason)
+        self.assertFalse(without_isolation.ok)
+        self.assertFalse(arbitrary_python.ok)
+        self.assertFalse(descendant.ok)
+
+    def test_isolated_source_repo_node_requires_repo_read_class(self) -> None:
+        command = (
+            "python",
+            "-B",
+            "-m",
+            "sagekit.test_node",
+            "source-repo",
+            "--repository",
+            ".",
+        )
+        allowed = authorize_command(
+            command,
+            resource_class=ResourceClass.REPO_READ,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.REPO_READ,),
+            descendant=False,
+            isolated_test_harness=True,
+        )
+        wrong_class = authorize_command(
+            command,
+            resource_class=ResourceClass.CPU_HEAVY,
+            permission_mode="READ_ONLY_REVIEW",
+            allowed_classes=(ResourceClass.CPU_HEAVY,),
+            descendant=False,
+            isolated_test_harness=True,
+        )
+
+        self.assertTrue(allowed.ok, allowed.reason)
+        self.assertFalse(wrong_class.ok)
+
     def test_descendant_cannot_escalate_resource_class_or_permission(self) -> None:
         decision = authorize_command(
             ("git", "status", "--short"),

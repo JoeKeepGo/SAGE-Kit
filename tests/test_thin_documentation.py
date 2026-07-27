@@ -372,6 +372,10 @@ class ThinDocumentationTests(unittest.TestCase):
                 "docs/QUALITY_GATES_TEMPLATE.md",
                 "sagekit/resources/docs/QUALITY_GATES_TEMPLATE.md",
             ),
+            "economy": (
+                "docs/agent/EXECUTION_ECONOMY.md",
+                "sagekit/resources/docs/agent/EXECUTION_ECONOMY.md",
+            ),
             "strict": (
                 "docs/agent/STRICT_MODE.md",
                 "sagekit/resources/docs/agent/STRICT_MODE.md",
@@ -404,46 +408,49 @@ class ThinDocumentationTests(unittest.TestCase):
         self.assertNotIn("Phase documentation gate", documents["quality"])
         self.assertIn("No fallback gate", documents["quality"])
         self.assertIn("hidden success, unauthorized fallback, or silent downgrade", documents["quality"])
-        self.assertIn("Do not mark work `BLOCKED` merely because a fixed round count was reached", documents["quality"])
-        self.assertIn("deterministic failure must not be retried speculatively", documents["quality"])
+        self.assertIn("sage-loop-008", documents["quality"])
+        self.assertIn("A fixed round count alone is not a blocker", documents["economy"])
+        self.assertIn("deterministic failures must not be rerun", documents["economy"])
         self.assertIn("choose or change architecture", documents["strict"])
         self.assertIn("Do not add fallback behavior unless", documents["strict"])
         self.assertIn("advisory prompts, not product requirements", documents["entry"])
         self.assertIn("must not invent a product threat model", documents["entry"])
         self.assertIn("versioned project or runtime classification", documents["assurance"])
         self.assertIn("passes its identifier and version to descendants", documents["assurance"])
-        self.assertIn("advisory routing inputs, not product requirements", documents["adapters"])
-        self.assertIn("Only the active project SPEC or its named owner", documents["adapters"])
+        self.assertIn("Availability is advisory routing input", documents["adapters"])
+        self.assertIn("neither grants permission nor adds a requirement", documents["adapters"])
+        self.assertIn("active authority permits this capability", documents["adapters"])
+        self.assertIn("No adapter result can create authority", documents["adapters"])
 
     def test_resource_governance_document_is_packaged_and_states_containment_levels(self):
         source = REPO_ROOT / "docs/agent/HOST_RESOURCE_GOVERNANCE.md"
         packaged = REPO_ROOT / "sagekit/resources/docs/agent/HOST_RESOURCE_GOVERNANCE.md"
+        contract = REPO_ROOT / "docs/contracts/resource-governance/conservative-host-v1.json"
+        packaged_contract = (
+            REPO_ROOT
+            / "sagekit/resources/docs/contracts/resource-governance/conservative-host-v1.json"
+        )
         self.assertTrue(source.is_file(), source)
         self.assertTrue(packaged.is_file(), packaged)
         self.assertEqual(source.read_bytes(), packaged.read_bytes())
+        self.assertEqual(contract.read_bytes(), packaged_contract.read_bytes())
         text = " ".join(source.read_text(encoding="utf-8").casefold().split())
+        policy = json.loads(contract.read_text(encoding="utf-8"))
         for phrase in (
-            "conservative-host-v1",
-            "sagekit.verify_project_workspace",
-            "sagekit.check_project",
-            "sagekit.run_managed_command",
-            "waiting_for_resource",
-            "soft guarantee",
+            "root controller is the sole host-resource supervisor",
+            "cannot acquire an independent host authority",
             "`hard`",
             "`managed`",
-            "containment_level",
-            "containment_complete",
-            "cleanup_complete",
-            "orphan_check",
-            "platform_adapter",
+            "`soft`",
+            "cannot prove that deliberate or malicious escape is impossible",
             "limitations",
-            "windows-job-object-gated-v1",
-            "posix-session-process-group-v1",
-            "job object",
-            "process group",
+            "does not create authority",
         ):
             self.assertIn(phrase, text)
-        self.assertIn("does not intercept", text)
+        self.assertEqual("conservative-host-v1", policy["id"])
+        self.assertEqual("root-only", policy["verification_controller"])
+        self.assertEqual("reasoning-only", policy["descendant_default"])
+        self.assertTrue(policy["containment_policy"]["soft_bypass_disclosed"])
 
     def test_readmes_explain_thick_kit_thin_project_and_migration_boundary(self):
         for filename in ("README.md", "README.zh-CN.md"):

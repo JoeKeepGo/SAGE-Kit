@@ -279,6 +279,7 @@ def authorize_command(
     allowed_classes: Sequence[ResourceClass],
     descendant: bool,
     delegated: bool = False,
+    isolated_test_harness: bool = False,
 ) -> CommandAuthorization:
     try:
         argv = _coerce_argv(command)
@@ -292,7 +293,12 @@ def authorize_command(
     if resource_class not in allowed_classes:
         return CommandAuthorization(False, "requested resource class exceeds inherited authority")
     required = required_resource_class(command)
-    if required is None and not _known_readonly_command(command) and (
+    isolated_test_command = (
+        isolated_test_harness
+        and not descendant
+        and _known_isolated_test_command(command, resource_class)
+    )
+    if required is None and not _known_readonly_command(command) and not isolated_test_command and (
         resource_class is ResourceClass.REPO_READ
         or permission_mode == "READ_ONLY_REVIEW"
     ):
@@ -395,6 +401,34 @@ def _known_readonly_command(command: Sequence[str]) -> bool:
         and _git_subcommand(args) == "branch"
         and args[-2:] == ["branch", "--show-current"]
     )
+
+
+def _known_isolated_test_command(
+    command: Sequence[str],
+    resource_class: ResourceClass,
+) -> bool:
+    if len(command) != 7:
+        return False
+    executable = Path(str(command[0])).name.casefold()
+    if not (executable.startswith("python") or executable in {"py", "py.exe"}):
+        return False
+    if tuple(str(item) for item in command[1:4]) != (
+        "-B",
+        "-m",
+        "sagekit.test_node",
+    ):
+        return False
+    lane = str(command[4])
+    if str(command[5]) != "--repository" or not str(command[6]).strip():
+        return False
+    expected_class = (
+        ResourceClass.REPO_READ
+        if lane == "source-repo"
+        else ResourceClass.CPU_HEAVY
+        if lane in {"focused", "unit", "integration"}
+        else None
+    )
+    return resource_class is expected_class
 
 
 def _git_subcommand(args: Sequence[str]) -> str:
