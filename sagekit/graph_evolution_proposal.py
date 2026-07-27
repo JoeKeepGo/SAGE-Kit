@@ -229,8 +229,13 @@ def _validate_lineage_binding(
     lineage: Any,
     parent_graph: dict[str, Any],
     parent_digest: str,
+    request_lineage_digest: str,
 ) -> tuple[dict[str, Any] | None, GraphEvolutionProposalOutcome | None]:
-    if not isinstance(lineage, EvidenceLineageOutcome) or not lineage.succeeded:
+    if (
+        not isinstance(lineage, EvidenceLineageOutcome)
+        or not lineage.succeeded
+        or lineage.binding_digest is None
+    ):
         return None, _failure(
             "INPUT_INVALID",
             "proposal",
@@ -274,6 +279,17 @@ def _validate_lineage_binding(
                 _issue(
                     "$.stage5_lineage",
                     "LINEAGE_GRAPH_BINDING_MISMATCH",
+                )
+            ],
+        )
+    if request_lineage_digest != lineage.binding_digest:
+        return None, _failure(
+            "INPUT_INVALID",
+            "proposal",
+            [
+                _issue(
+                    "$.stage5_lineage_digest",
+                    "LINEAGE_DIGEST_MISMATCH",
                 )
             ],
         )
@@ -518,6 +534,7 @@ def build_graph_evolution_proposal(
         stage5_lineage,
         parent_snapshot,
         parent_digest,
+        request_snapshot["stage5_lineage_digest"],
     )
     if failure is not None:
         return failure

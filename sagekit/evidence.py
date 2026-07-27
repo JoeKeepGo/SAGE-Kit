@@ -30,9 +30,13 @@ JOIN_INTEGRATION_FINGERPRINT_DOMAIN = (
 JOIN_DEFINITION_FINGERPRINT_DOMAIN = (
     b"sagekit-evidence-lineage-join-definition-v1\0"
 )
+LINEAGE_BINDING_DIGEST_DOMAIN = b"sagekit-evidence-lineage-binding-v1\0"
 MAX_INPUT_CANONICAL_BYTES = 8 * 1024 * 1024
 MAX_RESULT_CANONICAL_BYTES = 8 * 1024 * 1024
 MAX_ERROR_CANONICAL_BYTES = 1024 * 1024
+MAX_BINDING_CANONICAL_BYTES = (
+    MAX_INPUT_CANONICAL_BYTES + MAX_RESULT_CANONICAL_BYTES + 1024
+)
 MAX_LINEAGE_NODES = 10000
 MAX_LINEAGE_EDGES = 50000
 MAX_TRANSITION_BINDINGS = 10000
@@ -301,7 +305,7 @@ class EvidenceLineageIssue:
 class EvidenceLineageOutcome:
     """Resolver-created immutable snapshot of one complete Result or Error."""
 
-    __slots__ = ("_result_snapshot", "_error_snapshot")
+    __slots__ = ("_result_snapshot", "_error_snapshot", "_binding_digest")
 
     def __init__(self, *_args: Any, **_kwargs: Any) -> None:
         raise ValueError("EvidenceLineageOutcome is resolver-created")
@@ -317,6 +321,21 @@ class EvidenceLineageOutcome:
         instance = object.__new__(cls)
         object.__setattr__(instance, "_result_snapshot", _freeze_json(result))
         object.__setattr__(instance, "_error_snapshot", None)
+        object.__setattr__(instance, "_binding_digest", None)
+        return instance
+
+    @classmethod
+    def _from_bound_result(
+        cls,
+        result: Mapping[str, Any],
+        binding_digest: str,
+    ) -> EvidenceLineageOutcome:
+        if not _is_digest(binding_digest):
+            raise ValueError("binding_digest must be a canonical SHA-256 digest")
+        instance = object.__new__(cls)
+        object.__setattr__(instance, "_result_snapshot", _freeze_json(result))
+        object.__setattr__(instance, "_error_snapshot", None)
+        object.__setattr__(instance, "_binding_digest", binding_digest)
         return instance
 
     @classmethod
@@ -324,6 +343,7 @@ class EvidenceLineageOutcome:
         instance = object.__new__(cls)
         object.__setattr__(instance, "_result_snapshot", None)
         object.__setattr__(instance, "_error_snapshot", _freeze_json(error))
+        object.__setattr__(instance, "_binding_digest", None)
         return instance
 
     @property
@@ -338,12 +358,17 @@ class EvidenceLineageOutcome:
     def succeeded(self) -> bool:
         return self._result_snapshot is not None
 
+    @property
+    def binding_digest(self) -> str | None:
+        return self._binding_digest
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, EvidenceLineageOutcome):
             return NotImplemented
         return (
             self._result_snapshot == other._result_snapshot
             and self._error_snapshot == other._error_snapshot
+            and self._binding_digest == other._binding_digest
         )
 
 
@@ -466,6 +491,27 @@ def _is_digest(value: Any) -> bool:
 
 def _is_id(value: Any) -> bool:
     return type(value) is str and bool(value)
+
+
+def canonical_evidence_lineage_digest(
+    lineage_input: Any,
+    lineage_result: Any,
+) -> str | None:
+    """Bind one strict Stage 5 input to its resolver-produced Result."""
+
+    try:
+        canonical = _canonical_json_bytes(
+            {
+                "lineage_input": lineage_input,
+                "lineage_outcome": {"result": lineage_result},
+            },
+            limit=MAX_BINDING_CANONICAL_BYTES,
+        )
+    except (_StrictJSONError, RecursionError):
+        return None
+    return hashlib.sha256(
+        LINEAGE_BINDING_DIGEST_DOMAIN + canonical
+    ).hexdigest()
 
 
 def _exact_object(value: Any, fields: frozenset[str]) -> bool:
@@ -1508,7 +1554,13 @@ def resolve_evidence_lineage(
             "RESULT_TOO_LARGE",
             [_issue("$", "RESULT_BYTE_BUDGET_EXCEEDED")],
         )
-    return EvidenceLineageOutcome._from_result(result)
+    binding_digest = canonical_evidence_lineage_digest(input_snapshot, result)
+    if binding_digest is None:
+        return _failure(
+            "RESULT_TOO_LARGE",
+            [_issue("$", "RESULT_BYTE_BUDGET_EXCEEDED")],
+        )
+    return EvidenceLineageOutcome._from_bound_result(result, binding_digest)
 
 
 __all__ = [
@@ -1518,6 +1570,7 @@ __all__ = [
     "EvidenceLineageIssue",
     "EvidenceLineageOutcome",
     "assess_evidence",
+    "canonical_evidence_lineage_digest",
     "canonical_join_integration_fingerprint",
     "canonical_node_input_fingerprint",
     "canonical_node_output_fingerprint",

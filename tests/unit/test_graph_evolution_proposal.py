@@ -1,7 +1,13 @@
 import copy
+import hashlib
+import json
 import unittest
 
-from sagekit.evidence import EvidenceLineageOutcome
+from sagekit.evidence import (
+    EvidenceLineageOutcome,
+    canonical_node_input_fingerprint,
+    resolve_evidence_lineage,
+)
 from sagekit.graph_contract import canonical_graph_digest
 from sagekit.graph_evolution_contract import (
     canonical_graph_evolution_digest,
@@ -21,6 +27,9 @@ OPERATIONS = (
     "SPLIT_PENDING",
     "DISABLE_OPTIONAL_PENDING",
     "NO_CHANGE",
+)
+JOIN_DEFINITION_FINGERPRINT_DOMAIN = (
+    b"sagekit-evidence-lineage-join-definition-v1\0"
 )
 
 
@@ -136,7 +145,7 @@ def request(operation):
         "evidence_refs": ["evidence/stage5/failure-001"],
         "decision_refs": ["decision/review-001"],
         "affected_paths": ["sagekit/graph_contract.py"],
-        "stage5_lineage_digest": "b" * 64,
+        "stage5_lineage_digest": stage5_lineage(graph).binding_digest,
     }
     if operation == "ADD_CORRECTIVE":
         value["finding_ref"] = "finding/review-001"
@@ -214,24 +223,154 @@ def preauthorization():
 
 def stage5_lineage(graph=None):
     graph = parent_graph() if graph is None else graph
-    result = {
-        "schema_id": "urn:sagekit:evidence-lineage:v1:result",
-        "schema_version": 1,
-        "graph_id": graph["graph_id"],
-        "graph_generation": graph["generation"],
-        "graph_digest": canonical_graph_digest(graph),
-        "decisions": {
-            "lineage/final": {
-                "disposition": "REUSE",
-                "input_fingerprint": "1" * 64,
-                "output_fingerprint": "2" * 64,
-                "changed_edge_types": [],
-                "reason_codes": ["FINGERPRINTS_MATCH"],
-            }
-        },
-        "final_evidence_node_id": "lineage/final",
+    graph_digest = canonical_graph_digest(graph)
+    output_digests = {
+        node["id"]: format(index, "064x")
+        for index, node in enumerate(graph["nodes"], start=1)
     }
-    return EvidenceLineageOutcome._from_result(result)
+    lineage_nodes = [
+        {
+            "lineage_node_id": node["id"],
+            "owner_kind": "GRAPH_NODE",
+            "owner_id": node["id"],
+            "input_fingerprint": "0" * 64,
+            "output_fingerprint": output_digests[node["id"]],
+        }
+        for node in graph["nodes"]
+    ]
+    lineage_nodes.extend(
+        [
+            {
+                "lineage_node_id": "gate/acceptance",
+                "owner_kind": "JOIN",
+                "owner_id": "gate/acceptance",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": "a" * 64,
+            },
+            {
+                "lineage_node_id": "candidate/release",
+                "owner_kind": "CANDIDATE",
+                "owner_id": "candidate/release",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": "b" * 64,
+            },
+            {
+                "lineage_node_id": "evidence/final",
+                "owner_kind": "EVIDENCE",
+                "owner_id": "evidence/final",
+                "input_fingerprint": "0" * 64,
+                "output_fingerprint": "c" * 64,
+            },
+        ]
+    )
+    lineage_edges = [
+        {
+            "source_node_id": source,
+            "target_node_id": "gate/acceptance",
+            "edge_type": "NODE_OUTPUT",
+            "source_output_fingerprint": "0" * 64,
+            "target_input_fingerprint": "0" * 64,
+        }
+        for source in ("node/controller", "node/verify")
+    ]
+    lineage_edges.extend(
+        [
+            {
+                "source_node_id": "gate/acceptance",
+                "target_node_id": "evidence/final",
+                "edge_type": "JOIN_INTEGRATION",
+                "source_output_fingerprint": "0" * 64,
+                "target_input_fingerprint": "0" * 64,
+            },
+            {
+                "source_node_id": "candidate/release",
+                "target_node_id": "evidence/final",
+                "edge_type": "CANDIDATE",
+                "source_output_fingerprint": "0" * 64,
+                "target_input_fingerprint": "0" * 64,
+            },
+        ]
+    )
+    graph_join = graph["joins"][0]
+    join_projection = {
+        "join_definition": {
+            "id": graph_join["id"],
+            "policy": graph_join["policy"],
+            "requires": sorted(graph_join["requires"]),
+        },
+        "optional_member_node_ids": [],
+    }
+    join_definition_fingerprint = hashlib.sha256(
+        JOIN_DEFINITION_FINGERPRINT_DOMAIN
+        + json.dumps(
+            join_projection,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    snapshot = {
+        "graph_binding": {
+            "graph_id": graph["graph_id"],
+            "graph_generation": graph["generation"],
+            "graph_digest": graph_digest,
+        },
+        "stage4_bindings": {
+            "ready_input_digest": "d" * 64,
+            "transition_bindings": [
+                {
+                    "node_id": node["id"],
+                    "transition_input_digest": "e" * 64,
+                    "node_result_digest": output_digests[node["id"]],
+                }
+                for node in graph["nodes"]
+            ],
+        },
+        "lineage_nodes": lineage_nodes,
+        "lineage_edges": lineage_edges,
+        "join_integrations": [
+            {
+                "join_id": graph_join["id"],
+                "policy": graph_join["policy"],
+                "definition_fingerprint": join_definition_fingerprint,
+                "contributor_node_ids": list(graph_join["requires"]),
+                "ready_input_digest": "d" * 64,
+                "external_decision_refs": ["decision/manual-gate"],
+            }
+        ],
+        "final_evidence_node_id": "evidence/final",
+    }
+    nodes_by_id = {node["lineage_node_id"]: node for node in lineage_nodes}
+    incoming = {node_id: [] for node_id in nodes_by_id}
+    for edge in lineage_edges:
+        source = nodes_by_id[edge["source_node_id"]]
+        edge["source_output_fingerprint"] = source["output_fingerprint"]
+        incoming[edge["target_node_id"]].append(
+            {
+                "edge_type": edge["edge_type"],
+                "source_node_id": edge["source_node_id"],
+                "source_output_fingerprint": source["output_fingerprint"],
+            }
+        )
+    for node_id, node in nodes_by_id.items():
+        node["input_fingerprint"] = canonical_node_input_fingerprint(
+            snapshot["graph_binding"],
+            incoming[node_id],
+        )
+    for edge in lineage_edges:
+        edge["target_input_fingerprint"] = nodes_by_id[edge["target_node_id"]][
+            "input_fingerprint"
+        ]
+    lineage_input = {
+        "schema_id": "urn:sagekit:evidence-lineage:v1:input",
+        "schema_version": 1,
+        "baseline": snapshot,
+        "candidate": copy.deepcopy(snapshot),
+    }
+    outcome = resolve_evidence_lineage(graph, lineage_input)
+    if not outcome.succeeded:
+        raise AssertionError(f"synthetic Stage 5 lineage failed: {outcome.error}")
+    return outcome
 
 
 def build(operation, *, graph=None, req=None, preauth=None, lineage=None):
@@ -396,6 +535,57 @@ class GraphEvolutionProposalTests(unittest.TestCase):
         self.assertIn(
             "OPERATION_NOT_PREAUTHORIZED",
             {issue["issue_code"] for issue in preauth_error.error["issues"]},
+        )
+
+    def test_request_must_reuse_owner_produced_stage5_binding_digest(self):
+        graph = parent_graph()
+        lineage = stage5_lineage(graph)
+        req = request("ADD_VERIFICATION")
+        self.assertEqual(lineage.binding_digest, req["stage5_lineage_digest"])
+
+        built = build(
+            "ADD_VERIFICATION",
+            graph=graph,
+            req=req,
+            lineage=lineage,
+        )
+        self.assertTrue(built.succeeded, built.error)
+        self.assertEqual(
+            lineage.binding_digest,
+            built.proposal["stage5_lineage_digest"],
+        )
+        self.assertTrue(validate_graph_evolution_proposal(built.proposal).valid)
+
+        for replacement in ("b" * 64, "c" * 64):
+            with self.subTest(replacement=replacement[0]):
+                substituted = copy.deepcopy(req)
+                substituted["stage5_lineage_digest"] = replacement
+                rejected = build(
+                    "ADD_VERIFICATION",
+                    graph=graph,
+                    req=substituted,
+                    lineage=lineage,
+                )
+                self.assertFalse(rejected.succeeded)
+                self.assertIn(
+                    "LINEAGE_DIGEST_MISMATCH",
+                    {
+                        issue["issue_code"]
+                        for issue in rejected.error["issues"]
+                    },
+                )
+
+        unbound = EvidenceLineageOutcome._from_result(lineage.result)
+        rejected = build(
+            "ADD_VERIFICATION",
+            graph=graph,
+            req=req,
+            lineage=unbound,
+        )
+        self.assertFalse(rejected.succeeded)
+        self.assertEqual(
+            "VALIDATED_LINEAGE_OUTCOME_REQUIRED",
+            rejected.error["issues"][0]["issue_code"],
         )
 
     def test_invalid_or_oversized_inputs_return_bounded_typed_errors(self):

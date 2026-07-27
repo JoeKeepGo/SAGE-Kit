@@ -31,6 +31,20 @@ STAGE5_OWNER_PATHS = {
     "tests/unit/test_stage5_observed_failure_corpus.py",
 }
 STAGE5_OWNED_PATHS = STAGE5_CONTRACT_PATHS | STAGE5_OWNER_PATHS
+STAGE5_CONTRACT_RESOURCE_DIGESTS = {
+    "contract.json": (
+        "240c98234e04e1c97414dae86fadd6a94de16649f71c2dc023e1a2ddf04cbe2a"
+    ),
+    "error.schema.json": (
+        "ed86e040b8fc64e6003dbf163172700faec608d6f73463092005c9ac82aa5019"
+    ),
+    "input.schema.json": (
+        "b57340367797f69001afbbcfbcb337412109f415eac99ea9d9e18a412d309901"
+    ),
+    "result.schema.json": (
+        "46bf939a7b802dde95628079855eb1904e584ff68b574551183ff02c631bae8a"
+    ),
+}
 
 EDGE_TYPES = {
     "NODE_OUTPUT",
@@ -419,14 +433,24 @@ class EvidenceLineageContractV1Tests(unittest.TestCase):
         cls.result_schema = load_json(CANONICAL / "result.schema.json")
         cls.error_schema = load_json(CANONICAL / "error.schema.json")
 
-    def test_stage5_ownership_manifest_has_exactly_fifteen_existing_paths(self):
+    def test_stage5_owned_path_sets_are_disjoint_and_resolve_to_fifteen_files(self):
+        self.assertTrue(STAGE5_CONTRACT_PATHS.isdisjoint(STAGE5_OWNER_PATHS))
+        self.assertEqual(
+            STAGE5_CONTRACT_PATHS | STAGE5_OWNER_PATHS,
+            STAGE5_OWNED_PATHS,
+        )
         self.assertEqual(15, len(STAGE5_OWNED_PATHS))
         missing = {
             path for path in STAGE5_OWNED_PATHS if not (REPOSITORY / path).is_file()
         }
         self.assertEqual(set(), missing)
 
-    def test_resources_are_valid_json_byte_identical_and_digest_bound(self):
+    def test_stage5_contract_resources_match_fixed_canonical_digests(self):
+        self.assertEqual(set(RESOURCE_NAMES), set(STAGE5_CONTRACT_RESOURCE_DIGESTS))
+        for name, expected in STAGE5_CONTRACT_RESOURCE_DIGESTS.items():
+            self.assertEqual(expected, sha256(CANONICAL / name), name)
+
+    def test_resources_are_valid_json_byte_identical_and_schema_digest_bound(self):
         resource_keys = {
             "input_schema": "input.schema.json",
             "result_schema": "result.schema.json",

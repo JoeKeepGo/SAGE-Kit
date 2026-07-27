@@ -11,6 +11,7 @@ from sagekit.evidence import (
     ChangeEvent,
     EvidenceFingerprint,
     assess_evidence,
+    canonical_evidence_lineage_digest,
     canonical_join_integration_fingerprint,
     canonical_node_input_fingerprint,
     canonical_node_output_fingerprint,
@@ -48,6 +49,10 @@ SHA = {
 }
 JOIN_DEFINITION_FINGERPRINT_DOMAIN = (
     b"sagekit-evidence-lineage-join-definition-v1\0"
+)
+LINEAGE_BINDING_DIGEST_DOMAIN = b"sagekit-evidence-lineage-binding-v1\0"
+LINEAGE_BINDING_VECTOR_SHA256 = (
+    "7b2ebae07c17d39cd9a8caeb9649c842bbbce62a8b4c2adc51600a8f045c1034"
 )
 
 
@@ -336,6 +341,43 @@ def decision(outcome, node_id: str) -> dict[str, object]:
 
 
 class EvidenceLineageFingerprintTests(unittest.TestCase):
+    def test_lineage_binding_digest_has_fixed_owner_vector(self) -> None:
+        candidate_graph = graph()
+        lineage_source = lineage_input(candidate_graph)
+        outcome = resolve_evidence_lineage(candidate_graph, lineage_source)
+        self.assertTrue(outcome.succeeded, outcome.error)
+        projection = {
+            "lineage_input": lineage_source,
+            "lineage_outcome": {"result": outcome.result},
+        }
+        expected = hashlib.sha256(
+            LINEAGE_BINDING_DIGEST_DOMAIN
+            + json.dumps(
+                projection,
+                allow_nan=False,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+
+        self.assertEqual(LINEAGE_BINDING_VECTOR_SHA256, expected)
+        self.assertEqual(
+            LINEAGE_BINDING_VECTOR_SHA256,
+            canonical_evidence_lineage_digest(lineage_source, outcome.result),
+        )
+        self.assertEqual(
+            LINEAGE_BINDING_VECTOR_SHA256,
+            outcome.binding_digest,
+        )
+        self.assertRaises(
+            AttributeError,
+            setattr,
+            outcome,
+            "_binding_digest",
+            "b" * 64,
+        )
+
     def test_node_input_fixed_vector_and_owner_output_delegation(self) -> None:
         fingerprint = canonical_node_input_fingerprint(
             {
