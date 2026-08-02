@@ -1,0 +1,230 @@
+# Quality Gates Template
+
+This document defines the evidence required before project work can be called
+complete.
+
+Governance/permission meaning and waiver authority are canonical at
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004` and
+`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This template retains the
+project's gate catalog, required evidence, status, and authority fields.
+General completion eligibility is canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`; this project template alone
+owns the exact applicable gate catalog and evidence requirements.
+
+## Gate Levels
+
+| Level | Use When | Evidence Examples |
+|---|---|---|
+| Unit | Pure behavior in one module. | Focused test cases. |
+| Contract | API, event, CLI, worker, UI, or config boundary. | Schema tests, fixture tests, consumer tests. |
+| Integration | Multiple components interact. | Service-to-worker, API-to-database, backend-to-external adapter checks. |
+| Runtime | Behavior depends on a running process. | Curl, CLI invocation, process health, logs. |
+| UI | User-visible behavior changes, if the project has a UI. | Browser or component smoke with visible states. |
+| Security | Secrets, auth, permissions, sensitive data. | Redaction checks, deny-path tests, scans. |
+| Release | Build, package, deploy, or publish. | Artifact checks, rollback notes, release smoke. |
+
+## Gate Status Values
+
+Every phase completion report must classify applicable gates with these values.
+
+| Status | Meaning |
+|---|---|
+| `PASS` | Required evidence exists and was checked. |
+| `FAIL` | Evidence was produced and shows the gate failed. |
+| `BLOCKED` | Evidence cannot be produced without a blocker, missing input, or approval. |
+| `WAIVED` | The named Waiver Authority, or explicitly documented delegate, approved the recorded risk for this scope. |
+| `N/A` | Gate does not apply, with a concrete reason. |
+
+Blocking gates marked `FAIL`, `BLOCKED`, or missing cannot be accepted.
+Blocking gates marked `WAIVED` require Finding Owner, Waiver Authority,
+decision or delegation reference, reason, and scope.
+
+## Universal Required Gates
+
+| Gate | Required Evidence |
+|---|---|
+| Read gate | Completion report names authority and context read, files, and verification plan. |
+| Project owner entry gate | Broad, non-technical, or coarse-roadmap projects produce intake and a capability map before executable roadmap planning. |
+| Active execution authority gate | Non-trivial work uses retained active SPEC, phase, or task authority in the project's selected representation; Markdown is not required. |
+| Milestone granularity gate | Milestone candidate maps to one primary capability and has reviewable phases with contracts, file boundaries, tests, and smoke plans. |
+| Contract gate | Request, response, event, config, UI, CLI, or data contract is named before implementation. |
+| Test gate | Focused tests exist and run, or a manual-only exception is justified. |
+| Runtime gate | Runtime claims are proven by live evidence. |
+| UI visibility gate | UI claims are proven by visible state checks when UI is in scope. |
+| Wave safety gate | When Wave Execution is used, parallel lanes have exclusive file ownership and controller integration evidence. |
+| Wave readiness gate | Wave or parallel phase execution names independent lanes, exclusive writable files, serial shared files, frozen contracts, runtime ownership, validation lanes, integration owner, and conflict stop conditions. |
+| Coder separation gate | In Session Orchestration, Coder Controller self-execution is absent or explicitly allowed, narrow, recorded, and independently reviewed. |
+| Authority gate | Every active packet records both fields required by `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`; every mutation surface is explicit. |
+| Corrective closure gate | When review returns required corrections, it provides a corrective packet, Project Manager decision request, blocker, or waiver path. |
+| Correction re-review gate | Corrective rounds have independent re-review evidence before Final Review closes the verdict, except exact `MECHANICAL_STATUS` corrections closed by a reviewer-authored Deterministic Closure predicate and receipt. |
+| Deterministic closure gate | A no-re-review closure names the prior reviewer predicate, precommitted final verdict, authoritative value/source, exact allowed diff, closure commands, out-of-scope hashes, State Truth result, a Closure Receipt Owner separate from the fixer, receipt ref/destination, `AUTO_CLOSED_BY_PREDICATE`, and `VERDICT_FINALIZED_FROM_RECEIPT`; any mismatch falls back to re-review. |
+| Security gate | Secrets and sensitive data are not exposed or staged. |
+| No fallback gate | No guessed fields, hidden success, speculative aliases, unauthorized fallback behavior, or silent downgrade paths. |
+| Completion report gate | Final report lists files, tests, smoke, skipped checks, and remaining gaps. |
+| Capability adapter gate | External capability use records adapter name, authorization level, boundary served, evidence produced, and required or safe-fallback behavior. |
+| Structured evidence gate | When the project selects structured records, required task/evidence facts exist and project-selected checks pass before acceptance. |
+| State Truth Reconciliation gate | When multiple current records exist, their status, authority, blockers, and next action agree; material mismatches block acceptance. |
+
+## State Truth Reconciliation Gate
+
+Record:
+
+- applicability and inactive-profile reason when `N/A`;
+- profile reference;
+- owners and mutation authority checked;
+- mismatches or corrective/handoff reference;
+- result: `PASS`, `BLOCKED`, or `N/A`.
+
+State Truth conflicts block closure until the responsible surface owners
+reconcile them under matching write/corrective authority. Ledger, task,
+evidence, status, and implementation surfaces remain writable only by their
+named owners. A Closure Receipt Owner verifies the reconciled state and records
+the receipt only in its own review packet/output; that review-output write does
+not grant authority over any corrected surface.
+
+## Finding Severity Acceptance Rule
+
+Final Review severity decides whether Project Manager acceptance is blocked.
+
+| Severity | Acceptance Rule |
+|---|---|
+| `P0` | Blocks acceptance while open. It may close only after the issue is fixed or explicitly reclassified with evidence by the required authority. |
+| `P1` | Blocks acceptance while open. It may close only after the issue is fixed or explicitly reclassified with evidence by the required authority. |
+| `P2` | Blocks acceptance only when it affects authority, false-green risk, approval gates, security boundaries, required-check requirements, source authority, or evidence integrity. Ordinary documentation consistency P2 findings may be accepted with concerns or auto-corrected. |
+| `P3` | Does not block acceptance. Record as concern, follow-up, or cleanup. |
+
+## Corrective Convergence Rule
+
+Apply convergence and corrective re-review from
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` and `#sage-loop-010`. This
+template records the project's applicable gate result; it does not redefine
+no-progress or review scope.
+
+The no-re-review `MECHANICAL_STATUS` exception must satisfy the complete
+Deterministic Closure contract and reject/fallback table in
+`docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`. Only Final Review may record
+`VERDICT_FINALIZED_FROM_RECEIPT`; Project Manager acceptance remains pending.
+All ineligible or failed cases use the targeted or full re-review selected by
+that contract.
+
+Mechanical verification noise is not a blocking finding when the verification
+command exits successfully. For example, `git diff --check` line-ending notices
+such as LF-to-CRLF conversion warnings are non-blocking warnings when exit code
+is `0`. Ordinary EOF/trailing-whitespace findings use the pre-freeze
+`AUTO_NORMALIZATION_CORRECTIVE` contract in
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-012`; they do not directly become an artificial
+human blocker. Conflict markers, malformed patches, protected-byte findings,
+or any remaining non-zero verification exit still fail closed.
+
+### Preauthorized Convergence Window Gate
+
+Apply the explicit opt-in contract at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-009`. When the project activates it,
+record its authority id and digest, execution scope, root-cause family,
+component-aware allowed paths, invariant, `implementation-preserving-only`
+policy, targeted-review state, stop conditions, and approval source in the gate
+evidence.
+
+## Universal Blockers
+
+- behavior changed but no test or smoke path exists;
+- implementation started without retained active SPEC, phase, or task authority;
+- a broad, non-technical, or coarse-roadmap project generated an executable roadmap directly
+  from intake without a capability map and granularity audit;
+- milestone implementation started before phases were decomposed into
+  reviewable slices;
+- a milestone candidate spans multiple primary capabilities without being
+  split;
+- a phase mixes unrelated ownership domains without a wave plan and integration
+  owner;
+- parallel lanes edit the same file without controller-owned serialization;
+- a runtime behavior was claimed from static checks only;
+- UI behavior was claimed without opening or smoke-checking the UI surface;
+- Wave Execution or parallel phases are used without Wave Readiness Gate
+  evidence;
+- Coder Controller self-executes broad milestone work without explicit
+  self-execution policy and independent review;
+- a packet or handoff names governance level but omits permission mode;
+- a read-only review returns `NEEDS_CORRECTION`, `BLOCKED`, or
+  `Corrective Packet Required: yes` without a corrective packet, Project
+  Manager decision request, blocker, or waiver path;
+- corrective work changes files, behavior, contracts, runtime behavior, gate
+  state, shared ownership, or required evidence without either independent
+  re-review evidence or the complete strict Deterministic Closure receipt and
+  verdict-finalization transition;
+- a corrective worker authors/broadens a deterministic predicate, records its
+  own closure receipt, or mutates a ledger, task, evidence, status, or
+  implementation surface it does not own;
+- write, corrective, environment-write, submit, merge, publish, release, or
+  cleanup work occurs without the matching permission mode;
+- a hidden success, unauthorized fallback, or silent downgrade path masks
+  failure as success;
+- an external capability writes files, installs tools, changes environment
+  configuration, or claims completion without adapter authorization and
+  evidence mapping;
+- a shared contract changed without updating both owner and consumer evidence;
+- secrets, credentials, tokens, private keys, account data, or production data
+  are staged or committed.
+- a blocking gate is skipped without an explicit `WAIVED` status from the named
+  Waiver Authority or documented delegate; human-only gates still require the
+  named human authority.
+- structured task/evidence records is active and a task, phase, or milestone is accepted
+  without a passing required project-native check result.
+- structured task/evidence records is active and a task or evidence record is orphaned;
+- two tasks claim overlapping `ACTIVE` or `HELD` exclusive locks;
+- State Truth Reconciliation is `BLOCKED` under the active profile.
+
+## Required Gate Status Table
+
+Every phase completion report must include:
+
+| Gate | Status | Evidence | Blocking | Owner | Notes |
+|---|---|---|---|---|---|
+| `<gate>` | `PASS`, `FAIL`, `BLOCKED`, `WAIVED`, or `N/A` | `<evidence>` | `<yes/no>` | `<owner>` | `<notes>` |
+
+## Baseline Commands
+
+Replace with project-specific commands:
+
+```bash
+<unit test command>
+<typecheck command>
+<build command>
+<runtime smoke command>
+```
+
+## Completion Language Rule
+
+Apply `docs/agent/EXECUTION_ECONOMY.md#sage-loop-013`, then report the local
+gate table without inventing evidence for an out-of-scope runtime or UI
+surface.
+
+Allowed:
+
+```text
+Unit tests passed. Runtime smoke was not applicable because this phase changed
+only static documentation.
+```
+
+Not allowed:
+
+```text
+This should work.
+```
+
+Evidence beats confidence.
+
+## Optional Structured Evidence Levels
+
+Use these levels when a project adopts the structured task/evidence records:
+
+| Level | Meaning |
+|---|---|
+| `L0` | Static and structural evidence. |
+| `L1` | Focused behavior evidence. |
+| `L2` | Contract or integration evidence. |
+| `L3` | Runtime evidence. |
+| `L4` | Release or production-path evidence. |
+
+These levels complement the gate table above. They do not replace normal
+quality gates, named Waiver Authority decisions, or Final Review judgment.

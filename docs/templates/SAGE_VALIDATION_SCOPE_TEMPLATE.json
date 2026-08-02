@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "active_authority": [
+    "docs/ACTIVE_SPEC.md",
+    "docs/APPROVAL_GATES.md"
+  ],
+  "active_context": "docs/ACTIVE_CONTEXT.md",
+  "historical_references": [
+    "docs/history/"
+  ],
+  "history_execution_policy": "explicit-selection-required",
+  "approved_by": "<project authority>",
+  "approved_at": "<RFC3339 timestamp>"
+}

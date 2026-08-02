@@ -1,0 +1,46 @@
+{
+  "contract_id": "urn:sagekit:graph-contract:v1",
+  "contract_family": "sagekit-graph-contract",
+  "version": "v1",
+  "manifest_version": 1,
+  "resources": {
+    "graph_schema": {
+      "resource": "graph.schema.json",
+      "canonical_sha256": "b2a6663ffd654c7f54603b1505a6e328d3044f2c34c57717c635144e2e0b5466"
+    },
+    "node_result_schema": {
+      "resource": "node-result.schema.json",
+      "canonical_sha256": "a207e510f0b1749ea780494f53d64eca7d7a203c71a6e81db7b12243b5ea6379"
+    }
+  },
+  "digest_semantics": "SHA-256 over exact canonical resource bytes; this is resource integrity only and not a semantic graph digest.",
+  "external_gate_requires_topology": {
+    "policies": [
+      "manual-gate",
+      "corrective-join"
+    ],
+    "membership_rule": "Dependencies among nodes within one manual-gate or corrective-join requires set are allowed. For every declared dependency where successor S depends_on prerequisite P, if P belongs to the requires set of one or more external joins then S must belong to the requires set of every such join. The exact depends_on reference is rejected when S is outside any containing join.",
+    "shared_membership_rule": "When prerequisite P belongs to multiple external joins, successor S must share membership in all external joins that contain P; membership in only a subset is rejected.",
+    "issue_code": "nonterminal-external-join-prerequisite",
+    "issue_path": "The exact $.nodes[i].depends_on[j] reference from successor S to prerequisite P when S is outside at least one external join whose requires set contains P.",
+    "complexity": "Validation indexes every external-gate prerequisite to all of its requires memberships and scans each declared dependency edge once, with O(N + E + R) time plus bounded membership checks and deterministic issues.",
+    "generation_boundary": "Work governed by the external decision is expressed only in a later Graph generation supplied and authorized by the host after the gate decision. This contract does not create that generation, infer lineage, add a join-to-node edge, or dynamically rewrite the Graph.",
+    "independent_work": "Nodes inside one external join may retain their declared internal dependency order. Nodes outside a containing external join cannot succeed one of its prerequisites in the same generation. Nodes with no such unsafe edge may remain in the same generation and continue according to their own dependencies and resources.",
+    "non_goals": "The rule introduces no WAITING_GATE or SKIPPED status, scheduler, hidden resolver edge, runtime mutation, gate decision, or authority grant. Automatic joins do not impose this external-gate requires-membership rule."
+  },
+  "reachability_truth": {
+    "root_definition": "Graph Contract v1 has no entry or target field. A root is any declared node whose depends_on array is empty.",
+    "dag_theorem": "In every finite reference-complete acyclic dependency graph, following predecessor edges from any node terminates at at least one root; therefore every valid node is reachable from a root by definition.",
+    "failure_expression": "A purported static unreachable condition is expressed honestly by existing missing-dependency, dependency-cycle, or unsafe external-gate topology issues.",
+    "non_goal": "Graph Contract v1 introduces no fabricated UNREACHABLE node status, disposition, or validation issue."
+  },
+  "compatibility": "Language-neutral Graph Contract v1 and Node Result v1 data boundaries with machine-enforced requires-membership topology for manual-gate and corrective-join prerequisites. Existing valid Graph semantic projection and digest are unchanged. Schema presence does not activate Graph execution, runtime state, scheduling, node execution, gates, authority, or later-generation creation. Light remains graph-artifact optional.",
+  "source_authority": {
+    "identity": "SAGE-Kit Graph Contract v1",
+    "reference": "docs/SAGE_CORE.md#sage-grf-001"
+  },
+  "canonical_owner": {
+    "path": "contracts/graph/v1",
+    "expectation": "This repository directory is the single canonical owner. Static release bundles preserve these bytes without creating a second tracked authority."
+  }
+}

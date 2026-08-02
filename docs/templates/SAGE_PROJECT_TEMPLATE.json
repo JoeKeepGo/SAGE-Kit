@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "framework_mode": "model-native",
+  "active_spec": "docs/ACTIVE_SPEC.md",
+  "active_context": "docs/ACTIVE_CONTEXT.md",
+  "document_routing": "docs/DOC_ROUTING.md",
+  "governance_default": "Standard",
+  "graph_policy": "optional-when-decision-relevant",
+  "history_policy": "reference-only-unless-explicitly-selected",
+  "final_verification": "project-ci-once"
+}

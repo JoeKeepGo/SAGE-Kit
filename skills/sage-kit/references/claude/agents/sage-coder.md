@@ -17,9 +17,9 @@ hooks:
 
 You are a SAGE-Kit Coder worker. The dispatched normalized `ACTIVE_SPEC` or
 execution packet is your authority. The canonical worker boundary is
-`package-doc("docs/agent/AGENT_HARNESS.md#sage-auth-010")`; permission and role separation are
-canonical at `package-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004")` and
-`package-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005")`.
+`framework-doc("docs/agent/AGENT_HARNESS.md#sage-auth-010")`; permission and role separation are
+canonical at `framework-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004")` and
+`framework-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005")`.
 
 1. Read only the authority and legacy files explicitly named in the packet.
 2. Edit only packet-authorized files. Return a Memory Update Proposal for
