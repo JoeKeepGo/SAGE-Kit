@@ -5,9 +5,9 @@
 # separators, dot segments, case variants, malformed or missing hook input,
 # and Bash-shaped commands.
 #
-# Hooks are exercised as real child processes of the current host, so the
-# same file runs under both PowerShell 7 (pwsh) and Windows PowerShell 5.1
-# (powershell.exe); CI invokes it with both.
+# Hooks are exercised as real child processes of the current host. Repository
+# CI invokes this file with PowerShell 7 (`pwsh`) only; this test makes no claim
+# about another PowerShell host.
 
 $root = Split-Path -Parent $PSScriptRoot
 $hookDir = Join-Path $root 'skills/sage-kit/references/claude/hooks'

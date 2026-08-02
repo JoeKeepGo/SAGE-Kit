@@ -116,15 +116,6 @@ is `0`. Ordinary EOF/trailing-whitespace findings use the pre-freeze
 human blocker. Conflict markers, malformed patches, protected-byte findings,
 or any remaining non-zero verification exit still fail closed.
 
-### Preauthorized Convergence Window Gate
-
-Apply the explicit opt-in contract at
-`docs/agent/EXECUTION_ECONOMY.md#sage-loop-009`. When the project activates it,
-record its authority id and digest, execution scope, root-cause family,
-component-aware allowed paths, invariant, `implementation-preserving-only`
-policy, targeted-review state, stop conditions, and approval source in the gate
-evidence.
-
 ## Universal Blockers
 
 - behavior changed but no test or smoke path exists;

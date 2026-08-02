@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:sagekit:graph-contract:v1:graph",
   "title": "SAGE-Kit Graph Contract v1",
-  "description": "A language-neutral, portable data boundary. Schema presence does not activate Graph execution, does not create runtime state, does not create a scheduler, does not modify ACTIVE_CONTEXT, does not execute nodes, and does not change project authority. Light governance remains graph-artifact optional. Graph Contract validation also enforces the cross-field external-gate topology rule: a prerequisite successor is valid only when it remains inside every manual-gate or corrective-join that contains that prerequisite.",
+  "description": "A language-neutral structural data boundary. Schema presence does not activate Graph execution, create runtime state or a scheduler, modify ACTIVE_CONTEXT, execute nodes, or change project authority. Light governance remains Graph-optional. JSON Schema checks local shape only; reference integrity, cycles, reachability, join safety, and external-gate topology require separate consumer-selected validation or documented model review.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -83,7 +83,7 @@
       "items": {
         "$ref": "#/$defs/join"
       },
-      "description": "Declared join boundaries. Stage 2B owns pure join validation and transition decisions."
+      "description": "Declared join boundaries. Their structural presence does not prove cross-node membership or satisfaction semantics."
     }
   },
   "$defs": {
@@ -137,7 +137,7 @@
             "minLength": 1
           },
           "uniqueItems": true,
-          "description": "Declared dependency identities. Stage 2B validates references, cycles, and external-gate topology. A node may depend on an external-gate prerequisite only when that node is also a member of every external gate that contains the prerequisite."
+          "description": "Declared dependency identities. JSON Schema does not prove that references exist, that the dependency graph is acyclic, or that external-gate topology is safe."
         },
         "permission": {
           "type": "string",
@@ -174,7 +174,7 @@
             "required",
             "optional"
           ],
-          "description": "Whether the node is required or optional; join satisfaction remains a Stage 2B decision."
+          "description": "Whether the node is required or optional; join satisfaction requires external semantic evidence."
         }
       }
     },
@@ -209,7 +209,7 @@
             "manual-gate",
             "corrective-join"
           ],
-          "description": "all-required preserves every required node; required-plus-optional preserves required nodes while optional evidence may be unavailable for a recorded reason; first-success is only for redundant, equivalent, read-only exploration. first-success may not bypass a required failure or replace authority, safety, approval, validator, or acceptance decisions. manual-gate records a required named human decision without making it; corrective-join binds a finding, correction, focused evidence, and targeted re-review. Dependencies among members of one external join are valid; an edge leaving any manual-gate or corrective-join that contains its prerequisite is invalid in this Graph generation. Gate-dependent work is expressed only by a later host-authorized Graph generation; independent nodes may remain in this generation. Stage 2B owns unsafe-join and cross-field external-gate validation."
+          "description": "all-required is intended to preserve required nodes; required-plus-optional permits unavailable optional evidence only with a recorded reason; first-success is only for redundant, equivalent, read-only exploration and may not bypass required failure, authority, safety, approval, or acceptance. manual-gate records a required named human decision without making it; corrective-join records a finding/correction/re-review boundary. These are semantic requirements, not facts enforced by this structural schema."
         }
       }
     }

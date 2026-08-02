@@ -6,8 +6,9 @@ archive by default.
 ## Default Rule
 
 Read narrow first, then expand only when the task requires it.
-Configured or explicit SPEC sources are valid; their paths are provenance, not
-authority. Legacy `docs/<M>` routing remains a compatible default.
+Project-selected SPEC sources are valid; their paths are provenance, not
+authority. No SAGE-Kit config filename or fixed milestone directory is
+required.
 
 Maintain this file as a stable routing table, not a session log. Do not update
 it for ordinary task progress.
@@ -19,24 +20,18 @@ context is needed and what decision it supports.
 
 Default startup read set:
 
-1. Configured `ACTIVE_CONTEXT` (legacy default `docs/ACTIVE_CONTEXT.md`)
-2. `docs/DOC_ROUTING.md`
-3. `SAGEKIT_CONFIG.json`, when present, for source mapping, configured context,
-   project identity, and stable public contract binding
-4. `SAGE_PROJECT.json`, when present, to select `execution_document_model` and
-   its pinned execution-policy contract after source resolution
-5. Active `MILESTONE_MANIFEST.json` or legacy entry gate and ledger, if the task
-   belongs to a milestone
-6. Active thin phase manifest or legacy phase document, if implementation or
-   review is requested
+1. Project-selected active SPEC.
+2. Compact current-context record, commonly `ACTIVE_CONTEXT`.
+3. Project routing record, when one exists.
+4. Active milestone or phase authority only when the current task selects it.
+5. Applicable project gates, commands, and evidence owners.
 
 ## Read Policy By Task
 
 | Task Type | Read First | Expand Only If Needed |
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` if present |
-| Thin document validation | `SAGEKIT_CONFIG.json` when present, `SAGE_PROJECT.json`, configured or explicit active SPEC sources; legacy default `docs/<M>` | Referenced project gates and evidence only |
-| Thin packet compilation | Project lock, active milestone manifest, selected phase manifest | Exact pinned contract/profile resources; standalone output only when the runtime cannot load them |
+| Thin document review | Project-selected active SPEC and compact current context | Referenced project gates and evidence only |
 | Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
 | Capability map or roadmap granularity audit | Project profile, `docs/CAPABILITY_MAP.md` if present or `docs/templates/CAPABILITY_MAP_TEMPLATE.md` if creating it, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design, relevant profile templates, prior closeouts only when the capability depends on history |
@@ -45,7 +40,7 @@ Default startup read set:
 | Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
 | Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
 | Structured task/evidence records | Active context, this file, active milestone authority, current task/evidence records | `contracts/task-dispatch-v2/` when the project selects that static shape; related dependency records only when needed |
-| External capability routing | Active context, this file, `docs/SAGE_CORE.md#external-capability-boundary`, `docs/agent/AGENT_HARNESS.md`, `docs/agent/GOVERNANCE_LEVELS.md`, `docs/agent/CAPABILITY_ADAPTERS.md` | Selected skill, plugin, connector, MCP tool, CLI, CI, or review instructions only when the task will use that execution method |
+| External capability routing | Active context, this file, `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`, `docs/agent/AGENT_HARNESS.md`, `docs/agent/GOVERNANCE_LEVELS.md` | Selected skill, plugin, connector, MCP tool, project command, CI, or review instructions only when the task will use that execution method |
 | Frontend or browser adapter | Active phase doc, UI contract, quality gates, `docs/agent/CAPABILITY_ADAPTERS.md` | Design system, frontend skill instructions, browser QA tools |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
 | UI work | Active phase doc, UI contract, quality gates | Design system |

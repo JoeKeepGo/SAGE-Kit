@@ -1,7 +1,14 @@
 # <Milestone Or Feature> Phase <N>: <Name>
 
-Use this template for every milestone phase and future feature slice. Replace
-placeholders with concrete content before implementation starts.
+This is an optional detailed profile for Heavy work, deep planning, or projects
+that retain the legacy Milestone/Phase document model. Light and Standard work
+may use the active SPEC, compact `ACTIVE_CONTEXT`, and project-native evidence
+without creating this file. When selected, replace placeholders with concrete
+project authority before implementation starts.
+
+The project current authority owns scope, authorization, allowed and forbidden
+files, gates, locks, evidence requirements, completion, and acceptance.
+SAGE-Kit supplies this structure and routing guidance only.
 
 ## Goal
 
@@ -92,8 +99,9 @@ Define request, response, event, config, UI, CLI, or data contract. Include:
 ## Capability Routing
 
 State which specialist skills, plugins, connectors, or tools may be used for
-this phase. SAGE-Kit owns scope, authorization, files, gates, locks, evidence,
-and completion status; external capabilities provide execution methods inside
+this phase. Project current authority owns scope, authorization, files, gates,
+locks, evidence, and completion status. SAGE-Kit provides optional structure
+and routing; authorized external capabilities provide execution methods inside
 that boundary.
 
 Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers. Name:
@@ -107,9 +115,9 @@ Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers. Name:
 - evidence expected;
 - fallback path.
 
-If external workflow bundle is available, list the specific skills allowed for this phase and
-the boundary they must stay inside. If unavailable, use the SAGE-Kit-native
-phase, gate, packet, and evidence path.
+If an external workflow bundle is available, list the specific skills allowed
+for this phase and the boundary they must stay inside. If unavailable, use the
+model's native workflow and the project's own gates and evidence path.
 
 External planning outputs must be written into or mapped to this phase doc, the
 milestone ledger, or the controlling packet.
@@ -153,7 +161,7 @@ Change Control Evidence:
 
 List exact evidence required before this phase can be called complete.
 External capability completion is evidence only; it is not phase acceptance or
-SAGE-Kit gate completion.
+project gate completion.
 
 ## Completion Report
 

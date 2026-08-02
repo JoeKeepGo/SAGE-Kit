@@ -17,6 +17,8 @@ Choose governance from actual risk, not document count or milestone age.
 
 Permission is separate:
 
+<a id="authority-matrix"></a>
+
 - `READ_ONLY_REVIEW`
 - `WRITE_AUTHORIZED`
 - `CORRECTIVE_AUTHORIZED`

@@ -2,17 +2,17 @@
 
 Phase execution keeps work reviewable and bounded.
 
-For a Thin document milestone, resolve phase authority from the explicit active
-SPEC, `SAGE_PROJECT.json`, or current project routing. A project may use
-`docs/<M>/phases/<P>.json`, but the path is provenance rather than authority.
-The selected source records phase objective, dependencies, governance,
-permission, owner, paths, acceptance, project-native checks, evidence, stop
-conditions, handoff target, and state. The model reads it directly; do not
-expand framework rules back into project documents.
+Resolve phase authority from the project-selected active SPEC and current
+project routing. The project owns the phase objective, scope, authorization,
+files, gates, locks, evidence, completion conditions, and current state.
+SAGE-Kit supplies optional structure and routing guidance only; no SAGE-Kit
+config or fixed document path is required.
 
-Markdown milestones use the same requirements below.
-Accepted historical legacy phases are not retrofitted. Mixed or ambiguous
-document models must not fall back.
+Light and Standard work may execute directly from the active SPEC plus compact
+`ACTIVE_CONTEXT` and project-native evidence. A project may explicitly select
+the detailed Markdown phase template for Heavy work, deep planning, or legacy
+compatibility. Accepted historical phases are references and are not
+retrofitted or used as implicit execution authority.
 
 For large milestones with multiple phases and separate Project Manager, Coder,
 and Final Review controllers, wrap phase execution with
@@ -21,7 +21,7 @@ phase must satisfy.
 
 ## Phase Requirements
 
-Every non-trivial phase, as defined in `docs/SAGE_CORE.md`, must define:
+When the project selects a detailed phase artifact, it should define:
 
 - governance level;
 - goal;
@@ -38,9 +38,10 @@ Every non-trivial phase, as defined in `docs/SAGE_CORE.md`, must define:
 - edge cases;
 - completion gate.
 
+<a id="execution-loop"></a>
 ## Execution Loop
 
-1. Read the phase doc and quality gates.
+1. Read the active SPEC, current authority, and applicable project gates.
 2. Select `Light`, `Standard`, or `Heavy` for the phase or task scope.
 3. Select the permission mode for the phase, lane, review, or corrective task.
 4. Inspect capability metadata and select specialist skills, plugins,
@@ -62,7 +63,7 @@ Every non-trivial phase, as defined in `docs/SAGE_CORE.md`, must define:
     permission mode and ownership allow direct writes; otherwise return a
     `Memory Update Proposal` or explicit no-change note.
 16. Update completion report with memory maintenance status.
-17. Update milestone ledger.
+17. Update a milestone ledger only when the project selected that profile.
 18. Hand off or submit.
 
 ## Wave Execution

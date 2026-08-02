@@ -5,8 +5,10 @@ $required = @(
     'docs/SAGE_CORE.md',
     'docs/agent/AGENT_HARNESS.md',
     'docs/agent/EXECUTION_ECONOMY.md',
+    'contracts/graph/v1/contract.json',
     'contracts/graph/v1/graph.schema.json',
     'contracts/graph/v1/node-result.schema.json',
+    'contracts/task-dispatch-v2/policy.json',
     'skills/sage-kit/SKILL.md'
 )
 
@@ -40,6 +42,63 @@ if ($skill -notmatch 'No CLI, package runtime, daemon, or hidden validator is re
 
 foreach ($path in ($tracked | Where-Object { $_ -like '*.json' })) {
     Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Out-Null
+}
+
+function Assert-CanonicalDigest {
+    param(
+        [string]$ManifestPath,
+        [string]$Resource,
+        [string]$DeclaredDigest
+    )
+
+    if ($DeclaredDigest -notmatch '^[0-9a-f]{64}$') {
+        throw "invalid declared SHA-256 in ${ManifestPath}: $Resource"
+    }
+    $resourcePath = Join-Path (Split-Path -Parent $ManifestPath) $Resource
+    if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
+        throw "missing manifest resource in ${ManifestPath}: $Resource"
+    }
+    $actual = (Get-FileHash -LiteralPath $resourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $DeclaredDigest) {
+        throw "manifest digest mismatch in ${ManifestPath}: $Resource declared=$DeclaredDigest actual=$actual"
+    }
+}
+
+$taskPolicyPath = 'contracts/task-dispatch-v2/policy.json'
+$taskPolicy = Get-Content -LiteralPath $taskPolicyPath -Raw | ConvertFrom-Json
+foreach ($resource in $taskPolicy.schema_files) {
+    $digestProperty = $taskPolicy.schema_sha256.PSObject.Properties[$resource]
+    if ($null -eq $digestProperty) {
+        throw "missing declared SHA-256 in ${taskPolicyPath}: $resource"
+    }
+    Assert-CanonicalDigest $taskPolicyPath $resource $digestProperty.Value
+}
+
+$graphManifestPath = 'contracts/graph/v1/contract.json'
+$graphManifest = Get-Content -LiteralPath $graphManifestPath -Raw | ConvertFrom-Json
+foreach ($entry in $graphManifest.resources.PSObject.Properties) {
+    Assert-CanonicalDigest $graphManifestPath $entry.Value.resource $entry.Value.canonical_sha256
+}
+
+# Canonical authority references use explicit local anchors. Check only the
+# narrow docs/<path>.md#<anchor> form rather than crawling general links.
+$authorityReferencePattern = 'docs/[A-Za-z0-9_./-]+\.md#[A-Za-z0-9_.:-]+'
+foreach ($source in ($tracked | Where-Object { $_ -match '\.(md|ya?ml)$' })) {
+    $sourceText = Get-Content -LiteralPath $source -Raw
+    foreach ($referenceMatch in [regex]::Matches($sourceText, $authorityReferencePattern)) {
+        $reference = $referenceMatch.Value
+        $parts = $reference -split '#', 2
+        $targetPath = $parts[0]
+        $anchor = $parts[1]
+        if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+            throw "broken canonical authority reference in ${source}: $reference"
+        }
+        $targetText = Get-Content -LiteralPath $targetPath -Raw
+        $anchorPattern = '<a\s+id=["'']' + [regex]::Escape($anchor) + '["'']\s*></a>'
+        if ($targetText -notmatch $anchorPattern) {
+            throw "missing canonical authority anchor in ${source}: $reference"
+        }
+    }
 }
 
 git diff --check

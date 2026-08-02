@@ -45,7 +45,7 @@
         "CANCELLED",
         "DONE_WITH_CONCERNS"
       ],
-      "description": "Observable node state or outcome; this enum does not define a state machine. NO_ACTION_REQUIRED is distinct from SUCCEEDED, PASS, and WAIVED, and Stage 2B decides whether it satisfies a join. DONE_WITH_CONCERNS requires controller review, cannot auto-advance a phase or acceptance, cannot satisfy a required success join, and is not mapped to SUCCEEDED, PASS, or WAIVED."
+      "description": "Observable node state or outcome; this enum does not define a state machine. NO_ACTION_REQUIRED is distinct from SUCCEEDED, PASS, and WAIVED, and requires external semantic review before it can satisfy a join. DONE_WITH_CONCERNS requires controller review, cannot auto-advance a phase or acceptance, cannot satisfy a required success join, and is not mapped to SUCCEEDED, PASS, or WAIVED."
     },
     "changed_paths": {
       "type": "array",

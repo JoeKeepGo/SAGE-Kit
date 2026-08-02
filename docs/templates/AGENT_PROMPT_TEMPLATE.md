@@ -111,10 +111,9 @@ Strict Mode:
   commands, and stop on ambiguity or failed verification.
 
 Read first:
-- Resolve `active_context` and optional `doc_routing` in `SAGEKIT_CONFIG.json`.
-- Read the configured paths; use `docs/ACTIVE_CONTEXT.md` and
-  `docs/DOC_ROUTING.md` only as legacy defaults.
-- Then follow the configured routing authority for the narrow task read set.
+- Read the project-selected active SPEC and compact current-context record.
+- Follow the project's current routing authority for the narrow task read set;
+  no SAGE-Kit config filename or fixed document path is required.
 - Read `docs/QUALITY_GATES.md` when gates, review, completion, or
   verification are in scope.
 - Read `docs/agent/GOVERNANCE_LEVELS.md` when selecting or reviewing the

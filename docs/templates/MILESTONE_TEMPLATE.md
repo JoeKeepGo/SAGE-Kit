@@ -1,10 +1,14 @@
 # M<ID> Milestone: <Name>
 
-Use this template when starting a new milestone.
+This is an optional detailed profile for Heavy milestones, deep planning, or
+projects that retain the legacy Milestone/Phase document model. Light and
+Standard work may use the active SPEC, compact `ACTIVE_CONTEXT`, and
+project-native evidence without creating this package. Selecting this template
+does not transfer project authority to SAGE-Kit.
 
-## Required Files
+## Profile Files
 
-Create:
+When this profile is explicitly selected, create:
 
 - `docs/M<ID>/00-entry-gate.md`
 - `docs/M<ID>/MILESTONE_LEDGER.md`
@@ -14,8 +18,9 @@ Create when closing the milestone:
 
 - `docs/M<ID>/MILESTONE_CLOSEOUT.md`
 
-Reference (resolve configured paths through `SAGEKIT_CONFIG.json`; fixed paths
-below are legacy defaults):
+Reference only the project-selected current authority and the SAGE-Kit guidance
+needed for this milestone. The paths below are examples for projects that keep
+the legacy document layout:
 
 - `docs/ACTIVE_CONTEXT.md`
 - `docs/DOC_ROUTING.md`

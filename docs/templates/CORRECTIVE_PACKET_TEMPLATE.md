@@ -6,9 +6,9 @@ Review/corrective authority is canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`. This packet retains the named
 findings, worker/reviewer modes, allowed surfaces, evidence return, re-review,
 and receipt-owner fields for one bounded correction.
-Change classification, convergence, opt-in windows, and targeted re-review are
-canonical at `docs/agent/EXECUTION_ECONOMY.md#sage-loop-001`,
-`#sage-loop-008`, `#sage-loop-009`, and `#sage-loop-010`; Deterministic Closure
+Convergence and targeted re-review are canonical at
+`docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` and `#sage-loop-010`;
+Deterministic Closure
 is canonical at `docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011`.
 
 ```markdown
@@ -88,31 +88,6 @@ Non-Goals:
 
 Approval Gates:
 
-Preauthorized Convergence Window (optional; omit or mark inactive unless
-explicitly approved):
-- Active: `<yes/no>`
-- Authority ID:
-- Execution scope / PR / branch unit:
-- Root-cause family:
-- Allowed paths:
-- Approved invariant:
-- Semantic change policy: `implementation-preserving-only`
-- Targeted review required: `<yes/no>`
-- Targeted review closed: `<yes/no>`
-- Stop conditions:
-- Approved by role:
-- Authority reference:
-- Authority digest:
-- Current root-cause ID:
-- Finding count and severity:
-- Finding trend: `initial`, `finding-count-decreased`, `severity-decreased`,
-  `next-layer-exposed`, or `no-progress`
-- Consecutive no-progress rounds:
-
-Apply the window authority at
-`docs/agent/EXECUTION_ECONOMY.md#sage-loop-009`. The fields above record its
-explicit opt-in authority and do not activate or expand it.
-
 Runtime Smoke:
 
 Re-Review:
@@ -187,8 +162,8 @@ Stop If:
 - fix requires redesign;
 - approval gate is needed;
 - runtime evidence cannot be produced;
-- the canonical candidate/convergence decision at
-  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` or `#sage-loop-009` requires
+- the canonical convergence decision at
+  `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` requires
   `HANDOFF_READY` or `BLOCKED`; record the outcome and evidence reference;
 - scope expands or a new authority, false-green, approval-boundary,
   security-boundary, required-check-failure, source-authority, or evidence-integrity
