@@ -68,8 +68,8 @@ Return format:
 - Do not open approval gates.
 - Do not continue after a failed required command.
 - Do not claim completion without the required evidence.
-- Do not edit `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md` unless the task
-  card explicitly allows it.
+- Do not edit the project-selected current-truth or routing authority paths
+  unless the task card explicitly allows it.
 
 ## Hard Stop Conditions
 

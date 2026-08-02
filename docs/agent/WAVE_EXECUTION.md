@@ -60,7 +60,12 @@ but risky. Wave Execution keeps the phase as the reviewable unit while allowing
 read-only lanes, disjoint writable lanes, and validation lanes to run in
 parallel.
 
-## Standard Wave Shape
+## Collapsible Example Shape
+
+Waves are optional and follow the real DAG. A task may use zero waves, one
+serial wave, or any bounded number of useful waves. The 0-5 sequence below is
+an example for complex work, not a standard or mandatory lifecycle; collapse,
+omit, or renumber it freely while preserving actual dependencies and gates.
 
 | Wave | Purpose | Parallelism |
 |---|---|---|
@@ -89,15 +94,15 @@ The controller owns:
 - serial integration of memory update proposals;
 - git operations when used.
 
-The controller should not use waves as a label for doing all implementation
-work directly. If the controller is also the only writable executor, the phase
-is serial unless it meets the Coder self-execution policy in
-`docs/agent/SESSION_ORCHESTRATION.md`.
+Light and Standard controllers may execute bounded work directly under the
+canonical matrix in `docs/agent/GOVERNANCE_LEVELS.md`. Use waves only when
+parallel or independent lanes add concrete execution or evidence value; a
+single writable executor normally uses a bounded serial loop.
 
 ## Wave Readiness Gate
 
-Before Wave 1 starts, the controller must prove that wave execution is useful
-and safe.
+Before starting multiple waves, the controller must show that wave execution
+is useful and safe.
 
 Wave readiness requires:
 
@@ -165,9 +170,10 @@ These must remain serial unless the project explicitly defines a safer process:
   the lanes, make one read-only, or assign the shared file to a serial
   controller lane.
 - Shared files require a named integration owner and serial handling.
-- A lane may not edit `docs/ACTIVE_CONTEXT.md` or `docs/DOC_ROUTING.md`;
-  return proposed changes in `Memory Update Proposal` for controller
-  integration.
+- A lane may not edit the project-selected current-truth authority path or
+  routing authority unless explicitly named as their writer. Return a bounded
+  proposal only when durable truth or routing actually changed; otherwise omit
+  memory maintenance.
 - A lane may not expand its file boundary.
 - A lane may not open approval gates.
 - A lane may commit locally only in an isolated worktree when explicitly
@@ -194,57 +200,21 @@ Wave Readiness:
 - conflict stop conditions:
 - decision: `SERIAL`, `PARALLEL_WITH_WAVES`, or `STOP_FOR_PM`
 
-Wave 0 - Controller Setup:
-- scope:
-- phase doc:
-- integration owner:
+Actual waves (zero, one, or many according to the DAG):
+- wave: `<id/name>`
+  purpose: `<dependency/evidence/integration value>`
+  mode: `<serial/parallel>`
+  lanes: `<actual lanes only>`
+  governance/permission: `<per lane>`
+  ownership and checks: `<paths/resources/evidence>`
+  barrier or successor: `<actual edge/gate/none>`
 
-Wave 1 - Parallel Read-Only Lanes:
-- lane: `<name>`
-  governance level: `Light, Standard, or Heavy`
-  permission mode: `READ_ONLY_REVIEW`
-  selected capabilities:
-- lane: `<name>`
-  governance level: `Light, Standard, or Heavy`
-  permission mode: `READ_ONLY_REVIEW`
-  selected capabilities:
-
-Wave 2 - Serial Freeze:
-- contracts frozen:
-- shared files:
-- writable ownership:
-
-Wave 3 - Parallel Writable Lanes:
-- lane: `<name>`
-  governance level: `Light, Standard, or Heavy`
-  permission mode: `WRITE_AUTHORIZED`
-  selected capabilities:
-- lane: `<name>`
-  governance level: `Light, Standard, or Heavy`
-  permission mode: `WRITE_AUTHORIZED`
-  selected capabilities:
-
-Wave 4 - Parallel Validation Lanes:
-- lane: `<name>`
-  governance level: `Light, Standard, or Heavy`
-  permission mode: `READ_ONLY_REVIEW`
-  selected capabilities:
-- lane: `<name>`
-  governance level: `Light, Standard, or Heavy`
-  permission mode: `READ_ONLY_REVIEW`
-  selected capabilities:
-
-Wave 5 - Serial Integration:
-- final checks:
-- real runtime smoke:
-- optional immutable ledger event append:
-- ACTIVE_CONTEXT durable-truth update/proposal:
-- handoff:
+Current-truth update: `<reference only when durable truth changed; otherwise omit>`
 ```
 
 ## Completion Evidence
 
-A phase that used waves must report:
+A phase that used waves reports only the waves and lanes actually used:
 
 - wave readiness decision and missing readiness items, if any;
 - wave plan used;
@@ -256,10 +226,8 @@ A phase that used waves must report:
 - tests and local, fake, dry, or isolated validation run by lanes;
 - real runtime smoke run serially by the controller, when applicable;
 - final verification run by the controller;
-- active context and document routing maintenance run serially by the
-  controller;
-- memory update proposals from lanes integrated, compacted, or rejected by the
-  controller;
+- project-selected current-truth or routing updates only when durable facts or
+  routing changed;
 - skipped checks and remaining gaps.
 
 <a id="sage-grf-011"></a>

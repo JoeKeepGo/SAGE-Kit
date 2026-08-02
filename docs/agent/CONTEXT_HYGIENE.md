@@ -15,9 +15,9 @@ Context hygiene keeps long-running AI work reliable.
 - Maintain active context by replacement, not append-only accumulation.
 - Keep document routing stable unless the documentation topology or routing
   policy changes.
-- Name one Startup Context Controller for each run. That controller is the only
-  writer for the configured `ACTIVE_CONTEXT` path (legacy default
-  `docs/ACTIVE_CONTEXT.md`) and `docs/DOC_ROUTING.md`. Workers and
+- Name one Startup Context Controller when the run can change durable current
+  truth. That controller is the only writer for the project-selected
+  current-truth authority path and project routing authority. Workers and
   integration lanes return proposals; they never edit or race those files.
 
 ## Minimum Read Declaration
@@ -33,8 +33,8 @@ Before broad exploration, state:
 
 | Memory Type | Location |
 |---|---|
-| Current repository state | Configured `ACTIVE_CONTEXT` path; legacy default `docs/ACTIVE_CONTEXT.md` |
-| Current objective/status/findings/blockers/next action | Configured `ACTIVE_CONTEXT` path |
+| Current repository state | Project-selected current-truth authority path |
+| Current objective/status/findings/blockers/next action | Project-selected current-truth authority path |
 | Immutable milestone history/evidence index | `docs/M<ID>/MILESTONE_LEDGER.md` when selected |
 | Milestone outcome | `docs/M<ID>/MILESTONE_CLOSEOUT.md` |
 | Phase scope and evidence | `docs/M<ID>/<phase>.md` |
@@ -52,7 +52,7 @@ changed. Direct edits to startup context files require both permission mode and
 named Startup Context Controller ownership; otherwise return a bounded update
 proposal when a durable fact actually changed.
 
-For the configured `ACTIVE_CONTEXT` path:
+For the project-selected current-truth authority path:
 
 - update current repository, branch, milestone, phase, objective, next action,
   and blocker fields when they changed;

@@ -2,7 +2,7 @@
   "schema_version": 2,
   "framework_mode": "model-native",
   "active_spec": "docs/ACTIVE_SPEC.md",
-  "active_context": "docs/ACTIVE_CONTEXT.md",
+  "active_context": "<project-selected-current-truth-authority-path>",
   "document_routing": "docs/DOC_ROUTING.md",
   "governance_default": "Standard",
   "graph_policy": "optional-when-decision-relevant",

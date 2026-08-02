@@ -21,7 +21,11 @@ Fallback cannot broaden scope, bypass a gate, change authority, or weaken
 verification. External output is evidence input and cannot declare completion
 or acceptance.
 
-Descendants inherit all restrictions. Native subagent delegation is allowed
-only within the controller's explicit boundary; recursive executable delegation
-requires separate authority. Host documentation must distinguish enforced
-restrictions from procedural guidance.
+Descendants inherit all restrictions. A controller may preauthorize one nested
+delegation envelope that names maximum depth, concurrency, permission ceiling,
+allowed/read-only/forbidden paths, capability bounds, and stop conditions.
+Children may delegate only within the remaining depth and concurrency of that
+same envelope. They cannot widen permissions or paths, replace gates, or
+redelegate beyond the envelope. No fresh approval is needed for each child;
+an envelope breach or unavailable inheritance requires `HANDOFF`. Host
+documentation must distinguish enforced restrictions from procedural guidance.

@@ -14,7 +14,7 @@
     "docs/ACTIVE_SPEC.md"
   ],
   "forbidden_paths": [
-    "docs/ACTIVE_CONTEXT.md"
+    "<project-selected-current-truth-authority-path>"
   ],
   "acceptance_criteria": [
     "<phase criterion>"

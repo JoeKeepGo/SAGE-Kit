@@ -11,12 +11,12 @@ touches the same shared files.
 
 | Role | Owns | Must Not Do |
 |---|---|---|
-| Project Manager Controller | Whether worktree isolation is allowed, max count, naming, branch base, and post-verdict submit/cleanup owner. | Grant submit or cleanup only in a distinct post-verdict submit/cleanup packet; never in the initial Coder execution packet, never with unlimited delegation. |
+| Project Manager Controller | Whether worktree isolation is allowed, max count, naming, branch base, optional isolated-lane local commit, and external submit/cleanup owner. | Treat local commit as push/merge/release authority, or grant destructive cleanup without explicit scope. |
 | Coder Controller | Decide which approved phases or lanes get worktrees, create assigned review worktrees before handoff, maintain the map, and integrate results. | Create worktrees outside the execution packet, edit worker-owned files, or bypass shared-file gates. |
 | Workspace/Environment Controller | Create an assigned review worktree before handoff and return its path/base evidence. | Review, correct, submit, clean up, or create worktrees without Project Manager authorization. |
-| Phase or Lane Worker | Work inside the assigned worktree and file boundary. | Push, merge, delete worktrees, or change isolation policy. |
+| Phase or Lane Worker | Work and, when initially authorized, commit locally inside the assigned worktree and file boundary. | Push, merge, release, delete worktrees, or change isolation policy. |
 | Final Review Controller | Read-only verification of worktree use, integration evidence, stale worktree risks, and submit readiness. | Create or mutate its review worktree, commit, push, merge, or delete worktrees. |
-| Submit Controller or Project Manager | Final commit, push, merge, and cleanup decision. | Submit unverified or unowned worktree output. |
+| Submit Controller or Project Manager | External publication, integration, release, and destructive cleanup decision. | Submit unverified or unowned worktree output. |
 
 ## Isolation Modes
 
@@ -44,6 +44,7 @@ The packet must define:
 - runtime ownership;
 - integration owner;
 - named creator for each review worktree;
+- isolated-lane local commit authority, if any;
 - post-verdict submit and cleanup owner/policy;
 - forbidden scenarios.
 
@@ -99,9 +100,10 @@ Final Review verifies:
 Final Review may recommend commit, push, merge, or cleanup. It must not execute
 those actions while acting as Final Review.
 
-If the same session is later used for submit or cleanup, Project Manager must
-first record the Final Review verdict, then issue a separate Submit Controller
-authorization.
+Local commit authority may be present in the initial execution packet for an
+exact isolated lane. Push, merge, release, publication, and destructive cleanup
+remain separate explicit authority. If the same session later performs those
+actions, it must first receive that authority after applicable review/gates.
 
 ## Cleanup Gate
 
@@ -129,4 +131,5 @@ These remain serial even when worktrees are used:
 - real runtime smoke unless exclusive runtime ownership is granted;
 - final verification;
 - ledger, closeout, active context, and routing maintenance;
-- commit, push, merge, release, publish, and cleanup.
+- push, merge, release, publish, and destructive cleanup. A scoped local lane
+  commit is not an external submit action.

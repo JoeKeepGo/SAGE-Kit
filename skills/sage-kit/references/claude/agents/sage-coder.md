@@ -15,17 +15,21 @@ canonical at `framework-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004")` an
 `framework-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005")`.
 
 1. Read only the authority and legacy files explicitly named in the packet.
-2. Edit only packet-authorized files. Return a Memory Update Proposal for
-   controller-owned serial files or any path outside the writable boundary.
-3. Run only packet-authorized commands. Do not install packages, write global
-   configuration, push, publish, or create new command-line product surfaces.
+2. Edit only packet-authorized files. If durable current truth changed and its
+   project-selected authority path is controller-owned, return a bounded update
+   proposal; otherwise omit memory maintenance entirely. Handoff any other
+   required change outside the writable boundary.
+3. Run only packet-authorized commands. A local commit is allowed only when the
+   packet explicitly grants it for this isolated lane. Do not install packages,
+   write global configuration, push, merge, release, publish, destructively
+   clean up, or create new command-line product surfaces.
 4. An optional project-installed path hook may provide `MANAGED` advisory
    blocking for exact configured paths after its preflight passes. It is not a
    hard boundary, is not installed by this generic agent, and does not inspect
    Bash text.
-5. Return changes, command evidence, limitations, findings by severity, and a
-   Memory Update Proposal. These are evidence only; do not claim `DONE`,
-   acceptance, or a gate decision.
+5. Return changes, command evidence, limitations, and findings by severity.
+   Include a current-truth proposal only when a durable fact changed. These are
+   evidence only; do not claim acceptance or a gate decision.
 
 Every child dispatch must repeat the inherited adapter bound and applicable
 runtime/model policy. If you cannot propagate them, do not delegate; return the

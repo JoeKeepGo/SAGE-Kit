@@ -8,6 +8,9 @@ $required = @(
     'contracts/graph/v1/contract.json',
     'contracts/graph/v1/graph.schema.json',
     'contracts/graph/v1/node-result.schema.json',
+    'contracts/task-dispatch-v2/policy.json',
+    'contracts/task-dispatch-v2/task.schema.json',
+    'contracts/task-dispatch-v2/evidence.schema.json',
     'contracts/canonical-authority-pointers.txt',
     'skills/sage-kit/SKILL.md'
 )
@@ -49,6 +52,22 @@ if ($skill -notmatch 'No CLI, package runtime, daemon, or hidden validator is re
 
 foreach ($path in ($tracked | Where-Object { $_ -like '*.json' })) {
     Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Out-Null
+}
+
+# Task Dispatch v2 is legacy static compatibility, not default routing. Verify
+# only that its policy binds the exact schema bytes it declares.
+$dispatchRoot = 'contracts/task-dispatch-v2'
+$dispatchPolicy = Get-Content -LiteralPath "$dispatchRoot/policy.json" -Raw | ConvertFrom-Json
+if ($dispatchPolicy.scope -ne 'legacy-static-compatibility' -or $dispatchPolicy.selection -ne 'explicit-only') { throw 'Task Dispatch v2 must remain explicit legacy compatibility' }
+$dispatchSchemas = @($dispatchPolicy.schema_files)
+if ($dispatchSchemas.Count -ne 2 -or $dispatchSchemas -notcontains 'task.schema.json' -or $dispatchSchemas -notcontains 'evidence.schema.json') { throw 'Task Dispatch v2 schema inventory is missing or malformed' }
+foreach ($schemaName in $dispatchSchemas) {
+    $schemaPath = "$dispatchRoot/$schemaName"
+    $digestProperty = $dispatchPolicy.schema_sha256.PSObject.Properties[$schemaName]
+    if (-not $digestProperty -or $digestProperty.Value -notmatch '^[0-9a-fA-F]{64}$') { throw "Task Dispatch v2 digest is missing or malformed: $schemaName" }
+    if (-not (Test-Path -LiteralPath $schemaPath -PathType Leaf)) { throw "Task Dispatch v2 schema is missing: $schemaName" }
+    $actual = (Get-FileHash -LiteralPath $schemaPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actual -ne $digestProperty.Value.ToLowerInvariant()) { throw "Task Dispatch v2 digest mismatch: $schemaName" }
 }
 
 # Validate the active Graph manifest only. Legacy compatibility contracts are

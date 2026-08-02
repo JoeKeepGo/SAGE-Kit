@@ -4,7 +4,7 @@
     "docs/ACTIVE_SPEC.md",
     "docs/APPROVAL_GATES.md"
   ],
-  "active_context": "docs/ACTIVE_CONTEXT.md",
+  "active_context": "<project-selected-current-truth-authority-path>",
   "historical_references": [
     "docs/history/"
   ],

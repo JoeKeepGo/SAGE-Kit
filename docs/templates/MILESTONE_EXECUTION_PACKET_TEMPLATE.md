@@ -41,20 +41,12 @@ Permission Mode:
 - Project Manager final decision authority: `<separate PM decision record; not Final Review acceptance>`
 - Final Review mode: `READ_ONLY_REVIEW`
 - Final Review corrective orchestration authorized: `<yes/no; does not grant controller writes>`
-- Corrective convergence budget:
-- Preauthorized Convergence Window active: `<yes/no; opt-in>`
-- Convergence authority ID and digest:
-- Stable execution scope:
-- Approved root-cause family:
-- Component-aware allowed paths:
-- Approved invariant:
-- Semantic change policy: `implementation-preserving-only`
-- Targeted review requirement:
-- Convergence stop conditions:
-- Approval source:
+- Existing corrective authority and scope: `<authority reference or none>`
+- Convergence rule: `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008`
 - Environment-write authority:
-- Initial submit/commit/push/cleanup authority: `none`
-- Post-verdict submit/cleanup grant: `<separate grant required; not issued here>`
+- Isolated-lane local commit authority: `<yes/no + exact worktree/scope>`
+- Submit/push/merge/release authority: `<separate explicit authority or none>`
+- Destructive cleanup authority: `<separate explicit authority or none>`
 - Permission upgrade requires:
 
 Execution Shape:
@@ -162,7 +154,8 @@ Final Candidate Identity:
 - Expected staged/unstaged/untracked scope:
 - Relevant diff or change reference:
 - Final project CI required: `<yes/no + authority>`
-- Candidate identity does not grant commit/submit/acceptance authority: `<confirmed>`
+- Candidate identity does not grant local commit, external publication,
+  destructive cleanup, or acceptance authority: `<confirmed>`
 
 Allowed Scope:
 
@@ -207,19 +200,10 @@ Worker Delegation Rules:
 Review Expectations:
 
 Convergence Review Rules:
-- Semantic-preserving implementation corrective may continue only inside an
-  explicit Preauthorized Convergence Window.
-- Policy-changing semantic change, scope/path/invariant expansion, new gate or
-  permission, consumer mutation, or test/security/evidence weakening returns
-  `HANDOFF_READY`.
-- Security, authority, containment, required-check, package, or release-gate
-  implementation corrective requires targeted review closure.
-- Finding or severity convergence is not stopped by a fixed candidate count;
-  two consecutive no-progress rounds for the same root cause return `BLOCKED`.
-- Every materially changed successor has a new Git/diff reference and must not
-  reuse final CI evidence from an earlier revision.
-- The window is not an unlimited retry mechanism. Transient rerun is separate
-  from code corrective; deterministic failures are not rerun speculatively.
+- Apply `docs/agent/EXECUTION_ECONOMY.md#sage-loop-008` directly under the
+  existing corrective authority named above. This packet does not create a
+  second convergence window, digest protocol, root-cause taxonomy, or retry
+  authority.
 
 Approval Gates:
 
