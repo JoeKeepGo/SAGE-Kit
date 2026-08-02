@@ -40,7 +40,8 @@ Project Owner Entry produces drafts in this order:
 3. capability map;
 4. draft milestone candidates;
 5. milestone granularity audit;
-6. first executable milestone entry gate only after the audit passes.
+6. first executable plan only after the owner accepts the selected outcome and
+   boundaries.
 
 The intake, profile draft, capability map, draft candidates, and audit are
 planning material. They are not authorization to start implementation.
@@ -60,9 +61,10 @@ categories relevant to the stated goal:
 These categories are advisory prompts, not product requirements. Include only
 capabilities that the project owner or active project SPEC places in scope.
 SAGE-Kit must not invent a product threat model, security requirement, safety
-property, deployment target, or approval gate. Milestones are derived from the
-in-scope capability map. A milestone that spans several capability areas is
-probably an epic and must be split.
+property, deployment target, or approval gate. Milestones are derived from
+in-scope outcomes. One independently acceptable outcome may include cohesive
+UI, API, data, and runtime supporting areas; split unrelated outcomes or
+distinct release, authority, or acceptance boundaries.
 
 ## Project Owner Responsibilities
 
@@ -78,27 +80,18 @@ tests, runtime smoke, review evidence, or visible evidence.
 
 ## Granularity Guardrail
 
-Project Owner Entry must not produce an executable roadmap directly. It produces
-candidate capabilities and draft milestones. Milestone Granularity Gate must
-split any milestone that cannot be independently reviewed, verified, and
-bounded.
+Project Owner Entry must not produce an executable roadmap directly. It
+produces candidate capabilities and draft milestones. Split a milestone when
+it cannot be independently accepted and bounded.
 
 Red flags:
 
-- total milestone count is much smaller than the capability map;
-- a milestone covers multiple user workflows, runtimes, or ownership domains;
-- a milestone mixes design, implementation, integration, review, and release;
+- a milestone combines unrelated product outcomes;
+- a milestone crosses scope or permission boundaries without a named decision;
+- a milestone contains an independent release or acceptance boundary;
 - a milestone cannot name one observable acceptance result;
 - a milestone needs broad files or unknown file ownership;
 - a milestone cannot name tests or runtime evidence.
-
-## Structured records Decision
-
-Do not enable structured task/evidence records by default for Project Owner Entry.
-
-Recommend Structured records only when the candidate milestone has many worker tasks,
-resource contention, repeated attempts, cross-surface integration, or a high
-risk of unverifiable completion claims.
 
 ## Capability Adapter Decision
 

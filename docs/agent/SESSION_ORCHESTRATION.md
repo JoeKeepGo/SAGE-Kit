@@ -1,40 +1,55 @@
 # Session Orchestration
 
-Use one controller to own current truth, integration, and the next decision.
+Use one controller to coordinate integration and the next decision within
+project-granted scope. The controller does not own or widen project scope.
 
-## Compact Launch Envelope
+## Worker Envelope
 
-Each worker receives objective, authority, governance, permission, allowed and
-forbidden surfaces, dependencies, project-native checks, expected evidence, and
-stop conditions. Shared status and acceptance files stay controller-owned.
+Each worker receives objective, authority, permission, paths, acceptance,
+checks, stop conditions, and return shape. Add governance, Graph, specialist,
+or host blocks only when applicable. Shared current truth stays with the named
+`ACTIVE_CONTEXT` owner.
 
 ## Parallelism
 
-Parallelize only independent read-only investigations or disjoint writers.
-Dependencies, shared files, shared toolchains, integration, and acceptance are
-serial barriers. When one node fails, serialize only that node and its dependent
-successors; independent work may continue.
+Parallelize independent investigations or disjoint writers. Dependencies,
+shared mutable files/state, integration, push, merge, and acceptance are serial
+barriers. A shared toolchain alone is not a reason to serialize when its state
+is isolated. An authorized isolated lane may commit locally; the controller
+serializes push and merge.
 
-<a id="sage-loop-011"></a>
 <a id="final-review-rules"></a>
 ## Review And Corrective
 
-Implementation, independent review, corrective work, submit, and human
-acceptance are separate authority roles. Reviewers return one bounded finding
-set. Correctives change only the affected boundary and receive targeted
-re-review. A verdict receipt is not human acceptance.
+Implementation, review, corrective work, submit, and human acceptance remain
+separate grants. Mechanical wording, status, or EOF fixes close with a focused
+check. Semantic corrective work receives one targeted independent re-review of
+the affected boundary. Continue inside the same authorized scope while findings
+decrease; after two consecutive no-progress rounds for one root cause return
+`BLOCKED`.
 
-## Unattended Coordination
+## Bounded Multi-Milestone Continuation
 
-Cross-milestone unattended work requires a human preauthorization naming the
-milestone range, allowed operations and paths, authority ceiling, evidence,
-stop conditions, and human-only decisions. The controller may advance only
-through already-defined boundaries. It stops for product decisions, authority
-change, security decisions, credentials, destructive operations, acceptance,
-merge, or release unless that exact action was granted.
+SAGE-Kit cannot promise autonomous cross-milestone operation; continuation
+depends on the host. A coordinator may continue only within already admitted,
+preauthorized milestones. Its compact envelope records:
+
+- authority boundary and admitted milestones;
+- completion predicate and next-admission rule;
+- scope/evidence drift check;
+- resume state and host continuation dependency;
+- failure/handoff destination;
+- corrective convergence rule.
+
+Stop for product acceptance, scope/permission expansion, a new threat-model or
+safety decision, destructive or production action, credentials, or a merge or
+release gate. Within explicit project preauthorization,
+`DONE_PENDING_ACCEPTANCE` may advance to another already admitted milestone;
+it never creates acceptance or admits new scope.
 
 ## Handoff
 
-Update compact current truth with repository state, completed work, evidence,
-open findings, blockers, next action, and next owner. Do not duplicate framework
-rules or historical records.
+Write current objective/status/findings/blockers/next action only to the
+project-owned `ACTIVE_CONTEXT`. A handoff is a bounded transfer view containing
+authority, evidence, changed surfaces, next owner, and the `ACTIVE_CONTEXT`
+reference. It is not a second current-state record.

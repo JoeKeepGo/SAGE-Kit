@@ -10,7 +10,7 @@
     },
     "node_result_schema": {
       "resource": "node-result.schema.json",
-      "canonical_sha256": "b35660d85f76b39449eb4df6d5f7ce1c64fb3263dad847b52c5a3ea6cf4c01d8"
+      "canonical_sha256": "2b6c19c5f0dca83d19abe7a2a13643b1dfce36413ea06236a3d294e9aad71206"
     }
   },
   "digest_semantics": "SHA-256 over exact canonical resource bytes; this is resource integrity only and not a semantic graph digest.",
@@ -29,6 +29,6 @@
   },
   "canonical_owner": {
     "path": "contracts/graph/v1",
-    "expectation": "This repository directory is the single canonical owner. Static release bundles preserve these bytes without creating a second tracked authority."
+    "expectation": "This repository directory is the single canonical owner; GitHub's source archive preserves these bytes without creating a second tracked authority."
   }
 }

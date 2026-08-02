@@ -1,7 +1,8 @@
 # Strict Mode
 
-Strict Mode is the conservative execution mode for lower-assurance or unknown
-AI models.
+Strict Mode is an explicitly selected conservative mode for a project/human
+policy or a concrete low-assurance, high-risk trigger. Unknown identity alone
+does not enable it.
 
 Use `docs/agent/MODEL_ASSURANCE_POLICY.md` to decide whether Strict Mode is
 required.
@@ -22,11 +23,9 @@ architecture, invent contracts, or decide that an approval gate can be opened.
 
 A Strict Mode agent must not convert a phase into its own task card.
 
-Strict Mode agents perform memory maintenance only when the task card lists the
-startup docs under `Allowed to modify`. Otherwise, a complete `Memory Update
-Proposal` satisfies the Strict Mode agent's memory responsibility for its task,
-and the controller applies or compacts startup docs serially before the phase
-can be marked `DONE`.
+Strict Mode agents update durable truth only when it changed and the task card
+lists the startup doc under `Allowed to modify`. Otherwise they return a bounded
+`Memory Update Proposal` only for an actual change; no-change notes are omitted.
 
 ## Required Task Card
 
@@ -51,7 +50,7 @@ Exact commands:
 
 Completion requires:
 
-Memory maintenance responsibility:
+Durable-truth update responsibility (only when changed):
 
 Stop if:
 
@@ -111,5 +110,5 @@ Remaining Gaps:
 ```
 
 `DONE` in Strict Mode means the assigned task card is complete. It does not mean
-the phase is complete when controller-owned memory maintenance, review,
-integration, approval, or change-control work remains.
+the phase is complete when a required durable-truth update, review, integration,
+approval, or change-control action remains.

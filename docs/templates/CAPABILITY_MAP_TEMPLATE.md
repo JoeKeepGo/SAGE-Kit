@@ -28,7 +28,8 @@ Suggested areas:
 
 ## Milestone Candidate Split
 
-Each candidate milestone must map to one primary capability.
+Each candidate milestone must be an independently acceptable product outcome.
+It may combine cohesive UI, API, data, and runtime supporting capabilities.
 
 | Candidate Milestone | Primary Capability | Observable Result | Contract | Verification | Split Needed |
 |---|---|---|---|---|---|

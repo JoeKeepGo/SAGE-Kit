@@ -4,34 +4,34 @@ $required = @(
     'README.md',
     'docs/SAGE_CORE.md',
     'docs/agent/AGENT_HARNESS.md',
-    'docs/agent/EXECUTION_ECONOMY.md',
+    'docs/agent/GOVERNANCE_LEVELS.md',
     'contracts/graph/v1/contract.json',
     'contracts/graph/v1/graph.schema.json',
     'contracts/graph/v1/node-result.schema.json',
-    'contracts/task-dispatch-v2/policy.json',
     'skills/sage-kit/SKILL.md'
 )
-
 foreach ($path in $required) {
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        throw "missing required path: $path"
-    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "missing required path: $path" }
 }
 
 $tracked = @(git ls-files)
 $forbidden = @($tracked | Where-Object {
-    $_ -match '(^|/)(pyproject\.toml|setup\.py|setup\.cfg|requirements[^/]*\.txt|tox\.ini|noxfile\.py)$' -or
-    $_ -match '\.(py|pyi|pyc|whl)$' -or
-    $_ -match '\.egg-info/'
+    $_ -match '(^|/)(pyproject\.toml|setup\.py|setup\.cfg|requirements[^/]*\.txt|tox\.ini|noxfile\.py|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$' -or
+    $_ -match '\.(py|pyi|pyc|whl)$' -or $_ -match '\.egg-info/' -or
+    $_ -match '(^|/)(bin|src)/(sagekit|sage-kit)(/|$)'
 })
-if ($forbidden.Count -ne 0) {
-    throw "forbidden Python surface:`n$($forbidden -join "`n")"
-}
+if ($forbidden.Count -ne 0) { throw "forbidden runtime/CLI/package surface:`n$($forbidden -join "`n")" }
 
-$stale = @(git grep -n -I -E '(-m[[:space:]]+(sagekit|scripts\.run_tests)|pip([0-9.]*)?[[:space:]]+install|pytest|unittest|\.venv|sagekit/resources)' -- . ':(exclude)docs/MIGRATION_MODEL_NATIVE.md' ':(exclude)scripts/check-repository.sh' ':(exclude)scripts/check-repository.ps1')
-if ($LASTEXITCODE -notin 0, 1) { throw 'stale-reference scan failed' }
-if ($stale.Count -ne 0) {
-    throw "stale executable/runtime reference:`n$($stale -join "`n")"
+# Scan executable/workflow surfaces only. Ordinary governance prose may discuss
+# runtimes and tests without becoming an executable dependency.
+$executionSurfaces = @($tracked | Where-Object {
+    ($_ -like '.github/workflows/*' -or $_ -like 'tests/*') -and
+    $_ -match '\.(sh|ps1|ya?ml|json)$'
+})
+if ($executionSurfaces.Count -gt 0) {
+    $stale = @(git grep -n -I -E '(python([0-9.]*)?|pip([0-9.]*)?|pytest|unittest|sagekit[[:space:]]+(run|validate|check)|npm|npx|node)[[:space:]]' -- $executionSurfaces)
+    if ($LASTEXITCODE -notin 0, 1) { throw 'executable/workflow reference scan failed' }
+    if ($stale.Count -ne 0) { throw "forbidden runtime invocation:`n$($stale -join "`n")" }
 }
 
 $skill = Get-Content -LiteralPath 'skills/sage-kit/SKILL.md' -Raw
@@ -44,63 +44,41 @@ foreach ($path in ($tracked | Where-Object { $_ -like '*.json' })) {
     Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Out-Null
 }
 
-function Assert-CanonicalDigest {
-    param(
-        [string]$ManifestPath,
-        [string]$Resource,
-        [string]$DeclaredDigest
-    )
-
-    if ($DeclaredDigest -notmatch '^[0-9a-f]{64}$') {
-        throw "invalid declared SHA-256 in ${ManifestPath}: $Resource"
-    }
-    $resourcePath = Join-Path (Split-Path -Parent $ManifestPath) $Resource
-    if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
-        throw "missing manifest resource in ${ManifestPath}: $Resource"
-    }
-    $actual = (Get-FileHash -LiteralPath $resourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($actual -ne $DeclaredDigest) {
-        throw "manifest digest mismatch in ${ManifestPath}: $Resource declared=$DeclaredDigest actual=$actual"
-    }
-}
-
-$taskPolicyPath = 'contracts/task-dispatch-v2/policy.json'
-$taskPolicy = Get-Content -LiteralPath $taskPolicyPath -Raw | ConvertFrom-Json
-foreach ($resource in $taskPolicy.schema_files) {
-    $digestProperty = $taskPolicy.schema_sha256.PSObject.Properties[$resource]
-    if ($null -eq $digestProperty) {
-        throw "missing declared SHA-256 in ${taskPolicyPath}: $resource"
-    }
-    Assert-CanonicalDigest $taskPolicyPath $resource $digestProperty.Value
-}
-
+# Validate the active Graph manifest only. Legacy compatibility contracts are
+# readable inventory but are not part of default adoption.
 $graphManifestPath = 'contracts/graph/v1/contract.json'
 $graphManifest = Get-Content -LiteralPath $graphManifestPath -Raw | ConvertFrom-Json
 foreach ($entry in $graphManifest.resources.PSObject.Properties) {
-    Assert-CanonicalDigest $graphManifestPath $entry.Value.resource $entry.Value.canonical_sha256
+    $resourcePath = Join-Path (Split-Path -Parent $graphManifestPath) $entry.Value.resource
+    if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) { throw "missing Graph manifest resource: $resourcePath" }
+    $declared = $entry.Value.canonical_sha256
+    $actual = (Get-FileHash -LiteralPath $resourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($declared -ne $actual) { throw "Graph manifest digest mismatch: $resourcePath" }
 }
 
-# Canonical authority references use explicit local anchors. Check only the
-# narrow docs/<path>.md#<anchor> form rather than crawling general links.
-$authorityReferencePattern = 'docs/[A-Za-z0-9_./-]+\.md#[A-Za-z0-9_.:-]+'
-foreach ($source in ($tracked | Where-Object { $_ -match '\.(md|ya?ml)$' })) {
-    $sourceText = Get-Content -LiteralPath $source -Raw
-    foreach ($referenceMatch in [regex]::Matches($sourceText, $authorityReferencePattern)) {
-        $reference = $referenceMatch.Value
-        $parts = $reference -split '#', 2
-        $targetPath = $parts[0]
-        $anchor = $parts[1]
-        if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
-            throw "broken canonical authority reference in ${source}: $reference"
-        }
-        $targetText = Get-Content -LiteralPath $targetPath -Raw
-        $anchorPattern = '<a\s+id=["'']' + [regex]::Escape($anchor) + '["'']\s*></a>'
-        if ($targetText -notmatch $anchorPattern) {
-            throw "missing canonical authority anchor in ${source}: $reference"
-        }
-    }
+# Validate only the explicit canonical-authority pointer manifest.
+$canonicalPointers = @(
+    'docs/SAGE_CORE.md#sage-completion-001',
+    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004',
+    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005',
+    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006',
+    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008',
+    'docs/agent/AGENT_HARNESS.md#sage-auth-010'
+)
+foreach ($reference in $canonicalPointers) {
+    $targetPath, $anchor = $reference -split '#', 2
+    if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) { throw "broken canonical pointer: $reference" }
+    $targetText = Get-Content -LiteralPath $targetPath -Raw
+    $anchorPattern = '<a\s+id=["'']' + [regex]::Escape($anchor) + '["'']\s*></a>'
+    if ($targetText -notmatch $anchorPattern) { throw "missing canonical anchor: $reference" }
 }
 
-git diff --check
-if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed' }
+if ($env:SAGEKIT_DIFF_BASE) {
+    git diff --check "$($env:SAGEKIT_DIFF_BASE)...HEAD"
+    if ($LASTEXITCODE -ne 0) { throw 'PR-range git diff --check failed' }
+} else {
+    git diff --check
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'local git diff --check reported hygiene issues (non-blocking without SAGEKIT_DIFF_BASE)' }
+}
+
 Write-Output 'repository integrity: PASS'

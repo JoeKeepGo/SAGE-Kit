@@ -22,7 +22,7 @@ flowchart LR
   D --> E["Implementation loop"]
   E --> F["项目原生 focused checks"]
   F --> G["按风险触发独立 review"]
-  G --> H["最终一次项目 CI"]
+  G --> H["所需的最终项目 CI"]
   H --> I["人工验收与 closeout"]
 ```
 
@@ -35,7 +35,8 @@ Light 工作不强制使用 Graph。
 2. 使用项目自有的紧凑 `ACTIVE_CONTEXT` 保存当前事实和 handoff。
 3. 向模型提供 active SPEC、允许路径、验收条件和审批边界。
 4. 根据真实风险选择 Light、Standard 或 Heavy。
-5. 实现期间只运行项目 focused checks，最终候选只运行一次项目 CI。
+5. 实现期间只运行项目 focused checks；项目、merge 或 release gate 要求时，每个未变
+   最终候选运行一次项目 CI。
 
 建议从 [`SAGE_CORE.md`](docs/SAGE_CORE.md)、
 [`AGENT_HARNESS.md`](docs/agent/AGENT_HARNESS.md) 和
@@ -45,9 +46,9 @@ Light 工作不强制使用 Graph。
 
 | 等级 | 适用工作 | 常见结构 |
 |---|---|---|
-| Light | 小型、低风险、边界明确的修改 | 单一模型 loop、focused check、简洁证据 |
-| Standard | 普通多文件产品工作 | 有界计划、受影响面 review、项目 CI |
-| Heavy | 委派、安全、权限、发布或广泛集成风险 | 显式 lanes/Graph、独立 review、具名人工 gates |
+| Light | 小型、低风险、边界明确的修改 | 0-1 个文档，controller 可执行，默认无独立 review，1-2 个 focused checks；只有项目/merge/release gate 要求时运行 CI |
+| Standard | 普通多文件产品工作 | 短 plan + result，按风险使用 controller/subagents，一次 affected review，focused checks 与每个未变候选所需的 CI |
+| Heavy | 具体安全、权限、生产、发布、破坏性或广泛集成风险 | 默认 3-5 个有目的文档，一次独立 final review，risk checks + final CI，显式高风险人工 gates |
 
 治理等级与权限彼此独立。Heavy controller 不会自动获得写入、corrective、submit
 或 acceptance authority。
@@ -57,8 +58,8 @@ Light 工作不强制使用 Graph。
 - 项目拥有产品需求、threat model、范围、权限、gates、tests 与 acceptance。
 - `ACTIVE_CONTEXT` 保存当前 handoff 真值；历史文档只有被当前 authority 明确选择时
   才能作为执行依据。
-- [`contracts`](contracts) 提供可选、静态、语言无关的 Graph、Node Result、Task 与
-  Evidence schema。合同存在不会执行任务或授予权限。
+- [`contracts`](contracts) 提供可选、静态、语言无关的 Graph 与 Node Result
+  schema。合同存在不会执行任务或授予权限。
 - [`docs`](docs) 保存治理模型与规划模板。
 - [`skills/sage-kit`](skills/sage-kit) 为各宿主激活并路由模型原生工作流。
 
@@ -68,8 +69,11 @@ Skill 包含 Codex、Claude Code、OpenCode 和 Kimi 指导，并可与 speciali
 plugins、MCP、原生 subagents 及项目自动化共存。所有能力仍受项目 authority 约束，
 不得静默扩张范围。
 
-跨 Milestone 无人值守执行只在人工预授权了 milestone 范围、允许操作、停止条件和
-人工专属决策时成立。产品、权限、安全、破坏性操作、凭据和验收始终属于人工 gate。
+跨 Milestone 继续执行依赖宿主，且只限已纳入并预授权的 milestone。协调 envelope
+记录 authority、admission、完成/下一 admission、drift、resume、handoff 与 convergence。
+产品验收、范围/权限扩张、新 threat-model 决策、破坏性/生产操作、凭据、merge 或
+release 必须停止。只有项目 authority 明确允许时，`DONE_PENDING_ACCEPTANCE` 才可在
+已纳入范围内继续。
 
 ## 验证经济性
 
@@ -77,7 +81,7 @@ plugins、MCP、原生 subagents 及项目自动化共存。所有能力仍受�
 每次修改        -> 项目原生 focused check
 受影响边界      -> affected-only review 或 verification
 输入未变化      -> 复用可归因 evidence
-最终候选        -> 一次项目 CI
+最终候选        -> 每个未变候选运行一次所需项目 CI
 finding 已修复  -> targeted re-review，不重放 full review
 ```
 
@@ -94,8 +98,8 @@ scripts/            轻量仓库完整性检查
 tests/              已发布宿主 hooks 的 Shell/PowerShell 测试
 ```
 
-Release 使用 GitHub source archive，并可附带静态 Skill bundle；不会发布可执行的
-SAGE-Kit runtime。参见 [`RELEASE.md`](docs/RELEASE.md) 与
+首个模型原生 Release 仅使用 GitHub source archive；不发布 bundle、checksum artifact
+或可执行 SAGE-Kit runtime。参见 [`RELEASE.md`](docs/RELEASE.md) 与
 [`模型原生迁移指南`](docs/MIGRATION_MODEL_NATIVE.md)。
 
 ## 适用场景

@@ -25,7 +25,7 @@ flowchart LR
   D --> E["Implementation loop"]
   E --> F["Project-native focused checks"]
   F --> G["Risk-based independent review"]
-  G --> H["One final project CI run"]
+  G --> H["Required final project CI"]
   H --> I["Human acceptance and closeout"]
 ```
 
@@ -41,8 +41,8 @@ does not need a Graph.
 3. Point the model to the active SPEC, allowed paths, acceptance criteria, and
    approval boundaries.
 4. Select Light, Standard, or Heavy governance from actual risk.
-5. Run the project's focused checks during implementation and its CI once for
-   the final candidate.
+5. Run focused checks during implementation and project CI once per unchanged
+   final candidate when a project, merge, or release gate requires it.
 
 Start with [`SAGE_CORE.md`](docs/SAGE_CORE.md),
 [`AGENT_HARNESS.md`](docs/agent/AGENT_HARNESS.md), and the reusable
@@ -52,9 +52,9 @@ Start with [`SAGE_CORE.md`](docs/SAGE_CORE.md),
 
 | Level | Use it for | Typical shape |
 |---|---|---|
-| Light | Small, low-risk, bounded changes | One model loop, focused check, concise evidence |
-| Standard | Normal multi-file product work | Bounded plan, affected-surface review, project CI |
-| Heavy | Delegation, security, authority, release, or broad integration risk | Explicit lanes/Graph, independent review, named human gates |
+| Light | Small, low-risk, bounded changes | 0-1 docs, controller may execute, no independent review by default, 1-2 focused checks; CI only for a project/merge/release gate |
+| Standard | Normal multi-file product work | Short plan + result, risk-based controller/subagents, one affected review, focused checks and required CI per unchanged candidate |
+| Heavy | Concrete safety, authority, production, release, destructive, or broad integration risk | 3-5 purposeful docs by default, one independent final review, risk checks + final CI, explicit high-risk human gates |
 
 Governance level and permission are independent. A Heavy controller does not
 automatically receive write, corrective, submit, or acceptance authority.
@@ -65,9 +65,9 @@ automatically receive write, corrective, submit, or acceptance authority.
   gates, tests, and acceptance.
 - `ACTIVE_CONTEXT` owns current handoff truth; historical documents are
   references unless current authority explicitly selects them.
-- [`contracts`](contracts) contains optional static, language-neutral Graph,
-  Node Result, Task, and Evidence schemas. Their presence never executes work
-  or grants authority.
+- [`contracts`](contracts) contains optional static, language-neutral Graph and
+  Node Result schemas. Contract presence never executes work or grants
+  authority.
 - [`docs`](docs) contains the governance model and planning templates.
 - [`skills/sage-kit`](skills/sage-kit) activates and routes the model-native
   workflow for supported hosts.
@@ -79,10 +79,13 @@ coexist with specialist Skills, plugins, MCP tools, native subagents, and
 project-specific automation. Those capabilities remain subject to project
 authority and must not silently broaden scope.
 
-Cross-milestone unattended work is supported only when a human has
-preauthorized the milestone range, allowed operations, stop conditions, and
-human-only decisions. Product, authority, security, destructive, credential,
-and acceptance decisions remain human gates.
+Cross-milestone continuation depends on the host and is bounded to already
+admitted, preauthorized milestones. The coordinator records authority,
+admissions, completion/next-admission rules, drift, resume, handoff, and
+convergence. Stop for product acceptance, scope/permission expansion, a new
+threat-model decision, destructive/production work, credentials, merge, or
+release. Explicit project authority may allow `DONE_PENDING_ACCEPTANCE` to
+continue within the admitted envelope.
 
 ## Verification Economy
 
@@ -90,7 +93,7 @@ and acceptance decisions remain human gates.
 each change       -> project-native focused check
 affected boundary -> affected-only review or verification
 unchanged inputs  -> reuse attributable evidence
-final candidate   -> one project CI run
+final candidate   -> required project CI once per unchanged candidate
 finding fixed     -> targeted re-review, not full review replay
 ```
 
@@ -109,8 +112,8 @@ scripts/            Lightweight repository-integrity checks
 tests/              Shell/PowerShell tests for shipped host hooks
 ```
 
-Releases use GitHub source archives and may include a static Skill bundle. They
-do not ship an executable SAGE-Kit runtime. See
+The first model-native release uses only GitHub's source archive; it does not
+ship a bundle, checksum artifact, or executable runtime. See
 [`RELEASE.md`](docs/RELEASE.md) and the
 [`model-native migration guide`](docs/MIGRATION_MODEL_NATIVE.md).
 

@@ -1,247 +1,55 @@
 # M<ID> Milestone: <Name>
 
-This is an optional detailed profile for Heavy milestones, deep planning, or
-projects that retain the legacy Milestone/Phase document model. Light and
-Standard work may use the active SPEC, compact `ACTIVE_CONTEXT`, and
-project-native evidence without creating this package. Selecting this template
-does not transfer project authority to SAGE-Kit.
+Use this optional detailed profile when a milestone is an independently
+acceptable product outcome and Standard/Heavy planning benefits from a retained
+artifact. One outcome may include cohesive UI, API, data, and runtime support.
+Review is normally a gate/node, and becomes its own milestone only for an
+independent release, authority, or cross-milestone acceptance boundary.
 
-## Profile Files
+## Outcome And Authority
 
-When this profile is explicitly selected, create:
+- Product outcome:
+- Project authority and acceptance owner:
+- Scope / non-goals:
+- Governance level and permission mode:
+- ACTIVE_CONTEXT:
 
-- `docs/M<ID>/00-entry-gate.md`
-- `docs/M<ID>/MILESTONE_LEDGER.md`
-- one phase file per independently reviewable work slice
+## Acceptance And Execution
 
-Create when closing the milestone:
+- Observable acceptance:
+- Affected paths/contracts:
+- Dependencies and useful serial/parallel boundaries:
+- Project-required focused checks and final CI gate, if any:
+- Human-only gates:
+- Stop conditions:
 
-- `docs/M<ID>/MILESTONE_CLOSEOUT.md`
+Use one bounded loop by default. Graph, waves, lanes, controller/coder split,
+packets, structural gates, adapters, and separate ledgers are conditional
+profiles only. Delegation alone does not select Heavy. A shared toolchain is
+serial only while mutable state is shared.
 
-Reference only the project-selected current authority and the SAGE-Kit guidance
-needed for this milestone. The paths below are examples for projects that keep
-the legacy document layout:
+## Supporting Work
 
-- `docs/ACTIVE_CONTEXT.md`
-- `docs/DOC_ROUTING.md`
-- `docs/QUALITY_GATES.md`
-- `docs/agent/MILESTONE_PLANNING.md`
-- `docs/agent/SESSION_ORCHESTRATION.md` when milestone-level controller
-  handoff is used
-- `docs/agent/WORKTREE_ISOLATION.md` when isolated workspaces are allowed
-- `docs/agent/CAPABILITY_ADAPTERS.md` when optional external providers are
-  expected or selected
-- `contracts/task-dispatch-v2/` when the project selects structured task and
-  evidence records
-- `docs/templates/PHASE_TEMPLATE.md`
-- `docs/templates/MILESTONE_EXECUTION_PACKET_TEMPLATE.md` when Session
-  Orchestration is used
-- `docs/templates/MILESTONE_RESULT_PACKET_TEMPLATE.md` when Session
-  Orchestration is used
-- `docs/templates/STRUCTURAL_GATE_TEMPLATE.md` when Session Orchestration is
-  used
-- `docs/templates/FINAL_REVIEW_PACKET_TEMPLATE.md` when Session Orchestration
-  is used
-- `docs/templates/CORRECTIVE_PACKET_TEMPLATE.md` when Session Orchestration is
-  used
-- `docs/templates/MILESTONE_CLOSEOUT_TEMPLATE.md`
+| Area | Bounded result | Owner/permission | Paths | Checks | Dependency |
+|---|---|---|---|---|---|
+| `<UI/API/data/runtime/etc.>` | `<result>` | `<owner/mode>` | `<paths>` | `<checks>` | `<dependency>` |
 
-## Entry Gate Requirements
+Split this milestone only if a part cannot be accepted with the same product
+outcome, needs a distinct scope/permission decision, or has an independent
+release/acceptance boundary.
 
-The entry gate must include:
+## Rollback (conditional)
 
-- milestone objective;
-- primary capability from `docs/CAPABILITY_MAP.md` when a capability map exists;
-- governance level for the milestone controller and delegated workers;
-- accepted inputs;
-- product constraints and non-goals;
-- phase sequence;
-- file boundary;
-- module ownership;
-- named controller/integration ownership for every shared file;
-- public contract;
-- worktree isolation policy when isolated execution is allowed;
-- task-dispatch policy when structured task/evidence records are required;
-- test and smoke expectations;
-- capability routing expectations;
-- capability adapter authorization, evidence, and fallback policy when optional
-  providers are expected;
-- Coder Controller integration edit policy when Session Orchestration is used;
-- wave readiness decision when Wave Execution or parallel phases are proposed;
-- approval gates;
-- completion gate.
+Complete only for durable state, public contract, migration, or release change:
 
-## Milestone Granularity Gate
+- owner and trigger:
+- procedure:
+- compatibility impact:
+- post-rollback verification:
 
-Before implementation starts, the milestone must be decomposed into reviewable
-phases.
+## Completion And Handoff
 
-Each phase must have:
-
-- one governance level selected for its local scope;
-- one permission mode selected for its current authority;
-- one observable result;
-- one primary ownership boundary;
-- one public contract or clear no-contract reason;
-- bounded allowed files;
-- explicit read-only and forbidden files;
-- focused tests;
-- runtime smoke or a clear non-applicability reason;
-- non-goals;
-- stop conditions.
-
-Planning is blocked when a phase is too broad to assign exclusive file
-ownership, test independently, or review without reading unrelated history.
-
-Planning is also blocked when the milestone spans multiple primary capabilities
-from `docs/CAPABILITY_MAP.md` and has not been split.
-
-Use `docs/agent/MILESTONE_PLANNING.md` for the decomposition checklist.
-
-When Session Orchestration is used, Coder Controller orchestrates workers and
-performs controller-level synthesis and preliminary integration review. It does
-not edit worker-owned implementation files. Any direct edit is limited to a
-named controller-owned integration or packet file. Corrective workers are
-reserved for Final Review corrective rounds on `AUTO_CORRECTIVE` findings.
-
-## Phase Decomposition Matrix
-
-Every milestone entry gate must include this matrix.
-
-| Phase | Governance Level | Permission Mode | Objective | Owner | Contract | Allowed Files | Read-Only Files | Forbidden Files | Tests | Runtime Smoke | Stop Conditions |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `<phase>` | `Light, Standard, or Heavy` | `<mode>` | `<objective>` | `<owner>` | `<contract or none>` | `<files>` | `<files>` | `<files>` | `<commands>` | `<smoke or n/a reason>` | `<stops>` |
-
-## Wave Readiness
-
-Use waves only when lane independence is proven.
-
-Record:
-
-- useful parallel lanes;
-- exclusive writable files;
-- shared files kept serial;
-- contracts frozen before writable work;
-- runtime ownership;
-- validation lanes;
-- integration owner;
-- conflict stop conditions.
-
-If readiness is not proven, keep execution serial.
-
-Every shared file must have a named controller or integration owner. Workers
-submit patch proposals for shared files to that owner.
-
-## Auto-Advance Policy
-
-Auto-advance is opt-in. A project may auto-advance from one accepted phase to
-the next only when:
-
-- the next phase is already inside the entry-gate scope;
-- the ledger is current;
-- verification evidence does not contradict the ledger;
-- no approval gate, blocker, or review stop is required.
-
-## Capability Routing
-
-State which specialist skills, plugins, connectors, or tools should be used for
-implementation, validation, review, runtime smoke, or artifact work when the
-agent runtime exposes them.
-
-If external workflow bundle is available, name the specific skills that may be used as
-execution discipline inside this milestone boundary.
-
-For optional providers such as frontend skills, OpenSpec, GitNexus, browser QA,
-database tools, CI, or reviewers, use `docs/agent/CAPABILITY_ADAPTERS.md` and
-record authorization level, evidence required, and fallback behavior.
-
-The controller must inspect capability metadata before delegating work and
-record the selected capabilities in execution, result, review, or corrective
-packets.
-
-## Governance Levels And Authority
-
-Use `docs/agent/GOVERNANCE_LEVELS.md`.
-
-State:
-
-- milestone controller governance level;
-- worker, phase, lane, review, and corrective governance levels;
-- milestone, worker, phase, lane, review, and corrective permission modes;
-- whether Final Review corrective orchestration is separately authorized or
-  requires Project Manager decision;
-- controls enabled and explicitly not enabled;
-- triggers that require stopping for Project Manager or controller decision.
-
-## Worktree Isolation
-
-State whether Project Manager allows Worktree Isolation.
-
-If yes, name:
-
-- allowed isolation mode;
-- maximum worktree count;
-- branch and worktree naming;
-- base branch or commit;
-- eligible phases or lanes;
-- shared files that remain serial;
-- runtime ownership;
-- integration owner;
-- review-worktree creator, when applicable;
-- post-verdict submit and cleanup owner/policy.
-
-## Structured records
-
-State whether Project Manager adopts structured task/evidence records for this milestone.
-
-If yes, name:
-
-- task/evidence record paths;
-- required evidence levels by task class;
-- project-native check and the gate it supports;
-- shared-file or shared-resource conflict policy;
-- owner of task record updates;
-- owner of evidence record updates.
-
-## Session Orchestration
-
-State whether this milestone uses Session Orchestration.
-
-If yes, name:
-
-- Project Manager Controller;
-- Coder Controller;
-- Final Review Controller;
-- execution packet path;
-- result packet path;
-- structural gate owner;
-- final review packet path;
-- corrective convergence budget.
-
-<a id="sage-lif-011"></a>
-
-## Milestone Closeout
-
-Close the milestone by writing `docs/M<ID>/MILESTONE_CLOSEOUT.md` after the
-ledger is current.
-
-Closure order:
-
-1. Record the Final Review verdict.
-2. Complete corrective convergence or record its explicit stop.
-3. Record the Project Manager/project-owner accept, close-blocked, defer,
-   abandon, or supersede decision.
-4. Update `MILESTONE_LEDGER.md`, including required phase disposition.
-5. Write or update `MILESTONE_CLOSEOUT.md`.
-
-The closeout is a compact historical outcome index. It records what shipped,
-what changed, key decisions, verification summary, known gaps, follow-up
-milestones, and links to detailed evidence.
-
-`HANDOFF` is not a closeout result. `BLOCKED` remains open until the authorized
-owner explicitly chooses resume, close-blocked, defer, or abandon; resume does
-not permit closeout.
-
-Do not add the closeout to default startup context. Read it only when
-the configured document-routing authority says historical milestone context is
-needed.
+Apply `docs/SAGE_CORE.md#sage-completion-001`. Reference authority,
+`ACTIVE_CONTEXT`, review/check evidence, and the project acceptance decision;
+do not duplicate current status/findings/blockers/next action. A closeout is an
+optional historical outcome index after acceptance, not an acceptance engine.

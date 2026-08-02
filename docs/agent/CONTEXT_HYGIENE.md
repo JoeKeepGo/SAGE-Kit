@@ -9,8 +9,8 @@ Context hygiene keeps long-running AI work reliable.
 - Summarize command output into decisions, errors, changed files, and next
   actions.
 - Do not paste long logs into durable docs.
-- Do not rely on previous chat memory when a ledger or active context should
-  hold the state.
+- Do not rely on previous chat memory when active context should hold current
+  state or a ledger should index immutable history/evidence.
 - Use document routing to avoid reading historical archives by default.
 - Maintain active context by replacement, not append-only accumulation.
 - Keep document routing stable unless the documentation topology or routing
@@ -34,11 +34,12 @@ Before broad exploration, state:
 | Memory Type | Location |
 |---|---|
 | Current repository state | Configured `ACTIVE_CONTEXT` path; legacy default `docs/ACTIVE_CONTEXT.md` |
-| Milestone progress | `docs/M<ID>/MILESTONE_LEDGER.md` |
+| Current objective/status/findings/blockers/next action | Configured `ACTIVE_CONTEXT` path |
+| Immutable milestone history/evidence index | `docs/M<ID>/MILESTONE_LEDGER.md` when selected |
 | Milestone outcome | `docs/M<ID>/MILESTONE_CLOSEOUT.md` |
 | Phase scope and evidence | `docs/M<ID>/<phase>.md` |
 | Review decision | Review report or phase completion report |
-| Next action | Milestone ledger and final handoff |
+| Bounded transfer view | Final handoff, referencing `ACTIVE_CONTEXT` |
 
 Historical closeouts are compressed indexes. They are not startup context. Read
 them before opening historical ledgers or phase docs when prior milestone
@@ -46,11 +47,10 @@ outcomes are relevant.
 
 ## End-Of-Run Memory Maintenance
 
-Every non-trivial agent run must close with memory maintenance before handoff,
-commit, or completion. Direct edits to startup context files require both
-permission mode and named Startup Context Controller ownership. If either is
-missing, the agent must return a memory update proposal or explicit no-change
-note for the serial controller.
+Update durable memory only when current truth, routing, or handoff ownership
+changed. Direct edits to startup context files require both permission mode and
+named Startup Context Controller ownership; otherwise return a bounded update
+proposal when a durable fact actually changed.
 
 For the configured `ACTIVE_CONTEXT` path:
 
@@ -68,12 +68,7 @@ For `docs/DOC_ROUTING.md`:
 - do not add session notes, progress summaries, command output, or review
   observations.
 
-If neither file needs an edit, the Startup Context Controller records, and
-workers propose, this completion note:
-
-```text
-Memory Maintenance: ACTIVE_CONTEXT no change; DOC_ROUTING no change.
-```
+Do not record no-change memory or routing notes.
 
 If either file exceeds its target size budget, context growth is a compaction
 duty, not an automatic completion gate. The owning controller must compact or

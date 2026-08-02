@@ -75,7 +75,7 @@
     },
     "authority_change": {
       "type": "boolean",
-      "description": "When true, requests a higher-authority decision; it does not modify authority, a gate, or the project authority envelope."
+      "description": "When true, requests a higher-authority decision and requires HANDOFF plus decision/evidence. It does not modify authority, claim success, or permit automatic next nodes."
     },
     "proposed_next_nodes": {
       "type": "array",
@@ -164,6 +164,37 @@
         "properties": {
           "evidence_refs": {
             "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "authority_change"
+        ],
+        "properties": {
+          "authority_change": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "decision",
+          "evidence_refs",
+          "status",
+          "proposed_next_nodes"
+        ],
+        "properties": {
+          "status": {
+            "const": "HANDOFF"
+          },
+          "evidence_refs": {
+            "minItems": 1
+          },
+          "proposed_next_nodes": {
+            "maxItems": 0
           }
         }
       }

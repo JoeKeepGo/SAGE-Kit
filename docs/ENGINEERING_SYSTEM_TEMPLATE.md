@@ -1,157 +1,49 @@
 # Engineering System Template
 
-This document defines the daily development workflow for humans and AI agents.
+Use this file to bind SAGE-Kit to project-owned authority. SAGE-Kit coordinates
+within granted scope and never owns product scope, threat model, permissions,
+checks, or acceptance.
 
-## Working Principles
+## Authority And Current Truth
 
-- Keep modules cohesive and small.
-- Prefer explicit contracts over implicit shared state.
-- Define ownership before editing shared files.
-- Do not add speculative aliases or guessed behavior.
-- Preserve a runnable baseline.
-- Keep planning, implementation, review, and release gates distinct.
-- Select governance under `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-003` and
-  record the chosen level locally.
-- Make runtime behavior visible through tests, logs, UI, API responses, or
-  smoke checks.
-- Route execution to available specialist skills, plugins, connectors, tools,
-  CI, or reviewers under
-  `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`.
-- Use `docs/agent/CAPABILITY_ADAPTERS.md` for optional providers so external
-  capability use has authorization and evidence mapping.
-- Keep local data and secrets out of commits and reports.
+- Active SPEC / project authority:
+- Permission and acceptance owners:
+- ACTIVE_CONTEXT (exclusive current objective/status/findings/blockers/next action):
+- Project-required checks and approval gates:
 
-## Session Roles
+Historical ledgers are immutable event/evidence indexes. Handoffs are bounded
+transfer views. Completion reports reference authority, evidence, and current
+truth instead of copying them.
 
-Authority meaning is canonical in
-`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005` through
-`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`; Final Review/corrective
-separation is explicit at `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006`.
-This table retains the project's local role assignments and prohibitions.
+## Control Level
 
-| Role | Owns | Must Not Do |
-|---|---|---|
-| Planning | Specs, milestones, phase docs, acceptance criteria. | Implement unapproved code. |
-| Implementation | One approved phase or task. | Expand scope without updating the phase doc. |
-| Review | Findings, risks, missing evidence, go/no-go recommendation. | Edit files during review-only work. |
-| Coordinator | Context routing, lane ownership, integration, ledger updates. | Hide unresolved conflicts or skipped verification. |
-| Project Manager Controller | Milestone direction, authority matrix, execution packet, structural gate, final decision. | Perform full technical review. |
-| Coder Controller | Phase and lane worker orchestration for one milestone. | Redefine milestone scope or accept the milestone. |
-| Final Review Controller | Independent read-only review orchestration, corrective classification, and verdict. | Trust Coder self-report, accept the milestone directly, or edit implementation/corrective files; correction is delegated to a separately `CORRECTIVE_AUTHORIZED` worker. |
-| Submit Controller | Authorized commit, push, merge, release, or worktree cleanup. | Submit unverified scope or bypass Project Manager approval. |
+Use the canonical matrix in `docs/agent/GOVERNANCE_LEVELS.md`:
 
-## Explore
+- Light: 0-1 docs, controller may execute, no independent review by default,
+  1-2 focused checks, conditional CI;
+- Standard: short plan/result, useful risk-based subagents, one affected
+  review, focused checks and required CI once per unchanged candidate;
+- Heavy: 3-5 purposeful docs by default, one independent final review, risk
+  checks/final CI, explicit high-risk human gates.
 
-Before editing:
+Permission remains separate. Unknown model identity and delegation alone do not
+enable Strict or Heavy. Shared toolchains serialize only mutable shared state;
+authorized isolated lanes may commit locally while push/merge remain serial.
 
-- check change-control state, such as branch, changelist, revision, and dirty
-  files when applicable;
-- read active context and routing docs;
-- read the active milestone and phase doc;
-- inspect relevant files with narrow searches and small ranges;
-- identify contracts, tests, runtime checks, allowed files, and forbidden files.
+## Optional Profiles
 
-## Plan
+Enable Graph, milestone packages, phases, waves, controller/coder split,
+packets, structural gates, adapters, browser/data/redaction checks, threat-model
+prompts, or legacy compatibility only when project authority or concrete risk
+selects them. Planning-only defaults to one author, one bounded risk review if
+warranted, and one targeted fix.
 
-For non-trivial work, as defined in `docs/SAGE_CORE.md`, create or update a
-retained phase document before implementation.
+## Completion
 
-For broad or non-technical project starts, use
-`docs/agent/PROJECT_OWNER_ENTRY.md` and create a capability map before
-promoting milestone candidates into an executable roadmap.
+Apply `docs/SAGE_CORE.md#sage-completion-001`. Mechanical wording, status, or
+EOF fixes close with a focused check; semantic correctives receive one targeted
+re-review. Continue within the same corrective authority while findings
+decrease; two consecutive same-root no-progress rounds return `BLOCKED`.
 
-The plan must include:
-
-- authority fields instantiate
-  `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004`;
-- governance level: `Light`, `Standard`, or `Heavy`;
-- permission mode: read-only, write-authorized, corrective-authorized,
-  environment-write-authorized, or submit-authorized;
-- one observable goal;
-- requirement IDs;
-- file boundary;
-- module ownership;
-- public contract;
-- test plan;
-- runtime smoke;
-- selected capability adapters and authorization levels when relevant;
-- non-goals;
-- completion gate.
-
-External planning outputs must be written into or mapped to the retained
-milestone, phase, or packet documents. Do not maintain a second planning source
-of truth.
-
-When work is planning-only, the same root session may orchestrate a planning
-package closeout flow with separate Planning Author, Planning Review, Targeted
-Fix, Closure Verification (`strict Deterministic Closure` or `Targeted
-Re-Review`), Closeout/Status, and Submit Controller roles. Use this only for
-planning artifacts, ledgers, evidence or status records, and closeouts.
-Do not include product code, runtime behavior, schema, migrations, test
-implementation, release artifacts, credentials, production data, or approval
-gate state. Any submit or push follows
-`docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`; this workflow additionally
-requires a changed-file, verification, and hygiene check.
-
-For large milestones with many phases or high handoff overhead, use
-`docs/agent/SESSION_ORCHESTRATION.md` and create a milestone execution packet
-instead of manually forwarding each phase between sessions.
-
-Use `docs/agent/WORKTREE_ISOLATION.md` only when Project Manager authorizes
-isolated milestone, phase, lane, or review workspaces and names submit and
-cleanup ownership under `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-007`.
-
-Use `contracts/task-dispatch-v2/` only when Project Manager adopts structured
-task/evidence records. The schemas describe records; they do not create a
-framework validator, lock manager, or acceptance rule.
-
-## Implement
-
-- Stay within the approved file boundary.
-- Keep public contracts stable unless the phase owns the migration.
-- Add or update tests with behavior changes.
-- Stop and return to planning if a shared file or external approval gate is
-  needed but not listed.
-- Stop if an external capability reaches a closed approval gate, expands scope,
-  conflicts on shared files or resource locks, fails required evidence, or needs
-  unapproved runtime, destructive, submit, merge, push, or cleanup operations.
-- Do not silently install skills, plugins, CLIs, MCP servers, hooks, generated
-  skills, or global configuration.
-
-## Verify
-
-Use the narrowest relevant checks during development. Before completion, apply
-`docs/agent/EXECUTION_ECONOMY.md#sage-loop-013` and this project's exact gate
-catalog; do not require runtime or UI evidence when that surface is outside the
-declared scope.
-
-Examples:
-
-```bash
-<test command>
-<typecheck command>
-<runtime smoke command>
-```
-
-Any runtime claim must be proven by a live process, API call, browser check,
-worker invocation, database check, or other concrete evidence.
-
-## Submit
-
-Before handoff or commit:
-
-- inspect changed files;
-- check staged files if staging is used;
-- scan for secrets or local data when applicable;
-- confirm submit and cleanup authority when worktrees were used;
-- confirm required project-native check status when an acceptance gate uses it;
-- maintain `docs/ACTIVE_CONTEXT.md` as a compact current-state snapshot only
-  when permission mode and ownership allow direct writes; otherwise return a
-  memory update proposal or no-change note;
-- update `docs/DOC_ROUTING.md` only when routing or document topology changed
-  and permission mode plus ownership allow direct writes; otherwise return a
-  memory update proposal or no-change note;
-- update completion report with memory maintenance status;
-- record capability adapter use, authorization, and evidence.
-- update milestone ledger;
-- name skipped checks and remaining gaps.
+Stop for product acceptance, scope/permission expansion, a new threat-model or
+safety decision, destructive/production work, credentials, merge, or release.

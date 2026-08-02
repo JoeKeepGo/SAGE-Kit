@@ -2,10 +2,9 @@
 
 Use this file when closing a milestone.
 
-Closeout order, terminal status eligibility, and the startup-context boundary
-are canonical at `docs/templates/MILESTONE_TEMPLATE.md#sage-lif-011`. This
-template records the resulting historical outcome and does not decide whether
-the milestone may close.
+Completion eligibility is canonical at
+`docs/SAGE_CORE.md#sage-completion-001`. This template records a historical
+accepted/closed outcome and does not decide completion or acceptance.
 
 Waiver meaning is canonical at
 `docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008`. This closeout retains the

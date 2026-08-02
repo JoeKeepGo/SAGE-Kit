@@ -47,7 +47,7 @@ runtime ownership.
 - Controller diff review:
 - Final tests:
 - Runtime smoke:
-- Ledger update:
-- Memory maintenance:
+- Immutable ledger event append (only when selected):
+- ACTIVE_CONTEXT durable-truth update/proposal (only when changed):
 - Handoff:
 ```

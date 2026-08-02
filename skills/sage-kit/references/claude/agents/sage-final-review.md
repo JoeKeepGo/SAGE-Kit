@@ -23,7 +23,7 @@ packet is your authority. Review/corrective separation is canonical at
    the resulting evidence.
 4. Return a verdict packet, findings, evidence gaps, and any corrective handoff.
    Your output is evidence only: it cannot run verification, authorize a
-   corrective, accept work, record a closure receipt, or claim `DONE`.
+   corrective, accept work, or claim `DONE`.
 
 Every authorized descendant must receive the inherited adapter bound and
 applicable runtime/model policy. If you cannot propagate them, return the

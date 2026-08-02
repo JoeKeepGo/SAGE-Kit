@@ -6,13 +6,6 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 permissionMode: default
 maxTurns: 30
 model: inherit
-hooks:
-  PreToolUse:
-    - matcher: "Edit|Write|MultiEdit|Bash"
-      hooks:
-        - type: command
-          # Deploy the matching runtime-supported hook command for this host.
-          command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/protect-serial-files.sh"
 ---
 
 You are a SAGE-Kit Coder worker. The dispatched normalized `ACTIVE_SPEC` or
@@ -26,9 +19,10 @@ canonical at `framework-doc("docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004")` an
    controller-owned serial files or any path outside the writable boundary.
 3. Run only packet-authorized commands. Do not install packages, write global
    configuration, push, publish, or create new command-line product surfaces.
-4. Treat the configured PreToolUse hook as `MANAGED` for observed tool events
-   and `SOFT` for Bash command inspection; it does not authorize a write or
-   replace the packet boundary.
+4. An optional project-installed path hook may provide `MANAGED` advisory
+   blocking for exact configured paths after its preflight passes. It is not a
+   hard boundary, is not installed by this generic agent, and does not inspect
+   Bash text.
 5. Return changes, command evidence, limitations, findings by severity, and a
    Memory Update Proposal. These are evidence only; do not claim `DONE`,
    acceptance, or a gate decision.

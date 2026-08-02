@@ -5,7 +5,8 @@ implementation and release.
 
 ## Roadmap Rules
 
-- Each milestone proves one primary capability.
+- Each milestone is an independently acceptable product outcome; cohesive UI,
+  API, data, and runtime supporting areas may remain together.
 - Broad, non-technical, or coarse-roadmap projects must create `docs/CAPABILITY_MAP.md`
   before this roadmap becomes executable.
 - Draft milestone candidates from Project Owner Entry are not executable until
@@ -16,7 +17,8 @@ implementation and release.
 - Milestones must be decomposed into phases before implementation starts.
 - Broad phases must be split until each has one owner, one contract boundary,
   bounded files, and clear verification.
-- Broad milestones must be split until each maps to one primary capability.
+- Split milestones only for unrelated outcomes or distinct release, authority,
+  or acceptance boundaries.
 
 ## Capability Map Link
 

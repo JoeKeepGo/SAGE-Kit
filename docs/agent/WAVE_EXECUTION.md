@@ -69,13 +69,13 @@ parallel.
 | Wave 2 | Contract, schema, file ownership, and lane plan freeze. | Serial |
 | Wave 3 | Disjoint implementation lanes. | Parallel when file ownership does not overlap |
 | Wave 4 | Validation, review, targeted tests, and regression checks. | Parallel |
-| Wave 5 | Integration, final verification, ledger update, and handoff. | Serial |
+| Wave 5 | Integration, final verification, optional immutable ledger event, and handoff. | Serial |
 
 ## Controller Responsibilities
 
 The controller owns:
 
-- phase scope;
+- coordination of the project-granted phase scope;
 - lane governance levels;
 - lane permission modes;
 - wave plan;
@@ -84,8 +84,8 @@ The controller owns:
 - conflict resolution;
 - final integration;
 - final verification;
-- milestone ledger updates;
-- active context and document routing maintenance;
+- optional immutable milestone ledger event appends;
+- active context and document routing updates only for durable changes;
 - serial integration of memory update proposals;
 - git operations when used.
 
@@ -137,8 +137,8 @@ These lanes are usually safe to parallelize:
 - independent validation after changes.
 
 Read-only and small corrective lanes are usually `Light`. Bounded implementation
-lanes are usually `Standard`. Shared contract, runtime, migration, release, or
-approval-sensitive lanes are `Heavy` and must protect serial gates.
+lanes are usually `Standard`. Use `Heavy` only for a concrete high-risk trigger
+from the canonical matrix; delegation or a shared toolchain alone is not one.
 
 Parallel validation lanes may run local, fake, dry, fixture, static, or isolated
 checks. Real runtime smoke remains a serial controller responsibility unless the
@@ -155,8 +155,8 @@ These must remain serial unless the project explicitly defines a safer process:
 - production data or credential use;
 - destructive actions;
 - release, publish, merge, push, or protected-branch operations;
-- final completion report and milestone ledger update;
-- active context and document routing maintenance.
+- final completion reference and optional immutable ledger event append;
+- active context and document routing updates only for durable changes.
 
 ## Writable Lane Rules
 
@@ -170,7 +170,9 @@ These must remain serial unless the project explicitly defines a safer process:
   integration.
 - A lane may not expand its file boundary.
 - A lane may not open approval gates.
-- A lane may not stage, commit, push, publish, release, or merge.
+- A lane may commit locally only in an isolated worktree when explicitly
+  authorized. Staging/committing shared integration state, push, publish,
+  release, and merge remain controller-serialized.
 
 ## Wave Plan Template
 
@@ -235,8 +237,8 @@ Wave 4 - Parallel Validation Lanes:
 Wave 5 - Serial Integration:
 - final checks:
 - real runtime smoke:
-- ledger update:
-- memory maintenance:
+- optional immutable ledger event append:
+- ACTIVE_CONTEXT durable-truth update/proposal:
 - handoff:
 ```
 

@@ -39,13 +39,12 @@ Default startup read set:
 | Milestone planning | Project profile, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design or roadmap if present or Standard/Heavy; named or relevant prior milestone closeouts, then ledgers only if needed |
 | Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
 | Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
-| Structured task/evidence records | Active context, this file, active milestone authority, current task/evidence records | `contracts/task-dispatch-v2/` when the project selects that static shape; related dependency records only when needed |
 | External capability routing | Active context, this file, `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`, `docs/agent/AGENT_HARNESS.md`, `docs/agent/GOVERNANCE_LEVELS.md` | Selected skill, plugin, connector, MCP tool, project command, CI, or review instructions only when the task will use that execution method |
 | Frontend or browser adapter | Active phase doc, UI contract, quality gates, `docs/agent/CAPABILITY_ADAPTERS.md` | Design system, frontend skill instructions, browser QA tools |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
 | UI work | Active phase doc, UI contract, quality gates | Design system |
 | Contract change | Contract owner doc and consumer docs | Relevant closeout decision summary, then historical decision records |
-| Review | Active phase doc, quality gates, changed files | Active task/evidence records when Structured records is used, prior closeout summary, then ledger evidence |
+| Review | Active SPEC/context, quality gates, changed files | Project-native structured records when explicitly used, prior closeout summary, then ledger evidence |
 | Historical outcome lookup | Named `MILESTONE_CLOSEOUT.md` | Ledger, phase docs, and completion reports only for provenance |
 | Release or publish | Approval gates, release phase doc | Packaging docs |
 
@@ -79,11 +78,9 @@ Prefer targeted reads before full archives:
 2. read capability metadata before capability bodies;
 3. search for headings or symbols before reading whole files;
 4. read packet templates only when the current task uses that packet.
-5. read optional static task/evidence schemas only when the current project
-   selects structured records or an audit needs their shape.
-6. read project owner intake before capability maps, and capability maps before
+5. read project owner intake before capability maps, and capability maps before
    executable roadmaps for broad, non-technical, or coarse-roadmap projects.
-7. read capability adapter policy before external capability bodies, generated
+6. read capability adapter policy before external capability bodies, generated
    skills, hooks, MCP config, or provider documentation.
 
 Do not read every phase doc, historical ledger, closeout, skill body, plugin
@@ -100,16 +97,13 @@ writes and the documentation topology or routing policy changes, such as:
 - task types or ownership boundaries change;
 - a new archive or historical evidence policy is adopted.
 
-If direct writes are not allowed, return a `Memory Update Proposal` or explicit
-no-change note.
+If direct writes are not allowed, return a `Memory Update Proposal` only when a
+durable routing change exists.
 
 Do not write task status, command output, review notes, milestone progress, or
 agent observations here. Durable current-state facts belong in active context;
 observations, evidence, and progress belong in the milestone ledger, phase
 document, completion report, or handoff.
-
-At the end of a run, record `No routing change needed` in the handoff or
-completion report when this file does not require an edit.
 
 Target size: keep this file compact. If it grows beyond the project routing
 budget, split rarely used routes into profile-specific routing notes.

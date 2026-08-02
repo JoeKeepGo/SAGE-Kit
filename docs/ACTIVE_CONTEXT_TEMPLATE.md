@@ -2,18 +2,22 @@
 
 Updated: `<RFC3339 timestamp>`
 
+This is the exclusive owner of the current objective, status, findings,
+blockers, and next action. Replace changed facts; do not append a diary.
+
 ## Current Objective
 
 - Objective:
+- Status:
 - Active SPEC:
 - Governance / permission:
 - Human acceptance owner:
 
-## Repository Truth
+## Current Evidence
 
 - Repository / branch / revision:
-- Changed surfaces:
-- Project-native checks and current results:
+- Changed surfaces and evidence references:
+- Project-native checks and current results/limitations:
 
 ## Decisions And Boundaries
 
@@ -22,12 +26,10 @@ Updated: `<RFC3339 timestamp>`
 - Human-only decisions:
 - Invariants and stop conditions:
 
-## Open State
+## Current Findings And Blockers
 
 - Findings or concerns:
 - Blockers:
-- Deferred work:
-- Evidence references:
 
 ## Handoff
 
@@ -35,5 +37,6 @@ Updated: `<RFC3339 timestamp>`
 - Next owner:
 - Resume notes:
 
-Replace stale facts instead of appending a diary. Do not copy framework rules,
-full logs, private reasoning, or accepted history into this file.
+Ledgers index immutable events/evidence and handoffs provide bounded transfer
+views; neither may maintain a competing current status. Do not copy framework
+rules, full logs, private reasoning, or accepted history here.

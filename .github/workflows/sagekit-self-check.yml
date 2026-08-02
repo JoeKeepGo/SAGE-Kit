@@ -13,9 +13,13 @@ concurrency:
 jobs:
   posix:
     runs-on: ubuntu-latest
+    env:
+      SAGEKIT_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Check static repository integrity
         run: bash scripts/check-repository.sh
       - name: Check Claude Code hooks
@@ -23,9 +27,13 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    env:
+      SAGEKIT_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Check static repository integrity
         shell: pwsh
         run: ./scripts/check-repository.ps1

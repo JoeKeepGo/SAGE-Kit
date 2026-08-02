@@ -1,10 +1,10 @@
 {
   "contract_version": 2,
   "policy_id": "sagekit-task-dispatch-v2",
-  "scope": "active",
+  "scope": "legacy-static-compatibility",
   "selection": "explicit-only",
   "fallback": "forbidden",
-  "validation": "Project-selected JSON Schema tooling may validate these static records; SAGE-Kit ships no executable validator.",
+  "validation": "Legacy consumers may use project-selected JSON Schema tooling for these static records. SAGE-Kit does not route new work here and ships no executable validator.",
   "schema_files": [
     "task.schema.json",
     "evidence.schema.json"

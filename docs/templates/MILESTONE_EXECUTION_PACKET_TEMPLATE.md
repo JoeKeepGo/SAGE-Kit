@@ -225,9 +225,9 @@ Approval Gates:
 
 Runtime Ownership:
 
-Memory Maintenance Requirements:
+ACTIVE_CONTEXT durable-truth update requirements (only when changed):
 
-Ledger Requirements:
+Immutable ledger event-index requirements (only when selected):
 
 Closeout Requirement:
 

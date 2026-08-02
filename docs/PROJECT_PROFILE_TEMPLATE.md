@@ -46,11 +46,15 @@ provides.
 
 ## Security And Privacy Boundaries
 
-- User-facing responses must not expose server-only secrets. For projects with
-  a browser UI, browser-facing responses must be redacted.
-- Logs and reports must redact credentials, tokens, private keys, and sensitive
-  local data.
-- Production data access requires an approval gate.
+These are project-owned prompts, not SAGE-Kit requirements. Record only rules
+selected by project authority:
+
+- threat model or safety boundary, if any;
+- browser/data/redaction rules, if any;
+- production or credential approval gates, if any.
+
+Host safety and non-exposure of credentials remain universal; SAGE-Kit does not
+invent product security, privacy, browser, or data requirements.
 
 ## Runtime And Data Ownership
 

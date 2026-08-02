@@ -33,17 +33,20 @@ idea -> owner intake -> blueprint -> technical design -> capability map
 
 Projects choose the depth appropriate to risk. Thin documents remove repeated
 governance prose, not design depth, acceptance criteria, dependency analysis,
-rollback planning, or human authority.
+human authority, or rollback planning when durable state, a public contract,
+migration, or release is changed.
 
 ## Current Truth And History
 
 The active SPEC defines current work. A compact `ACTIVE_CONTEXT` records only
-handoff facts: current objective, authority, state, blockers, decisions, and
-next action. Historical milestone documents are auditable references and never
-become executable authority merely because they exist.
+current objective, status, findings, blockers, and next action, together with
+the authority and evidence references needed to resume. It is the exclusive
+owner of those current facts. Historical ledgers are immutable event/evidence
+indexes; handoffs are bounded transfer views. Neither becomes executable
+authority merely because it exists.
 
-Each fact has one owner. Other documents point to it instead of copying status,
-rules, command logs, findings, or receipts.
+Each fact has one owner. Completion and handoff records point to current truth,
+authority, and evidence instead of copying status, rules, logs, or findings.
 
 <a id="sage-grf-001"></a>
 ## Loop And Optional Graph
@@ -53,15 +56,33 @@ is introduced only when explicit dependencies, joins, gates, or parallel lanes
 improve execution or review. Graph schemas are static descriptions; they do not
 schedule nodes, mutate state, or grant authority.
 
+<a id="sage-completion-001"></a>
 ## Evidence And Completion
 
 Evidence records what was checked, against which scope and inputs, and with
 what result. It never creates permission or acceptance. `PASS`, `WAIVED`,
 `SKIPPED`, `UNAVAILABLE`, and incomplete are distinct.
 
+Completion is eligible only when the authorized scope is finished, applicable
+project-required checks pass or are explicitly waived by their owner, evidence
+is truthful, and no blocking finding or approval gate remains. Mechanical
+wording, status, or EOF fixes close with a direct focused check; a semantic
+corrective receives one targeted re-review of the affected boundary.
+
 Implementation completion, review verdict, submit authorization, and human
 acceptance are separate events. A framework or agent may recommend acceptance;
-only the project-named human owner may accept or close the milestone.
+only the project-named acceptance owner may accept the product outcome.
+
+Existing cross-layer statuses are interpreted without creating a workflow
+engine:
+
+| Status | Terminal for current execution | Acceptance eligible | Auto-advance |
+|---|---|---|---|
+| `DONE` / Graph `SUCCEEDED` or evidence-backed `NO_ACTION_REQUIRED` | yes | when the completion rule above passes | only when current authority permits |
+| `DONE_WITH_CONCERNS` | yes | only when every concern is non-blocking and the acceptance owner permits it | no |
+| `DONE_PENDING_ACCEPTANCE` | yes for the completed work, no for product acceptance | yes | only inside an explicit preauthorization |
+| `HANDOFF` / Graph `HANDOFF` | no | no | no |
+| `BLOCKED` / Graph `BLOCKED`, `FAILED`, or `NEEDS_CORRECTION` | no | no | no |
 
 ## Execution Model
 
@@ -72,7 +93,7 @@ read authority + active SPEC
 -> project-native focused checks
 -> risk-based independent review
 -> targeted corrective and re-review when needed
--> one final project CI run
+-> required project CI once per unchanged candidate
 -> human gate for product/authority/security decisions
 ```
 

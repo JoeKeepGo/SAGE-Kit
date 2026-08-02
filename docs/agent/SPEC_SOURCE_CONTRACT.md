@@ -20,13 +20,14 @@ it. Current validation is active-only by default.
 
 The active source may be Markdown, JSON, YAML, issue/PR text, or another
 project-owned format. Models normalize it conceptually into objective, scope,
-acceptance, authority, dependencies, risks, rollback, checks, and stop
-conditions. SAGE-Kit does not require one directory topology or compile it
+acceptance, authority, dependencies, risks, checks, and stop conditions. Add
+rollback owner/trigger/procedure/compatibility/post-check fields only for
+durable state, public contract, migration, or release change. SAGE-Kit does not require one directory topology or compile it
 through a framework runtime.
 
 ## Thin Documents
 
 Thin documents remove repeated governance prose. They do not reduce product
-design, milestone/wave/phase decomposition, acceptance criteria, dependency
-analysis, risk controls, or rollback planning. A project may keep detailed
+design, useful decomposition, acceptance criteria, dependency analysis, or risk
+controls. A project may keep detailed
 milestone documents without making their layout part of execution identity.

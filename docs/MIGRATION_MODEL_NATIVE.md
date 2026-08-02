@@ -24,7 +24,8 @@ behavior. Do not rewrite accepted project history to imitate the new model.
 - the optional Skill for model routing and host-specific guidance.
 
 Replace former runtime calls with a direct model workflow: read authority and
-SPEC, plan, edit, run project checks, review by risk, run final CI once, and
+SPEC, plan, edit, run project checks, review by risk, run required final CI once
+per unchanged candidate, and
 return evidence to the human acceptance owner.
 
 Legacy runtime compatibility belongs to the old immutable release tag. The new
