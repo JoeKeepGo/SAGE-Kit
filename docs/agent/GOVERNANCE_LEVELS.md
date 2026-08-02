@@ -14,7 +14,7 @@ identity, or delegation alone. This is the canonical control matrix.
 |---|---|---|---|---|
 | Light | Small, reversible, low-risk, bounded work | 0-1 short documents | Controller may execute; no independent review by default | 1-2 focused checks; CI only when a project, merge, or release gate requires it |
 | Standard | Normal multi-file or affected-boundary work | Short plan plus result | Controller or useful subagents selected by risk; one affected-boundary review | Focused checks and project CI once per unchanged candidate when required |
-| Heavy | Concrete safety, authority, destructive, production, release, or broad integration risk | 3-5 purposeful documents by default | Explicit lanes or Graph only when useful; one independent final review | Risk checks, final CI, and explicit human gates for the high-risk actions |
+| Heavy | Concrete safety, authority, destructive, production, release, or broad integration risk | 3-5 purposeful documents by default | Explicit lanes or Graph only when useful; one independent final review | Risk checks, project-required final CI when selected, and explicit human gates for the high-risk actions |
 
 Unknown model identity does not select Strict Mode. Strict Mode is enabled only
 by explicit project/human policy or a concrete low-assurance, high-risk trigger.

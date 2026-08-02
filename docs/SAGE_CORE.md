@@ -73,8 +73,9 @@ Implementation completion, review verdict, submit authorization, and human
 acceptance are separate events. A framework or agent may recommend acceptance;
 only the project-named acceptance owner may accept the product outcome.
 
-Existing cross-layer statuses are interpreted without creating a workflow
-engine:
+The table below is only a completion/acceptance projection of existing
+cross-layer statuses. It is not a state machine and does not replace the Graph
+contract's node status vocabulary:
 
 | Status | Terminal for current execution | Acceptance eligible | Auto-advance |
 |---|---|---|---|
@@ -83,6 +84,8 @@ engine:
 | `DONE_PENDING_ACCEPTANCE` | yes for the completed work, no for product acceptance | yes | only inside an explicit preauthorization |
 | `HANDOFF` / Graph `HANDOFF` | no | no | no |
 | `BLOCKED` / Graph `BLOCKED`, `FAILED`, or `NEEDS_CORRECTION` | no | no | no |
+| Graph `PENDING`, `READY`, `RUNNING`, or `WAITING_RESOURCE` | no | no | only through project/Graph rules outside this projection |
+| Graph `CANCELLED` | yes for the cancelled attempt, no for completion | no | no |
 
 ## Execution Model
 

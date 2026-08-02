@@ -48,7 +48,7 @@ Light 工作不强制使用 Graph。
 |---|---|---|
 | Light | 小型、低风险、边界明确的修改 | 0-1 个文档，controller 可执行，默认无独立 review，1-2 个 focused checks；只有项目/merge/release gate 要求时运行 CI |
 | Standard | 普通多文件产品工作 | 短 plan + result，按风险使用 controller/subagents，一次 affected review，focused checks 与每个未变候选所需的 CI |
-| Heavy | 具体安全、权限、生产、发布、破坏性或广泛集成风险 | 默认 3-5 个有目的文档，一次独立 final review，risk checks + final CI，显式高风险人工 gates |
+| Heavy | 具体安全、权限、生产、发布、破坏性或广泛集成风险 | 默认 3-5 个有目的文档，一次独立 final review，risk checks + 仅在项目明确选择时执行 final CI，显式高风险人工 gates |
 
 治理等级与权限彼此独立。Heavy controller 不会自动获得写入、corrective、submit
 或 acceptance authority。
@@ -85,8 +85,9 @@ release 必须停止。只有项目 authority 明确允许时，`DONE_PENDING_AC
 finding 已修复  -> targeted re-review，不重放 full review
 ```
 
-当 finding 持续收敛且范围不扩张时可以自动继续；同一根因连续两个获批轮次无进展才
-停止。所有权明确的普通 wording、EOF 和非语义一致性问题直接修正。
+当 finding 持续收敛且范围不扩张时可以自动继续；在同一既有 corrective authority
+下，同一根因连续两轮无进展才停止，无需每轮重新取得 PM 批准。所有权明确的普通
+wording、EOF 和非语义一致性问题直接修正。
 
 ## 仓库结构
 

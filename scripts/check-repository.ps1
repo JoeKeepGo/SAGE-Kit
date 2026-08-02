@@ -8,6 +8,7 @@ $required = @(
     'contracts/graph/v1/contract.json',
     'contracts/graph/v1/graph.schema.json',
     'contracts/graph/v1/node-result.schema.json',
+    'contracts/canonical-authority-pointers.txt',
     'skills/sage-kit/SKILL.md'
 )
 foreach ($path in $required) {
@@ -25,11 +26,17 @@ if ($forbidden.Count -ne 0) { throw "forbidden runtime/CLI/package surface:`n$($
 # Scan executable/workflow surfaces only. Ordinary governance prose may discuss
 # runtimes and tests without becoming an executable dependency.
 $executionSurfaces = @($tracked | Where-Object {
-    ($_ -like '.github/workflows/*' -or $_ -like 'tests/*') -and
-    $_ -match '\.(sh|ps1|ya?ml|json)$'
+    $_ -notin @('scripts/check-repository.ps1', 'scripts/check-repository.sh') -and
+    (
+        $_ -like '.github/workflows/*' -or $_ -like '.claude/*' -or
+        $_ -like '.codex/*' -or $_ -like 'scripts/*' -or $_ -like 'tests/*' -or
+        $_ -like 'skills/*/agents/*' -or $_ -like 'skills/*/references/*/agents/*' -or
+        $_ -like 'skills/*/references/*/hooks/*' -or
+        $_ -match '(^|/)(Makefile|Dockerfile|compose[^/]*\.ya?ml|[^/]*(launch|runner|daemon|scheduler|setup|install)[^/]*\.(sh|ps1|bat|cmd|ya?ml|json|toml))$'
+    ) -and $_ -match '\.(sh|ps1|bash|zsh|fish|bat|cmd|js|mjs|cjs|ts|tsx|rs|go|java|cs|rb|php|ya?ml|json|toml|md)$|(^|/)(Makefile|Dockerfile)$'
 })
 if ($executionSurfaces.Count -gt 0) {
-    $stale = @(git grep -n -I -E '(python([0-9.]*)?|pip([0-9.]*)?|pytest|unittest|sagekit[[:space:]]+(run|validate|check)|npm|npx|node)[[:space:]]' -- $executionSurfaces)
+    $stale = @(git grep -n -I -E '(^|[;&|()]|run:|command:|exec:|shell:)[[:space:]]*(env[[:space:]]+)?(python([0-9.]*)?|pip([0-9.]*)?|pytest|unittest|sagekit[[:space:]]+(run|validate|check|candidate|checkpoint|resource|packet)|npm|npx|node)[[:space:]]' -- $executionSurfaces)
     if ($LASTEXITCODE -notin 0, 1) { throw 'executable/workflow reference scan failed' }
     if ($stale.Count -ne 0) { throw "forbidden runtime invocation:`n$($stale -join "`n")" }
 }
@@ -56,15 +63,18 @@ foreach ($entry in $graphManifest.resources.PSObject.Properties) {
     if ($declared -ne $actual) { throw "Graph manifest digest mismatch: $resourcePath" }
 }
 
-# Validate only the explicit canonical-authority pointer manifest.
-$canonicalPointers = @(
-    'docs/SAGE_CORE.md#sage-completion-001',
-    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-004',
-    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-005',
-    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-006',
-    'docs/agent/GOVERNANCE_LEVELS.md#sage-auth-008',
-    'docs/agent/AGENT_HARNESS.md#sage-auth-010'
-)
+# Validate only the small explicit canonical-authority pointer manifest, not
+# ordinary Markdown links.
+$canonicalPointers = @(Get-Content -LiteralPath 'contracts/canonical-authority-pointers.txt' | Where-Object { $_.Trim() })
+if (($canonicalPointers | Sort-Object -Unique).Count -ne $canonicalPointers.Count) { throw 'duplicate canonical authority pointer' }
+$declaredPointers = @()
+foreach ($path in ($tracked | Where-Object { $_ -like 'docs/*.md' -or $_ -like 'docs/*/*.md' -or $_ -like 'docs/*/*/*.md' })) {
+    foreach ($line in (Get-Content -LiteralPath $path)) {
+        if ($line -match '^<a id="([^"]+)"></a>$') { $declaredPointers += "$path#$($Matches[1])" }
+    }
+}
+$pointerDelta = @(Compare-Object ($canonicalPointers | Sort-Object) ($declaredPointers | Sort-Object))
+if ($pointerDelta.Count -ne 0) { throw "canonical authority pointer manifest mismatch:`n$($pointerDelta | Out-String)" }
 foreach ($reference in $canonicalPointers) {
     $targetPath, $anchor = $reference -split '#', 2
     if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) { throw "broken canonical pointer: $reference" }

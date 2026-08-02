@@ -46,12 +46,13 @@ These are planning outputs, not executable authorization.
 | Granularity audit | `docs/CAPABILITY_MAP.md` | `<pending/pass/fail>` |
 | Executable milestone roadmap | `docs/MILESTONE_ROADMAP.md` | `<not_started/promoted>` |
 
-## Gate Before Implementation
+## Readiness Before Implementation
 
 Implementation may start only after:
 
-- a capability map exists;
-- draft milestones pass Milestone Granularity Gate;
-- the first milestone has an accepted entry gate;
-- phase docs name allowed files, verification, runtime smoke, non-goals, and
-  stop conditions.
+- an independently acceptable product outcome is selected directly or through
+  an optional capability map;
+- the first product outcome has enough authority, scope, acceptance evidence,
+  non-goals, and stop conditions to begin at its selected governance level;
+- any entry gate or phase documents required by an explicitly selected
+  Heavy/formal profile are ready.

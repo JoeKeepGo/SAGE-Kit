@@ -77,7 +77,8 @@ project automation coexist with SAGE-Kit. Loading one never expands authority.
   subagents, one affected review, focused checks, and required CI once per
   unchanged candidate.
 - **Heavy:** 3-5 purposeful docs by default, one independent final review, risk
-  checks plus final CI, and explicit human gates for high-risk actions.
+  checks plus final CI only when required by a project gate, merge/release, or
+  acceptance criteria, and explicit human gates for high-risk actions.
 
 Unknown model identity and delegation alone do not upgrade governance or enable
 Strict Mode. Shared toolchains serialize only mutable shared state. Authorized

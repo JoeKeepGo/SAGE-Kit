@@ -39,9 +39,10 @@ It may combine cohesive UI, API, data, and runtime supporting capabilities.
 
 Mark `FAIL` when any candidate milestone:
 
-- spans multiple capability areas;
-- covers multiple user workflows or runtimes;
-- mixes design, implementation, integration, review, and release;
+- combines unrelated product outcomes;
+- crosses a distinct release, authority, or acceptance boundary without an
+  explicit reason;
+- mixes work that cannot share a coherent acceptance decision;
 - cannot be reviewed without unrelated history;
 - cannot name file ownership;
 - cannot name verification evidence.
@@ -54,5 +55,6 @@ Mark `FAIL` when any candidate milestone:
 
 Promote only `PASS` candidates into `docs/MILESTONE_ROADMAP.md`.
 
-Failed candidates stay in planning until they are split into independently
-reviewable, verifiable, and bounded milestones.
+Failed candidates stay in planning until they are reshaped into independently
+acceptable, verifiable, and bounded product outcomes. A cohesive vertical
+slice may span UI, API, data, runtime, integration, and review activities.

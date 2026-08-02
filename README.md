@@ -54,7 +54,7 @@ Start with [`SAGE_CORE.md`](docs/SAGE_CORE.md),
 |---|---|---|
 | Light | Small, low-risk, bounded changes | 0-1 docs, controller may execute, no independent review by default, 1-2 focused checks; CI only for a project/merge/release gate |
 | Standard | Normal multi-file product work | Short plan + result, risk-based controller/subagents, one affected review, focused checks and required CI per unchanged candidate |
-| Heavy | Concrete safety, authority, production, release, destructive, or broad integration risk | 3-5 purposeful docs by default, one independent final review, risk checks + final CI, explicit high-risk human gates |
+| Heavy | Concrete safety, authority, production, release, destructive, or broad integration risk | 3-5 purposeful docs by default, one independent final review, risk checks + project-required final CI when selected, explicit high-risk human gates |
 
 Governance level and permission are independent. A Heavy controller does not
 automatically receive write, corrective, submit, or acceptance authority.
@@ -98,7 +98,8 @@ finding fixed     -> targeted re-review, not full review replay
 ```
 
 Progress may continue while findings converge and scope stays fixed. The same
-root cause with no progress in two consecutive approved rounds stops the loop.
+root cause with no progress in two consecutive rounds under the same existing
+corrective authority stops the loop; no fresh PM approval is required per round.
 Ordinary wording, EOF, and non-semantic consistency issues are corrected
 directly when ownership is clear.
 

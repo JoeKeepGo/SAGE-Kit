@@ -5,7 +5,7 @@ Completion eligibility is canonical at
 evidence, and current truth; it does not copy or decide them.
 
 ```markdown
-Conclusion: `DONE`, `DONE_WITH_CONCERNS`, `DONE_PENDING_ACCEPTANCE`, `HANDOFF`, or `BLOCKED`
+Completion snapshot disposition: `DONE`, `DONE_WITH_CONCERNS`, `DONE_PENDING_ACCEPTANCE`, `HANDOFF`, or `BLOCKED`
 Authority / permission references:
 ACTIVE_CONTEXT reference:
 Changed surfaces:
@@ -19,4 +19,5 @@ Acceptance owner / next action reference:
 
 Mechanical wording, status, and EOF fixes need a direct focused check. A
 semantic corrective needs one targeted re-review. Human acceptance remains a
-separate project-owned decision.
+separate project-owned decision. This report does not maintain current status,
+findings, blockers, or next action.

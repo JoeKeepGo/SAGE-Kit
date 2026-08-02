@@ -5,7 +5,7 @@ immutable history record. Current objective/status/findings/blockers/next
 action remain exclusively in `ACTIVE_CONTEXT`.
 
 ```markdown
-Status: `HANDOFF`, `DONE`, `DONE_WITH_CONCERNS`, `DONE_PENDING_ACCEPTANCE`, or `BLOCKED`
+Transfer snapshot disposition: `HANDOFF`, `DONE`, `DONE_WITH_CONCERNS`, `DONE_PENDING_ACCEPTANCE`, or `BLOCKED`
 
 Authority / permission references:
 ACTIVE_CONTEXT reference:
@@ -17,7 +17,8 @@ Next owner:
 Transfer instruction:
 ```
 
-`HANDOFF` and `BLOCKED` are nonterminal and not acceptance eligible. `DONE`
+The transfer disposition is not current status. `HANDOFF` and `BLOCKED` are
+nonterminal and not acceptance eligible. `DONE`
 uses the canonical completion rule at
 `docs/SAGE_CORE.md#sage-completion-001`. `DONE_WITH_CONCERNS` cannot
 auto-advance. `DONE_PENDING_ACCEPTANCE` may continue only inside an explicit

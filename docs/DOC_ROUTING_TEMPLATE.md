@@ -32,13 +32,13 @@ Default startup read set:
 |---|---|---|
 | General orientation | `ACTIVE_CONTEXT.md`, this file | `MILESTONE_ROADMAP.md` if present |
 | Thin document review | Project-selected active SPEC and compact current context | Referenced project gates and evidence only |
-| Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Active milestone entry gate, phase doc, quality gates, approval gates |
+| Governance and authority selection | Active context, this file, `docs/agent/GOVERNANCE_LEVELS.md` | Project-selected milestone, phase, quality, or approval authority only when it exists and applies |
 | Project owner intake | `docs/agent/PROJECT_OWNER_ENTRY.md`, `docs/templates/PROJECT_OWNER_INTAKE_TEMPLATE.md`, project profile draft if present | `docs/templates/CAPABILITY_MAP_TEMPLATE.md`, technical design, roadmap template |
 | Capability map or roadmap granularity audit | Project profile, `docs/CAPABILITY_MAP.md` if present or `docs/templates/CAPABILITY_MAP_TEMPLATE.md` if creating it, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design, relevant profile templates, prior closeouts only when the capability depends on history |
 | New feature planning | Project profile, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design if present or risk-enabled; named or relevant prior milestone closeouts, then ledgers only if needed |
 | Milestone planning | Project profile, quality gates, `docs/agent/MILESTONE_PLANNING.md` | Technical design or roadmap if present or Standard/Heavy; named or relevant prior milestone closeouts, then ledgers only if needed |
-| Session orchestration | Active context, this file, active milestone entry gate and ledger, `docs/agent/SESSION_ORCHESTRATION.md` | Packet templates and phase docs needed by the current controller |
-| Worktree isolation | Active context, this file, active milestone entry gate and ledger, `docs/agent/WORKTREE_ISOLATION.md` | Execution packet, worktree map, branch state, and phase docs needed by the current controller |
+| Session orchestration | Active context, this file, `docs/agent/SESSION_ORCHESTRATION.md` | Project-selected packet or phase authority only when the active profile uses it |
+| Worktree isolation | Active context, this file, `docs/agent/WORKTREE_ISOLATION.md` | Branch/worktree ownership and project-selected execution records only when needed |
 | External capability routing | Active context, this file, `docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003`, `docs/agent/AGENT_HARNESS.md`, `docs/agent/GOVERNANCE_LEVELS.md` | Selected skill, plugin, connector, MCP tool, project command, CI, or review instructions only when the task will use that execution method |
 | Frontend or browser adapter | Active phase doc, UI contract, quality gates, `docs/agent/CAPABILITY_ADAPTERS.md` | Design system, frontend skill instructions, browser QA tools |
 | Runtime implementation | Active milestone and phase docs | Exact contract docs for touched modules |
@@ -101,9 +101,10 @@ If direct writes are not allowed, return a `Memory Update Proposal` only when a
 durable routing change exists.
 
 Do not write task status, command output, review notes, milestone progress, or
-agent observations here. Durable current-state facts belong in active context;
-observations, evidence, and progress belong in the milestone ledger, phase
-document, completion report, or handoff.
+agent observations here. Durable current-state facts belong exclusively in
+active context. Evidence stays with its project-native owner; optional ledgers
+index immutable history, while packets, completion reports, and handoffs are
+bounded snapshots that reference current truth rather than competing with it.
 
 Target size: keep this file compact. If it grows beyond the project routing
 budget, split rarely used routes into profile-specific routing notes.

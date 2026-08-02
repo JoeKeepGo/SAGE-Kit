@@ -24,7 +24,8 @@ Use the canonical matrix in `docs/agent/GOVERNANCE_LEVELS.md`:
 - Standard: short plan/result, useful risk-based subagents, one affected
   review, focused checks and required CI once per unchanged candidate;
 - Heavy: 3-5 purposeful docs by default, one independent final review, risk
-  checks/final CI, explicit high-risk human gates.
+  checks and final CI only when selected by a project gate, merge/release, or
+  acceptance criteria, plus explicit high-risk human gates.
 
 Permission remains separate. Unknown model identity and delegation alone do not
 enable Strict or Heavy. Shared toolchains serialize only mutable shared state;
