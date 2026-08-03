@@ -1,0 +1,16 @@
+{
+  "contract_version": 2,
+  "policy_id": "sagekit-task-dispatch-v2",
+  "scope": "legacy-static-compatibility",
+  "selection": "explicit-only",
+  "fallback": "forbidden",
+  "validation": "Legacy consumers may use project-selected JSON Schema tooling for these static records. SAGE-Kit does not route new work here and ships no executable validator.",
+  "schema_files": [
+    "task.schema.json",
+    "evidence.schema.json"
+  ],
+  "schema_sha256": {
+    "task.schema.json": "21c868043b42388044f9861e0405611b1aaf1331246238d6a057b8f27fa81129",
+    "evidence.schema.json": "24c84ce58327f44efaf6c3d1e07ad56e842e563c2b2b709dc83d4f192fa61bbd"
+  }
+}

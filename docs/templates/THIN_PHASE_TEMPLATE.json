@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "document_model": "thin-model-native",
+  "phase_id": "P1",
+  "objective": "<bounded implementation outcome>",
+  "depends_on": [],
+  "governance": "Standard",
+  "permission_mode": "WRITE_AUTHORIZED",
+  "owner": "phase-controller",
+  "writable_paths": [
+    "<project path>"
+  ],
+  "read_only_references": [
+    "docs/ACTIVE_SPEC.md"
+  ],
+  "forbidden_paths": [
+    "<project-selected-current-truth-authority-path>"
+  ],
+  "acceptance_criteria": [
+    "<phase criterion>"
+  ],
+  "project_native_checks": [
+    "<focused command selected by the project>"
+  ],
+  "evidence_requirements": [
+    "<result and affected-scope evidence>"
+  ],
+  "stop_conditions": [
+    "<authority, scope, security, or product decision boundary>"
+  ],
+  "handoff_target": "milestone-controller",
+  "state": "planned"
+}

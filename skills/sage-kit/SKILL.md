@@ -1,148 +1,118 @@
 ---
 name: sage-kit
-description: 'Use when SAGE-Kit is explicit: the user invokes $sage-kit, asks to adopt/bootstrap SAGE-Kit, or references SAGE-Kit-owned docs or constructs such as docs/ACTIVE_CONTEXT.md, docs/DOC_ROUTING.md, package-doc("docs/agent/AGENT_HARNESS.md"), SAGE-Kit Governance Levels, Authority Matrix, Strict Mode, Wave Execution, Session Orchestration, Worktree Isolation, Task Dispatch Profile, or Capability Adapters. Do not use for generic milestones, gates, phase docs, planning, review, or debugging unless tied to SAGE-Kit.'
+description: 'Use only when SAGE-Kit is explicitly invoked, requested for adoption, or selected by current project authority. Routes model-native SPEC, planning, execution, review, handoff, and closeout without imposing SAGE-Kit on unrelated work.'
 disable-model-invocation: true
 ---
 
 # SAGE-Kit
 
-Use this Skill only as the activation and routing layer for SAGE-Kit. It does
-not replace the project's SPEC, execution authority, approval gates,
-permissions, scope, evidence, or acceptance owner.
+SAGE-Kit is an activation and routing Skill. It does not replace project SPEC,
+scope, permissions, gates, tests, evidence owners, or acceptance authority.
+No CLI, package runtime, daemon, or hidden validator is required.
 
-<a id="sage-adp-002"></a>
-## Activation And Authority
+## Activate Narrowly
 
-Activate only when the user explicitly invokes SAGE-Kit, asks to adopt or
-bootstrap it, or the active repository routes work through SAGE-Kit-owned
-constructs. If the repository is not SAGE-Kit governed and adoption was not
-requested, do not impose SAGE-Kit.
+Activate only when the user invokes SAGE-Kit, asks to adopt it, or the current
+project explicitly routes work through it. Do not impose it on generic coding,
+planning, review, or debugging.
 
-Installed Skill is not project authority. Project-owned SPEC and configuration,
-plus any explicitly named Project Manager decision, remain authoritative. The
-Skill interprets and routes that authority; it must not manufacture missing
-scope, permission, gates, file ownership, evidence, fallback, or completion.
+Project-owned current authority wins over framework guidance. Resolve, in
+order:
 
-Every `package-doc("<relative-path>[#anchor]")` reference below is a
-package-owned resource locator. Separate any optional anchor, then resolve the
-path as `importlib.resources.files("sagekit").joinpath("resources/", relative_path)`;
-never resolve it relative to the Skill installation, repository root, current
-working directory, or a sibling `sagekit/` directory.
+1. host/system safety and tool boundaries;
+2. explicit human decisions for this task;
+3. project authority, active SPEC, and approval gates;
+4. SAGE-Kit defaults;
+5. adapter and agent suggestions.
 
-Authority precedence and completion ownership remain canonical at
-`package-doc("docs/SAGE_CORE.md#sage-auth-001")`; mutation and approval boundaries remain at
-`package-doc("docs/SAGE_CORE.md#sage-auth-009")`.
+Missing or contradictory required authority fails closed before mutation.
+Historical documents are references unless current authority explicitly
+selects them. `ACTIVE_CONTEXT` is compact current truth, not a second SPEC.
 
-For a governed project:
+## Route Only What Is Needed
 
-1. Resolve the repository/worktree boundary and current change-control state.
-2. Resolve the configured active context and routing authority. Legacy projects
-   may use `docs/ACTIVE_CONTEXT.md` and `docs/DOC_ROUTING.md`; package-bound
-   projects may route from machine authority and the active SPEC.
-3. If `SAGE_PROJECT.json` exists, validate its contract pin and
-   `execution_document_model`, then load only the active `legacy-markdown` or
-   `thin-v1` execution authority selected for this task.
-4. Apply source precedence and scope classification from
-   `package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-001")` and
-   `package-doc("docs/agent/SPEC_SOURCE_CONTRACT.md#sage-ctx-002")`.
-5. Before writable work, resolve allowed, read-only, and forbidden files;
-   approval gates; verification; and stop conditions.
-
-A missing optional legacy routing file is not itself a blocker. Missing,
-unreadable, contradictory, or unauthorized active authority fails closed before
-editing; report the precise gap rather than guessing.
-
-## Proportional Governance
-
-Select the lightest level that preserves the active authority and risk:
-
-- **Light** for bounded, low-risk work without delegation or closed gates.
-- **Standard** for ordinary multi-file implementation, review, or verification.
-- **Heavy** for controller work, delegation, corrective authority,
-  environment writes, submit operations, or elevated risk.
-
-Resolve the matching read-only, write, corrective, environment-write, or submit
-permission mode from `package-doc("docs/agent/GOVERNANCE_LEVELS.md")`. A Heavy controller may
-delegate Light or Standard work, but delegation never transfers broader
-authority than the launch packet states.
-
-## Narrow Task Routing
-
-Read only the canonical owners and host references needed by the current task;
-do not load the whole SAGE-Kit or every Skill body by default.
-
-| Situation | Route |
+| Work | Read |
 |---|---|
-| Adoption or bootstrap | `references/adoption.md` |
-| Milestone, roadmap, or phase planning | `references/planning.md` |
-| Implementation, debugging, refactor, or bounded workers | Relevant sections of `references/execution.md` |
-| Review, handoff, completion, or closeout | `references/review-completion.md` |
-| Context loading and controller launch | `package-doc("docs/agent/AGENT_HARNESS.md#sage-ctx-005")` and `package-doc("docs/agent/AGENT_HARNESS.md#sage-auth-010")` |
-| Execution economy, verification, convergence, re-review, or normalization | Stable `sage-loop-*` anchors in `package-doc("docs/agent/EXECUTION_ECONOMY.md")` |
-| Deterministic Closure | `package-doc("docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011")` |
-| Graph admission | `package-doc("docs/SAGE_CORE.md#sage-grf-001")` |
-| Wave execution | `package-doc("docs/agent/WAVE_EXECUTION.md#sage-grf-002")` |
-| Capability selection and lifecycle | `package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003")` |
-| Runtime adapter override | `package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-007")` |
-| Checkpoint or resume | `package-doc("docs/agent/CONTINUITY_PROTOCOL.md")` plus runtime resume state |
-| Validation compatibility | `package-doc("docs/agent/VALIDATION_CONTRACT_COMPATIBILITY.md")` |
+| Adoption | `references/adoption.md` |
+| Roadmap, milestone, wave, or phase planning | `references/planning.md` |
+| Implementation, debugging, or delegated work | relevant sections of `references/execution.md` |
+| Review, corrective, handoff, acceptance, closeout | `references/review-completion.md` |
+| Core authority and lifecycle | `docs/SAGE_CORE.md` when the framework checkout or source archive is available |
+| Graph and Node Result | `contracts/graph/v1/` only when Graph adds decision value |
 
-Load Advanced Execution Economy only for relevant Heavy, corrective, or final
-verification work. Preserve accepted history: never infer a new contract,
-retrofit current fields, or try multiple validators until one passes.
+Host references are loaded only for the active host: `references/codex.md`,
+`references/claude.md`, `references/opencode.md`, or
+`references/kimi-runtime.md`.
 
-For host-specific invocation mapping, route only when that host is active:
+`framework-doc("path[#anchor]")` is a static locator into the matching SAGE-Kit
+source archive. Resolving it reads text only; it does
+not import a package, execute a validator, or change project authority. When
+the referenced source archive is unavailable, use the self-contained guidance in this
+Skill and report any missing project authority directly.
 
-- Codex: `references/codex.md`
-- Kimi Work or explicitly supported Kimi Code: `references/kimi-runtime.md`
-- OpenCode: `references/opencode.md`
-- Claude Code: `references/claude.md`
+## Model-Native Workflow
 
-## Capability Coexistence
+1. Read current authority, active SPEC, and only task-relevant context.
+2. Select Light, Standard, or Heavy from the canonical matrix in
+   `docs/agent/GOVERNANCE_LEVELS.md`; select permission independently.
+3. Create a bounded plan. Add a Graph only for meaningful dependencies, joins,
+   gates, or parallel work.
+4. Edit only allowed surfaces and run project-native focused checks.
+5. Request independent review when risk or project authority requires it.
+6. Correct the affected boundary and use targeted re-review.
+7. Run the project's CI once per unchanged final candidate when a project,
+   merge, or release gate requires it.
+8. Return evidence to the named human acceptance owner.
 
-SAGE-Kit governs boundaries; it does not monopolize tool selection. Use exposed
-metadata to select task-relevant specialist skills, plugins, MCP tools, CI,
-browser, database, frontend, document, and review capabilities. Load only the
-selected instructions. External capability use remains inside project
-authority and the lifecycle at
-`package-doc("docs/agent/CAPABILITY_ADAPTERS.md#sage-adp-003")`.
+Models may use their native brainstorming, planning, TDD, debugging,
+subagent, and review capabilities. Specialist Skills, plugins, MCP tools, and
+project automation coexist with SAGE-Kit. Loading one never expands authority.
 
-Optional capability absence does not become a false product blocker when a safe
-native path exists. Fallback must preserve scope, gates, authority,
-verification, review, and evidence. External output is evidence input only; it
-does not declare `DONE`, pass a gate, or grant Project Manager acceptance.
+## Governance And Delegation
 
-Capability discovery is metadata-only or read-only by default. Installation,
-hooks, environment writes, credentials, external mutation, destructive action,
-or submit operations require matching explicit authority. SAGE-Kit does not
-silently install or reconfigure capabilities.
+- **Light:** 0-1 docs, controller execution allowed, no independent review by
+  default, and 1-2 focused checks; CI only when a project/merge/release gate
+  requires it.
+- **Standard:** short plan plus result, controller or useful risk-based
+  subagents, one affected review, focused checks, and required CI once per
+  unchanged candidate.
+- **Heavy:** 3-5 purposeful docs by default, one independent final review, risk
+  checks plus final CI only when required by a project gate, merge/release, or
+  acceptance criteria, and explicit human gates for high-risk actions.
 
-## Delegation And Stop Boundary
+Unknown model identity and delegation alone do not upgrade governance or enable
+Strict Mode. Shared toolchains serialize only mutable shared state. Authorized
+isolated lanes may commit locally; the controller serializes push and merge.
 
-Every delegated lane must name its objective, authority references, governance
-and permission mode, allowed/read-only/forbidden files, applicable capabilities,
-commands, evidence, fallback, and stop conditions. Descendants inherit all
-forbidden paths and runtime overrides. Parallel writers require disjoint paths
-and an integration owner; shared authority/state files remain controller-owned.
+Delegated work names objective, allowed/read-only/forbidden surfaces,
+permissions, expected evidence, and stop conditions. Descendants inherit the
+same or narrower boundary. Parallel writers need disjoint ownership and one
+integration owner. A subagent never gains product, submit, waiver, or
+acceptance authority by delegation.
 
-Host enforcement must be described honestly. Managed execution may report
-`HARD` or `MANAGED` containment through its platform adapter, while arbitrary
-direct commands that bypass the managed runtime remain a `SOFT` guarantee.
-For `conservative-host-v1` resource governance, use
-`package-doc("docs/agent/HOST_RESOURCE_GOVERNANCE.md")` for workspace verification, managed
-execution, leases, process trees, and limitations.
+Continuation depends on the host and is bounded to already admitted,
+preauthorized milestones. The coordinator envelope names authority boundary,
+admitted milestones, completion predicate, next admission, drift check, resume
+state, failure/handoff, and convergence. Stop for product acceptance, scope or
+permission expansion, a new threat-model decision, destructive/production
+work, or merge/release gates. `DONE_PENDING_ACCEPTANCE` may continue within the
+envelope only when project authority explicitly permits it.
 
-Stop and return the narrow authority gap or handoff when required authority is
-missing, a closed gate would be crossed, scope or permissions would expand,
-required evidence cannot be produced, or a destructive/environment/submit
-action lacks approval. Do not convert an optional adapter absence into `BLOCKED`
-when an equivalent safe native workflow exists.
+## Verification Economy
 
-For planning-only closeout, preserve separate Planning Author, Planning Review,
-Targeted Fix, Closure Verification (`strict Deterministic Closure` or `Targeted
-Re-Review`), Closeout/Status, and Submit Controller authority. Under
-`package-doc("docs/agent/SESSION_ORCHESTRATION.md#sage-loop-011")`, only Final Review may record
-`VERDICT_FINALIZED_FROM_RECEIPT`; that is not milestone acceptance.
+Use focused checks for each change, affected-only verification at a boundary,
+and project CI once per unchanged final candidate when required. Reuse evidence
+only when its inputs and scope are unchanged. A corrective successor may run CI
+again and receives targeted re-review without replaying unrelated lanes.
 
-At handoff, report the authority used, changed files, focused verification,
-review evidence, skipped checks, blockers, deferred items, and next action.
+Continue without repeated approval while findings decrease inside the same
+authorized corrective scope. Two consecutive no-progress rounds for the same
+root cause return `BLOCKED`. Owned wording, status, and EOF fixes close with a
+focused check; semantic correction receives one targeted re-review.
+
+## Completion
+
+Report authority used, changed surfaces, checks and review evidence, skipped or
+unavailable checks, unresolved concerns, deferred work, and next action.
+External tool output is evidence input only: it cannot declare `DONE`, pass a
+gate, grant approval, or create human acceptance.

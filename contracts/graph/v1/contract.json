@@ -1,0 +1,34 @@
+{
+  "contract_id": "urn:sagekit:graph-contract:v1",
+  "contract_family": "sagekit-graph-contract",
+  "version": "v1",
+  "manifest_version": 1,
+  "resources": {
+    "graph_schema": {
+      "resource": "graph.schema.json",
+      "canonical_sha256": "f065b4e797989a0fe928cd15a5e4153006280a3f4dbfc04638b99053241436e8"
+    },
+    "node_result_schema": {
+      "resource": "node-result.schema.json",
+      "canonical_sha256": "2b6c19c5f0dca83d19abe7a2a13643b1dfce36413ea06236a3d294e9aad71206"
+    }
+  },
+  "digest_semantics": "SHA-256 over exact canonical resource bytes; this is resource integrity only and not a semantic graph digest.",
+  "structural_scope": "The JSON Schemas establish field shape, local types, enums, required properties, and local array uniqueness only. They do not establish cross-node reference integrity, acyclicity, reachability, join safety, resource availability, execution readiness, or authority.",
+  "semantic_requirements": {
+    "reference_integrity": "Every depends_on and join requires identity must resolve to exactly one declared node.",
+    "acyclicity": "The dependency relation must be acyclic before execution or readiness is claimed.",
+    "join_semantics": "Join policy must preserve required work and may not bypass failures, human gates, corrective closure, safety decisions, or project authority.",
+    "external_gate_boundary": "Work dependent on a manual-gate or corrective-join decision must remain behind that decision and may be represented in a later project-authorized Graph generation.",
+    "evidence_rule": "A consumer-selected semantic validator or documented model review must establish these cross-node requirements. Without attributable evidence, semantic validation is UNPROVEN and must not be reported as PASS."
+  },
+  "compatibility": "Language-neutral Graph Contract v1 and Node Result v1 structural data boundaries. Graph remains optional. Schema presence does not execute or validate cross-node semantics, activate runtime state or scheduling, execute nodes, decide gates, grant authority, or create later generations.",
+  "source_authority": {
+    "identity": "SAGE-Kit Graph Contract v1",
+    "reference": "docs/SAGE_CORE.md#sage-grf-001"
+  },
+  "canonical_owner": {
+    "path": "contracts/graph/v1",
+    "expectation": "This repository directory is the single canonical owner; GitHub's source archive preserves these bytes without creating a second tracked authority."
+  }
+}

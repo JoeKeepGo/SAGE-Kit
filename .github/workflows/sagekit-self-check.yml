@@ -1,4 +1,4 @@
-name: SAGE-Kit self-check
+name: SAGE-Kit repository integrity
 
 on:
   pull_request:
@@ -7,100 +7,36 @@ on:
       - main
 
 concurrency:
-  group: sagekit-self-check-${{ github.event.pull_request.number || github.ref }}
+  group: sagekit-integrity-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  focused:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+  posix:
+    runs-on: ubuntu-latest
+    env:
+      SAGEKIT_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+    timeout-minutes: 5
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Run serial focused lane
-        run: python -B -m scripts.run_tests focused --repository .
-
-  unit:
-    needs: focused
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Run serial unit lane
-        run: python -B -m scripts.run_tests unit --repository .
-
-  integration:
-    needs: unit
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Run serial integration lane
-        run: python -B -m scripts.run_tests integration --repository .
-
-  package-process-resource-smoke:
-    needs: integration
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: Install package build capability
-        run: python -m pip install "setuptools>=68" wheel
-      - name: Run source-repository check once
-        if: matrix.os == 'ubuntu-latest'
-        run: python -B -m scripts.run_tests source-repo --repository .
-      - name: Run package and outside-source smoke
-        run: python -B -m scripts.run_tests package --repository .
-      - name: Run Claude Code hook tests
-        if: matrix.os == 'ubuntu-latest'
+      - name: Check static repository integrity
+        run: bash scripts/check-repository.sh
+      - name: Check Claude Code hooks
         run: bash tests/test_claude_hooks.sh
-      - name: Run Claude Code hook tests (PowerShell)
-        if: matrix.os == 'windows-latest'
-        run: |
-          pwsh -File tests/test_claude_hooks.ps1
-          powershell -File tests/test_claude_hooks.ps1
+
+  windows:
+    runs-on: windows-latest
+    env:
+      SAGEKIT_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check static repository integrity
+        shell: pwsh
+        run: ./scripts/check-repository.ps1
+      - name: Check Claude Code hooks
+        shell: pwsh
+        run: ./tests/test_claude_hooks.ps1

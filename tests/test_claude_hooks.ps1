@@ -1,115 +1,53 @@
-# Negative-path tests for the Windows PowerShell Claude Code hooks shipped
-# under skills/sage-kit/references/claude/hooks/.
-#
-# Mirrors tests/test_claude_hooks.sh for the .ps1 variants: Windows path
-# separators, dot segments, case variants, malformed or missing hook input,
-# and Bash-shaped commands.
-#
-# Hooks are exercised as real child processes of the current host, so the
-# same file runs under both PowerShell 7 (pwsh) and Windows PowerShell 5.1
-# (powershell.exe); CI invokes it with both.
-
+# Tests for the optional exact-path Claude advisory hook.
+$ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$hookDir = Join-Path $root 'skills/sage-kit/references/claude/hooks'
-$guard = Join-Path $hookDir 'protect-serial-files.ps1'
+$guard = Join-Path $root 'skills/sage-kit/references/claude/hooks/protect-serial-files.ps1'
 $hostExe = (Get-Process -Id $PID).Path
-
 $script:passCount = 0
 $script:failCount = 0
-$script:lastStderr = ''
 
 function Check([string]$name, [int]$expected, [int]$actual) {
-    if ($expected -eq $actual) {
-        $script:passCount++
-        Write-Host "PASS $name (exit $actual)"
-    } else {
-        $script:failCount++
-        Write-Host "FAIL $name (expected $expected, got $actual)"
-    }
+    if ($expected -eq $actual) { $script:passCount++; Write-Host "PASS $name" }
+    else { $script:failCount++; Write-Host "FAIL $name (expected $expected, got $actual)" }
 }
-
-function Check-Match([string]$name, [string]$pattern) {
-    if ($script:lastStderr -match $pattern) { Check $name 0 0 } else { Check $name 0 1 }
-}
-
-function Invoke-Hook([string]$hook, [string]$stdin, [string]$workDir) {
+function Invoke-Hook([string]$stdin, [string]$workDir) {
     $inFile = [System.IO.Path]::GetTempFileName()
     $errFile = [System.IO.Path]::GetTempFileName()
     $outFile = [System.IO.Path]::GetTempFileName()
     [System.IO.File]::WriteAllText($inFile, $stdin)
     try {
-        $p = Start-Process -FilePath $hostExe `
-            -ArgumentList ('-NoProfile -NonInteractive -File "{0}"' -f $hook) `
+        $process = Start-Process -FilePath $hostExe `
+            -ArgumentList ('-NoProfile -NonInteractive -File "{0}"' -f $guard) `
             -WorkingDirectory $workDir -NoNewWindow -Wait -PassThru `
-            -RedirectStandardInput $inFile `
-            -RedirectStandardError $errFile `
+            -RedirectStandardInput $inFile -RedirectStandardError $errFile `
             -RedirectStandardOutput $outFile
-        $script:lastStderr = [System.IO.File]::ReadAllText($errFile)
-        return $p.ExitCode
+        return $process.ExitCode
     } finally {
         Remove-Item $inFile, $errFile, $outFile -Force -ErrorAction SilentlyContinue
     }
 }
 
-$savedProj = $env:CLAUDE_PROJECT_DIR
-
+$savedProject = $env:CLAUDE_PROJECT_DIR
+$savedPaths = $env:SAGE_PROTECTED_PATHS
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('sagekit-hook-tests-' + [System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $tmp | Out-Null
-
 try {
-    # Guard tests rely on the CLAUDE_PROJECT_DIR fallback to the working dir.
-    $env:CLAUDE_PROJECT_DIR = $null
+    $env:CLAUDE_PROJECT_DIR = $tmp
+    $env:SAGE_PROTECTED_PATHS = "docs/ACTIVE_CONTEXT.md`ndocs/DOC_ROUTING.md"
 
-    # --- protect-serial-files.ps1: strict, no bypass ---
+    Check 'exact configured relative path blocked' 2 (Invoke-Hook '{"tool_input":{"file_path":"docs/ACTIVE_CONTEXT.md"}}' $tmp)
+    Check 'exact configured canonical path blocked' 2 (Invoke-Hook '{"tool_input":{"file_path":"docs/sub/../DOC_ROUTING.md"}}' $tmp)
+    Check 'same filename outside configured path allowed' 0 (Invoke-Hook '{"tool_input":{"file_path":"elsewhere/docs/ACTIVE_CONTEXT.md"}}' $tmp)
+    Check 'shell text is not heuristically inspected' 0 (Invoke-Hook '{"tool_input":{"command":"echo x >> docs/ACTIVE_CONTEXT.md"}}' $tmp)
+    Check 'unsupported event shape remains advisory' 0 (Invoke-Hook 'not json' $tmp)
 
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":"docs/ACTIVE_CONTEXT.md"}}' $tmp
-    Check 'guard: relative serial path blocked' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":"docs\\ACTIVE_CONTEXT.md"}}' $tmp
-    Check 'guard: windows separator serial path blocked' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":"C:\\proj\\docs\\DOC_ROUTING.md"}}' $tmp
-    Check 'guard: absolute serial path blocked' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":"docs/sub/../ACTIVE_CONTEXT.md"}}' $tmp
-    Check 'guard: dot-segment serial path blocked' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":"docs/ACTIVE_CONTEXT.MD"}}' $tmp
-    Check 'guard: case-variant serial path blocked' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":"src/main.py"}}' $tmp
-    Check 'guard: normal file allowed' 0 $rc
-
-    $rc = Invoke-Hook $guard 'not json' $tmp
-    Check 'guard: malformed input fails closed' 2 $rc
-
-    $rc = Invoke-Hook $guard '' $tmp
-    Check 'guard: empty input fails closed' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{}}' $tmp
-    Check 'guard: missing file_path fails closed' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":null}}' $tmp
-    Check 'guard: null file_path fails closed' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"file_path":123}}' $tmp
-    Check 'guard: non-string file_path fails closed' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"command":"cat docs/ACTIVE_CONTEXT.md"}}' $tmp
-    Check 'guard: bash read of serial file allowed' 0 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"command":"echo x >> docs/ACTIVE_CONTEXT.md"}}' $tmp
-    Check 'guard: bash append to serial file blocked' 2 $rc
-
-    $rc = Invoke-Hook $guard '{"tool_input":{"command":"npm test"}}' $tmp
-    Check 'guard: unrelated bash command allowed' 0 $rc
-
+    $env:SAGE_PROTECTED_PATHS = $null
+    Check 'unconfigured hook allows path' 0 (Invoke-Hook '{"tool_input":{"file_path":"docs/ACTIVE_CONTEXT.md"}}' $tmp)
 } finally {
-    $env:CLAUDE_PROJECT_DIR = $savedProj
+    $env:CLAUDE_PROJECT_DIR = $savedProject
+    $env:SAGE_PROTECTED_PATHS = $savedPaths
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host '---'
 Write-Host "PASS=$($script:passCount) FAIL=$($script:failCount)"
 if ($script:failCount -gt 0) { exit 1 }
-exit 0
