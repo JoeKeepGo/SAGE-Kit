@@ -46,7 +46,7 @@ if ($executionSurfaces.Count -gt 0) {
 
 $skill = Get-Content -LiteralPath 'skills/sage-kit/SKILL.md' -Raw
 if (-not $skill.StartsWith("---`n") -and -not $skill.StartsWith("---`r`n")) { throw 'invalid Skill frontmatter' }
-if ($skill -notmatch '(?m)^name: sage-kit$') { throw 'missing Skill name' }
+if ($skill -notmatch '(?m)^name: sage-kit\r?$') { throw 'missing Skill name' }
 if ($skill -notmatch '(?m)^description:') { throw 'missing Skill description' }
 if ($skill -notmatch 'No CLI, package runtime, daemon, or hidden validator is required') { throw 'missing model-native architecture statement' }
 
