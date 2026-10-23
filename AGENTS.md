@@ -4,10 +4,11 @@
 
 ## 当前阶段
 
-- **P0 本地文件模式已实现**（TypeScript CLI + fake adapter）；文档中的控制面、SQLite、反馈同步、提案/评估/RSI 仍是设计目标。
+- **P0 + M1 + M2 foundation + M3 skeleton 已实现**（TypeScript CLI + fake adapter + 文件/可选控制面/Rsi 文件层）。控制面 UI、M2b 备份/导出、M3 定时/自动循环、真实 GitHub/Gitea API 仍是设计目标。
 - 不要在文档或提交信息中声称任何能力“已实现”“已验证”，除非有对应测试、命令输出或运行证据。
-- P0-A1–A12 有 19 项自动化覆盖（A11 含真实 SIGKILL；缺 Node<22 集成与 bundle 仍不在 P0 范围）；P0-A13 的真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 启动已部分验证（Skill→bash→CLI 创建/列出任务），浏览器 GUI、hook 自动注入和真实 `stop` 生命周期仍未验收。未通过前，不把宿主集成写成完整验收。
-- 未完成 P0 前，不做控制面 UI、反馈自动提案或 RSI。
+- P0-A1–A12 有自动化覆盖（A11 含真实 SIGKILL；缺 Node<22 集成与 bundle 仍不在 P0 范围）；P0-A13 的真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 启动已部分验证（Skill→bash→CLI 创建/列出任务），浏览器 GUI、hook 自动注入和真实 `stop` 生命周期仍未验收。未通过前，不把宿主集成写成完整验收。
+- 当前测试：`npm test` 79 项全绿（Windows Node 24.22.0 与 WSL2 Node 22.22.1）；M1/M2/M3 的未验证边界分别见 `docs/m1-feedback.md`、`docs/m2-control.md`、`docs/m3-rsi.md`。
+- 不做控制面 UI、自动批准/合并/发布或无人值守 RSI；M3 只手动 `runOnce`，发布仍需人工。
 
 ## 权威顺序
 
@@ -32,7 +33,7 @@
 - 先写验收场景，再写实现；行为变更必须同时更新测试和文档。
 - 优先 Node.js 内置能力；新增依赖必须说明用途、许可证、体积和替代方案。
 - 所有外部命令调用必须有超时、退出码处理和可读错误；不要吞掉失败。
-- 本地并发用 worktree + 任务 lease + SQLite 单写者解决，不引入分布式锁。P0 文件模式只实现 worktree 与 run 记录；lease/SQLite 属于 M2。
+- 本地并发用 worktree + 任务 lease + SQLite 单写者解决，不引入分布式锁。P0 文件模式只实现 worktree 与 run 记录；M2 foundation 已提供 SQLite lease/单写者，但尚未接入文件模式任务。
 - 任何持久化写入必须可重试且幂等；副作用要有幂等键。
 - Hook 必须轻量、无网络、无模型调用；失败默认降级，不能阻断主流程，除非显式 `--strict`。
 

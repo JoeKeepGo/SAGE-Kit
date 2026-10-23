@@ -1,6 +1,6 @@
 # 扩展契约
 
-**实现状态：`HostAdapter` 已实现（文件安装/检测契约，见 §2，以 `src/adapters/types.ts` 为准）；`TaskSourceAdapter`、`FeedbackSourceAdapter`、`EventSink`、Bundle 仍是 `TARGET`（P0 未实现，无对应代码/命令）。**
+**实现状态：`HostAdapter` 与 `FeedbackSourceAdapter` 已实现（宿主文件安装/检测；本地/GitHub/Gitea 只读反馈）；`TaskSourceAdapter`、`EventSink`、Bundle 仍是 `TARGET`。**
 SAGE-Kit 只保留四个对外扩展接口。它们用于把“宿主、外部任务/反馈、外部事件、备份迁移”接到核心，不用于构建通用插件生态。接口默认可选；核心在没有扩展时仍可运行。
 
 > 阅读约定：标 `[P0 已实现]` 的以代码为准；标 `[TARGET]` 的是设计目标，P0 不实现，不应在验收/发布说明中写成已支持。

@@ -1,8 +1,8 @@
 # SAGE-Kit
 
-**状态：P0 本地文件模式已实现，未发布到 npm registry。** P0-A1–A12 有自动化覆盖（缺 Node <22 分支未覆盖；A11 含模拟 stale run 与真实 SIGKILL 恢复；A8 覆盖 hook 超时；bundle 导入/导出不在 P0 范围）；A13 已做真实 DSH headless + **mock 模型**、**真实 DeepSeek 模型**和 Linux Web 启动的部分验证；真实模型已能调用 `skill` → `bash` → SAGE-Kit 创建/列出任务，但浏览器 GUI 和 hook 自动注入未执行。控制面、SQLite、反馈同步、提案/评估/RSI 未实现（M1–M3 目标）。
+**状态：P0 + M1 反馈同步 + M2 控制面 foundation + M3 RSI skeleton 已实现；未发布到 npm registry、未发布 release。** P0 自动化覆盖 78/78（含 P0、M1、M2、M3 测试），A13 已做真实 DSH headless + mock/真实模型和 Linux Web 部分验证，但浏览器 GUI、hook 自动注入、真实 `stop` 生命周期仍未验收。M1 的 GitHub/Gitea 真实 API 未验证（测试为 localhost fixture）；M2 仅 foundation（无 UI/提案/评估实体/备份导出）；M3 仅手动 skeleton（无定时器、无自动批准/合并/发布）。
 
-SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：它提供一份可安装的 Skill、一个本地文件模式的任务/证据 CLI，以及（设计目标）本地控制面和受控的“反馈 → 提案 → 评估 → 发布”改进闭环。P0 只实现本地文件模式，`docs/` 中标 `TARGET` 的能力均未实现。
+SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：它提供一份可安装的 Skill、一个本地文件模式的任务/证据 CLI、只读反馈同步、可选的 SQLite 控制面 foundation，以及受控的“反馈 → 提案 → 评估 → 人工批准”RSI skeleton。
 
 它不是团队协作平台，也不是多租户服务；团队任务系统只通过稳定接口接入（设计目标）。
 
@@ -35,6 +35,9 @@ node dist/cli.js task list
 2. [`docs/state-and-durability.md`](docs/state-and-durability.md) — 文件模式/控制面模式、数据模型、恢复、并发与备份。
 3. [`docs/extension-contracts.md`](docs/extension-contracts.md) — 四个扩展接口：宿主、任务源、反馈源、事件出口；Bundle 是导入/导出格式。
 4. [`docs/feedback-and-rsi.md`](docs/feedback-and-rsi.md) — GitHub/Gitea 反馈、提案、独立评估、发布与回滚、L0–L2 自我改进。
+   - M1 实现说明：[`docs/m1-feedback.md`](docs/m1-feedback.md)
+   - M2 foundation：[`docs/m2-control.md`](docs/m2-control.md)
+   - M3 skeleton：[`docs/m3-rsi.md`](docs/m3-rsi.md)
 5. [`docs/hooks-and-host-adapters.md`](docs/hooks-and-host-adapters.md) — 宿主适配、三类 hook、失败降级。
 6. [`docs/security.md`](docs/security.md) — 威胁模型、密钥、提示注入、沙箱、供应链；P0 实际安全行为见 §2。
 7. [`docs/p0-acceptance.md`](docs/p0-acceptance.md) — P0 范围、命令、验收场景与自动化测试要求。
@@ -44,6 +47,7 @@ node dist/cli.js task list
 11. [`docs/references.md`](docs/references.md) — 参考项目、可借鉴点与不采用的边界。
 12. [`SECURITY.md`](SECURITY.md) — 安全报告方式、支持范围与响应边界。
 13. [`reports/p0/README.md`](reports/p0/README.md) — P0 本地证据汇总（自动化测试、DSH/Codex/Claude 文件适配、mock 模型 E2E、Linux Web）。
+14. [`reports/milestones/m0-m3.md`](reports/milestones/m0-m3.md) — M0–M3 本轮交付、验证和未完成边界。
 
 ## 一句话边界
 
@@ -54,10 +58,13 @@ node dist/cli.js task list
 ## 当前阶段
 
 - P0 本地文件模式已实现：`init`、`detect`、`doctor`、`task`、`worktree`、`run`、`brief`、`hook`、`uninstall`、`version`。
-- 文件适配器：DSH（项目 `.dsh/skills/sage-kit` + `AGENTS.md`，固定版本源码已核对）、Codex（`.agents/skills` + `AGENTS.md`）、Claude Code（`.claude/skills` + `CLAUDE.md`）；全局作用域安装到宿主全局目录，说明块默认跳过。P0 不安装宿主原生 hook；OpenCode 为 M1 目标。
-- 自动化测试：`npm test`（主测试环境 Linux/WSL）；当前 **19 项 / 19 通过 / 0 失败**（WSL2 Ubuntu 26.04、Node v22.22.1，2026-10-24），覆盖矩阵与已知缺口见 [`docs/p0-acceptance.md`](docs/p0-acceptance.md) 和 [`reports/p0/README.md`](reports/p0/README.md)。已知缺口：缺 Node <22 的运行时集成测试（A4d 只覆盖版本策略单元断言）；真实宿主 hook 自动注入无实现。
+- M1 已实现：`feedback sync/list/show`；本地 JSONL、GitHub/Gitea 只读同步；fingerprint 去重、cursor 保留、不可信数据标记，brief 注入最新 1 条反馈。真实 GitHub/Gitea 未验证。
+- M2 foundation 已实现：`control serve/status/recover`；SQLite WAL、task/run/event/lease、单写者、localhost token API；无 UI、无提案/评估实体、无备份导出（M2b）。
+- M3 skeleton 已实现：`rsi create/list/run-once/request-approval/rollback-point/approve/reject`；固定命令评估、受保护资产检查、一次性人工 approval token、回滚点记录；无定时器、无自动批准/合并/发布（M3b）。
+- 文件适配器：DSH（项目 `.dsh/skills/sage-kit` + `AGENTS.md`，固定版本源码已核对）、Codex（`.agents/skills` + `AGENTS.md`）、Claude Code（`.claude/skills` + `CLAUDE.md`）；全局作用域安装到宿主全局目录，说明块默认跳过。P0 不安装宿主原生 hook。
+- 自动化测试：`npm test`（本机 Windows Node v24.22.0、WSL2 Ubuntu Node v22.22.1；主测试/CI 仍建议 Linux）；当前 **79 项 / 79 通过 / 0 失败**（Windows Node 24.22.0 与 WSL2 Ubuntu Node 22.22.1 各跑一遍），覆盖 P0、M1、M2、M3。覆盖矩阵与已知缺口见 [`docs/p0-acceptance.md`](docs/p0-acceptance.md)、[`docs/m1-feedback.md`](docs/m1-feedback.md)、[`docs/m2-control.md`](docs/m2-control.md)、[`docs/m3-rsi.md`](docs/m3-rsi.md)。
 - A13 部分证据：真实 DSH 0.2.1-rc.2 headless + mock 模型验证了项目 Skill 发现/加载；**真实 DeepSeek 模型 headless** 调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务 JSON 由独立命令复核；Linux DSH Web 启动、token/cookie/SPA 检查通过。**浏览器 GUI 交互、hook 自动注入、真实 `stop` 生命周期 `NOT_EXECUTED`**，因此 A13 未完整通过。证据见 [`reports/p0/dsh-real-model-e2e.md`](reports/p0/dsh-real-model-e2e.md)、[`reports/p0/dsh-e2e-model.md`](reports/p0/dsh-e2e-model.md)、[`reports/p0/dsh-real-host.md`](reports/p0/dsh-real-host.md)、[`reports/p0/dsh-linux-web.md`](reports/p0/dsh-linux-web.md)。
-- `NOT_IMPLEMENTED`：控制面/UI、SQLite、lease、反馈同步、提案/评估/RSI、Bundle 导入/导出、宿主 hook 自动安装。
+- `NOT_IMPLEMENTED`：控制面 UI、M2b 备份/导出、M3 定时/自动循环、Bundle 导入/导出、宿主 hook 自动安装、真实 GitHub/Gitea API 验证。
 - 文档中“目标设计（`TARGET`）”与“已实现（`P0`）”分开标注；实现偏差先改 ADR/文档，再改代码。
 
 ## 许可证

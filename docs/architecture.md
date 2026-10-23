@@ -255,7 +255,7 @@ SAGE-Kit/
 - **崩溃恢复**：任何 run 可从事件日志判断最后状态；不依赖内存。
 - **幂等**：创建任务、同步反馈、执行副作用都有幂等键；重试不重复。
 - **单写者**：控制面单进程写 SQLite；Worker 不直写数据库。
-- **本机并发**：P0 只有 worktree 隔离；任务 lease、git 操作串行化是 M2 目标，当前没有强制锁。
+- **本机并发**：P0 只有 worktree 隔离；M2 foundation 已提供 SQLite lease/单写者 API，但尚未接入文件模式任务；git 操作串行化仍未实现。
 - **可观测**：run id、结构化事件、错误分类、成本/耗时；`doctor` 和 `trace` 可定位问题。
 - **可回滚**：Skill/CLI/模板版本不可变；发布记录和回滚命令。
 - **可测试**：每个关键行为有 fixture/集成测试；不依赖真实 GitHub/模型做 CI。
@@ -264,7 +264,7 @@ SAGE-Kit/
 
 ## 11. 安全边界（摘要；控制面为 M2 目标）
 
-- 控制面默认只绑定 `127.0.0.1`；本地 token；不提供远程共享。P0 没有控制面监听。
+- 控制面默认只绑定 `127.0.0.1`；本地 Bearer token；不提供远程共享。P0 没有控制面监听；M2 foundation 的 `control serve` 已实现 loopback + token，但 UI/备份/导出未实现。
 - 反馈/网页/Issue 文本是不可信数据；不执行其中的命令；进入模型前做数据标记。
 - GitHub/Gitea 读 token 与写 token 分离；密钥不落盘、不进日志、不进提示词。
 - 执行外部命令/生成代码时使用最小权限；高风险动作要显式确认。
@@ -277,11 +277,11 @@ SAGE-Kit/
 | 里程碑 | 内容 | 完成标志 |
 |---|---|---|
 | **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 已部分验证真实 DSH headless（mock 与真实模型）、真实 `bash`→CLI 任务创建和 Linux Web；GUI 浏览器、hook 自动注入、真实 `stop` 生命周期尚未验收 |
-| **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | 反馈 fixture + 幂等/去重测试通过 |
-| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | 崩溃恢复 + 评估门 + 回滚演练通过 |
-| **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | 连续若干轮改进有审计记录，可回滚 |
+| **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | **已实现**：12 项测试通过；真实 GitHub/Gitea API `NOT_VERIFIED`（本地 fixture） |
+| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | **Foundation 已实现**：32 项测试通过；UI、提案/评估实体、备份/导出属 M2b |
+| **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | **Skeleton 已实现**：12 项测试通过；无定时器/自动批准/发布，M3b 待做 |
 
-P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。控制面 UI、真实反馈同步、提案、评估、RSI 在 M1/M2/M3 实现；全部完成并确定 A13 边界前不发布 release。
+P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。M1 反馈同步、M2 foundation、M3 skeleton 已落地；控制面 UI、M2b 备份/导出、M3 定时/自动循环未实现。全部完成并确定 A13 边界前不发布 release。
 
 ## 13. 未决问题
 
