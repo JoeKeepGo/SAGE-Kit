@@ -3,7 +3,7 @@
 **状态：P0 文件模式已实现；A13 已做真实 DSH headless + mock 和 Linux Web 启动的部分验证，真实模型/浏览器 GUI 与 hook 自动注入未执行。**  
 P0 是第一个实现里程碑。它只验证“本地、无控制面”的最小闭环；未通过前不开始控制面 UI、反馈自动同步或 RSI。
 
-当前自动化覆盖（`npm test`）：A1 help/version；A2/A3 init/幂等/uninstall；A2b Codex/Claude 文件适配器；A4 正常/损坏配置；A5 生命周期/证据；A6 worktree；A7 brief；A8/A9/A10 hook/脱敏/strict；A11 **模拟** stale run 恢复；A12 路径穿越、参数不经 shell。未覆盖：缺 Node/Skill 的 doctor、hook 超时、真实 SIGKILL、bundle 导入导出。`npm pack` 后安装已手工验证（见 `reports/p0/README.md`），未纳入 CI。A13 已做真实 DSH headless + mock 和 Linux Web 启动的部分验证（Skill 发现/加载），真实模型、浏览器 GUI 和 hook 自动注入未执行。
+当前自动化覆盖（`npm test`，19 项）：A1 help/version（版本号从 package.json 读取，非硬编码）+ `npm pack` 后离线安装到临时项目（`npm install --offline --ignore-scripts`，隔离空 npm cache）并运行已安装 CLI 的 `version`/`doctor --json`/`init`；A2/A3 init/幂等/uninstall；A2b Codex/Claude 文件适配器；A2c 重复 init 记录实际 skill.mode（copy/symlink）；A4 正常/损坏配置/缺 Skill；A4c 全局 scope 的 HOME 解析（fake/codex/claude，未传 HOME 时不再误报 skill-path）；A4d Node `>=22` 下限单元测试；A5 生命周期/证据；A6 worktree；A7 brief；A7b 非 ASCII brief 截断（按 code point 切割、无 U+FFFD、严格 ≤ 字节预算）；A8/A9/A10 hook 契约/非法 JSON/未知事件/脱敏/strict；A8b/A8c hook `--timeout` 强制（stdin 保持打开 → 预算到期输出合法 HookOutput JSON 并以 124 退出；非法值 exit 2）；A11 模拟 stale run + 真实 SIGKILL 启动进程后 doctor 恢复；A12 路径穿越、参数不经 shell。未覆盖：缺 Node 的 doctor **集成**场景（需 <22 的 Node 二进制；CLI 在入口即退出，该分支由 A4d 单元测试覆盖）、bundle 导入导出（P0 无该命令，见 A12）。A13 已做真实 DSH headless + mock 和 Linux Web 启动的部分验证（Skill 发现/加载），真实模型、浏览器 GUI 和 hook 自动注入未执行。
 
 ## 1. P0 范围
 
@@ -20,6 +20,7 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 
 - 本地控制面/UI、SQLite、任务队列、lease（M2）。
 - GitHub/Gitea 反馈同步（M1）。
+- Bundle 导入/导出（`docs/extension-contracts.md` §6 定义的交换格式；P0 没有 `export`/`import` 命令，属 M2/M3）。
 - 提案、评估、发布、RSI（M2/M3）。
 - 多用户/团队/远程 API/多机。
 - 真实模型质量评估；P0 只验证管道和状态正确性。
@@ -31,6 +32,8 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - `FakeHostAdapter`：模拟宿主检测、Skill 安装路径、hook 调用；不启动真实 Agent。
 - 可用本地脚本模拟“Agent 执行”（例如 echo/写文件），不调用模型。
 - 测试必须在无网络环境下通过；需要网络的真实宿主安装是单独人工验收项。
+- `npm pack` 安装 smoke 只用本地 tarball 与 `npm install --offline --ignore-scripts`，不访问网络。
+- 全局 scope 的 init/doctor 测试使用临时 `HOME`，不写真实用户配置。
 
 ## 3. 验收场景
 
@@ -41,7 +44,7 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 操作：`node dist/cli.js --help`；`npm pack` 后安装到临时项目。
 - 预期：帮助可用；无运行时依赖缺失；启动不访问网络；Node <22 给出明确错误。
 - 证据：命令输出、exit code、依赖树。
-- 自动化：部分（help/version；`npm pack` 安装为手工验证）。
+- 自动化：是（help/version（版本号从 package.json 读取）；`npm pack` 产物以 `npm install --offline --ignore-scripts` 安装到临时项目（隔离空 npm cache），断言无运行时依赖，运行已安装 `sage-kit` shim 的 `version`/`doctor --json`/`init`，并断言包内不含 `tests/`、`reports/`、`work/`、`src/`、`node_modules/`）。Node <22 分支未覆盖（需旧版 Node 二进制）。
 
 ### P0-A2 初始化
 
@@ -62,14 +65,14 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 操作：重复 `init`；再 `uninstall`。
 - 预期：重复 init 不重复写/不破坏用户改动；卸载只删除 SAGE-Kit 文件；用户文件和其他 Skill 保留。
 - 证据：前后目录 diff。
-- 自动化：是。
+- 自动化：是（A2c 另覆盖重复 init 时 `skill.mode` 记录实际安装模式：保留已有 copy/symlink 时不写请求的模式）。
 
 ### P0-A4 doctor
 
 - 操作：正常仓库、缺 Node、缺 Skill、配置损坏分别执行 `sage-kit doctor`。
 - 预期：正常返回 0 和摘要；异常返回非 0 和可读修复建议；不崩溃。
 - 证据：各场景输出/exit code。
-- 自动化：部分（正常/损坏配置；缺 Node/Skill 未覆盖）。
+- 自动化：部分（正常/损坏配置/缺 Skill/全局 scope 的 HOME 解析；缺 Node 的 **集成**场景未覆盖——需 <22 的 Node 二进制，doctor 的 node 下限逻辑由 A4d 单元测试覆盖：`>=22`）。
 
 ### P0-A5 任务生命周期（文件模式）
 
@@ -90,14 +93,14 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 操作：`sage-kit brief --task <id>`；以及 `session.start` hook 调用。
 - 预期：输出包含任务/验收/下一步；≤ 2KB；不含密钥/完整反馈正文；无任务时给最小 brief。
 - 证据：brief 文件、hook stdout、大小检查。
-- 自动化：是。
+- 自动化：是（A7b 覆盖非 ASCII brief 的 UTF-8 截断：按 code point 切割、无 U+FFFD、严格 ≤ max-bytes）。
 
 ### P0-A8 Hook 契约与降级
 
 - 操作：合法输入、非法 JSON、超时、未知事件分别调用 `hook`。
 - 预期：合法输出符合 schema；非法/超时 fail-open（strict 除外）；不写网络；退出码符合契约。
 - 证据：fixture 输出、耗时、exit code。
-- 自动化：部分（契约/非法 JSON；超时未覆盖）。
+- 自动化：是（契约/非法 JSON/未知事件；超时：`--timeout` 默认 2000ms、允许 50–2000ms，stdin 保持打开时预算到期输出合法 `HookOutput`（`action:"warn"`、`code:"E_HOOK_TIMEOUT"`）并以 124 退出且无副作用；NaN/非整数/越界值以契约错误（exit 2）拒绝。见 `docs/hooks-and-host-adapters.md` §3.4。）
 
 ### P0-A9 command.after 记录
 
@@ -118,14 +121,14 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 操作：启动一个 fake run，在写入 run 记录后 kill 进程；重新执行 `doctor`/`task list`。
 - 预期：状态文件可解析；任务标 `interrupted` 或保持已知状态；不会误标 done；可手动重试。
 - 证据：kill 前后状态、恢复输出。
-- 自动化：部分（构造 stale run 记录；未真实 SIGKILL 子进程）。
+- 自动化：是（构造 stale run 记录；另加真实 SIGKILL：启动 `run` 的 CLI 在 run 记录写入后被杀，doctor 将 run 与 task 恢复为 `interrupted`）。
 
 ### P0-A12 安全基线
 
 - 操作：路径穿越/符号链接输入；含 token 的日志；shell 元字符参数；bundle 路径（若 P0 有导出）。
 - 预期：拒绝越界写；日志脱敏；参数不经 shell 拼接；无密钥泄漏。
 - 证据：负向测试、扫描结果。
-- 自动化：部分（路径穿越、参数不拼接；bundle 未实现）。
+- 自动化：部分（路径穿越、参数不拼接；bundle 导入导出不在 P0 范围——P0 无 `export`/`import` 命令，无可测实现）。
 
 ### P0-A13 真实宿主安装（人工）
 
@@ -140,12 +143,12 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 无 P0 范围外的功能被误纳入（控制面/反馈/RSI 未实现是预期）。
 - 所有失败有可读错误；无静默吞异常。
 - 文档中的命令、路径、字段与实际一致。
-- `npm pack` 产物不包含测试 fixture、密钥、临时文件。
+- `npm pack` 产物不包含测试 fixture、密钥、临时文件（A1b 自动断言 tarball 文件清单）。
 - 测试不依赖网络/真实模型；可在干净环境重复。
 
 ## 5. 证据格式
 
-测试输出保存到 `reports/p0/`（不提交大文件）：
+P0 当前把证据保存在 `reports/p0/` 的 Markdown 报告、原始日志和 JSON 产物中（见 `reports/p0/README.md`）。下列 evidence manifest 是**目标格式**，P0 尚未生成/强制校验；引入前不得声称已有逐场景清单：
 
 ```json
 {
@@ -162,16 +165,16 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 
 没有证据的能力保持 `NOT_IMPLEMENTED` / `NOT_EXECUTED`；不得用“应该可以”代替验收。
 
-## 6. 运行方式（目标）
+## 6. 运行方式
+
+当前实际可用：
 
 ```bash
 npm ci
-npm test              # 单元/契约测试
-npm run test:p0       # P0 验收（无网络）
-npm run test:security # 负向/脱敏测试
+npm test              # 构建 + 19 项 P0 测试（无网络）
 ```
 
-命令在实现时落地；本文件是验收合同，不是已实现证明。
+`test:p0` / `test:security` 是后续拆分目标，当前不存在；不要按不存在的命令写验收记录。
 
 ## 7. 后续里程碑准入
 

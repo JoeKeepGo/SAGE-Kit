@@ -133,12 +133,16 @@ export function validateTaskId(id: string): string {
 export function truncateUtf8(text: string, maxBytes: number): { text: string; truncated: boolean } {
   const buffer = Buffer.from(text, "utf8");
   if (buffer.length <= maxBytes) return { text, truncated: false };
-  let end = maxBytes;
-  while (end > 0 && (buffer[end] ?? 0) >= 0x80 && (buffer[end] ?? 0) < 0xc0) end -= 1;
   const suffix = "\n…[truncated]";
   const suffixBytes = Buffer.byteLength(suffix, "utf8");
-  const sliced = buffer.subarray(0, Math.max(0, maxBytes - suffixBytes)).toString("utf8");
-  return { text: `${sliced}${suffix}`, truncated: true };
+  const budget = maxBytes - suffixBytes;
+  if (budget <= 0) return { text: "", truncated: true };
+  // Cut on a code-point boundary: back up over UTF-8 continuation bytes
+  // (10xxxxxx) so a multi-byte sequence is never split, then reserve room for
+  // the suffix. The result is always valid UTF-8 and within maxBytes.
+  let end = Math.min(budget, buffer.length);
+  while (end > 0 && ((buffer[end] ?? 0) & 0xc0) === 0x80) end -= 1;
+  return { text: `${buffer.subarray(0, end).toString("utf8")}${suffix}`, truncated: true };
 }
 
 export function clampNumber(value: number, min: number, max: number): number {

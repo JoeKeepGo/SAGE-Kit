@@ -20,6 +20,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "test": "npm run build && node --test tests/cli.test.mjs",
     "pack:check": "npm pack --dry-run"
   },

@@ -32,6 +32,13 @@ export function packageRoot(importMetaUrl: string): string {
   return resolve(dirname(fileURLToPath(importMetaUrl)), "..", "..");
 }
 
+// For the CLI entry point (dist/cli.js or src/cli.ts) the package root is one
+// level above the entry file's directory. Do not confuse it with packageRoot(),
+// which is for modules nested one level below the package root (dist/core/*.js).
+export function entryPackageRoot(importMetaUrl: string): string {
+  return resolve(dirname(fileURLToPath(importMetaUrl)), "..");
+}
+
 export function skillSourceDir(root: string): string {
   return join(root, "skills", "sage-kit");
 }

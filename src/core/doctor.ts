@@ -5,7 +5,7 @@ import type { HostDetection } from "../adapters/types.js";
 import { exists, readJsonFile, fileSize } from "./fs-utils.js";
 import { loadConfig } from "./config.js";
 import { SageError, toSageError } from "./errors.js";
-import { statePaths } from "./paths.js";
+import { homeDirectory, statePaths } from "./paths.js";
 import { recoverStaleRuns } from "./runs.js";
 
 export interface DoctorCheck {
@@ -21,22 +21,21 @@ export interface DoctorResult {
   projectRoot: string;
 }
 
-function checkNode(): DoctorCheck {
-  const raw = process.versions.node.split(".").map(Number);
-  const major = raw[0] ?? 0;
-  const minor = raw[1] ?? 0;
-  const ok = major > 22 || (major === 22 && minor >= 20);
+// P0 policy: Node.js >=22 (see package.json engines and docs/decisions.md D-014).
+export function checkNode(version: string = process.versions.node): DoctorCheck {
+  const major = Number(version.split(".")[0] ?? 0);
+  const ok = Number.isFinite(major) && major >= 22;
   return {
     name: "node",
     status: ok ? "ok" : "error",
-    detail: `Node ${process.versions.node}${ok ? "" : " (need >=22.20)"}`,
+    detail: `Node ${version}${ok ? "" : " (need >=22)"}`,
   };
 }
 
 export async function runDoctor(
   projectRoot: string,
   env: NodeJS.ProcessEnv = process.env,
-  home = "",
+  home = homeDirectory(env),
 ): Promise<DoctorResult> {
   const checks: DoctorCheck[] = [checkNode()];
   const paths = statePaths(projectRoot);

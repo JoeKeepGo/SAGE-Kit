@@ -8,7 +8,7 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +18,92 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: Packaging gate (clean pack, tarball contents, offline install smoke)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+
+          pkg_name="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).name")"
+          pkg_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+
+          # A clean checkout has no dist/ (gitignored) even though bin points at
+          # dist/cli.js. Deleting dist here proves the pack lifecycle rebuilds the
+          # shipped entry point from source instead of packing an empty tree.
+          rm -rf dist
+          test ! -e dist
+
+          npm pack --pack-destination "$work"
+          test -f dist/cli.js
+
+          tarball="$work/${pkg_name}-${pkg_version}.tgz"
+          test -f "$tarball"
+
+          tar -tzf "$tarball" | sed 's:^package/::' | sort > "$work/tarball-files.txt"
+          echo "--- tarball contents ---"
+          cat "$work/tarball-files.txt"
+
+          for required in package.json dist/cli.js skills/sage-kit/SKILL.md; do
+            if ! grep -qxF "$required" "$work/tarball-files.txt"; then
+              echo "::error::tarball is missing $required"
+              exit 1
+            fi
+          done
+
+          forbidden='^(tests|reports|work|src|node_modules|scripts|\.github|\.git|\.sage-kit)/'
+          if grep -qE "$forbidden" "$work/tarball-files.txt"; then
+            echo "::error::tarball contains non-shipped paths:"
+            grep -E "$forbidden" "$work/tarball-files.txt"
+            exit 1
+          fi
+
+          # Install the tarball into a fresh project with an empty npm cache, no
+          # network and no lifecycle scripts: the package must be self-contained.
+          install_dir="$work/install"
+          mkdir -p "$install_dir"
+          # Pin the temp project root: sage-kit resolves the nearest .git, so this
+          # keeps the smoke isolated from any ancestor repo or .sage-kit state.
+          git init -q "$install_dir"
+          cd "$install_dir"
+          node -e "require('fs').writeFileSync('package.json', JSON.stringify({ name: 'sage-kit-packaging-gate', version: '1.0.0', private: true }, null, 2) + '\n')"
+          npm_config_cache="$work/npm-cache" npm install --no-audit --no-fund --offline --ignore-scripts "$tarball"
+
+          node -e "const pkg = require('./node_modules/sage-kit/package.json'); if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) { throw new Error('unexpected runtime dependencies: ' + Object.keys(pkg.dependencies).join(', ')); }"
+
+          cli="$install_dir/node_modules/.bin/sage-kit"
+          test -x "$cli"
+
+          version_output="$("$cli" version)"
+          test "$version_output" = "$pkg_version"
+
+          # Before init, doctor must fail with a config error (and still emit JSON).
+          set +e
+          doctor_before="$("$cli" doctor --json)"
+          doctor_before_code=$?
+          set -e
+          echo "$doctor_before"
+          if [ "$doctor_before_code" -eq 0 ]; then
+            echo "::error::doctor must fail before init"
+            exit 1
+          fi
+          printf '%s' "$doctor_before" | node -e '
+            const result = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (result.ok !== false) throw new Error("doctor before init must report ok:false");
+            const config = (result.checks || []).find((check) => check.name === "config");
+            if (!config || config.status !== "error") throw new Error("doctor before init must report a config error");
+            if (result.projectRoot !== process.cwd()) throw new Error("doctor resolved " + result.projectRoot + ", expected " + process.cwd());
+          '
+
+          "$cli" init --host fake --scope project --no-instructions
+          test -f .fake/skills/sage-kit/SKILL.md
+          grep -q "name: sage-kit" .fake/skills/sage-kit/SKILL.md
+
+          "$cli" doctor --json | node -e '
+            const result = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (result.ok !== true) throw new Error("doctor must report ok:true after init");
+            if (result.projectRoot !== process.cwd()) throw new Error("doctor resolved " + result.projectRoot + ", expected " + process.cwd());
+          '
+
+          echo "Packaging gate PASSED: $tarball"

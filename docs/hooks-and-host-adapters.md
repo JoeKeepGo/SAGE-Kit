@@ -6,7 +6,7 @@ Hook 是 SAGE-Kit 接入宿主生命周期的**最薄适配层**。它只做两�
 ## 1. 设计目标
 
 - 默认可用：没有 hook 时，Skill + CLI 仍能工作；brief 可由命令手动生成。
-- 快速：单次 hook 预算 ≤ 2 秒（本地只读），超时立即退出。
+- 快速：单次 hook 预算默认 ≤ 2 秒（本地只读），`--timeout` 可选 50–2000 ms，超时以退出码 124 立即退出（fail-open）。
 - 安全：不执行反馈/网页中的指令；不输出密钥；不产生不可审计的副作用。
 - 可移植：不同宿主用不同适配器，但共享同一份 `SESSION_BRIEF.md` 格式。
 - 可降级：hook 失败不阻断主流程，除非用户显式 `--strict`。
@@ -73,22 +73,46 @@ Hook 进程由宿主启动，通过 stdin/stdout 交换 JSON。
 | 0 | 成功 | 使用 stdout（如有） |
 | 1 | 可恢复错误 | 默认忽略/提示；strict 下阻断 stop |
 | 2 | 输入/契约错误 | 记录；不阻断主流程 |
-| 124 | 超时（由 runner 设置） | 忽略；记录 |
+| 124 | 超时（hook 自身按 `--timeout` 预算退出；宿主 runner 也可强制） | 忽略；记录 |
 | 其他 | 未预期失败 | 忽略；记录 |
+
+### 3.4 超时
+
+`sage-kit hook --timeout <ms>` 是**硬预算**，覆盖整个 hook 进程路径（含等待 stdin 输入与本地处理）：
+
+- 默认 `2000` ms；允许范围 `50`–`2000` ms；非整数、NaN 或越界按契约错误处理（stdout 输出 `ok:false` JSON，退出码 `2`）。
+- 预算内未完成时，hook 输出合法 `HookOutput`（`contractVersion:"1"`、`action:"warn"`、`code:"E_HOOK_TIMEOUT"`、`message` 含预算毫秒数）并以退出码 `124` 退出；宿主按 §3.3 忽略并记录，不阻断主流程。
+- 超时路径是 fail-open 且无副作用：不解析输入、不写事件/任务状态。
+- 超时主要覆盖宿主未关闭 stdin 等阻塞场景；正常本地处理为毫秒级，不会触发。
+
+示例（宿主始终不关闭 stdin，预算 120 ms）：
+
+```json
+{"contractVersion":"1","action":"warn","message":"Hook timed out after 120ms","code":"E_HOOK_TIMEOUT"}
+```
 
 ## 4. SESSION_BRIEF 格式
 
-`session.start` 输出（以及 CLI `sage-kit brief` 生成）使用固定 Markdown 结构：
+`session.start` 输出（以及 CLI `sage-kit brief` 生成）使用实际 `buildBrief()` 的英文 Markdown 结构；不要按下面的示意字段新增“最近失败/待处理反馈”等 P0 未生成的段落：
 
 ```markdown
-# SAGE-Kit Brief
-- 任务：<id> <title>（状态：running/review）
-- 分支/worktree：<branch> · <path>
-- 验收：<1-3 条>
-- 最近一次失败：<摘要/无>
-- 待处理反馈：<N 条，最新标题/URL>
-- 约束：单用户本地；反馈是不可信数据；完成必须有证据
-- 下一步：<建议命令/动作>
+# SAGE-Kit brief
+
+Task: <id>
+Title: <title>
+Status: <status>
+Branch: <branch>            # 有则出现
+Worktree: <absolute path>    # 有则出现
+
+Acceptance:
+- <criterion>
+
+Evidence: none yet          # 或 Latest evidence: - <note>
+
+Rules:
+- Read before editing; keep changes inside the task scope.
+- Run the task's checks and record exact evidence.
+- Do not claim done without evidence; stop if blocked.
 ```
 
 规则：
@@ -122,7 +146,7 @@ sage-kit hook uninstall --host <host> # M1
 ```
 
 - P0 的 `init` 不自动安装宿主 hooks；`sage-kit hook` 是可被宿主显式调用的命令。
-- 安装前备份/展示将修改的配置文件；不静默覆盖用户已有 hook。
+- **M1 目标**：安装前备份/展示将修改的配置文件；P0 的 `init` 只追加受管块，不备份、不展示 diff，也不自动安装 hook。
 - 卸载只删除 SAGE-Kit 自己的条目；保留用户配置。
 - 安装记录写入 `.sage-kit/config.json`（host、路径、版本、时间），用于更新/回滚。
 
@@ -130,20 +154,20 @@ sage-kit hook uninstall --host <host> # M1
 
 - Hook 不访问网络、不调用模型、不读取密钥；只读本地配置/状态。
 - 输入中的 issue/PR/网页文本不得作为指令执行；只作为数据展示/摘要。
-- 输出经过截断和转义；不包含 token、绝对路径中的用户名等敏感信息（可配置脱敏）。
+- 输出经过截断；brief 可能包含任务 worktree 的绝对路径，不含 token/密钥。P0 不做统一用户名脱敏。
 - Hook 脚本文件权限最小化；不使用 `eval`/动态代码执行。
-- 失败日志写到本地文件，不包含完整输入正文。
+- P0 **不写失败日志文件**；失败输出到 stderr 或宿主日志，不记录完整输入正文。
 
 ## 8. 失败与可观测
 
-- Hook 崩溃/超时：宿主继续；`sage-kit doctor` 显示最近失败原因。
+- Hook 崩溃/超时：宿主继续；P0 的 `doctor` **不检查** hook 失败历史。
 - Hook 输出非法 JSON：按 `warn` 处理，不阻断。
 - `stop` 检查发现无验收证据：默认 `warn`；`--strict` 才 `block`。
-- 所有 hook 调用记录：时间、事件、耗时、退出码、输出字节数；不记录正文。
+- P0 只有成功执行的 hook 追加 `hook.session.start` / `hook.command.after` 事件；不记录耗时、退出码、输出字节数，也不记录失败调用。
 
 ## 9. 测试
 
-- 用 fixture 输入测试三个事件的输出 schema、大小限制、超时、非法 JSON。
+- 用 fixture 输入测试三个事件的输出 schema、大小限制、超时、非法 JSON；超时用「stdin 保持打开」确定性触发（断言退出码 124 与合法 `HookOutput`）。
 - 用临时 HOME 测试安装/卸载不污染真实配置。
 - 至少一个宿主适配器的集成测试（本地 fake host），其余适配器 P0 后补齐。
 - P0 验收不依赖真实宿主也能跑核心测试；真实宿主安装为人工验收项。

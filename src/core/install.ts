@@ -103,6 +103,15 @@ export async function removeInstructions(target: string, blockId: string): Promi
   return true;
 }
 
+async function actualSkillMode(target: string): Promise<SkillMode> {
+  try {
+    const info = await lstat(target);
+    return info.isSymbolicLink() ? "symlink" : "copy";
+  } catch {
+    return "copy";
+  }
+}
+
 async function installSkill(
   source: string,
   target: string,
@@ -116,7 +125,8 @@ async function installSkill(
   if (await exists(target)) {
     if (!force) {
       warnings.push(`Skill already exists at ${target}; kept it (use --force to replace).`);
-      return { files: [], mode };
+      // Record the mode the installed copy actually has, not the requested one.
+      return { files: [], mode: await actualSkillMode(target) };
     }
     await removePath(target);
   }
