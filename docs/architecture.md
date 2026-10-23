@@ -276,12 +276,12 @@ SAGE-Kit/
 
 | 里程碑 | 内容 | 完成标志 |
 |---|---|---|
-| **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 的真实 DSH headless + mock 已部分验证，真实模型/GUI 未执行 |
+| **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 已部分验证真实 DSH headless（mock 与真实模型）、真实 `bash`→CLI 任务创建和 Linux Web；GUI 浏览器、hook 自动注入、真实 `stop` 生命周期尚未验收 |
 | **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | 反馈 fixture + 幂等/去重测试通过 |
 | **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | 崩溃恢复 + 评估门 + 回滚演练通过 |
 | **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | 连续若干轮改进有审计记录，可回滚 |
 
-P0 当前已实现文件模式；A13 已对真实 DSH headless + mock 验证 Skill 发现/加载，真实模型、GUI 和 hook 自动注入未执行。控制面 UI、真实反馈同步、提案、评估、RSI 在 M1/M2/M3 实现。
+P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。控制面 UI、真实反馈同步、提案、评估、RSI 在 M1/M2/M3 实现；全部完成并确定 A13 边界前不发布 release。
 
 ## 13. 未决问题
 
