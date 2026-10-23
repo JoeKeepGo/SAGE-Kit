@@ -122,7 +122,7 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 控制面解决“跨会话、跨进程、可恢复”的问题：
 
 - 本地 HTTP API（只绑定 `127.0.0.1` + loopback Host 校验；本地单用户不设 token）。
-- Web UI：M2 已提供最小只读面板（任务列表/详情、health）；完整任务板、运行记录、反馈、提案、评估结果仍属 M2b。
+- Web UI：M2 提供本地控制面板（任务列表/详情、新建任务、状态转换、lease、恢复）；运行记录只读展示，不提供 run 启动/监督，也不提供提案/评估 UI。
 - SQLite（WAL）作为唯一权威存储；单进程写入。
 - 本地 Worker 子进程运行 Agent/命令，记录事件；不依赖远程队列。
 - 调度/恢复：启动时恢复未完成任务，处理过期 lease。
@@ -162,7 +162,7 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 |---|---|---|
 | 任务定义、状态、验收标准、依赖 | 文件模式：`.sage-kit/state/tasks/*.json`；控制面：SQLite `tasks` | 只能有一个写入源 |
 | 运行记录、退出码、成本、错误 | `runs` / `events` | 追加写；UI 只读派生 |
-| 任务 lease / 当前执行者 | `leases`（控制面，M2）或文件锁（文件模式，**NOT_IMPLEMENTED**） | P0 只记录 run；同一任务并发写没有锁保护 |
+| 任务 lease / 当前执行者 | `leases`（M2 控制面）；文件模式单用户单写者，不以 lease 强制互斥 | 文件模式不双写；M2 lease 已实现 |
 | 反馈原始项 | `feedback` + `sync_cursors` | 来自外部；不可信；保留来源 URL |
 | 提案、评估、版本、回滚点 | `proposals` / `evals` / `artifacts` | 改进链路的事实 |
 | Skill 版本 | 包版本 + 安装 manifest | 必须可查询、可回滚 |
@@ -255,7 +255,7 @@ SAGE-Kit/
 - **崩溃恢复**：任何 run 可从事件日志判断最后状态；不依赖内存。
 - **幂等**：创建任务、同步反馈、执行副作用都有幂等键；重试不重复。
 - **单写者**：控制面单进程写 SQLite；Worker 不直写数据库。
-- **本机并发**：P0 只有 worktree 隔离；M2 foundation 已提供 SQLite lease/单写者 API，但尚未接入文件模式任务；git 操作串行化仍未实现。
+- **本机并发**：P0 文件模式是单用户单写者（无数据库，不需要跨进程 lease）；M2 控制面用 SQLite lease/单写者；两种模式不双写。文件模式不接控制面 lease，避免出现第二套权威。
 - **可观测**：run id、结构化事件、错误分类、成本/耗时；`doctor` 和 `trace` 可定位问题。
 - **可回滚**：Skill/CLI/模板版本不可变；发布记录和回滚命令。
 - **可测试**：每个关键行为有 fixture/集成测试；不依赖真实 GitHub/模型做 CI。
@@ -264,7 +264,7 @@ SAGE-Kit/
 
 ## 11. 安全边界（摘要；控制面为 M2 目标）
 
-- 控制面默认只绑定 `127.0.0.1`；本地单用户不设 token；不提供远程共享。P0 没有控制面监听；M2 foundation 的 `control serve` 已实现 loopback + 最小只读 UI，备份/导出未实现。
+- 控制面默认只绑定 `127.0.0.1`；本地单用户不设 token；不提供远程共享。P0 没有控制面监听；M2 的 `control serve` 提供 loopback API + 本地可写控制面板；备份/导出属于范围外。
 - 反馈/网页/Issue 文本是不可信数据；不执行其中的命令；进入模型前做数据标记。
 - GitHub/Gitea 读 token 与写 token 分离；密钥不落盘、不进日志、不进提示词。
 - 执行外部命令/生成代码时使用最小权限；高风险动作要显式确认。
@@ -276,12 +276,12 @@ SAGE-Kit/
 
 | 里程碑 | 内容 | 完成标志 |
 |---|---|---|
-| **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 已部分验证真实 DSH headless（mock 与真实模型）、真实 `bash`→CLI 任务创建和 Linux Web；GUI 浏览器、hook 自动注入、真实 `stop` 生命周期尚未验收 |
+| **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；真实 DSH 0.2.1-rc.2 + 真实模型 GUI、`bash`→CLI、卸载/重装、真实 stop 已验证；DSH 不提供 hook 自动注入（AGENTS/手动路径可用） |
 | **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | **已实现**：13 项测试通过；真实 `api.github.com` 与 WSL2 自建 Gitea 1.27.3 已验证；残余真实边界见 `docs/m1-feedback.md` |
-| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | **Foundation 已实现**：33 项测试通过；最小只读 UI 已落地；完整任务板、提案/评估实体、备份/导出属 M2b |
-| **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | **Skeleton 已实现**：12 项测试通过；无定时器/自动批准/发布，M3b 待做 |
+| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、恢复 | **控制面已实现**：38 项测试通过；任务创建/状态转换/lease/恢复面板可用；run 启动监督与备份/导出明确不在本控制面范围 |
+| **M3** | L2 受控 RSI：评估闭环、人工批准/回滚 | **评估闭环已实现**：19 项测试通过；真实 worktree/基线/重复/预算/导出；无定时器/自动批准/发布 |
 
-P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。M1 反馈同步、M2 foundation（含最小只读 UI）、M3 skeleton 已落地；控制面完整 UI、M2b 备份/导出、M3 定时/自动循环未实现。全部完成并确定 A13 边界前不发布 release。
+P0 文件模式、M1 只读反馈、M2 本地控制面、M3 评估闭环均已落地。A13 已在真实 DSH 0.2.1-rc.2 + 真实模型上验证 GUI、真实 `bash`→CLI、卸载/重装与真实 `stop`；DSH 不提供 hook 自动注入，记录为宿主边界（AGENTS 指令或手动 `hook` 可用）。run 启动监督、备份/导出、定时自动循环属于设计范围外。发布仍需用户授权。
 
 ## 13. 未决问题
 
@@ -289,5 +289,5 @@ P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 D
 
 - 首批宿主：已确定 **DSH 优先**（Taluvia 主开发环境），Codex、Claude Code 其次；OpenCode 后续。
 - Skill 安装路径与宿主目录的权威映射：DSH 已按固定版本源码核对 `.dsh/skills` 与 `AGENTS.md`；Codex/Claude 的路径仍需按各自实际安装验证，不凭记忆硬编码。
-- UI 技术选型：P0 不做；M2 再定，优先静态构建 + 原生 DOM/轻量框架。
+- UI 技术选型：M2 已确定原生 HTML/CSS/JS、同源、无框架/无 CORS；后续若需要复杂控制台另立契约。
 - 许可证：发布前确定；未定前不复制第三方实现代码。

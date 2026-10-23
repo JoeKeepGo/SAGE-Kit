@@ -1,9 +1,13 @@
 /**
- * Public M3 RSI skeleton surface.
+ * Public M3 RSI surface (schema v2: git-worktree evaluation, baseline
+ * comparison, bounded repeats).
  *
  * The module owns proposal/evaluation/approval/rollback-point state in
  * `.sage-kit/rsi/` and never merges, publishes, rewrites `SKILL.md`, starts a
  * scheduler, calls a model or opens a network connection by itself.
+ *
+ * Evaluation does require the *git* command (worktree checkout); it never
+ * fetches, so the proposal base commit must already exist locally.
  *
  * CLI wiring is owned by the Lead (`src/cli.ts`); this slice only exports the
  * library API plus the state paths needed for integration and tests.
@@ -11,6 +15,7 @@
 export {
   DEFAULT_APPROVAL_TTL_MS,
   DEFAULT_PROTECTED_PATHS,
+  DEFAULT_REPEATS,
   DEFAULT_RSI_LIMITS,
   MAX_FEEDBACK_REFS,
   RSI_PROPOSAL_STATUSES,
@@ -24,8 +29,13 @@ export type {
   CandidateFile,
   CreateProposalInput,
   Evaluation,
+  EvaluationBaseline,
+  EvaluationComparison,
   EvaluationLog,
   EvaluationOutcome,
+  EvaluationRun,
+  EvaluationRunKind,
+  EvaluationWorktree,
   FeedbackRefInput,
   Proposal,
   ProposalDiffStats,
@@ -87,7 +97,27 @@ export { runFixedCommand } from "./process.js";
 export type { FixedCommandResult } from "./process.js";
 
 export {
-  DEFAULT_COPY_EXCLUDE,
-  createEvaluationWorkspace,
-} from "./workspace.js";
-export type { CreateWorkspaceOptions, TempProjectCopy } from "./workspace.js";
+  DEFAULT_GIT_TIMEOUT_MS,
+  createEvaluationWorktree,
+  resolveBaseCommit,
+  resolveGitRepository,
+  runGitCommand,
+} from "./worktree.js";
+export type {
+  CreateWorktreeOptions,
+  GitCommandResult,
+  GitWorktreeHandle,
+} from "./worktree.js";
+
+export { exportEvaluationSummary } from "./export.js";
+export type {
+  EvaluationSummary,
+  ExportEvaluationOptions,
+  ExportEvaluationResult,
+} from "./export.js";
+
+export { recordEvaluationInControl } from "./control-record.js";
+export type {
+  EvaluationControlRecord,
+  RecordEvaluationInControlOptions,
+} from "./control-record.js";

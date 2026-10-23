@@ -32,6 +32,10 @@ import {
   type CandidateFile,
   type CreateProposalInput,
   type Evaluation,
+  type EvaluationBaseline,
+  type EvaluationComparison,
+  type EvaluationRun,
+  type EvaluationWorktree,
   type Proposal,
   type ProposalStatus,
   type RollbackPoint,
@@ -133,6 +137,62 @@ function decodeProposal(raw: unknown, file: string): Proposal {
   return raw as unknown as Proposal;
 }
 
+function decodeEvaluationWorktree(value: unknown, file: string): EvaluationWorktree {
+  if (!isRecord(value)) corrupt(file, "worktree is not an object");
+  if (value.kind !== "git-worktree") corrupt(file, "worktree.kind is invalid");
+  readText(value, "path", file);
+  if (typeof value.removed !== "boolean") corrupt(file, "worktree.removed is invalid");
+  return value as unknown as EvaluationWorktree;
+}
+
+function decodeEvaluationRun(value: unknown, file: string, field: string): EvaluationRun {
+  if (!isRecord(value)) corrupt(file, `${field} is not an object`);
+  readNumber(value, "index", file);
+  if (value.kind !== "baseline" && value.kind !== "candidate") corrupt(file, `${field}.kind is invalid`);
+  if (typeof value.applied !== "boolean" || typeof value.ranTests !== "boolean") {
+    corrupt(file, `${field}.applied/ranTests are invalid`);
+  }
+  if (value.outcome !== "passed" && value.outcome !== "failed") corrupt(file, `${field}.outcome is invalid`);
+  if (value.exitCode !== null && typeof value.exitCode !== "number") corrupt(file, `${field}.exitCode is invalid`);
+  if (value.signal !== null && typeof value.signal !== "string") corrupt(file, `${field}.signal is invalid`);
+  if (typeof value.timedOut !== "boolean") corrupt(file, `${field}.timedOut is invalid`);
+  readNumber(value, "durationMs", file);
+  readOptionalText(value, "reasonCode", file);
+  readOptionalText(value, "reasonMessage", file);
+  if (!isRecord(value.protectedAssets)) corrupt(file, `${field}.protectedAssets is not an object`);
+  if (typeof value.protectedAssets.ok !== "boolean") corrupt(file, `${field}.protectedAssets.ok is invalid`);
+  readStringList(value.protectedAssets.paths, `${field}.protectedAssets.paths`, file);
+  readStringList(value.protectedAssets.changed, `${field}.protectedAssets.changed`, file);
+  if (!isRecord(value.log)) corrupt(file, `${field}.log is not an object`);
+  readText(value.log, "stdout", file);
+  readText(value.log, "stderr", file);
+  if (typeof value.log.truncated !== "boolean") corrupt(file, `${field}.log.truncated is invalid`);
+  decodeEvaluationWorktree(value.worktree, file);
+  return value as unknown as EvaluationRun;
+}
+
+function decodeEvaluationBaseline(value: unknown, file: string): EvaluationBaseline {
+  if (!isRecord(value)) corrupt(file, "baseline is not an object");
+  if (!Array.isArray(value.runs)) corrupt(file, "baseline.runs is not an array");
+  const runs = value.runs.map((run, index) => decodeEvaluationRun(run, file, `baseline.runs[${index}]`));
+  readNumber(value, "passedRuns", file);
+  readNumber(value, "failedRuns", file);
+  if (value.outcome !== "passed" && value.outcome !== "failed" && value.outcome !== "not_run") {
+    corrupt(file, "baseline.outcome is invalid");
+  }
+  return { ...(value as unknown as EvaluationBaseline), runs };
+}
+
+function decodeEvaluationComparison(value: unknown, file: string): EvaluationComparison {
+  if (!isRecord(value)) corrupt(file, "comparison is not an object");
+  readNumber(value, "candidateRuns", file);
+  readNumber(value, "baselineRuns", file);
+  readNumber(value, "candidatePassedRuns", file);
+  readNumber(value, "baselinePassedRuns", file);
+  if (typeof value.noWeakerThanBaseline !== "boolean") corrupt(file, "comparison.noWeakerThanBaseline is invalid");
+  return value as unknown as EvaluationComparison;
+}
+
 function decodeEvaluation(raw: unknown, file: string): Evaluation {
   if (!isRecord(raw)) corrupt(file, "record is not an object");
   readSchema(raw, file);
@@ -143,6 +203,8 @@ function decodeEvaluation(raw: unknown, file: string): Evaluation {
   readNumber(raw, "attempt", file);
   readText(raw, "startedAt", file);
   readText(raw, "finishedAt", file);
+  readText(raw, "baseCommit", file);
+  readNumber(raw, "repeats", file);
   readStringList(raw.command, "command", file);
   if (raw.exitCode !== null && typeof raw.exitCode !== "number") corrupt(file, "exitCode is invalid");
   if (raw.signal !== null && typeof raw.signal !== "string") corrupt(file, "signal is invalid");
@@ -162,15 +224,13 @@ function decodeEvaluation(raw: unknown, file: string): Evaluation {
   readText(raw.log, "stdout", file);
   readText(raw.log, "stderr", file);
   if (typeof raw.log.truncated !== "boolean") corrupt(file, "log.truncated is invalid");
-  if (raw.workspace !== undefined) {
-    if (!isRecord(raw.workspace)) corrupt(file, "workspace is not an object");
-    if (raw.workspace.kind !== "temp-copy") corrupt(file, "workspace.kind is invalid");
-    readText(raw.workspace, "tempDir", file);
-    if (typeof raw.workspace.removed !== "boolean") corrupt(file, "workspace.removed is invalid");
-  }
+  if (!Array.isArray(raw.runs)) corrupt(file, "runs is not an array");
+  const runs = raw.runs.map((run, index) => decodeEvaluationRun(run, file, `runs[${index}]`));
+  decodeEvaluationBaseline(raw.baseline, file);
+  decodeEvaluationComparison(raw.comparison, file);
   readOptionalText(raw, "reasonCode", file);
   readOptionalText(raw, "reasonMessage", file);
-  return raw as unknown as Evaluation;
+  return { ...(raw as unknown as Evaluation), runs };
 }
 
 function decodeApproval(raw: unknown, file: string): Approval {

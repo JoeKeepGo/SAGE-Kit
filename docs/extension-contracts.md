@@ -122,7 +122,7 @@ export interface TaskSourceCapabilities {
 
 ## 4. FeedbackSourceAdapter（反馈来源）`[TARGET]`
 
-职责：只读同步 GitHub/Gitea 的 Issue、PR 评论、CI/check 结果等反馈。默认只读；写回评论/标签需要单独批准。P0 没有 `feedback` 命令，未实现该接口。
+职责：只读同步 GitHub/Gitea 的 Issue、PR 评论、CI/check 结果等反馈。默认只读；写回评论/标签需要单独批准。M1 已实现本地 JSONL、GitHub、Gitea 三种只读来源（`src/feedback/**`，CLI `feedback sync/list/show`），接口稳定；写回仍不实现。
 
 设计接口（`TARGET`）：
 

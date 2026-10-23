@@ -3,7 +3,7 @@
 日期：2026-10-24（本地）
 运行环境：主测试环境 WSL2 Ubuntu 26.04.1 LTS（Node v22.22.1、npm 9.2.0、git 2.53.0）；开发机 Windows（Node v24.22.0、npm 11.19.1，未作为测试套件执行环境）
 包版本：0.1.0
-状态：P0 文件模式实现；A13 已做真实 DSH headless + **mock 模型**、**真实 DeepSeek 模型**和 Linux Web 启动的部分验证；浏览器 GUI 与 hook 自动注入未执行。
+状态：P0 文件模式实现；A13 已在真实 DSH 0.2.1-rc.2 + 真实 DeepSeek 模型上完成 headless、Web GUI、真实 stop、卸载/重装验证；DSH 不提供 hook 自动注入（`NOT_AVAILABLE`，宿主边界）。
 
 ## 自动化测试
 
@@ -42,7 +42,7 @@ npm test
 - 模型再调用 `task list --json` 与 `test -f` 校验；
 - 独立命令复核 `task list` / `task show` / 文件存在，任务 JSON sha256 `fa3693ef…`。
 
-证据：[`dsh-real-model-e2e.md`](dsh-real-model-e2e.md)（`work/dsh-linux/real-e2e/run-01/events.jsonl` 被 `.gitignore` 忽略）。这证明真实模型 headless 路径可用；**GUI 浏览器和 hook 自动注入仍未验证**，不把 A13 写成完整通过。
+证据：[`dsh-real-model-e2e.md`](dsh-real-model-e2e.md)（`work/dsh-linux/real-e2e/run-01/events.jsonl` 被 `.gitignore` 忽略）。这证明真实模型 headless 路径可用；GUI 证据见 [`dsh-gui-e2e.md`](dsh-gui-e2e.md)。hook 自动注入在 DSH 上不可用，已记录为宿主边界，不是未完成。
 
 ## DSH 适配器 smoke
 

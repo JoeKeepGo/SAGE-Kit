@@ -127,8 +127,8 @@ Rules:
 |---|---|---|
 | Claude Code | 已实现 `.claude/skills/sage-kit` + `CLAUDE.md` 受管块；hook 配置属于 M1 | Skill/说明块已实现；hook 自动安装未实现 |
 | Codex | 已实现 `.agents/skills/sage-kit` + `AGENTS.md` 受管块；hook 配置属于 M1 | Skill/说明块已实现；hook 自动安装未实现 |
-| OpenCode | 适配器安装插件/命令；按公开 API 实现 | 未实现（M1） |
-| DSH | 已实现 `.dsh/skills/sage-kit` + `AGENTS.md` 受管块；DSH Web/headless 可用 npm 包在 Linux 运行，不需要桌面应用；DSH 当前未发现可安装的原生 hook 配置，`hook` 由宿主/用户显式调用 | Skill/说明块和 Linux Web 启动已验证；hook 自动安装 `NOT_AVAILABLE`；真实模型/浏览器交互未验 |
+| OpenCode | 适配器安装插件/命令；按公开 API 实现 | 不在当前宿主范围（DSH/Codex/Claude 优先） |
+| DSH | 已实现 `.dsh/skills/sage-kit` + `AGENTS.md` 受管块；DSH Web/headless 可用 npm 包在 Linux 运行，不需要桌面应用；DSH 当前未发现可安装的原生 hook 配置，`hook` 由宿主/用户显式调用 | Skill/说明块、Linux Web、真实模型 GUI、真实 stop 与卸载/重装已验证；hook 自动安装 `NOT_AVAILABLE`（宿主边界） |
 
 约束：
 
@@ -141,7 +141,7 @@ Rules:
 
 ```text
 sage-kit init --host <host>          # P0：安装 Skill + 受管说明块
-sage-kit hook install --host <host>  # M1：安装宿主 hooks（尚未实现）
+sage-kit hook install --host <host>  # 宿主支持时才安装；DSH 0.2.1-rc.2 不提供，当前命令不假装已注入
 sage-kit hook uninstall --host <host> # M1
 ```
 

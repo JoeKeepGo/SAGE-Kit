@@ -1,13 +1,15 @@
 /**
- * Read-only control panel served at `GET /` and `GET /ui`.
+ * Local control panel served at `GET /` and `GET /ui`.
  *
  * The panel is a single self-contained HTML document:
  * - no external assets (CSP `default-src 'none'` compatible),
- * - no authentication UI: the loopback server is the trust boundary, so the
- *   page auto-loads `/v1/health` and `/v1/tasks` on open,
+ * - no authentication UI: the loopback socket + loopback Host header are the
+ *   trust boundary, so the page auto-loads `/v1/health` and `/v1/tasks` on open,
  * - one click on a task row immediately loads `GET /v1/tasks/:id`,
+ * - local writes go through the same loopback API: create task, status
+ *   transition, lease acquire/renew/release, recovery scan,
  * - every rendered value goes through `textContent` (no `innerHTML` with data),
- * - all reads are GETs; there is no write path.
+ * - the page never talks to non-loopback hosts and has no remote/multi-user UI.
  *
  * The inline script is deliberately a classic (non-module) script so the HTML
  * can carry it inline under the server's CSP.
@@ -19,7 +21,7 @@ export function renderControlUiHtml(): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>SAGE-Kit Control · 只读控制面板</title>
+<title>SAGE-Kit Control · 本地控制面板</title>
 <style>
 :root {
   --bg: #f6f7f9;
@@ -512,6 +514,129 @@ code, pre { font-family: var(--font-mono); }
 .detail-error-title { color: var(--red); font-size: var(--fs-20); font-weight: 700; }
 .detail-error-text { color: var(--text); font-size: var(--fs-14); overflow-wrap: anywhere; }
 
+.card-head-actions { display: flex; align-items: center; gap: var(--sp-8); }
+.btn-danger { border-color: var(--red-border); background: var(--red-soft); color: var(--red); }
+.btn-danger:hover { background: var(--surface-2); }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--sp-24);
+  overflow: auto;
+  background: rgba(15, 18, 22, 0.55);
+}
+.modal {
+  width: 100%;
+  max-width: 560px;
+  margin: 8vh auto var(--sp-24);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-12); padding: var(--sp-16) var(--sp-24); border-bottom: 1px solid var(--border); }
+.modal-title { font-size: var(--fs-20); font-weight: 700; }
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-16);
+  cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--border); background: var(--surface-2); color: var(--text); }
+.form { display: flex; flex-direction: column; gap: var(--sp-16); padding: var(--sp-24); }
+.field { display: flex; flex-direction: column; gap: var(--sp-8); min-width: 0; color: var(--text-2); font-size: var(--fs-13); font-weight: 600; }
+.field-label { color: var(--text-3); font-size: var(--fs-12); font-weight: 600; letter-spacing: 0.02em; }
+.input {
+  width: 100%;
+  padding: var(--sp-8) var(--sp-12);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: 400;
+}
+.input:focus { border-color: var(--accent); outline: 2px solid var(--accent-soft); }
+textarea.input { min-height: 64px; line-height: 1.55; resize: vertical; }
+.field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-12); }
+.form-error {
+  margin: 0;
+  padding: var(--sp-8) var(--sp-12);
+  border: 1px solid var(--red-border);
+  border-radius: 6px;
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: var(--fs-12);
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--sp-8); padding-top: var(--sp-8); }
+
+.action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16); }
+.action-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-8);
+  min-width: 0;
+  padding: var(--sp-16);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.action-title { color: var(--text-2); font-size: var(--fs-13); font-weight: 700; letter-spacing: 0.02em; }
+.action-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8); }
+.action-row .field { flex: 1 1 160px; }
+.action-actions { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.hint { color: var(--text-3); font-size: var(--fs-12); line-height: 1.6; }
+.action-error {
+  margin: 0;
+  padding: var(--sp-8) var(--sp-12);
+  border: 1px solid var(--red-border);
+  border-radius: 6px;
+  background: var(--red-soft);
+  color: var(--red);
+  font-size: var(--fs-12);
+  overflow-wrap: anywhere;
+}
+
+.toast-root {
+  position: fixed;
+  right: var(--sp-24);
+  bottom: var(--sp-24);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-8);
+  max-width: min(440px, calc(100vw - 48px));
+  pointer-events: none;
+}
+.toast {
+  padding: var(--sp-12) var(--sp-16);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: var(--fs-13);
+  overflow-wrap: anywhere;
+  animation: toast-in 0.18s ease;
+  pointer-events: auto;
+}
+.toast-success { border-left-color: var(--green); }
+.toast-error { border-color: var(--red-border); border-left-color: var(--red); background: var(--red-soft); color: var(--red); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
 .app-foot {
   display: flex;
   flex-wrap: wrap;
@@ -537,6 +662,9 @@ code, pre { font-family: var(--font-mono); }
   .detail-scroll { padding: var(--sp-16); }
   .alert { margin: var(--sp-16) var(--sp-16) 0; }
   .app-foot { padding: 0 var(--sp-16) var(--sp-16); }
+  .action-grid { grid-template-columns: 1fr; }
+  .modal-backdrop { padding: var(--sp-16); }
+  .modal { margin-top: var(--sp-16); }
 }
 @media (max-width: 560px) {
   .app-bar { flex-wrap: wrap; align-items: flex-start; }
@@ -545,6 +673,10 @@ code, pre { font-family: var(--font-mono); }
   .meta-grid, .meta-grid-2 { grid-template-columns: 1fr; }
   .detail-title-row { flex-direction: column; gap: var(--sp-8); }
   .acceptance-item { padding-left: var(--sp-24); }
+  .field-row { grid-template-columns: 1fr; }
+  .form { padding: var(--sp-16); }
+  .modal-head { padding: var(--sp-16); }
+  .toast-root { right: var(--sp-16); bottom: var(--sp-16); left: var(--sp-16); max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -558,12 +690,15 @@ code, pre { font-family: var(--font-mono); }
     <div class="brand-mark" aria-hidden="true">SK</div>
     <div class="brand-text">
       <h1>SAGE-Kit Control</h1>
-      <p class="brand-sub">本地控制面 · 只读面板 · 无写入操作</p>
+      <p class="brand-sub">本地控制面 · 写操作仅限本机 loopback</p>
     </div>
-    <span class="badge">只读</span>
+    <span class="badge" title="服务只绑定 127.0.0.1，无 token；本机任意进程可读写，这是单用户本地工具的边界">仅本机</span>
   </div>
   <div class="app-actions">
     <span class="health" role="status" aria-live="polite"><span id="health-dot" class="dot dot-idle" aria-hidden="true"></span><span id="health-text">连接中…</span></span>
+    <button id="recover" class="btn" type="button" title="扫描并中断没有活动租约的 stale run；过期租约只会把任务标记为 interrupted，不会自动重跑">
+      <span class="btn-icon" aria-hidden="true">⟲</span><span>恢复 stale</span>
+    </button>
     <button id="refresh" class="btn btn-primary" type="button" title="重新加载健康状态与任务列表">
       <span class="btn-icon" aria-hidden="true">⟳</span><span>刷新</span>
     </button>
@@ -574,7 +709,10 @@ code, pre { font-family: var(--font-mono); }
   <section class="card list-card" aria-labelledby="list-heading">
     <div class="card-head">
       <h2 id="list-heading" class="card-title">任务列表</h2>
-      <span id="task-count" class="card-sub">—</span>
+      <div class="card-head-actions">
+        <span id="task-count" class="card-sub">—</span>
+        <button id="new-task" class="btn btn-small btn-primary" type="button">＋ 新建任务</button>
+      </div>
     </div>
     <div class="list-toolbar">
       <label class="search" for="task-filter"><span class="search-label">筛选</span></label>
@@ -587,10 +725,48 @@ code, pre { font-family: var(--font-mono); }
   </section>
 </main>
 <footer class="app-foot">
-  <span>只读接口：GET /v1/health · GET /v1/tasks · GET /v1/tasks/&lt;id&gt;</span>
+  <span>本机接口：GET /v1/health · GET /v1/tasks · POST /v1/tasks · POST /v1/tasks/&lt;id&gt;/status · POST /v1/leases/{acquire,renew,release} · POST /v1/recover</span>
   <span id="updated">尚未刷新</span>
 </footer>
-<noscript><p class="noscript">此面板需要 JavaScript 才能读取本地控制面 API。</p></noscript>
+<div id="toast-root" class="toast-root" aria-live="polite"></div>
+<noscript><p class="noscript">此面板需要 JavaScript 才能读取/修改本地控制面状态。</p></noscript>
+<div id="modal-backdrop" class="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h2 id="modal-title" class="modal-title">新建任务</h2>
+      <button id="modal-close" class="icon-btn" type="button" aria-label="关闭">×</button>
+    </div>
+    <form id="new-task-form" class="form" novalidate>
+      <label class="field" for="new-title">
+        <span class="field-label">标题（必填，≤200 字符）</span>
+        <input id="new-title" class="input" type="text" maxlength="200" autocomplete="off" required>
+      </label>
+      <label class="field" for="new-description">
+        <span class="field-label">描述（可选）</span>
+        <textarea id="new-description" class="input" rows="3" maxlength="2000"></textarea>
+      </label>
+      <label class="field" for="new-acceptance">
+        <span class="field-label">验收标准（可选，每行一条，最多 20 条）</span>
+        <textarea id="new-acceptance" class="input" rows="3"></textarea>
+      </label>
+      <div class="field-row">
+        <label class="field" for="new-priority">
+          <span class="field-label">优先级（整数，可选）</span>
+          <input id="new-priority" class="input" type="number" step="1" min="-1000000" max="1000000" value="0">
+        </label>
+        <label class="field" for="new-source">
+          <span class="field-label">来源（可选）</span>
+          <input id="new-source" class="input" type="text" maxlength="200" autocomplete="off" placeholder="例如 manual">
+        </label>
+      </div>
+      <p id="new-form-error" class="form-error" hidden></p>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="btn" type="button">取消</button>
+        <button id="new-submit" class="btn btn-primary" type="submit">创建任务</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script>
 (function () {
   'use strict';
@@ -616,6 +792,21 @@ code, pre { font-family: var(--font-mono); }
     interrupted: { label: '已中断', cls: 's-interrupted' }
   };
 
+  // Mirrors src/core/tasks.ts TRANSITIONS. The server is the authority: this
+  // map only decides which controls to show; illegal requests still get 409.
+  var TRANSITIONS = {
+    imported: ['ready', 'blocked', 'failed'],
+    ready: ['running', 'blocked', 'failed', 'cancelled'],
+    running: ['review', 'blocked', 'failed', 'cancelled', 'interrupted'],
+    review: ['done', 'running', 'blocked', 'failed', 'cancelled'],
+    done: [],
+    blocked: ['ready', 'running', 'failed', 'cancelled'],
+    failed: ['ready', 'running'],
+    cancelled: [],
+    interrupted: ['ready', 'running', 'failed']
+  };
+  var NEWLINE = String.fromCharCode(10);
+
   var state = {
     tasks: [],
     filter: '',
@@ -624,7 +815,8 @@ code, pre { font-family: var(--font-mono); }
     detailSeq: 0,
     loading: false,
     health: null,
-    updatedAt: null
+    updatedAt: null,
+    leaseOwner: 'local-ui'
   };
 
   var els = {
@@ -635,8 +827,22 @@ code, pre { font-family: var(--font-mono); }
     healthDot: document.getElementById('health-dot'),
     healthText: document.getElementById('health-text'),
     refresh: document.getElementById('refresh'),
+    recover: document.getElementById('recover'),
     filter: document.getElementById('task-filter'),
-    updated: document.getElementById('updated')
+    updated: document.getElementById('updated'),
+    toastRoot: document.getElementById('toast-root'),
+    newTask: document.getElementById('new-task'),
+    modalBackdrop: document.getElementById('modal-backdrop'),
+    modalClose: document.getElementById('modal-close'),
+    modalCancel: document.getElementById('modal-cancel'),
+    newTaskForm: document.getElementById('new-task-form'),
+    newTitle: document.getElementById('new-title'),
+    newDescription: document.getElementById('new-description'),
+    newAcceptance: document.getElementById('new-acceptance'),
+    newPriority: document.getElementById('new-priority'),
+    newSource: document.getElementById('new-source'),
+    formError: document.getElementById('new-form-error'),
+    newSubmit: document.getElementById('new-submit')
   };
 
   function el(tag, cls, text) {
@@ -823,28 +1029,84 @@ code, pre { font-family: var(--font-mono); }
   }
 
   function api(path) {
-    return fetch(path, { headers: { accept: 'application/json' }, cache: 'no-store' }).then(function (res) {
+    return request('GET', path);
+  }
+
+  function request(method, path, body) {
+    var options = { method: method, headers: { accept: 'application/json' }, cache: 'no-store' };
+    if (body !== undefined) {
+      options.headers['content-type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+    return fetch(path, options).then(function (res) {
       return res.text().then(function (text) {
-        var body = null;
+        var payload = null;
         if (text) {
           try {
-            body = JSON.parse(text);
+            payload = JSON.parse(text);
           } catch (err) {
-            body = null;
+            payload = null;
           }
         }
         if (!res.ok) {
           var message = '';
-          if (body && body.error && body.error.message) message = body.error.message;
-          else if (body && body.message) message = body.message;
+          if (payload && payload.error && payload.error.message) message = payload.error.message;
+          else if (payload && payload.message) message = payload.message;
           if (!message) message = res.status + ' ' + (res.statusText || 'HTTP 错误');
-          var code = body && body.error && body.error.code ? ' [' + body.error.code + ']' : '';
+          var code = payload && payload.error && payload.error.code ? ' [' + payload.error.code + ']' : '';
           throw new Error(message + code);
         }
-        if (body === null) throw new Error('服务端返回了非 JSON 响应');
-        return body;
+        if (payload === null) throw new Error('服务端返回了非 JSON 响应');
+        return payload;
       });
     });
+  }
+
+  function post(path, body) {
+    return request('POST', path, body === undefined ? {} : body);
+  }
+
+  function splitLines(text) {
+    return String(text || '')
+      .split(NEWLINE)
+      .map(function (line) { return line.trim(); })
+      .filter(function (line) { return line.length > 0; });
+  }
+
+  function setBusy(button, busy) {
+    if (!button) return;
+    button.disabled = busy;
+    if (busy) button.classList.add('is-loading');
+    else button.classList.remove('is-loading');
+  }
+
+  function showInlineError(node, message) {
+    if (!node) {
+      toast(message, 'error');
+      return;
+    }
+    node.textContent = message;
+    node.hidden = false;
+  }
+
+  function hideInlineError(node) {
+    if (!node) return;
+    node.textContent = '';
+    node.hidden = true;
+  }
+
+  function toast(message, kind) {
+    if (!els.toastRoot) return;
+    var node = el('div', 'toast toast-' + (kind || 'info'), message);
+    add(els.toastRoot, node);
+    // 连点快捷操作时最多保留最近 3 条，避免提示堆叠遮挡面板内容。
+    while (els.toastRoot.children.length > 3) {
+      els.toastRoot.removeChild(els.toastRoot.firstChild);
+    }
+    var ttl = kind === 'error' ? 6000 : 4000;
+    setTimeout(function () {
+      if (node.parentNode) node.parentNode.removeChild(node);
+    }, ttl);
   }
 
   function normalizeDetail(payload, taskId) {
@@ -905,7 +1167,7 @@ code, pre { font-family: var(--font-mono); }
       els.count.textContent = all.length === 0 ? '0 个' : (list.length === all.length ? '共 ' + all.length + ' 个' : '显示 ' + list.length + ' / ' + all.length);
     }
     if (all.length === 0) {
-      renderListMessage('暂无任务', '任务列表为空。使用 sage-kit task create 创建任务，或在控制面 store 中写入任务后点击“刷新”。', false);
+      renderListMessage('暂无任务', '任务列表为空。点击“新建任务”创建，或使用 sage-kit task create 后点击“刷新”。', false);
       return;
     }
     if (list.length === 0) {
@@ -1130,6 +1392,249 @@ code, pre { font-family: var(--font-mono); }
     return sec;
   }
 
+  function actionField(labelText, inputNode) {
+    var label = el('label', 'field');
+    add(label, el('span', 'field-label', labelText));
+    add(label, inputNode);
+    return label;
+  }
+
+  function openCreateModal() {
+    if (!els.modalBackdrop) return;
+    hideInlineError(els.formError);
+    els.modalBackdrop.hidden = false;
+    if (els.newTitle) els.newTitle.focus();
+  }
+
+  function closeCreateModal() {
+    if (els.modalBackdrop) els.modalBackdrop.hidden = true;
+  }
+
+  function submitNewTask(event) {
+    if (event) event.preventDefault();
+    var title = els.newTitle ? els.newTitle.value.trim() : '';
+    if (!title) {
+      showInlineError(els.formError, '标题不能为空');
+      if (els.newTitle) els.newTitle.focus();
+      return;
+    }
+    var body = { title: title };
+    var description = els.newDescription ? els.newDescription.value.trim() : '';
+    if (description) body.description = description;
+    var acceptance = els.newAcceptance ? splitLines(els.newAcceptance.value).slice(0, 20) : [];
+    if (acceptance.length > 0) body.acceptance = acceptance;
+    var priorityValue = els.newPriority ? els.newPriority.value.trim() : '';
+    if (priorityValue !== '') {
+      var priority = Number(priorityValue);
+      if (!Number.isInteger(priority)) {
+        showInlineError(els.formError, '优先级必须是整数');
+        return;
+      }
+      body.priority = priority;
+    }
+    var source = els.newSource ? els.newSource.value.trim() : '';
+    if (source) body.source = source;
+    hideInlineError(els.formError);
+    setBusy(els.newSubmit, true);
+    post('/v1/tasks', body).then(function (payload) {
+      var created = payload && payload.task ? payload.task : null;
+      closeCreateModal();
+      if (els.newTaskForm) els.newTaskForm.reset();
+      toast('任务已创建：' + (created && created.title ? created.title : title), 'success');
+      if (created && created.id) state.selectedId = created.id;
+      return loadAll();
+    }).catch(function (error) {
+      showInlineError(els.formError, error.message);
+      toast('创建任务失败：' + error.message, 'error');
+    }).then(function () {
+      setBusy(els.newSubmit, false);
+    });
+  }
+
+  function recoverStale() {
+    setBusy(els.recover, true);
+    post('/v1/recover', {}).then(function (payload) {
+      var report = payload && payload.report ? payload.report : {};
+      var expired = Array.isArray(report.expiredLeases) ? report.expiredLeases.length : 0;
+      var runs = Array.isArray(report.interruptedRuns) ? report.interruptedRuns.length : 0;
+      var tasks = Array.isArray(report.interruptedTasks) ? report.interruptedTasks.length : 0;
+      toast('恢复完成：过期租约 ' + expired + ' · 中断运行 ' + runs + ' · 中断任务 ' + tasks, 'success');
+      return loadAll();
+    }).catch(function (error) {
+      toast('恢复失败：' + error.message, 'error');
+    }).then(function () {
+      setBusy(els.recover, false);
+    });
+  }
+
+  function submitStatus(task) {
+    var select = document.getElementById('status-next');
+    var button = document.getElementById('status-submit');
+    var errorNode = document.getElementById('status-error');
+    if (!select || !select.value) return;
+    var next = select.value;
+    var noteInput = document.getElementById('status-note');
+    var evidenceInput = document.getElementById('status-evidence');
+    var blockedInput = document.getElementById('status-blocked-reason');
+    var note = noteInput ? noteInput.value.trim() : '';
+    var evidence = evidenceInput ? splitLines(evidenceInput.value).slice(0, 20) : [];
+    var blockedReason = blockedInput ? blockedInput.value.trim() : '';
+    var body = { status: next, expectedVersion: task.version };
+    if (evidence.length > 0) body.evidence = evidence;
+    if (note) body.note = note;
+    if (next === 'blocked' && blockedReason) body.blockedReason = blockedReason;
+    hideInlineError(errorNode);
+    setBusy(button, true);
+    post('/v1/tasks/' + encodeURIComponent(task.id) + '/status', body).then(function () {
+      toast('状态已更新为 ' + statusOf(next).label, 'success');
+      return loadAll();
+    }).catch(function (error) {
+      showInlineError(errorNode, error.message);
+      toast('状态更新失败：' + error.message, 'error');
+    }).then(function () {
+      setBusy(button, false);
+    });
+  }
+
+  function leaseAction(kind, task, button) {
+    var errorNode = document.getElementById('lease-error');
+    var ownerInput = document.getElementById('lease-owner');
+    var ttlInput = document.getElementById('lease-ttl');
+    var owner = ownerInput ? ownerInput.value.trim() : '';
+    if (!owner) {
+      showInlineError(errorNode, '租约 owner 不能为空');
+      return;
+    }
+    state.leaseOwner = owner;
+    var ttlMs;
+    if (ttlInput && ttlInput.value.trim() !== '') {
+      var seconds = Number(ttlInput.value);
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        showInlineError(errorNode, 'TTL 必须是正数（秒）');
+        return;
+      }
+      ttlMs = Math.round(seconds * 1000);
+    }
+    var body = { taskId: task.id, owner: owner };
+    if (ttlMs !== undefined) body.ttlMs = ttlMs;
+    hideInlineError(errorNode);
+    setBusy(button, true);
+    post('/v1/leases/' + kind, body).then(function () {
+      toast(kind === 'acquire' ? '租约已获取' : kind === 'renew' ? '租约已续期' : '租约已释放', 'success');
+      return loadAll();
+    }).catch(function (error) {
+      showInlineError(errorNode, error.message);
+      toast('租约操作失败：' + error.message, 'error');
+    }).then(function () {
+      setBusy(button, false);
+    });
+  }
+
+  function renderActions(task, lease) {
+    var allowed = TRANSITIONS[task.status] || [];
+    var sec = section('任务操作', '当前状态 v' + task.version);
+    var grid = el('div', 'action-grid');
+
+    var statusBlock = el('div', 'action-block');
+    add(statusBlock, el('h4', 'action-title', '状态转换'));
+    if (allowed.length === 0) {
+      add(statusBlock, emptyBox('当前状态（' + statusOf(task.status).label + '）没有可用的迁移。'));
+    } else {
+      add(statusBlock, el('p', 'hint', '只列出状态机允许的迁移；更新携带 expectedVersion=' + task.version + ' 做乐观并发。'));
+      var row = el('div', 'field-row');
+      var select = el('select', 'input');
+      select.id = 'status-next';
+      allowed.forEach(function (next) {
+        var option = el('option', null, statusOf(next).label + '（' + next + '）');
+        option.value = next;
+        add(select, option);
+      });
+      add(row, actionField('目标状态', select));
+      var noteInput = el('input', 'input');
+      noteInput.id = 'status-note';
+      noteInput.type = 'text';
+      noteInput.maxLength = 1000;
+      noteInput.placeholder = '可选，写入 task.status_changed 事件';
+      add(row, actionField('备注', noteInput));
+      add(statusBlock, row);
+      var evidenceInput = el('textarea', 'input');
+      evidenceInput.id = 'status-evidence';
+      evidenceInput.rows = 2;
+      evidenceInput.maxLength = 20000;
+      evidenceInput.placeholder = '可选，每行一条；标记 done 时至少需要一条';
+      add(statusBlock, actionField('证据（每行一条）', evidenceInput));
+      var blockedInput = el('input', 'input');
+      blockedInput.id = 'status-blocked-reason';
+      blockedInput.type = 'text';
+      blockedInput.maxLength = 1000;
+      var blockedField = actionField('阻塞原因（仅进入 blocked 时使用）', blockedInput);
+      blockedField.hidden = select.value !== 'blocked';
+      add(statusBlock, blockedField);
+      var statusError = el('p', 'action-error');
+      statusError.id = 'status-error';
+      statusError.hidden = true;
+      add(statusBlock, statusError);
+      var submit = el('button', 'btn btn-primary', '更新状态');
+      submit.type = 'button';
+      submit.id = 'status-submit';
+      add(statusBlock, submit);
+      select.addEventListener('change', function () {
+        blockedField.hidden = select.value !== 'blocked';
+      });
+      submit.addEventListener('click', function () {
+        submitStatus(task);
+      });
+    }
+    add(grid, statusBlock);
+
+    var leaseBlock = el('div', 'action-block');
+    add(leaseBlock, el('h4', 'action-title', '租约'));
+    if (lease) {
+      add(leaseBlock, el('p', 'hint', '持有者：' + lease.owner + (lease.runId ? ' · run ' + shortId(lease.runId) : '') + '；到期 ' + fmtTime(lease.expiresAt)));
+    } else {
+      add(leaseBlock, el('p', 'hint', '当前没有活动租约。获取租约会让任务进入 running（须满足状态机）。'));
+    }
+    var leaseRow = el('div', 'field-row');
+    var ownerInput = el('input', 'input');
+    ownerInput.id = 'lease-owner';
+    ownerInput.type = 'text';
+    ownerInput.maxLength = 200;
+    ownerInput.value = lease ? lease.owner : state.leaseOwner;
+    ownerInput.placeholder = '租约持有者，例如 local-ui';
+    add(leaseRow, actionField('owner', ownerInput));
+    var ttlInput = el('input', 'input');
+    ttlInput.id = 'lease-ttl';
+    ttlInput.type = 'number';
+    ttlInput.min = '1';
+    ttlInput.placeholder = 'TTL（秒，可选）';
+    add(leaseRow, actionField('TTL', ttlInput));
+    add(leaseBlock, leaseRow);
+    var leaseError = el('p', 'action-error');
+    leaseError.id = 'lease-error';
+    leaseError.hidden = true;
+    add(leaseBlock, leaseError);
+    var leaseActions = el('div', 'action-actions');
+    function leaseButton(label, kind, danger) {
+      var button = el('button', 'btn' + (danger ? ' btn-danger' : ''), label);
+      button.type = 'button';
+      button.id = 'lease-' + kind;
+      button.addEventListener('click', function () {
+        leaseAction(kind, task, button);
+      });
+      add(leaseActions, button);
+    }
+    if (lease) {
+      leaseButton('续租', 'renew', false);
+      leaseButton('释放', 'release', true);
+    } else {
+      leaseButton('获取租约', 'acquire', false);
+    }
+    add(leaseBlock, leaseActions);
+    add(grid, leaseBlock);
+    add(sec, grid);
+    return sec;
+  }
+
   function renderDetail(payload, taskId) {
     var detail;
     try {
@@ -1158,6 +1663,7 @@ code, pre { font-family: var(--font-mono); }
     add(head, sub);
     add(wrap, head);
     add(wrap, renderMeta(task));
+    add(wrap, renderActions(task, detail.lease));
 
     var descSec = section('描述');
     if (task.description) add(descSec, el('p', 'prose', task.description));
@@ -1271,6 +1777,26 @@ code, pre { font-family: var(--font-mono); }
     if (els.refresh) {
       els.refresh.addEventListener('click', function () { loadAll(); });
     }
+    if (els.recover) {
+      els.recover.addEventListener('click', recoverStale);
+    }
+    if (els.newTask) {
+      els.newTask.addEventListener('click', openCreateModal);
+    }
+    if (els.modalClose) {
+      els.modalClose.addEventListener('click', closeCreateModal);
+    }
+    if (els.modalCancel) {
+      els.modalCancel.addEventListener('click', closeCreateModal);
+    }
+    if (els.modalBackdrop) {
+      els.modalBackdrop.addEventListener('click', function (event) {
+        if (event.target === els.modalBackdrop) closeCreateModal();
+      });
+    }
+    if (els.newTaskForm) {
+      els.newTaskForm.addEventListener('submit', submitNewTask);
+    }
     if (els.filter) {
       els.filter.addEventListener('input', function () {
         state.filter = els.filter.value;
@@ -1290,8 +1816,12 @@ code, pre { font-family: var(--font-mono); }
       });
     }
     document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && els.modalBackdrop && !els.modalBackdrop.hidden) {
+        closeCreateModal();
+        return;
+      }
       var tag = document.activeElement && document.activeElement.tagName;
-      var typing = tag === 'INPUT' || tag === 'TEXTAREA';
+      var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
       if (event.key === '/' && !typing) {
         event.preventDefault();
         if (els.filter) els.filter.focus();

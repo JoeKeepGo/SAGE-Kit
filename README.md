@@ -1,8 +1,8 @@
 # SAGE-Kit
 
-**状态：P0 + M1 反馈同步 + M2 控制面 foundation（含最小只读 Web UI）+ M3 RSI skeleton 已实现；未发布到 npm registry、未发布 release。** 自动化覆盖 81/81（含 P0、M1、M2、M3 测试），A13 已做真实 DSH headless + mock/真实模型和 Linux Web 部分验证，但浏览器 GUI、hook 自动注入、真实 `stop` 生命周期仍未验收。M1 已用真实 `api.github.com` 与 WSL2 隔离 Gitea 1.27.3 完成只读同步验证（证据见 `reports/m1/`）；M2 的完整控制台（提案/评估/备份）仍属 M2b；M3 仅手动 skeleton（无定时器、无自动批准/合并/发布）。
+**状态：P0 + M1 反馈同步 + M2 本地可写控制面 + M3 评估闭环已实现；未发布到 npm registry、未发布 release。** 自动化覆盖 93/93（含 P0、M1、M2、M3 测试）；P0-A13 已在真实 DSH 0.2.1-rc.2 + 真实 DeepSeek 模型上通过 GUI、真实 stop、卸载/重装验证；DSH 不提供 hook 自动注入，记录为宿主能力边界（手动 `hook` 与 AGENTS 指令路径可用）。M1 已用真实 `api.github.com` 与 WSL2 隔离 Gitea 1.27.3 完成只读同步验证；M2 控制面板支持任务创建、状态转换、lease 与恢复（仅 loopback，无 token）；M3 支持真实 git worktree 评估、基线对比、重复评估、导出与人工批准（无定时器/自动批准/合并/发布）。
 
-SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：它提供一份可安装的 Skill、一个本地文件模式的任务/证据 CLI、只读反馈同步、可选的 SQLite 控制面 foundation，以及受控的“反馈 → 提案 → 评估 → 人工批准”RSI skeleton。
+SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：它提供一份可安装的 Skill、一个本地文件模式的任务/证据 CLI、只读反馈同步、可选的 SQLite 控制面（含本地控制面板），以及受控的“反馈 → 提案 → 评估 → 人工批准”RSI 闭环。
 
 它不是团队协作平台，也不是多租户服务；团队任务系统只通过稳定接口接入（设计目标）。
 
@@ -59,12 +59,12 @@ node dist/cli.js task list
 
 - P0 本地文件模式已实现：`init`、`detect`、`doctor`、`task`、`worktree`、`run`、`brief`、`hook`、`uninstall`、`version`。
 - M1 已实现：`feedback sync/list/show`；本地 JSONL、GitHub/Gitea 只读同步；fingerprint 去重、cursor 保留、不可信数据标记，brief 注入最新 1 条反馈。已通过真实 `api.github.com` 与 WSL2 自建 Gitea 1.27.3 验证；残余真实边界见 `docs/m1-feedback.md`。
-- M2 foundation 已实现：`control serve/status/recover`；SQLite WAL、task/run/event/lease、单写者、loopback API（无 token）；`control serve` 同时提供只读 Web UI（`/ui`：health、task 列表、单击任务直接出详情；无写入）；提案/评估实体、备份导出属 M2b。
-- M3 skeleton 已实现：`rsi create/list/run-once/request-approval/rollback-point/approve/reject`；固定命令评估、受保护资产检查、一次性人工 approval token、回滚点记录；无定时器、无自动批准/合并/发布（M3b）。
+- M2 已实现：`control serve/status/recover`；SQLite WAL、task/run/event/lease、单写者、loopback API（无 token）；`control serve` 提供本地控制面板（`/ui`：任务列表/详情、新建任务、状态转换、lease acquire/renew/release、恢复；单击任务直接出详情）。
+- M3 已实现：`rsi create/list/run-once/request-approval/rollback-point/approve/reject`；真实 git worktree 候选评估、基线对比、重复评估、受保护资产/预算检查、导出、一次性人工 approval token、回滚点；无定时器、无自动批准/合并/发布（按 L2 设计）。
 - 文件适配器：DSH（项目 `.dsh/skills/sage-kit` + `AGENTS.md`，固定版本源码已核对）、Codex（`.agents/skills` + `AGENTS.md`）、Claude Code（`.claude/skills` + `CLAUDE.md`）；全局作用域安装到宿主全局目录，说明块默认跳过。P0 不安装宿主原生 hook。
-- 自动化测试：`npm test`（本机 Windows Node v24.22.0、WSL2 Ubuntu Node v22.22.1；主测试/CI 仍建议 Linux）；当前 **81 项 / 81 通过 / 0 失败**（Windows Node 24.22.0 与 WSL2 Ubuntu Node 22.22.1 各跑一遍），覆盖 P0、M1、M2、M3。覆盖矩阵与已知缺口见 [`docs/p0-acceptance.md`](docs/p0-acceptance.md)、[`docs/m1-feedback.md`](docs/m1-feedback.md)、[`docs/m2-control.md`](docs/m2-control.md)、[`docs/m3-rsi.md`](docs/m3-rsi.md)。
-- A13 部分证据：真实 DSH 0.2.1-rc.2 headless + mock 模型验证了项目 Skill 发现/加载；**真实 DeepSeek 模型 headless** 调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务 JSON 由独立命令复核；Linux DSH Web 启动、token/cookie/SPA 检查通过。**浏览器 GUI 交互、hook 自动注入、真实 `stop` 生命周期 `NOT_EXECUTED`**，因此 A13 未完整通过。证据见 [`reports/p0/dsh-real-model-e2e.md`](reports/p0/dsh-real-model-e2e.md)、[`reports/p0/dsh-e2e-model.md`](reports/p0/dsh-e2e-model.md)、[`reports/p0/dsh-real-host.md`](reports/p0/dsh-real-host.md)、[`reports/p0/dsh-linux-web.md`](reports/p0/dsh-linux-web.md)。
-- `NOT_IMPLEMENTED`：控制面完整 UI（写入/提案/评估）、M2b 备份/导出、M3 定时/自动循环、Bundle 导入/导出、宿主 hook 自动安装。M1 真实 API 的未覆盖边界（GitHub Link 分页/私有仓库/企业版/429、Gitea 公共实例/HTTPS）见 `docs/m1-feedback.md`。
+- 自动化测试：`npm test`（本机 Windows Node v24.22.0、WSL2 Ubuntu Node v22.22.1；主测试/CI 仍建议 Linux）；当前 **93 项 / 93 通过 / 0 失败**（Windows Node 24.22.0 与 WSL2 Ubuntu Node 22.22.1 各跑一遍），覆盖 P0、M1、M2、M3。覆盖矩阵与已知缺口见 [`docs/p0-acceptance.md`](docs/p0-acceptance.md)、[`docs/m1-feedback.md`](docs/m1-feedback.md)、[`docs/m2-control.md`](docs/m2-control.md)、[`docs/m3-rsi.md`](docs/m3-rsi.md)。
+- A13 证据：真实 DSH 0.2.1-rc.2 + 真实 DeepSeek 模型已在 headless 与 Web GUI 中完成 `skill` → 真实 `bash` → `task create/list`；GUI 停止/重启后会话与任务恢复；卸载/重装循环通过；真实 `dsh web` 停止后进程/端口清理。DSH 本身不提供 hook 自动注入（`NOT_AVAILABLE`），手动 `sage-kit hook` 与 AGENTS 指令路径可用；按 A13“至少一个宿主通过”判定为 PASS。证据见 [`reports/p0/dsh-gui-e2e.md`](reports/p0/dsh-gui-e2e.md)、[`reports/p0/dsh-real-model-e2e.md`](reports/p0/dsh-real-model-e2e.md)。
+- 设计上不实现：多用户/远程控制面、自动批准/合并/发布、无人值守定时 RSI、Bundle 导入/导出。M1 真实 API 的未覆盖边界（GitHub Link 分页/私有仓库/企业版/429、Gitea 公共实例/HTTPS）见 `docs/m1-feedback.md`；M2/M3 的模块级限制见各自专题文档。
 - 文档中“目标设计（`TARGET`）”与“已实现（`P0`）”分开标注；实现偏差先改 ADR/文档，再改代码。
 
 ## 许可证

@@ -151,10 +151,7 @@ function readRequestBody(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
-async function readJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> {
-  const raw = await readRequestBody(req);
-  const text = raw.toString("utf8").trim();
-  if (!text) throw new SageError("Request body is required", "E_BAD_REQUEST", 1);
+function parseJsonObjectText(text: string): Record<string, unknown> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text) as unknown;
@@ -165,6 +162,21 @@ async function readJsonObject(req: IncomingMessage): Promise<Record<string, unkn
     throw new SageError("Request body must be a JSON object", "E_BAD_JSON", 1);
   }
   return parsed as Record<string, unknown>;
+}
+
+async function readJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const raw = await readRequestBody(req);
+  const text = raw.toString("utf8").trim();
+  if (!text) throw new SageError("Request body is required", "E_BAD_REQUEST", 1);
+  return parseJsonObjectText(text);
+}
+
+/** Like readJsonObject, but an empty body is treated as `{}` (POST /v1/recover, CLI-compatible). */
+async function readOptionalJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const raw = await readRequestBody(req);
+  const text = raw.toString("utf8").trim();
+  if (!text) return {};
+  return parseJsonObjectText(text);
 }
 
 function requireBodyString(body: Record<string, unknown>, key: string, max: number): string {
@@ -196,6 +208,53 @@ function optionalBodyNumber(body: Record<string, unknown>, key: string): number 
   return value;
 }
 
+function optionalBodyInteger(body: Record<string, unknown>, key: string): number | undefined {
+  const value = optionalBodyNumber(body, key);
+  if (value !== undefined && !Number.isInteger(value)) {
+    throw new SageError(`Body field "${key}" must be an integer`, "E_BAD_REQUEST", 2);
+  }
+  return value;
+}
+
+function optionalBodyStringArray(
+  body: Record<string, unknown>,
+  key: string,
+  maxItems: number,
+  maxLength: number,
+): string[] | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new SageError(`Body field "${key}" must be an array of strings`, "E_BAD_REQUEST", 2);
+  }
+  if (value.length > maxItems) {
+    throw new SageError(`Body field "${key}" must contain at most ${maxItems} items`, "E_BAD_REQUEST", 2);
+  }
+  return value.map((item, index) => {
+    if (typeof item !== "string" || item.trim().length === 0) {
+      throw new SageError(`Body field "${key}[${index}]" must be a non-empty string`, "E_BAD_REQUEST", 2);
+    }
+    const text = item.trim();
+    if (text.length > maxLength) {
+      throw new SageError(`Body field "${key}[${index}]" must be <= ${maxLength} characters`, "E_BAD_REQUEST", 2);
+    }
+    return text;
+  });
+}
+
+function queryPositiveInteger(url: URL, key: string): number | undefined {
+  const raw = url.searchParams.get(key);
+  if (raw === null) return undefined;
+  if (!/^[0-9]+$/.test(raw)) {
+    throw new SageError(`Query parameter "${key}" must be a positive integer`, "E_BAD_PAGINATION", 2);
+  }
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new SageError(`Query parameter "${key}" must be a positive integer`, "E_BAD_PAGINATION", 2);
+  }
+  return value;
+}
+
 function methodNotAllowed(res: ServerResponse, allowed: string[]): void {
   res.setHeader("allow", allowed.join(", "));
   sendError(res, 405, "E_METHOD_NOT_ALLOWED", `Allowed methods: ${allowed.join(", ")}`);
@@ -216,7 +275,8 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
     const pathname = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
 
-    // The shell is public HTML with no data; every /v1/* call still requires auth.
+    // The shell is public HTML with no embedded data. Every /v1/* route is
+    // reachable only from the loopback socket + loopback Host header (no token).
     if ((pathname === "/" || pathname === "/ui") && method === "GET") {
       sendHtml(res, 200, renderControlUiHtml());
       return;
@@ -239,10 +299,48 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
       return;
     }
     if (pathname === "/v1/tasks") {
-      if (method !== "GET") return methodNotAllowed(res, ["GET"]);
-      const status = url.searchParams.get("status");
-      const tasks = store.listTasks(status === null ? {} : { status: status as TaskStatus });
-      sendJson(res, 200, { tasks });
+      if (method === "GET") {
+        const status = url.searchParams.get("status");
+        const tasks = store.listTasks(status === null ? {} : { status: status as TaskStatus });
+        sendJson(res, 200, { tasks });
+        return;
+      }
+      if (method === "POST") {
+        const body = await readJsonObject(req);
+        const title = requireBodyString(body, "title", 200);
+        const description = optionalBodyString(body, "description", 2_000);
+        const acceptance = optionalBodyStringArray(body, "acceptance", 20, 500);
+        const priority = optionalBodyInteger(body, "priority");
+        const source = optionalBodyString(body, "source", 200);
+        const task = store.createTask({
+          title,
+          ...(description !== undefined ? { description } : {}),
+          ...(acceptance !== undefined ? { acceptance } : {}),
+          ...(priority !== undefined ? { priority } : {}),
+          ...(source !== undefined ? { source } : {}),
+        });
+        sendJson(res, 200, { task });
+        return;
+      }
+      return methodNotAllowed(res, ["GET", "POST"]);
+    }
+    const statusRoute = /^\/v1\/tasks\/([^/]+)\/status$/.exec(pathname);
+    if (statusRoute) {
+      if (method !== "POST") return methodNotAllowed(res, ["POST"]);
+      const id = statusRoute[1] ?? "";
+      const body = await readJsonObject(req);
+      const status = requireBodyString(body, "status", 32) as TaskStatus;
+      const evidence = optionalBodyStringArray(body, "evidence", 20, 1_000);
+      const note = optionalBodyString(body, "note", 1_000);
+      const blockedReason = optionalBodyString(body, "blockedReason", 1_000);
+      const expectedVersion = optionalBodyInteger(body, "expectedVersion");
+      const task = store.updateTaskStatus(id, status, {
+        ...(evidence !== undefined ? { evidence } : {}),
+        ...(note !== undefined ? { note } : {}),
+        ...(blockedReason !== undefined ? { blockedReason } : {}),
+        ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+      });
+      sendJson(res, 200, { task });
       return;
     }
     if (pathname.startsWith("/v1/tasks/")) {
@@ -253,6 +351,18 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
       const events = store.listEvents({ taskId: id });
       const lease = store.getLease(id);
       sendJson(res, 200, { task, runs, events, lease: lease ?? null });
+      return;
+    }
+    if (pathname === "/v1/events") {
+      if (method !== "GET") return methodNotAllowed(res, ["GET"]);
+      const rawTaskId = url.searchParams.get("taskId");
+      const taskId = rawTaskId === null || rawTaskId.trim() === "" ? undefined : rawTaskId.trim();
+      const limit = queryPositiveInteger(url, "limit");
+      const events = store.listEvents({
+        ...(taskId !== undefined ? { taskId } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      });
+      sendJson(res, 200, { events });
       return;
     }
     if (pathname === "/v1/leases/acquire") {
@@ -270,6 +380,19 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
       sendJson(res, 200, { lease });
       return;
     }
+    if (pathname === "/v1/leases/renew") {
+      if (method !== "POST") return methodNotAllowed(res, ["POST"]);
+      const body = await readJsonObject(req);
+      const taskId = requireBodyString(body, "taskId", 64);
+      const owner = requireBodyString(body, "owner", 200);
+      const ttlMs = optionalBodyNumber(body, "ttlMs");
+      const lease = store.renewLease(taskId, {
+        owner,
+        ...(ttlMs !== undefined ? { ttlMs } : {}),
+      });
+      sendJson(res, 200, { lease });
+      return;
+    }
     if (pathname === "/v1/leases/release") {
       if (method !== "POST") return methodNotAllowed(res, ["POST"]);
       const body = await readJsonObject(req);
@@ -277,6 +400,14 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
       const owner = optionalBodyString(body, "owner", 200);
       const lease = store.releaseLease(taskId, owner === undefined ? {} : { owner });
       sendJson(res, 200, { released: true, lease });
+      return;
+    }
+    if (pathname === "/v1/recover") {
+      if (method !== "POST") return methodNotAllowed(res, ["POST"]);
+      const body = await readOptionalJsonObject(req);
+      const staleRunAfterMs = optionalBodyNumber(body, "staleRunAfterMs");
+      const report = store.recoverStale(staleRunAfterMs === undefined ? {} : { staleRunAfterMs });
+      sendJson(res, 200, { report });
       return;
     }
     throw new SageError(`Unknown control API route: ${pathname}`, "E_NOT_FOUND", 1);
@@ -292,11 +423,13 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
 }
 
 /**
- * Start the minimal local control API.
+ * Start the local control API (read + write).
  *
  * - Binds `127.0.0.1` only; any other `host` is rejected before listening.
  * - No token: the security boundary is the loopback socket + loopback Host
  *   header, plus the OS user account. This is a single-user local tool.
+ * - All writes go through ControlStore methods; the HTTP layer only validates
+ *   input shape and maps errors, it never re-implements the state machine.
  * - JSON in, JSON out; unknown paths -> 404; wrong methods -> 405.
  */
 export async function createControlServer(options: ControlServerOptions): Promise<ControlServer> {
@@ -308,8 +441,14 @@ export async function createControlServer(options: ControlServerOptions): Promis
     !store ||
     typeof store.getTask !== "function" ||
     typeof store.listTasks !== "function" ||
+    typeof store.createTask !== "function" ||
+    typeof store.updateTaskStatus !== "function" ||
+    typeof store.listEvents !== "function" ||
+    typeof store.getLease !== "function" ||
     typeof store.acquireLease !== "function" ||
+    typeof store.renewLease !== "function" ||
     typeof store.releaseLease !== "function" ||
+    typeof store.recoverStale !== "function" ||
     typeof store.debugInfo !== "function"
   ) {
     throw new SageError("createControlServer requires an open ControlStore", "E_BAD_CONFIG", 2);

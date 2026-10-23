@@ -1,17 +1,18 @@
 /**
- * M3 RSI skeleton types.
+ * M3 RSI types (schema v2: real git worktree evaluation, baseline comparison,
+ * repeated runs).
  *
  * DESIGN: docs/feedback-and-rsi.md §5–§9; docs/decisions.md D-011 (RSI stops at
- * L2, human approval only) and D-012 (Builder/Evaluator separation, protected
- * evaluation assets).
+ * L2, human approval only), D-012 (Builder/Evaluator separation, protected
+ * evaluation assets) and D-005 (single authoritative writer).
  *
- * This module is a *skeleton*, not the autonomous loop: proposal, evaluation,
- * approval and rollback-point records are file-mode state under `.sage-kit/rsi/`
- * (single authoritative writer, D-005). Nothing here merges, publishes, rewrites
- * `SKILL.md`, calls a model or opens a network connection by itself.
+ * This module is still a *skeleton*, not the autonomous loop: proposal,
+ * evaluation, approval and rollback-point records are file-mode state under
+ * `.sage-kit/rsi/`. Nothing here merges, publishes, rewrites `SKILL.md`, calls a
+ * model or opens a network connection by itself.
  */
 
-export const RSI_SCHEMA_VERSION = 1;
+export const RSI_SCHEMA_VERSION = 2;
 
 export const RSI_PROPOSAL_STATUSES = [
   "proposed",
@@ -29,33 +30,40 @@ export function isProposalStatus(value: unknown): value is ProposalStatus {
 }
 
 export type EvaluationOutcome = "passed" | "failed";
+export type EvaluationRunKind = "baseline" | "candidate";
 export type ApprovalDecision = "approved" | "rejected";
 
 /**
  * Budgets and limits for one evaluation. Defaults follow
- * docs/feedback-and-rsi.md §5 (diff size) and §9 (one candidate at a time).
+ * docs/feedback-and-rsi.md §5 (diff size), §6 (baseline evidence) and §9 (one
+ * candidate at a time, bounded repeats).
  */
 export interface RsiLimits {
   /** Maximum number of files a candidate may change. Default 20. */
   maxCandidateFiles: number;
   /** Maximum changed (added + removed) lines across the candidate. Default 500. */
   maxChangedLines: number;
-  /** Maximum bytes kept from each of stdout/stderr in the evaluation record. */
+  /** Maximum bytes kept from each of stdout/stderr in one run record. */
   maxLogBytes: number;
-  /** Wall-clock budget for the fixed evaluation command (milliseconds). */
+  /** Wall-clock budget for one fixed evaluation command (milliseconds). */
   evaluationTimeoutMs: number;
+  /** Maximum accepted `repeats` value (evaluation repeats are bounded). */
+  maxRepeats: number;
 }
+
+export const DEFAULT_REPEATS = 1;
 
 export const DEFAULT_RSI_LIMITS: RsiLimits = {
   maxCandidateFiles: 20,
   maxChangedLines: 500,
   maxLogBytes: 16_384,
   evaluationTimeoutMs: 120_000,
+  maxRepeats: 5,
 };
 
 /**
  * Evaluation assets a candidate may never modify (D-012 §8). The evaluator
- * re-checks the same set after the fixed suite ran, so a test that rewrites a
+ * re-checks the same set after every candidate run, so a test that rewrites a
  * protected asset is a failed evaluation as well.
  */
 export const DEFAULT_PROTECTED_PATHS: readonly string[] = [
@@ -90,7 +98,7 @@ export interface ProposalFeedbackRef extends FeedbackRefInput {
  *
  * Paths are project-relative POSIX paths. Absolute paths, `..` escapes and the
  * reserved `.git`/`.sage-kit` trees are rejected before evaluation. Candidates
- * are only ever written into an isolated temporary copy, never the source tree.
+ * are only ever written into an isolated git worktree, never the source tree.
  */
 export interface CandidateFile {
   path: string;
@@ -177,10 +185,55 @@ export interface EvaluationLog {
   truncated: boolean;
 }
 
-export interface EvaluationWorkspace {
-  kind: "temp-copy";
-  tempDir: string;
+/** One isolated git worktree used by a baseline or candidate run. */
+export interface EvaluationWorktree {
+  kind: "git-worktree";
+  /** Worktree root (a detached checkout of the proposal base commit). */
+  path: string;
+  /** True when the worktree and its temporary parent were removed. */
   removed: boolean;
+}
+
+/**
+ * One measured run of the fixed evaluation command. Every baseline/candidate
+ * run has its own record and its own throwaway worktree.
+ */
+export interface EvaluationRun {
+  /** 1-based repeat index. */
+  index: number;
+  kind: EvaluationRunKind;
+  /** False only when the candidate could not be applied inside the worktree. */
+  applied: boolean;
+  ranTests: boolean;
+  outcome: EvaluationOutcome;
+  reasonCode?: string;
+  reasonMessage?: string;
+  exitCode: number | null;
+  signal: string | null;
+  timedOut: boolean;
+  durationMs: number;
+  protectedAssets: ProtectedAssetReport;
+  log: EvaluationLog;
+  worktree: EvaluationWorktree;
+}
+
+/** Baseline evidence: the same fixed command on the unmodified base commit. */
+export interface EvaluationBaseline {
+  runs: EvaluationRun[];
+  passedRuns: number;
+  failedRuns: number;
+  /** `not_run` when the candidate was rejected before any command ran. */
+  outcome: EvaluationOutcome | "not_run";
+}
+
+/** Candidate-vs-baseline comparison used by the pass rule. */
+export interface EvaluationComparison {
+  candidateRuns: number;
+  baselineRuns: number;
+  candidatePassedRuns: number;
+  baselinePassedRuns: number;
+  /** True when the candidate passed at least as many runs as the baseline. */
+  noWeakerThanBaseline: boolean;
 }
 
 export interface Evaluation {
@@ -190,24 +243,33 @@ export interface Evaluation {
   attempt: number;
   startedAt: string;
   finishedAt: string;
+  /** Fully resolved git commit the worktrees were checked out from. */
+  baseCommit: string;
+  /** Number of candidate/baseline runs requested (1..limits.maxRepeats). */
+  repeats: number;
+  /** Exact fixed command the evaluator ran (never supplied by the proposal). */
+  command: string[];
   outcome: EvaluationOutcome;
   /** Machine-readable failure reason code (see docs/m3-rsi.md §6). */
   reasonCode?: string;
   reasonMessage?: string;
   /** False when the candidate was rejected before the fixed suite started. */
   ranTests: boolean;
-  /** Exact fixed command the evaluator ran (never supplied by the proposal). */
-  command: string[];
+  /** First candidate run's exit code (aggregate convenience field). */
   exitCode: number | null;
   signal: string | null;
+  /** True when any candidate run timed out. */
   timedOut: boolean;
-  /** Wall-clock duration of the fixed command; 0 when it never ran. */
+  /** Sum of candidate run durations. */
   durationMs: number;
   diff: ProposalDiffStats;
   protectedAssets: ProtectedAssetReport;
+  /** First candidate run's (redacted, truncated) log; all logs are in `runs`. */
   log: EvaluationLog;
-  /** Absent when the candidate was rejected before a workspace was created. */
-  workspace?: EvaluationWorkspace;
+  /** Candidate runs, oldest first. */
+  runs: EvaluationRun[];
+  baseline: EvaluationBaseline;
+  comparison: EvaluationComparison;
 }
 
 export interface Approval {

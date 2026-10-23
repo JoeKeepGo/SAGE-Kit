@@ -1,0 +1,10 @@
+date_utc=2026-10-23T18:48:45Z
+pidfile_pid=148646
+process_was_alive=yes
+forced_sigkill=no
+process_alive_after=no
+port_18766_listeners_after=0
+dsh_web_processes_after=0
+0
+--- ss detail ---
+no listener on 18766

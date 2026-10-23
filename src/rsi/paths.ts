@@ -6,6 +6,7 @@
  *     evaluations/<id>.json
  *     approvals/<id>.json
  *     rollback-points/<id>.json
+ *     exports/<evaluation-id>.json
  *     evaluation.lock
  *
  * `.gitignore` already ignores `.sage-kit/`, so none of this state can be
@@ -23,6 +24,7 @@ export interface RsiPaths {
   evaluationsDir: string;
   approvalsDir: string;
   rollbackPointsDir: string;
+  exportsDir: string;
   lockPath: string;
 }
 
@@ -36,13 +38,20 @@ export function rsiPaths(projectRoot: string): RsiPaths {
     evaluationsDir: join(rsiDir, "evaluations"),
     approvalsDir: join(rsiDir, "approvals"),
     rollbackPointsDir: join(rsiDir, "rollback-points"),
+    exportsDir: join(rsiDir, "exports"),
     lockPath: join(rsiDir, "evaluation.lock"),
   };
 }
 
 /** Create the state directories. Only called by write paths. */
 export async function ensureRsiPaths(paths: RsiPaths): Promise<void> {
-  for (const dir of [paths.proposalsDir, paths.evaluationsDir, paths.approvalsDir, paths.rollbackPointsDir]) {
+  for (const dir of [
+    paths.proposalsDir,
+    paths.evaluationsDir,
+    paths.approvalsDir,
+    paths.rollbackPointsDir,
+    paths.exportsDir,
+  ]) {
     await ensureDir(dir);
   }
 }

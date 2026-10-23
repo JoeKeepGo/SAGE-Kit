@@ -119,7 +119,9 @@ Usage:
   sage-kit feedback show <id> [--json]
   sage-kit rsi create --file <proposal.json>
   sage-kit rsi list [--status <status>] [--json]
-  sage-kit rsi run-once --test-command <json-array> [--json]
+  sage-kit rsi run-once --test-command <json-array> [--repeats <n>] [--export] [--out <path>] [--json]
+  sage-kit rsi export <evaluation-id> [--out <path>] [--json]
+  sage-kit rsi record-control <evaluation-id> [--json]
   sage-kit rsi request-approval <proposal-id> [--json]
   sage-kit rsi rollback-point --base-commit <sha> --base-version <ver> [--json]
   sage-kit rsi approve <proposal-id> --token <t> --decided-by <name> --rollback-point <id> [--json]
@@ -401,15 +403,75 @@ async function runRsiCommand(argv: string[], root: string): Promise<number> {
   }
 
   if (sub === "run-once") {
-    const parsed = parseArgs(argv.slice(1), { value: ["test-command"], boolean: ["json"] });
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["test-command", "repeats", "out"],
+      boolean: ["json", "export"],
+    });
     const command = JSON.parse(requireString(parsed.flags, "test-command")) as string[];
     if (!Array.isArray(command) || command.some((item) => typeof item !== "string") || command.length === 0) {
       throw new SageError("--test-command must be a non-empty JSON string array", "E_USAGE", 2);
     }
-    const result = await rsi.runOnce({ projectRoot: root, testCommand: command });
-    if (boolFlag(parsed.flags, "json")) json({ ok: true, result });
-    else process.stdout.write(`${result.outcome}: evaluated=${result.evaluated}${result.proposalId ? ` ${result.proposalId}` : ""}\n`);
+    let repeats: number | undefined;
+    if (parsed.flags.repeats !== undefined) {
+      repeats = Number(parsed.flags.repeats);
+      if (!Number.isInteger(repeats) || repeats < 1) {
+        throw new SageError("--repeats must be a positive integer", "E_USAGE", 2);
+      }
+    }
+    const result = await rsi.runOnce({
+      projectRoot: root,
+      testCommand: command,
+      ...(repeats === undefined ? {} : { repeats }),
+    });
+    let exportFile: string | undefined;
+    if (boolFlag(parsed.flags, "export") && result.evaluationId !== undefined) {
+      const outFile = typeof parsed.flags.out === "string" ? parsed.flags.out : undefined;
+      const exported = await rsi.exportEvaluationSummary({
+        projectRoot: root,
+        evaluationId: result.evaluationId,
+        ...(outFile === undefined ? {} : { outFile }),
+      });
+      exportFile = exported.filePath;
+    }
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, result, ...(exportFile === undefined ? {} : { exportFile }) });
+    else {
+      process.stdout.write(`${result.outcome}: evaluated=${result.evaluated}${result.proposalId ? ` ${result.proposalId}` : ""}\n`);
+      if (exportFile !== undefined) process.stdout.write(`exported: ${exportFile}\n`);
+    }
     return result.outcome === "failed" ? 1 : 0;
+  }
+
+  if (sub === "export") {
+    const parsed = parseArgs(argv.slice(1), { value: ["out"], boolean: ["json"] });
+    const evaluationId = parsed.positional[0];
+    if (!evaluationId) throw new SageError("rsi export requires <evaluation-id>", "E_USAGE", 2);
+    const outFile = typeof parsed.flags.out === "string" ? parsed.flags.out : undefined;
+    const exported = await rsi.exportEvaluationSummary({
+      projectRoot: root,
+      evaluationId,
+      ...(outFile === undefined ? {} : { outFile }),
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, filePath: exported.filePath, summary: exported.summary });
+    else process.stdout.write(`exported: ${exported.filePath}\n`);
+    return 0;
+  }
+
+  if (sub === "record-control") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const evaluationId = parsed.positional[0];
+    if (!evaluationId) throw new SageError("rsi record-control requires <evaluation-id>", "E_USAGE", 2);
+    const evaluation = await store.getEvaluation(evaluationId);
+    const proposal = await store.getProposal(evaluation.proposalId);
+    const control = await import("./control/index.js");
+    const controlStore = control.openControl(root);
+    try {
+      const record = rsi.recordEvaluationInControl({ store: controlStore, proposal, evaluation });
+      if (boolFlag(parsed.flags, "json")) json({ ok: true, record });
+      else process.stdout.write(`recorded task=${record.taskId} run=${record.runId}\n`);
+    } finally {
+      controlStore.close();
+    }
+    return 0;
   }
 
   if (sub === "request-approval") {

@@ -692,7 +692,7 @@ describe("M2 control HTTP API", () => {
     });
   });
 
-  it("serves a public read-only UI shell and data without a token", async () => {
+  it("serves a public local control panel without a token and exposes write affordances", async () => {
     await withControlServer(async ({ server }) => {
       const root = await api(server, "/");
       assert.equal(root.status, 200);
@@ -700,14 +700,21 @@ describe("M2 control HTTP API", () => {
       assert.equal(root.headers["x-frame-options"], "DENY");
       assert.match(root.headers["content-security-policy"], /default-src 'none'/);
       assert.match(root.text, /SAGE-Kit Control/);
-      assert.match(root.text, /只读/);
+      assert.match(root.text, /写操作仅限本机/);
+      assert.match(root.text, /新建任务/);
+      assert.match(root.text, /恢复 stale/);
+      assert.doesNotMatch(root.text, /type="password"|Bearer\s|Authorization:/i);
 
       const ui = await api(server, "/ui");
       assert.equal(ui.status, 200);
       assert.match(ui.text, /id="tasks"/);
+      assert.match(ui.text, /任务操作/);
+      assert.match(ui.text, /status-next|领取租约|获取租约/);
       const script = ui.text.match(/<script>([\s\S]*?)<\/script>/);
-      assert.ok(script, "read-only UI must include an inline script");
-      assert.doesNotThrow(() => new Function(script[1]), "read-only UI script must parse");
+      assert.ok(script, "control UI must include an inline script");
+      assert.doesNotThrow(() => new Function(script[1]), "control UI script must parse");
+      assert.match(script[1], /\/v1\/tasks/);
+      assert.match(script[1], /\/v1\/recover/);
 
       const favicon = await api(server, "/favicon.ico");
       assert.equal(favicon.status, 204);
@@ -759,12 +766,281 @@ describe("M2 control HTTP API", () => {
       assert.equal(badId.status, 400);
       assert.equal(badId.json.error.code, "E_BAD_TASK_ID");
 
-      const wrongMethod = await api(server, "/v1/tasks", { method: "POST", body: { title: "x" } });
+      const wrongMethod = await api(server, "/v1/tasks", { method: "PUT" });
+      assert.equal(wrongMethod.status, 405);
+      assert.equal(wrongMethod.headers.allow, "GET, POST");
+      const wrongUnknown = await api(server, "/v1/nope");
+      assert.equal(wrongUnknown.status, 404);
+      assert.equal(wrongUnknown.json.error.code, "E_NOT_FOUND");
+    });
+  });
+
+  it("creates tasks over HTTP with defaults and validation", async () => {
+    await withControlServer(async ({ store, server }) => {
+      const created = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: {
+          title: "http created",
+          description: "created from the local panel",
+          acceptance: ["first criterion", "second criterion"],
+          priority: 3,
+          source: "manual-ui",
+        },
+      });
+      assert.equal(created.status, 200);
+      assert.equal(created.headers["cache-control"], "no-store");
+      const task = created.json.task;
+      assert.equal(task.title, "http created");
+      assert.equal(task.description, "created from the local panel");
+      assert.deepEqual(task.acceptance, ["first criterion", "second criterion"]);
+      assert.equal(task.priority, 3);
+      assert.equal(task.source, "manual-ui");
+      assert.equal(task.status, "ready");
+      assert.equal(task.version, 1);
+      assert.equal(store.getTask(task.id).title, "http created");
+      const events = store.listEvents({ taskId: task.id });
+      assert.equal(events[0].type, "task.created");
+
+      const minimal = await api(server, "/v1/tasks", { method: "POST", body: { title: "minimal" } });
+      assert.equal(minimal.status, 200);
+      assert.equal(minimal.json.task.description, "");
+      assert.deepEqual(minimal.json.task.acceptance, []);
+      assert.equal(minimal.json.task.priority, 0);
+      assert.equal(minimal.json.task.status, "ready");
+
+      const missingTitle = await api(server, "/v1/tasks", { method: "POST", body: {} });
+      assert.equal(missingTitle.status, 400);
+      assert.equal(missingTitle.json.error.code, "E_BAD_REQUEST");
+
+      const emptyTitle = await api(server, "/v1/tasks", { method: "POST", body: { title: "   " } });
+      assert.equal(emptyTitle.status, 400);
+
+      const badAcceptance = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: { title: "bad acceptance", acceptance: "not-an-array" },
+      });
+      assert.equal(badAcceptance.status, 400);
+      assert.equal(badAcceptance.json.error.code, "E_BAD_REQUEST");
+
+      const badAcceptanceItem = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: { title: "bad acceptance item", acceptance: ["ok", 7] },
+      });
+      assert.equal(badAcceptanceItem.status, 400);
+
+      const badPriority = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: { title: "bad priority", priority: 1.5 },
+      });
+      assert.equal(badPriority.status, 400);
+      assert.equal(badPriority.json.error.code, "E_BAD_REQUEST");
+
+      const badJson = await api(server, "/v1/tasks", { method: "POST", rawBody: "{nope" });
+      assert.equal(badJson.status, 400);
+      assert.equal(badJson.json.error.code, "E_BAD_JSON");
+    });
+  });
+
+  it("transitions task status over HTTP with evidence, note and expectedVersion", async () => {
+    await withControlServer(async ({ store, server }) => {
+      const task = store.createTask({ title: "http transition" });
+      const toRunning = await api(server, `/v1/tasks/${task.id}/status`, {
+        method: "POST",
+        body: { status: "running", note: "picked up by local panel", expectedVersion: task.version },
+      });
+      assert.equal(toRunning.status, 200);
+      assert.equal(toRunning.json.task.status, "running");
+      assert.equal(toRunning.json.task.version, task.version + 1);
+
+      const toReview = await api(server, `/v1/tasks/${task.id}/status`, {
+        method: "POST",
+        body: { status: "review", evidence: ["manual check passed"], note: "ready for review" },
+      });
+      assert.equal(toReview.status, 200);
+      assert.equal(toReview.json.task.status, "review");
+      assert.equal(toReview.json.task.evidence.length, 1);
+      assert.equal(toReview.json.task.evidence[0].note, "manual check passed");
+      const statusEvents = store.listEvents({ taskId: task.id }).filter((event) => event.type === "task.status_changed");
+      assert.equal(statusEvents.length, 2);
+
+      const noEvidence = store.createTask({ title: "done needs evidence" });
+      store.updateTaskStatus(noEvidence.id, "running");
+      store.updateTaskStatus(noEvidence.id, "review");
+      const doneWithoutEvidence = await api(server, `/v1/tasks/${noEvidence.id}/status`, {
+        method: "POST",
+        body: { status: "done" },
+      });
+      assert.equal(doneWithoutEvidence.status, 409);
+      assert.equal(doneWithoutEvidence.json.error.code, "E_DONE_WITHOUT_EVIDENCE");
+
+      const badStatus = await api(server, `/v1/tasks/${task.id}/status`, {
+        method: "POST",
+        body: { status: "nope" },
+      });
+      assert.equal(badStatus.status, 400);
+      assert.equal(badStatus.json.error.code, "E_BAD_STATUS");
+
+      const badEvidence = await api(server, `/v1/tasks/${task.id}/status`, {
+        method: "POST",
+        body: { status: "blocked", evidence: "not-an-array" },
+      });
+      assert.equal(badEvidence.status, 400);
+      assert.equal(badEvidence.json.error.code, "E_BAD_REQUEST");
+
+      const badVersion = await api(server, `/v1/tasks/${task.id}/status`, {
+        method: "POST",
+        body: { status: "blocked", expectedVersion: 1.5 },
+      });
+      assert.equal(badVersion.status, 400);
+      assert.equal(badVersion.json.error.code, "E_BAD_REQUEST");
+
+      const missingTask = await api(server, "/v1/tasks/task-missing/status", {
+        method: "POST",
+        body: { status: "running" },
+      });
+      assert.equal(missingTask.status, 404);
+      assert.equal(missingTask.json.error.code, "E_TASK_NOT_FOUND");
+
+      const conflict = await api(server, `/v1/tasks/${task.id}/status`, {
+        method: "POST",
+        body: { status: "running", expectedVersion: 999 },
+      });
+      assert.equal(conflict.status, 409);
+      assert.equal(conflict.json.error.code, "E_TASK_VERSION_CONFLICT");
+
+      const fresh = store.createTask({ title: "illegal transition" });
+      const illegal = await api(server, `/v1/tasks/${fresh.id}/status`, {
+        method: "POST",
+        body: { status: "review" },
+      });
+      assert.equal(illegal.status, 409);
+      assert.equal(illegal.json.error.code, "E_BAD_TRANSITION");
+
+      const wrongMethod = await api(server, `/v1/tasks/${task.id}/status`);
+      assert.equal(wrongMethod.status, 405);
+      assert.equal(wrongMethod.headers.allow, "POST");
+    });
+  });
+
+  it("renews leases over HTTP and reports lease errors", async () => {
+    await withControlServer(async ({ store, server }) => {
+      const task = store.createTask({ title: "http renew" });
+      const acquired = await api(server, "/v1/leases/acquire", {
+        method: "POST",
+        body: { taskId: task.id, owner: "renew-worker", ttlMs: 60_000 },
+      });
+      assert.equal(acquired.status, 200);
+      const firstExpiry = acquired.json.lease.expiresAt;
+
+      const renewed = await api(server, "/v1/leases/renew", {
+        method: "POST",
+        body: { taskId: task.id, owner: "renew-worker", ttlMs: 120_000 },
+      });
+      assert.equal(renewed.status, 200);
+      assert.equal(renewed.json.lease.owner, "renew-worker");
+      assert.ok(renewed.json.lease.expiresAt > firstExpiry, "renew must extend the lease");
+      assert.ok(store.getLease(task.id).expiresAt > firstExpiry);
+
+      const wrongOwner = await api(server, "/v1/leases/renew", {
+        method: "POST",
+        body: { taskId: task.id, owner: "other-worker" },
+      });
+      assert.equal(wrongOwner.status, 409);
+      assert.equal(wrongOwner.json.error.code, "E_LEASE_OWNER_MISMATCH");
+
+      const missingOwner = await api(server, "/v1/leases/renew", {
+        method: "POST",
+        body: { taskId: task.id },
+      });
+      assert.equal(missingOwner.status, 400);
+      assert.equal(missingOwner.json.error.code, "E_BAD_REQUEST");
+
+      const noLease = store.createTask({ title: "no lease" });
+      const missingLease = await api(server, "/v1/leases/renew", {
+        method: "POST",
+        body: { taskId: noLease.id, owner: "renew-worker" },
+      });
+      assert.equal(missingLease.status, 404);
+      assert.equal(missingLease.json.error.code, "E_LEASE_NOT_HELD");
+
+      const wrongMethod = await api(server, "/v1/leases/renew");
+      assert.equal(wrongMethod.status, 405);
+      assert.equal(wrongMethod.headers.allow, "POST");
+    });
+  });
+
+  it("lists events over HTTP with taskId and limit filters", async () => {
+    await withControlServer(async ({ store, server }) => {
+      const first = store.createTask({ title: "events one" });
+      const second = store.createTask({ title: "events two" });
+      store.appendEvent({ type: "note.added", taskId: first.id, data: { note: "one" } });
+      store.appendEvent({ type: "note.added", taskId: first.id, data: { note: "two" } });
+      store.appendEvent({ type: "note.added", taskId: first.id, data: { note: "three" } });
+      store.appendEvent({ type: "note.added", taskId: second.id, data: { note: "other" } });
+
+      const all = await api(server, `/v1/events?taskId=${encodeURIComponent(first.id)}`);
+      assert.equal(all.status, 200);
+      assert.equal(all.json.events.length, 4);
+      assert.ok(all.json.events.every((event) => event.taskId === first.id));
+      const seqs = all.json.events.map((event) => event.seq);
+      assert.deepEqual(seqs, [...seqs].sort((a, b) => a - b));
+
+      const limited = await api(server, `/v1/events?taskId=${encodeURIComponent(first.id)}&limit=2`);
+      assert.equal(limited.status, 200);
+      assert.equal(limited.json.events.length, 2);
+
+      const invalidLimit = await api(server, "/v1/events?limit=zero");
+      assert.equal(invalidLimit.status, 400);
+      assert.equal(invalidLimit.json.error.code, "E_BAD_PAGINATION");
+
+      const zeroLimit = await api(server, "/v1/events?limit=0");
+      assert.equal(zeroLimit.status, 400);
+
+      const badTask = await api(server, "/v1/events?taskId=Bad%20Id");
+      assert.equal(badTask.status, 400);
+      assert.equal(badTask.json.error.code, "E_BAD_TASK_ID");
+
+      const wrongMethod = await api(server, "/v1/events", { method: "POST" });
       assert.equal(wrongMethod.status, 405);
       assert.equal(wrongMethod.headers.allow, "GET");
-      const unknown = await api(server, "/v1/nope");
-      assert.equal(unknown.status, 404);
-      assert.equal(unknown.json.error.code, "E_NOT_FOUND");
+    });
+  });
+
+  it("recovers stale leases and runs over HTTP", async () => {
+    await withControlServer(async ({ store, server }) => {
+      const task = store.createTask({ title: "http recover" });
+      store.updateTaskStatus(task.id, "running");
+      store.recordRun({ taskId: task.id, startedAt: "2026-01-01T00:00:00.000Z" });
+
+      // Empty body is allowed: default recovery options.
+      const recovered = await api(server, "/v1/recover", { method: "POST" });
+      assert.equal(recovered.status, 200);
+      assert.equal(recovered.json.report.interruptedRuns.length, 1);
+      assert.equal(recovered.json.report.interruptedTasks.length, 1);
+      assert.equal(store.getTask(task.id).status, "interrupted");
+
+      const again = await api(server, "/v1/recover", { method: "POST", body: { staleRunAfterMs: 0 } });
+      assert.equal(again.status, 200);
+      assert.deepEqual(again.json.report.interruptedRuns, []);
+      assert.deepEqual(again.json.report.interruptedTasks, []);
+
+      const negative = await api(server, "/v1/recover", {
+        method: "POST",
+        body: { staleRunAfterMs: -1 },
+      });
+      assert.equal(negative.status, 400);
+      assert.equal(negative.json.error.code, "E_BAD_RECOVERY_OPTION");
+
+      const wrongType = await api(server, "/v1/recover", {
+        method: "POST",
+        body: { staleRunAfterMs: "soon" },
+      });
+      assert.equal(wrongType.status, 400);
+      assert.equal(wrongType.json.error.code, "E_BAD_REQUEST");
+
+      const wrongMethod = await api(server, "/v1/recover");
+      assert.equal(wrongMethod.status, 405);
+      assert.equal(wrongMethod.headers.allow, "POST");
     });
   });
 

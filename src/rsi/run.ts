@@ -12,14 +12,15 @@ import { resolveRsiStore, type RsiStore } from "./store.js";
 import type { RsiLimits, RunOnceResult } from "./types.js";
 
 export interface RunOnceOptions {
-  /** Project root; optional when a `store` is passed. */
+  /** Project root; optional when a `store` is passed. Must be the git repo root. */
   projectRoot?: string;
   store?: RsiStore;
   /** Fixed evaluator suite; see `EvaluateCandidateOptions.testCommand`. */
   testCommand: readonly string[];
+  /** Number of baseline/candidate runs; default 1, bounded by `limits.maxRepeats`. */
+  repeats?: number;
   limits?: Partial<RsiLimits>;
   protectedPaths?: readonly string[];
-  copyExclude?: readonly string[];
 }
 
 export async function runOnce(options: RunOnceOptions): Promise<RunOnceResult> {
@@ -33,9 +34,9 @@ export async function runOnce(options: RunOnceOptions): Promise<RunOnceResult> {
     store,
     proposalId: first.id,
     testCommand: options.testCommand,
+    ...(options.repeats === undefined ? {} : { repeats: options.repeats }),
     ...(options.limits === undefined ? {} : { limits: options.limits }),
     ...(options.protectedPaths === undefined ? {} : { protectedPaths: options.protectedPaths }),
-    ...(options.copyExclude === undefined ? {} : { copyExclude: options.copyExclude }),
   });
   const after = await store.getProposal(first.id);
   const result: RunOnceResult = {

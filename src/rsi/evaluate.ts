@@ -1,19 +1,26 @@
 /**
  * Candidate evaluation — the Evaluator side of the Builder/Evaluator split.
  *
- * The evaluator:
- *   1. validates the proposal is `proposed` and the candidate is within budget;
- *   2. hashes the protected evaluation assets of the source tree;
- *   3. copies the project into an isolated temp workspace;
- *   4. applies the candidate there (never in the source tree);
- *   5. runs the *fixed* command supplied by the evaluator wiring (never by the
- *      proposal), with a hard timeout and captured, redacted log tails;
- *   6. verifies the protected assets did not change during the run;
- *   7. records a pass/fail evaluation and moves the proposal to
- *      `awaiting_approval` (pass) or `failed` (fail).
+ * M3b flow (docs/m3-rsi.md §5):
+ *   1. validate the proposal is `proposed`, the git repo/commit exist and the
+ *      candidate is within budget;
+ *   2. create an isolated git worktree at the proposal's base commit and assess
+ *      the candidate against that checkout (never against the main working
+ *      tree);
+ *   3. record baseline evidence: run the fixed command on the unmodified base
+ *      commit `repeats` times, one fresh worktree per run;
+ *   4. record candidate evidence: apply the candidate in a fresh worktree per
+ *      run, run the same fixed command, re-check protected assets;
+ *   5. candidate passes only when every candidate run passes, no protected
+ *      asset changed, budgets hold, and it is not weaker than the baseline
+ *      (candidate passed runs >= baseline passed runs);
+ *   6. persist every run and move the proposal to `awaiting_approval` (pass) or
+ *      `failed` (fail).
  *
- * It never approves, merges, publishes, rewrites `SKILL.md`, calls a model or
- * opens a network connection (the fixed command is whatever the caller wired).
+ * There is no automatic retry: one call evaluates at most `repeats` bounded
+ * runs of one candidate. It never approves, merges, publishes, rewrites
+ * `SKILL.md`, calls a model or opens a network connection (the fixed command is
+ * whatever the caller wired).
  */
 import { SageError } from "../core/errors.js";
 import { truncateUtf8 } from "../core/fs-utils.js";
@@ -22,6 +29,7 @@ import {
   assessCandidate,
   diffProtectedManifests,
   hashProtectedAssets,
+  type ProtectedManifest,
 } from "./candidate.js";
 import { acquireEvaluationLock } from "./lock.js";
 import { newRsiId } from "./paths.js";
@@ -30,15 +38,31 @@ import { resolveRsiStore, type RsiStore } from "./store.js";
 import {
   RSI_SCHEMA_VERSION,
   type Evaluation,
+  type EvaluationBaseline,
+  type EvaluationComparison,
   type EvaluationLog,
+  type EvaluationRun,
+  type EvaluationRunKind,
+  type EvaluationWorktree,
   type Proposal,
   type RsiLimits,
 } from "./types.js";
-import { normalizeLimits, normalizeProtectedPaths, validateRsiId, validateTestCommand } from "./validate.js";
-import { createEvaluationWorkspace } from "./workspace.js";
+import {
+  normalizeLimits,
+  normalizeProtectedPaths,
+  normalizeRepeats,
+  validateRsiId,
+  validateTestCommand,
+} from "./validate.js";
+import {
+  createEvaluationWorktree,
+  resolveBaseCommit,
+  resolveGitRepository,
+  type GitWorktreeHandle,
+} from "./worktree.js";
 
 export interface EvaluateCandidateOptions {
-  /** Project root; optional when a `store` is passed. */
+  /** Project root; optional when a `store` is passed. Must be the git repo root. */
   projectRoot?: string;
   store?: RsiStore;
   proposalId: string;
@@ -47,16 +71,28 @@ export interface EvaluateCandidateOptions {
    * Chosen by the evaluator wiring, never by a proposal or candidate.
    */
   testCommand: readonly string[];
+  /** Number of baseline/candidate runs; default 1, bounded by `limits.maxRepeats`. */
+  repeats?: number;
   limits?: Partial<RsiLimits>;
   /** Overrides `DEFAULT_PROTECTED_PATHS` (D-012 assets). */
   protectedPaths?: readonly string[];
-  /** Extra top-level directories to exclude from the isolated copy. */
-  copyExclude?: readonly string[];
 }
 
-function resolveStore(options: { projectRoot?: string; store?: RsiStore }): RsiStore {
-  return resolveRsiStore(options);
+interface RunOptions {
+  repoRoot: string;
+  baseCommit: string;
+  testCommand: readonly string[];
+  protectedPaths: readonly string[];
+  baselineManifest: ProtectedManifest;
+  limits: RsiLimits;
 }
+
+interface FailureInfo {
+  reasonCode: string;
+  reasonMessage: string;
+}
+
+const EMPTY_LOG: EvaluationLog = { stdout: "", stderr: "", truncated: false };
 
 const LOG_REDACTIONS: readonly [RegExp, string][] = [
   [/((?:password|passwd|token|secret|authorization|api[_-]?key)\s*[=:]\s*)([^\s,;]+)/gi, "$1[REDACTED]"],
@@ -71,7 +107,7 @@ function redactLog(text: string): string {
 }
 
 function summarizeLog(result: FixedCommandResult | undefined, maxLogBytes: number): EvaluationLog {
-  if (result === undefined) return { stdout: "", stderr: "", truncated: false };
+  if (result === undefined) return EMPTY_LOG;
   const stdout = truncateUtf8(redactLog(result.stdout), maxLogBytes);
   const stderr = truncateUtf8(redactLog(result.stderr), maxLogBytes);
   return { stdout: stdout.text, stderr: stderr.text, truncated: stdout.truncated || stderr.truncated };
@@ -81,14 +117,31 @@ function shortMessage(message: string): string {
   return message.replace(/\s+/g, " ").trim().slice(0, 1_000);
 }
 
-interface FailureInfo {
-  reasonCode: string;
-  reasonMessage: string;
+function commandFailure(result: FixedCommandResult | undefined, limits: RsiLimits): FailureInfo | undefined {
+  if (result === undefined) {
+    return { reasonCode: "E_RSI_EVALUATION_FAILED", reasonMessage: "fixed evaluation command did not start" };
+  }
+  if (result.spawnError !== undefined) {
+    return { reasonCode: "E_RSI_EVAL_SPAWN_FAILED", reasonMessage: shortMessage(result.spawnError) };
+  }
+  if (result.timedOut) {
+    return {
+      reasonCode: "E_RSI_EVAL_TIMEOUT",
+      reasonMessage: `fixed evaluation command exceeded ${limits.evaluationTimeoutMs} ms`,
+    };
+  }
+  if (result.exitCode !== 0) {
+    return {
+      reasonCode: "E_RSI_TESTS_FAILED",
+      reasonMessage: `fixed evaluation command exited with code ${String(result.exitCode)}`,
+    };
+  }
+  return undefined;
 }
 
-function classifyFailure(
+function candidateFailure(
   applyError: string | undefined,
-  commandResult: FixedCommandResult | undefined,
+  result: FixedCommandResult | undefined,
   protectedCheckError: string | undefined,
   protectedChanged: readonly string[],
   limits: RsiLimits,
@@ -96,18 +149,8 @@ function classifyFailure(
   if (applyError !== undefined) {
     return { reasonCode: "E_RSI_CANDIDATE_APPLY_FAILED", reasonMessage: shortMessage(applyError) };
   }
-  if (commandResult === undefined) {
-    return { reasonCode: "E_RSI_EVALUATION_FAILED", reasonMessage: "fixed evaluation command did not start" };
-  }
-  if (commandResult.spawnError !== undefined) {
-    return { reasonCode: "E_RSI_EVAL_SPAWN_FAILED", reasonMessage: shortMessage(commandResult.spawnError) };
-  }
-  if (commandResult.timedOut) {
-    return {
-      reasonCode: "E_RSI_EVAL_TIMEOUT",
-      reasonMessage: `fixed evaluation command exceeded ${limits.evaluationTimeoutMs} ms`,
-    };
-  }
+  const base = commandFailure(result, limits);
+  if (base !== undefined) return base;
   if (protectedCheckError !== undefined) {
     return { reasonCode: "E_RSI_PROTECTED_ASSET_UNVERIFIED", reasonMessage: shortMessage(protectedCheckError) };
   }
@@ -117,13 +160,142 @@ function classifyFailure(
       reasonMessage: `fixed suite modified protected assets: ${protectedChanged.slice(0, 20).join(", ")}`,
     };
   }
-  if (commandResult.exitCode !== 0) {
-    return {
-      reasonCode: "E_RSI_TESTS_FAILED",
-      reasonMessage: `fixed evaluation command exited with code ${String(commandResult.exitCode)}`,
-    };
-  }
   return undefined;
+}
+
+function buildRun(input: {
+  index: number;
+  kind: EvaluationRunKind;
+  worktree: EvaluationWorktree;
+  applied: boolean;
+  ranTests: boolean;
+  result?: FixedCommandResult;
+  failure?: FailureInfo;
+  protectedPaths: readonly string[];
+  protectedChanged: readonly string[];
+  protectedCheckOk: boolean;
+  limits: RsiLimits;
+}): EvaluationRun {
+  const run: EvaluationRun = {
+    index: input.index,
+    kind: input.kind,
+    applied: input.applied,
+    ranTests: input.ranTests,
+    outcome: input.failure === undefined ? "passed" : "failed",
+    exitCode: input.result?.exitCode ?? null,
+    signal: input.result?.signal ?? null,
+    timedOut: input.result?.timedOut ?? false,
+    durationMs: input.result?.durationMs ?? 0,
+    protectedAssets: {
+      paths: [...input.protectedPaths],
+      ok: input.protectedCheckOk && input.protectedChanged.length === 0,
+      changed: [...input.protectedChanged],
+    },
+    log: summarizeLog(input.result, input.limits.maxLogBytes),
+    worktree: input.worktree,
+  };
+  if (input.failure !== undefined) {
+    run.reasonCode = input.failure.reasonCode;
+    run.reasonMessage = input.failure.reasonMessage;
+  }
+  return run;
+}
+
+/**
+ * Run the fixed command once in a fresh worktree. Baseline runs never apply a
+ * candidate; candidate runs apply `candidateFiles` and compare protected assets
+ * against the baseline manifest.
+ */
+async function runOne(
+  options: RunOptions,
+  kind: EvaluationRunKind,
+  index: number,
+  candidateFiles: Parameters<typeof applyCandidateFiles>[1],
+): Promise<EvaluationRun> {
+  let worktree: GitWorktreeHandle | undefined;
+  let removed = true;
+  try {
+    try {
+      worktree = await createEvaluationWorktree(options.repoRoot, options.baseCommit);
+    } catch (error) {
+      return buildRun({
+        index,
+        kind,
+        worktree: { kind: "git-worktree", path: "", removed: true },
+        applied: false,
+        ranTests: false,
+        failure: { reasonCode: "E_RSI_WORKTREE_FAILED", reasonMessage: shortMessage((error as Error).message) },
+        protectedPaths: options.protectedPaths,
+        protectedChanged: [],
+        protectedCheckOk: true,
+        limits: options.limits,
+      });
+    }
+
+    let applied = true;
+    let applyError: string | undefined;
+    let result: FixedCommandResult | undefined;
+    let protectedCheckError: string | undefined;
+    let protectedChanged: string[] = [];
+    try {
+      if (kind === "candidate") {
+        try {
+          await applyCandidateFiles(worktree.path, candidateFiles);
+        } catch (error) {
+          applied = false;
+          applyError = (error as Error).message;
+        }
+      }
+      if (applied) {
+        result = await runFixedCommand(options.testCommand, worktree.path, {
+          timeoutMs: options.limits.evaluationTimeoutMs,
+        });
+        if (kind === "candidate") {
+          try {
+            const after = await hashProtectedAssets(worktree.path, options.protectedPaths);
+            protectedChanged = diffProtectedManifests(options.baselineManifest, after);
+          } catch (error) {
+            protectedCheckError = (error as Error).message;
+          }
+        }
+      }
+    } finally {
+      removed = await worktree.cleanup().catch(() => false);
+    }
+
+    const failure =
+      kind === "candidate"
+        ? candidateFailure(applyError, result, protectedCheckError, protectedChanged, options.limits)
+        : commandFailure(result, options.limits);
+    return buildRun({
+      index,
+      kind,
+      worktree: { kind: "git-worktree", path: worktree.path, removed },
+      applied,
+      ranTests: result !== undefined,
+      ...(result === undefined ? {} : { result }),
+      ...(failure === undefined ? {} : { failure }),
+      protectedPaths: options.protectedPaths,
+      protectedChanged,
+      protectedCheckOk: protectedCheckError === undefined,
+      limits: options.limits,
+    });
+  } catch (error) {
+    // Defensive: an unexpected plumbing error must not lose the evidence that
+    // this run failed, and the worktree cleanup above still ran.
+    return buildRun({
+      index,
+      kind,
+      worktree: { kind: "git-worktree", path: worktree?.path ?? "", removed },
+      applied: false,
+      ranTests: false,
+      failure: { reasonCode: "E_RSI_EVALUATION_FAILED", reasonMessage: shortMessage((error as Error).message) },
+      protectedPaths: options.protectedPaths,
+      protectedChanged: [],
+      protectedCheckOk: true,
+      limits: options.limits,
+    });
+  }
 }
 
 async function markEvaluating(store: RsiStore, proposal: Proposal): Promise<Proposal> {
@@ -137,22 +309,45 @@ async function markEvaluating(store: RsiStore, proposal: Proposal): Promise<Prop
   return next;
 }
 
-interface PreRunFailure {
-  assessment: Awaited<ReturnType<typeof assessCandidate>>;
-  protectedPaths: readonly string[];
+function emptyComparison(): EvaluationComparison {
+  return {
+    candidateRuns: 0,
+    baselineRuns: 0,
+    candidatePassedRuns: 0,
+    baselinePassedRuns: 0,
+    noWeakerThanBaseline: false,
+  };
+}
+
+function mergeProtectedReports(
+  protectedPaths: readonly string[],
+  runs: readonly EvaluationRun[],
+): { paths: string[]; ok: boolean; changed: string[] } {
+  const changed = new Set<string>();
+  for (const run of runs) {
+    for (const path of run.protectedAssets.changed) changed.add(path);
+  }
+  return {
+    paths: [...protectedPaths],
+    ok: runs.every((run) => run.protectedAssets.ok),
+    changed: [...changed].sort(),
+  };
 }
 
 /**
- * Evaluate exactly one candidate. Throws on invalid input or infrastructure
- * failure; candidate/test failures are persisted as a failed `Evaluation`
- * record and move the proposal to `failed` (never `approved`).
+ * Evaluate exactly one candidate. Throws on invalid input or git infrastructure
+ * prerequisites (unknown commit, not a repo) before the proposal leaves
+ * `proposed`, so the caller can fix the environment and retry. Candidate/test
+ * failures are persisted as a failed `Evaluation` and move the proposal to
+ * `failed`; only a pass reaches `awaiting_approval`.
  */
 export async function evaluateCandidate(options: EvaluateCandidateOptions): Promise<Evaluation> {
-  const store = resolveStore(options);
+  const store = resolveRsiStore(options);
   const proposalId = validateRsiId(options.proposalId, "proposalId");
   const testCommand = validateTestCommand(options.testCommand);
   const limits = normalizeLimits(options.limits);
   const protectedPaths = normalizeProtectedPaths(options.protectedPaths);
+  const repeats = normalizeRepeats(options.repeats, limits);
 
   const lock = await acquireEvaluationLock(store);
   try {
@@ -164,117 +359,147 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
         1,
       );
     }
-    const assessment = await assessCandidate(store.projectRoot, proposal.candidate, { protectedPaths, limits });
+
+    // Infrastructure prerequisites: a git repo and a locally available base
+    // commit. These throw before `evaluating`, so a missing commit is fixable
+    // and does not burn the proposal's single attempt.
+    const repoRoot = await resolveGitRepository(store.projectRoot);
+    const baseCommit = await resolveBaseCommit(repoRoot, proposal.baseCommit);
     const startedAt = store.nowIso();
     const evaluationId = newRsiId("eval", startedAt);
-    const baseEvaluation = {
-      schemaVersion: RSI_SCHEMA_VERSION as 1,
-      id: evaluationId,
-      proposalId,
-      startedAt,
-      command: testCommand,
-      diff: {
-        files: assessment.changedFiles,
-        changedLines: assessment.changedLines,
-        limits: { maxFiles: limits.maxCandidateFiles, maxChangedLines: limits.maxChangedLines },
-      },
+
+    // Assess the candidate against a checkout of the base commit, not against
+    // the main working tree (which may contain uncommitted changes).
+    const assessmentWorktree = await createEvaluationWorktree(repoRoot, baseCommit);
+    let assessment: Awaited<ReturnType<typeof assessCandidate>>;
+    let baselineManifest: ProtectedManifest;
+    try {
+      assessment = await assessCandidate(assessmentWorktree.path, proposal.candidate, { protectedPaths, limits });
+      baselineManifest = await hashProtectedAssets(assessmentWorktree.path, protectedPaths);
+    } finally {
+      await assessmentWorktree.cleanup().catch(() => false);
+    }
+
+    const diff = {
+      files: assessment.changedFiles,
+      changedLines: assessment.changedLines,
+      limits: { maxFiles: limits.maxCandidateFiles, maxChangedLines: limits.maxChangedLines },
     };
 
     if (!assessment.ok) {
-      // Candidate rejected before any workspace exists: record the budget or
-      // protected-asset failure, mark the proposal failed and stop.
+      // Rejected before any run: no baseline/candidate evidence exists.
       const evaluating = await markEvaluating(store, proposal);
       const finishedAt = store.nowIso();
-      const preRun: PreRunFailure = { assessment, protectedPaths };
       const evaluation: Evaluation = {
-        ...baseEvaluation,
+        schemaVersion: RSI_SCHEMA_VERSION,
+        id: evaluationId,
+        proposalId,
         attempt: evaluating.attempts,
+        startedAt,
         finishedAt,
+        baseCommit,
+        repeats,
+        command: testCommand,
         outcome: "failed",
-        ...(preRun.assessment.reasonCode === undefined ? {} : { reasonCode: preRun.assessment.reasonCode }),
-        ...(preRun.assessment.reasonMessage === undefined
-          ? {}
-          : { reasonMessage: preRun.assessment.reasonMessage }),
+        ...(assessment.reasonCode === undefined ? {} : { reasonCode: assessment.reasonCode }),
+        ...(assessment.reasonMessage === undefined ? {} : { reasonMessage: assessment.reasonMessage }),
         ranTests: false,
         exitCode: null,
         signal: null,
         timedOut: false,
         durationMs: 0,
+        diff,
         protectedAssets: {
-          paths: [...preRun.protectedPaths],
-          ok: preRun.assessment.reasonCode !== "E_RSI_PROTECTED_ASSET",
-          changed: [...preRun.assessment.protectedHits],
+          paths: [...protectedPaths],
+          ok: assessment.reasonCode !== "E_RSI_PROTECTED_ASSET",
+          changed: [...assessment.protectedHits],
         },
-        log: { stdout: "", stderr: "", truncated: false },
+        log: EMPTY_LOG,
+        runs: [],
+        baseline: { runs: [], passedRuns: 0, failedRuns: 0, outcome: "not_run" },
+        comparison: emptyComparison(),
       };
       await store.saveEvaluation(evaluation);
       await store.saveProposal({ ...evaluating, status: "failed", evaluationId, updatedAt: finishedAt });
       return evaluation;
     }
 
-    // Infrastructure prerequisites happen before the proposal leaves `proposed`
-    // so a failure keeps it retryable; the workspace is removed on failure.
-    const baselineManifest = await hashProtectedAssets(store.projectRoot, protectedPaths);
-    const workspace = await createEvaluationWorkspace(store.projectRoot, { exclude: options.copyExclude });
-    let evaluating: Proposal;
-    try {
-      evaluating = await markEvaluating(store, proposal);
-    } catch (error) {
-      await workspace.cleanup();
-      throw error;
+    const evaluating = await markEvaluating(store, proposal);
+    const runOptions: RunOptions = {
+      repoRoot,
+      baseCommit,
+      testCommand,
+      protectedPaths,
+      baselineManifest,
+      limits,
+    };
+
+    const baselineRuns: EvaluationRun[] = [];
+    for (let index = 1; index <= repeats; index += 1) {
+      baselineRuns.push(await runOne(runOptions, "baseline", index, []));
+    }
+    const candidateRuns: EvaluationRun[] = [];
+    for (let index = 1; index <= repeats; index += 1) {
+      candidateRuns.push(await runOne(runOptions, "candidate", index, assessment.files));
     }
 
-    let commandResult: FixedCommandResult | undefined;
-    let applyError: string | undefined;
-    let protectedCheckError: string | undefined;
-    let protectedChanged: string[] = [];
-    let workspaceRemoved = false;
-    try {
-      try {
-        await applyCandidateFiles(workspace.projectRoot, assessment.files);
-      } catch (error) {
-        applyError = (error as Error).message;
-      }
-      if (applyError === undefined) {
-        commandResult = await runFixedCommand(testCommand, workspace.projectRoot, {
-          timeoutMs: limits.evaluationTimeoutMs,
-        });
-        try {
-          const afterManifest = await hashProtectedAssets(workspace.projectRoot, protectedPaths);
-          protectedChanged = diffProtectedManifests(baselineManifest, afterManifest);
-        } catch (error) {
-          protectedCheckError = (error as Error).message;
-        }
-      }
-    } finally {
-      workspaceRemoved = await workspace.cleanup();
-    }
+    const candidatePassedRuns = candidateRuns.filter((run) => run.outcome === "passed").length;
+    const baselinePassedRuns = baselineRuns.filter((run) => run.outcome === "passed").length;
+    const allCandidateRunsPassed = candidateRuns.length === repeats && candidatePassedRuns === repeats;
+    const noWeakerThanBaseline = candidatePassedRuns >= baselinePassedRuns;
+    const passed = allCandidateRunsPassed && noWeakerThanBaseline;
+    const firstFailure = candidateRuns.find((run) => run.outcome === "failed");
+    const failure: FailureInfo | undefined = passed
+      ? undefined
+      : firstFailure !== undefined
+        ? {
+            reasonCode: firstFailure.reasonCode ?? "E_RSI_TESTS_FAILED",
+            reasonMessage: firstFailure.reasonMessage ?? "a candidate run failed",
+          }
+        : { reasonCode: "E_RSI_WEAKER_THAN_BASELINE", reasonMessage: "candidate did not pass all runs" };
 
-    const failure = classifyFailure(applyError, commandResult, protectedCheckError, protectedChanged, limits);
+    const baselineOutcome: EvaluationBaseline["outcome"] =
+      baselineRuns.length === 0 ? "not_run" : baselinePassedRuns === repeats ? "passed" : "failed";
     const finishedAt = store.nowIso();
     const evaluation: Evaluation = {
-      ...baseEvaluation,
+      schemaVersion: RSI_SCHEMA_VERSION,
+      id: evaluationId,
+      proposalId,
       attempt: evaluating.attempts,
+      startedAt,
       finishedAt,
-      outcome: failure === undefined ? "passed" : "failed",
+      baseCommit,
+      repeats,
+      command: testCommand,
+      outcome: passed ? "passed" : "failed",
       ...(failure === undefined ? {} : { reasonCode: failure.reasonCode, reasonMessage: failure.reasonMessage }),
-      ranTests: commandResult !== undefined,
-      exitCode: commandResult?.exitCode ?? null,
-      signal: commandResult?.signal ?? null,
-      timedOut: commandResult?.timedOut ?? false,
-      durationMs: commandResult?.durationMs ?? 0,
-      protectedAssets: {
-        paths: [...protectedPaths],
-        ok: protectedCheckError === undefined && protectedChanged.length === 0,
-        changed: protectedChanged,
+      ranTests: candidateRuns.some((run) => run.ranTests),
+      exitCode: candidateRuns[0]?.exitCode ?? null,
+      signal: candidateRuns[0]?.signal ?? null,
+      timedOut: candidateRuns.some((run) => run.timedOut),
+      durationMs: candidateRuns.reduce((total, run) => total + run.durationMs, 0),
+      diff,
+      protectedAssets: mergeProtectedReports(protectedPaths, candidateRuns),
+      log: candidateRuns[0]?.log ?? EMPTY_LOG,
+      runs: candidateRuns,
+      baseline: {
+        runs: baselineRuns,
+        passedRuns: baselinePassedRuns,
+        failedRuns: baselineRuns.length - baselinePassedRuns,
+        outcome: baselineOutcome,
       },
-      log: summarizeLog(commandResult, limits.maxLogBytes),
-      workspace: { kind: "temp-copy", tempDir: workspace.tempRoot, removed: workspaceRemoved },
+      comparison: {
+        candidateRuns: candidateRuns.length,
+        baselineRuns: baselineRuns.length,
+        candidatePassedRuns,
+        baselinePassedRuns,
+        noWeakerThanBaseline,
+      },
     };
     await store.saveEvaluation(evaluation);
     await store.saveProposal({
       ...evaluating,
-      status: failure === undefined ? "awaiting_approval" : "failed",
+      status: passed ? "awaiting_approval" : "failed",
       evaluationId,
       updatedAt: finishedAt,
     });

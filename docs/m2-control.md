@@ -1,17 +1,20 @@
 # M2 控制面基础（SQLite + lease + 本地 HTTP）
 
-**状态：M2 foundation 已实现并已验证（`IMPLEMENTED` / `VERIFIED`）；最小只读 Web UI 已实现；M2b 完整控制台、提案/评估实体、备份导出未实现。**
-本文只描述 `src/control/**` 这一个可选层。它不改变 P0 文件模式，不写 `.sage-kit/state/`，不做模式切换。Lead 已接入 `sage-kit control serve/status/recover`（lazy import）；全局设计基线仍是 `docs/state-and-durability.md` §2.2/§6 与 `docs/decisions.md` D-005/D-006/D-007/D-008。
+**状态：M2 本地可写控制面已实现并验证（`IMPLEMENTED` / `VERIFIED`）：任务创建/状态转换/lease/恢复与本地控制面板可用；run 启动监督、备份导出、配置模式切换、提案/评估实体不属于本控制面（设计上不在此处实现）。**
+本文只描述 `src/control/**` 这一个可选层。它不改变 P0 文件模式，不写 `.sage-kit/state/`，不做模式切换。Lead 已接入 `sage-kit control serve/status/recover`（lazy import）；全局设计基线仍是 `docs/state-and-durability.md` §2.2/§6 与 `docs/decisions.md` D-005/D-006/D-007/D-008/D-022。
 
-验证环境与证据（2026-10-24，Windows Node v24.22.0；WSL2 Ubuntu Node v22.22.1 上完整 `npm test` 81/81 通过，`node:sqlite` 可用但会打印 ExperimentalWarning）：
+验证环境与证据（2026-10-24，Windows Node v24.22.0；WSL2 Ubuntu Node v22.22.1 上 `node:sqlite` 可用）：
 
 ```text
-npm run build                     # tsc -p tsconfig.json
+npm run build                     # tsc -p tsconfig.json，exit 0
 node --test tests/control.test.mjs
-# tests 32, suites 6, pass 32, fail 0, cancelled 0, skipped 0
+# tests 38, pass 38, fail 0（含 HTTP 写端点与 UI 断言）
+node <temp>/sage-ui-write-e2e.mjs
+# headless Edge 27 项断言全过：自动加载、新建任务（校验/Esc）、状态转换（合法目标过滤/证据/409 错误回显）、
+# lease acquire/renew/release、recover stale、移动端单列、无 token、无页面 JS 异常
 ```
 
-`node:sqlite` 在本机可用（`DatabaseSync` 导入与建表/查询均已由测试覆盖），未新增任何依赖。
+`node:sqlite` 在本机可用（`DatabaseSync` 导入与建表/查询均已由测试覆盖），未新增任何依赖。全量 `npm test` 中本模块占 38 项；其他 slice 的测试由各自 owner 维护。
 
 ## 1. 范围与实现状态
 
@@ -27,14 +30,15 @@ node --test tests/control.test.mjs
 | lease acquire/renew/release/expire（30s/10s 可配置） | `IMPLEMENTED` | 同任务单 lease；过期不自动重跑 |
 | `recoverStale()` 恢复扫描 | `IMPLEMENTED` | 过期 lease + 无活 lease 的 active run → interrupted |
 | 单写者 `writer.lock`（死进程可接管） | `IMPLEMENTED` | 同进程第二次 open 拒绝；read-only open 不持锁 |
-| 本地 HTTP JSON API（5 个端点） | `IMPLEMENTED` | 仅 127.0.0.1 + loopback Host 校验；本地单用户不要求 token |
+| 本地 HTTP JSON API（9 条路由 / 10 个操作） | `IMPLEMENTED` | GET health/tasks/task-detail/events；POST tasks/task-status/lease-acquire·renew·release/recover；仅 127.0.0.1 + loopback Host 校验；本地单用户不要求 token |
+| 写操作（任务创建、状态转换、lease、恢复） | `IMPLEMENTED` | 仅经 loopback UI/API；复用 `ControlStore` 方法与 P0 状态机；事件留痕；无自动重跑 |
 | CLI `control` 子命令 / `src/cli.ts` 接线 | `IMPLEMENTED`（Lead） | `serve/status/recover`，lazy import；P0 默认启动不加载 SQLite |
-| `config.json` 的 `mode = "control"` 与模式切换 | `NOT_IMPLEMENTED`（M2b） | 绝不双写；本模块不碰 config |
-| `state export/import/migrate`、备份（`VACUUM INTO`） | `NOT_IMPLEMENTED`（M2b） | 见 `docs/state-and-durability.md` §7 |
-| 提案/评估/RSI、完整控制台（写入/提案/评估）、多用户/远程 | `NOT_IMPLEMENTED`（M3/M2b） | 最小只读面板除外 |
-| 任务依赖表、feedback/outbox/artifacts 表 | `NOT_IMPLEMENTED`（M2b） | 本 slice 只建 4 张最小表 |
-| run 进程监督（pid 存活检测、自动心跳定时器） | `NOT_IMPLEMENTED`（M2b） | 恢复依据 lease，不依据 pid |
-| HTTP `renew`/events 端点、分页 cursor | `NOT_IMPLEMENTED` | 按任务要求只交付 5 端点 |
+| `config.json` 的 `mode = "control"` 与模式切换 | 非目标 | 绝不双写；本模块不碰 config |
+| `state export/import/migrate`、备份（`VACUUM INTO`） | 非目标（本控制面） | 见 `docs/state-and-durability.md` §7 |
+| 提案/评估/RSI 实体与控制台、多用户/远程 | 非目标 | RSI 由 `src/rsi/**` 文件模式负责；控制面不承载提案/评估，也不提供远程访问 |
+| 任务依赖表、feedback/outbox/artifacts 表 | 非目标 | 本控制面只建 4 张最小表 |
+| run 进程监督、UI 内运行 run | 非目标 | 恢复依据 lease，不依据 pid；面板只读展示 runs，不创建/监督 run |
+| HTTP events 分页 cursor、run 独立查询端点 | 非目标 | events 已支持 task/run/type/limit 过滤，无 cursor |
 
 ## 2. 文件布局与写入边界
 
@@ -180,10 +184,23 @@ server.close();  // 幂等
 | GET | `/v1/health` | — | `{ok:true, service:"sage-kit-control", apiVersion:1, schemaVersion, now}` |
 | GET | `/v1/tasks` | `?status=<TaskStatus>` 可选 | `{tasks:[ControlTask...]}` |
 | GET | `/v1/tasks/:id` | — | `{task, runs, events, lease}` |
+| GET | `/v1/events` | `?taskId=&runId=&type=&limit=` 可选 | `{events:[ControlEvent...]}`（created_at/seq 升序） |
+| POST | `/v1/tasks` | `{title, description?, acceptance?, priority?, source?}` | `{task}` |
+| POST | `/v1/tasks/:id/status` | `{status, evidence?, note?, blockedReason?, expectedVersion?}` | `{task}` |
 | POST | `/v1/leases/acquire` | `{taskId, owner, runId?, ttlMs?}` | `{lease: ControlLease}` |
+| POST | `/v1/leases/renew` | `{taskId, owner, ttlMs?}` | `{lease: ControlLease}` |
 | POST | `/v1/leases/release` | `{taskId, owner?}` | `{released:true, lease}` |
+| POST | `/v1/recover` | `{staleRunAfterMs?}`（可空 body） | `{report: RecoveryReport}` |
 
-`GET /v1/tasks/:id` 的 `runs` 是该任务的全部 run，`events` 是该任务的事件（按 seq 升序），`lease` 是当前租约或 `null`；这是只读详情，不改变任何状态。
+`GET /v1/tasks/:id` 的 `runs` 是该任务的全部 run，`events` 是该任务的事件（按 seq 升序），`lease` 是当前租约或 `null`。它是只读详情，不改变任何状态；所有写操作只由表中的 POST 端点触发。
+
+写端点语义（复用 `ControlStore` 方法，不另造状态机）：
+
+- `POST /v1/tasks`：`title` 必填（≤200），`description` ≤2000，`acceptance` 最多 20 条、每条 ≤500，`priority` 为整数，`source` ≤200；创建任务默认 `status = "ready"`（不接受 `done`），返回 HTTP 200 `{task}`。`description/acceptance/priority/source` 为空时不写入。
+- `POST /v1/tasks/:id/status`：直接调用 `store.updateTaskStatus`。`evidence` 最多 20 条、每条 ≤1000；`note`/`blockedReason` ≤1000；`expectedVersion` 有值时做乐观并发校验；`done` 至少一条 evidence。成功返回更新后的 `{task}`（`version + 1`）。
+- `POST /v1/leases/renew`：校验 owner 后刷新 `heartbeat_at`/`expires_at`；过期/owner 不匹配按 §6 语义报错（过期副作用先提交后返回 `E_LEASE_EXPIRED`）。
+- `GET /v1/events`：`taskId`/`runId`/`type` 可选，`limit` 必须是正整数（默认 100、上限 1000）；非法参数 → 400。
+- `POST /v1/recover`：等价于 `store.recoverStale({ staleRunAfterMs? })`；报告里的过期/中断副作用已经提交，重复调用返回空报告。
 
 错误统一为 `{error:{code, message}}`，HTTP 状态映射：
 
@@ -193,7 +210,8 @@ server.close();  // 幂等
 409 E_LEASE_HELD / E_LEASE_EXPIRED / E_LEASE_OWNER_MISMATCH / E_BAD_TRANSITION /
     E_TASK_EXISTS / E_RUN_EXISTS / E_TASK_VERSION_CONFLICT / E_RUN_ALREADY_FINISHED /
     E_DONE_WITHOUT_EVIDENCE / E_EVENT_SCOPE_MISMATCH
-400 E_BAD_* / E_USAGE       413 E_BODY_TOO_LARGE       500 其他（E_INTERNAL 等，不回显栈）
+400 E_BAD_* / E_USAGE / E_BAD_TASK / E_BAD_STATUS / E_BAD_RECOVERY_OPTION
+413 E_BODY_TOO_LARGE       500 其他（E_INTERNAL 等，不回显栈）
 ```
 
 安全边界：
@@ -201,10 +219,22 @@ server.close();  // 幂等
 - 只 `listen("127.0.0.1")`；listen 后再次校验 `server.address()` 是 loopback，否则关闭。
 - 每个连接校验 `socket.remoteAddress` ∈ {`127.0.0.1`,`::1`,`::ffff:127.0.0.1`}。
 - 校验 `Host` 头只接受 loopback/localhost（防 DNS rebinding）；异常 Host → 403。
-- **不设 Bearer token**：本地单用户工具的信任边界是 loopback + OS 账户；同一 OS 用户下的进程可以读取控制面状态。这不是远程/多用户安全边界，也不把控制面暴露到非 loopback。
+- **不设 Bearer token**：本地单用户工具的信任边界是 loopback + OS 账户；同一 OS 用户下的进程可以读取并写入控制面状态。这不是远程/多用户安全边界，也不把控制面暴露到非 loopback。
 - 请求体上限 64 KiB，事件 payload 上限 32 KiB；非法 JSON → 400；未知路由 → 404。
 - 无 CORS、无第三方静态资源、无 TLS（仅 loopback，本地进程间调用）。
-- `GET /` 与 `GET /ui` 返回自包含只读 HTML（无数据）；页面自动读取 `/v1/health`、`/v1/tasks`，点击任务即读取 `/v1/tasks/:id`；CSP 禁止外部脚本/样式、`frame-ancestors 'none'`；没有写操作。
+- `GET /` 与 `GET /ui` 返回自包含 HTML 控制面板（无数据）；页面自动读取 `/v1/health`、`/v1/tasks`，单击任务读取 `/v1/tasks/:id`；页面的「新建任务」「状态转换」「获取/续期/释放租约」「恢复 stale」按钮调用上述 POST 端点；CSP 禁止外部脚本/样式、`frame-ancestors 'none'`；无 token、无第三方资源。
+
+### 4.4 Web UI（`src/control/ui.ts`）
+
+- 同源自包含页面，`GET /` 与 `/ui` 均返回；无前端框架/构建链/CORS，只有一段内联 classic script（测试用 `new Function` 校验可解析）。
+- 布局：桌面双列（任务列表 + 详情）、窄屏单列；视觉 token 固定（字号 12/13/14/16/20/28，间距 8/12/16/24）。
+- 任务列表：按标题/ID/状态过滤、状态 pill、优先级；加载时读取 health + tasks，点击任务行即读取详情。
+- 详情：状态/优先级/版本/时间/分支/来源/外部链接/工作树/幂等键等字段；任务操作区包含状态转换、lease 控件；下方为描述、验收标准、证据、运行记录、事件。
+- 写交互：任务操作区只列出当前状态允许的目标转换（前端镜像 `TRANSITIONS`，仅用于可用性），可填备注/证据/阻塞原因；提交带 `expectedVersion`。成功刷新详情并 toast；服务端 400/409 回显在 `#status-error`（如 `E_DONE_WITHOUT_EVIDENCE`、`E_TASK_VERSION_CONFLICT`），不会静默纠正。
+- lease：无租约时输入 owner（默认 `local-ui`）与可选 TTL 后 acquire；持有后显示 renew/release。
+- 新建任务：模态框表单（标题/描述/验收标准每行一条/优先级/来源），前端校验标题必填，Esc/背景点击/取消关闭；成功后自动选中新任务。
+- 恢复 stale：页头「恢复 stale」按钮调用 `POST /v1/recover`，toast 报告过期租约/中断运行/中断任务数量后刷新列表。
+- 反馈与安全：所有动态值用 `textContent` 写入（防 XSS）；错误以内联提示 + toast（最多同时 3 条，success 4s / error 6s 自动消失）；无 token 输入、无外部请求。
 
 ## 5. 任务状态机（与 P0 一致）
 
@@ -232,7 +262,7 @@ done / cancelled → 终态
   - 调用方必须显式调用 `recoverStale()` / 确认后再重新 acquire；控制面不会自动创建 lease 或新 run。
 - **renew** 检查 owner；成功刷新 `heartbeat_at`/`expires_at`（`now + ttl`）。
 - **release** 检查可选 owner；只删 lease 与写 `lease.released`，**不改任务状态**（完成/失败由调用方显式 `updateTaskStatus`）。
-- `heartbeatMs` 是提示值：本 slice 不内建定时器、不自动续租；Worker 应每个 heartbeat 周期调用 renew（M2b 可加自动心跳循环）。
+- `heartbeatMs` 是提示值：本实现不内建定时器、不自动续租；Worker 应每个 heartbeat 周期调用 renew。
 - lease 过期不依赖进程序号/pid；只要调用方（控制面）还健在就能扫描。控制面进程本身崩溃时，下次启动调用 `recoverStale()` 即可。
 
 ## 7. 恢复语义（`recoverStale`）
@@ -280,16 +310,21 @@ done / cancelled → 终态
 - **H. `createControlServer` 为 async**：返回时已完成 listen，调用方可直接 `server.url` 发请求；端口 0 便于测试与并行实例。
 - **I. 本地单用户不设 token**：控制面只绑定 `127.0.0.1` 并校验 loopback Host；信任边界是 OS 用户账户，不把“本机进程也要 token”当作必要复杂度。远程/多用户访问不在范围（D-007），若未来需要，另立鉴权契约。
 - **J. 无鉴权内省**：health/tasks/task-detail 都可在 loopback 读取；它们不包含密钥，事件 payload 已经过 `redactRecord`。控制面仍不暴露到非 loopback。
+- **K. 写操作只经 loopback UI/API（D-022 修订）**：任务创建、状态转换、lease、恢复全部通过本节 HTTP 端点完成，复用 `ControlStore` 的写方法与 P0 状态机；不新增前端框架、CORS、远程访问或 token。服务端仍是唯一权威：`expectedVersion` 乐观并发、状态机/证据校验都在 store 内，UI 只是薄客户端。
+- **L. UI 镜像状态机仅为可用性**：`src/control/ui.ts` 内置 `TRANSITIONS` 副本用于过滤可选目标状态和显示提示；最终校验在服务端，非法/过期请求回显 400/409，不静默纠正。
+- **M. HTTP 写端点是薄封装**：handler 只做 body 解析、参数上限校验和错误码映射，然后调用 store；不在 HTTP 层复制业务规则，避免出现第二套状态机/租约逻辑。
 
-## 11. 未实现（M2b 及以后）与集成注意
+## 11. 明确非目标与集成注意
 
 - CLI 已接线：`sage-kit control serve`、`control status`、`control recover`；`src/cli.ts` 使用动态 import，避免拖慢默认 CLI 启动（D-002/D-004）。`control serve` 现在只接受 `--port`/`--recover`/`--json`，启动后直接打印 UI URL；不再生成或打印 token。
 - `package.json` 的 `test` 已由 Lead 加入 `tests/control.test.mjs` 与 `tests/feedback.test.mjs`、`tests/rsi.test.mjs`。
-- 模式切换/迁移（`state export/import/migrate`）、备份恢复、`config.json` 的 `mode` 字段：未实现；当前没有任何命令会启用控制面，因此仍满足 D-005“不双写”。
-- `runs` 的 pid/监督、自动心跳、run 结束时自动 `task review/failed` 迁移、lease 自动续租：未实现；Worker/CLI 需显式调用对应方法。
-- HTTP 有任务列表/详情（详情含 runs/events/lease）+ acquire/release；renew/events/run 独立端点、分页、细粒度 rate limit 未实现。
-- `node:sqlite`：Windows Node v24.22.0 直接可用；WSL Node v22.22.1 也可用但会打印 ExperimentalWarning。`package.json` engines 仍是 `>=22`，建议文档/CI 把控制面下限写清为 Node ≥22.5（推荐 24），或在模块加载处给出可读错误；核心 P0 路径不得因控制面 import 失败而崩溃（已保持 lazy import）。
+- 模式切换/迁移（`state export/import/migrate`）、备份恢复、`config.json` 的 `mode` 字段：**范围外**；文件模式是默认，控制面不提供迁移/备份，避免双写和额外状态。
+- `runs` 的 pid/监督、自动心跳、run 结束时自动 `task review/failed` 迁移、lease 自动续租：**范围外**；Worker/CLI 显式调用对应方法，控制面不托管进程。
+- HTTP 已提供 9 条路由 / 10 个操作（含任务创建、状态转换、lease renew、events 查询、recover）；events 分页 cursor、run/event 独立分页、rate limit、CORS/TLS 属于范围外。
+- 面板不创建/监督 run（无 run 写端点），运行记录由外部 worker 调 store；UI 只读展示 runs/events——这是本地单用户控制面的边界，不是缺功能。
+- `node:sqlite`：Windows Node v24.22.0 直接可用；WSL Node v22.22.1 也可用但会打印 ExperimentalWarning。`package.json` engines 为 `>=22.20`（`node:sqlite` 下限）；核心 P0 路径不会因控制面 import 失败而崩溃（保持 lazy import）。
 - 已知边界：锁文件的 pid 可能被系统复用（极端情况下误判“存活”），可手动删除死锁文件；`STRICT` 表需要 SQLite ≥3.37（Node 22.22/24 内置版本已满足）；`recoverStale` 无 pid 校验，外部 runner 若不走 lease 需要传 `staleRunAfterMs`；无多进程读池/backup/artifacts。
+- 写操作信任边界：无 CSRF token、无 Origin 校验，信任 loopback + OS 账户（D-022）——同机同用户进程可写控制面状态；`POST /v1/tasks` 未强制幂等键，重试可能创建重复任务（UI 按钮忙态缓解）；`POST /v1/recover` 的 `staleRunAfterMs` 仅 API 参数，UI 固定使用默认值 0。
 
 ## 12. 文件清单（本 slice）
 
@@ -298,8 +333,9 @@ src/control/index.ts     # 公共导出
 src/control/schema.ts    # 路径、PRAGMA、迁移、schema、行解码
 src/control/store.ts     # ControlStore/openControl：任务、run、事件、恢复、单写者
 src/control/lease.ts     # lease 规则（acquire/renew/release/expire）+ 过期副作用
-src/control/server.ts    # 127.0.0.1 JSON API + 只读 UI 路由
-src/control/ui.ts        # 自包含只读控制面板（无 token、单击出详情）
-tests/control.test.mjs   # 33 个测试（schema/任务/run/事件/lease/恢复/HTTP/UI）
+src/control/server.ts    # 127.0.0.1 JSON API（10 端点，读写）+ UI 路由
+src/control/ui.ts        # 自包含本地控制面板（无 token、单击详情、新建/状态转换/lease/恢复）
+tests/control.test.mjs   # 38 个测试（schema/任务/run/事件/lease/恢复/HTTP/UI）
 docs/m2-control.md       # 本文
+docs/decisions.md        # D-022（本地可写面板修订）
 ```

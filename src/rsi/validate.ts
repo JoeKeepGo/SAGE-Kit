@@ -8,6 +8,7 @@
 import { SageError } from "../core/errors.js";
 import {
   DEFAULT_PROTECTED_PATHS,
+  DEFAULT_REPEATS,
   DEFAULT_RSI_LIMITS,
   MAX_FEEDBACK_REFS,
   type Candidate,
@@ -152,6 +153,26 @@ export function normalizeLimits(overrides: Partial<RsiLimits> | undefined): RsiL
     }
   }
   return merged;
+}
+
+/**
+ * Resolve the requested number of evaluation repeats. Default 1; bounded by
+ * `limits.maxRepeats` so a caller cannot turn one manual evaluation into an
+ * unbounded loop (docs §9: bounded repeats, no automatic retry).
+ */
+export function normalizeRepeats(value: number | undefined, limits: RsiLimits): number {
+  const repeats = value ?? DEFAULT_REPEATS;
+  if (!Number.isInteger(repeats) || repeats < 1) {
+    throw new SageError("repeats must be a positive integer", "E_RSI_BAD_LIMIT", 2);
+  }
+  if (repeats > limits.maxRepeats) {
+    throw new SageError(
+      `repeats ${repeats} exceeds the configured maximum ${limits.maxRepeats}`,
+      "E_RSI_BAD_LIMIT",
+      2,
+    );
+  }
+  return repeats;
 }
 
 /**
