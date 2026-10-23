@@ -18,7 +18,7 @@
 | D-003 | Skill 必须无状态 | Accepted |
 | D-004 | 核心零运行时依赖；控制面可选依赖懒加载 | Accepted |
 | D-005 | 文件模式默认；控制面可选；绝不双写 | Accepted |
-| D-006 | 控制面仅 localhost + 本地 token | Accepted |
+| D-006 | 控制面仅 localhost，不设本地 token | Accepted |
 | D-007 | SQLite WAL 单写者；不用 PostgreSQL/Redis/K8s | Accepted |
 | D-008 | 任务 = worktree + lease；本机并发 | Accepted |
 | D-009 | 只保留四个扩展接口 | Accepted |
@@ -76,13 +76,13 @@
 
 **后果**：所有写操作必须知道当前模式；模式切换需要迁移命令和只读备份。
 
-## D-006 控制面仅 localhost + token
+## D-006 控制面仅 localhost，不设本地 token
 
-**决定**：控制面 HTTP 只绑定 `127.0.0.1`，变更操作需要本地 token；不提供远程访问/共享。
+**决定**：控制面 HTTP 只绑定 `127.0.0.1` 并校验 loopback Host；**不设 Bearer token**。信任边界是 OS 用户账户与 loopback，不提供远程/多用户访问。
 
-**原因**：单用户本地工具，不需要远程攻击面；避免把本地控制面变成未授权入口。
+**原因**：单用户本地工具，要求本机进程再管理一个 token 是额外复杂度；loopback + Host 校验已经阻止远程访问和 DNS rebinding，token 不能有效防御同一 OS 用户下的本地进程。
 
-**后果**：团队协作通过外部系统和导出，不通过暴露控制面；token 管理是安装的一部分。
+**后果**：同一 OS 用户下的进程可以读取控制面状态；这是单用户本地工具的接受边界。若未来要远程/多用户访问，另立鉴权与 TLS 契约，不在当前控制面上直接加 token。
 
 ## D-007 SQLite WAL 单写者
 
@@ -208,11 +208,11 @@
 
 ## D-022 M2 最小只读 Web UI
 
-**决定**：控制面以 `GET /`、`GET /ui` 提供同源自包含只读 HTML；使用原生 HTML/CSS/JS，不引入前端框架、构建链或 CORS；token 由用户在页面输入并保存在 `sessionStorage`；只调用 `GET /v1/health`、`GET /v1/tasks`、`GET /v1/tasks/:id`，不提供任何写操作。完整任务板/提案/评估 UI 仍属 M2b。
+**决定**：控制面以 `GET /`、`GET /ui` 提供同源自包含只读 HTML；使用原生 HTML/CSS/JS，不引入前端框架、构建链或 CORS；页面自动读取 `GET /v1/health`、`GET /v1/tasks`；点击任务行直接读取 `GET /v1/tasks/:id` 并展开详情；不提供任何写操作。完整任务板/提案/评估 UI 仍属 M2b。
 
 **原因**：在不扩大控制面攻击面和维护成本的前提下，让单用户能直接看到任务与恢复状态；不把“看板”变成新的默认依赖。
 
-**后果**：`/v1/*` 仍全部要求 Bearer token；UI 自身不携带数据。若后续需要写入/多用户/远程访问，另立控制台契约，不在本 UI 上直接扩展。
+**后果**：`/v1/*` 仍只允许 loopback 访问且无 token；UI 自身不携带数据。若后续需要写入/多用户/远程访问，另立控制台契约，不在本 UI 上直接扩展。
 
 ## 未决事项（不冻结）
 
@@ -221,7 +221,7 @@
 - 包名/发布 scope/许可证。
 - P0 首个宿主：已确定 DSH 优先（Taluvia 主开发环境），Codex/Claude 其次；DSH headless + mock 已完成 Skill 发现/加载验证，真实模型/GUI 验收仍待执行。
 - 完整控制台的前端框架/交互范围（M2b；M2 最小只读 UI 已按 D-022 落地）。
-- 控制面 API 的具体路径/鉴权细节（M2 前定稿）。
+- 控制面 API 的具体路径/未来远程鉴权细节（M2b 前再定；本地 loopback 不设 token 已按 D-006 确定）。
 - 默认评估阈值/预算（M2 前用初始值并校准）。
 - 是否提供可选的加密备份（P1 后再评估）。
 

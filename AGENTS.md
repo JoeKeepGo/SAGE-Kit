@@ -4,10 +4,10 @@
 
 ## 当前阶段
 
-- **P0 + M1 + M2 foundation（含最小只读 Web UI）+ M3 skeleton 已实现**（TypeScript CLI + fake adapter + 文件/可选控制面/Rsi 文件层）。控制面完整 UI（写入/提案/评估）、M2b 备份/导出、M3 定时/自动循环、真实 GitHub/Gitea API 仍是设计目标。
+- **P0 + M1 + M2 foundation（含最小只读 Web UI）+ M3 skeleton 已实现**（TypeScript CLI + fake adapter + 文件/可选控制面/Rsi 文件层）。控制面完整 UI（写入/提案/评估）、M2b 备份/导出、M3 定时/自动循环仍是设计目标；M1 真实 GitHub/Gitea 只读同步已验证，真实边界见 `docs/m1-feedback.md`。
 - 不要在文档或提交信息中声称任何能力“已实现”“已验证”，除非有对应测试、命令输出或运行证据。
 - P0-A1–A12 有自动化覆盖（A11 含真实 SIGKILL；缺 Node<22 集成与 bundle 仍不在 P0 范围）；P0-A13 的真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 启动已部分验证（Skill→bash→CLI 创建/列出任务），浏览器 GUI、hook 自动注入和真实 `stop` 生命周期仍未验收。未通过前，不把宿主集成写成完整验收。
-- 当前测试：`npm test` 80 项全绿（Windows Node 24.22.0 与 WSL2 Node 22.22.1）；M1/M2/M3 的未验证边界分别见 `docs/m1-feedback.md`、`docs/m2-control.md`、`docs/m3-rsi.md`。
+- 当前测试：`npm test` 81 项全绿（Windows Node 24.22.0 与 WSL2 Node 22.22.1）；M1/M2/M3 的未验证边界分别见 `docs/m1-feedback.md`、`docs/m2-control.md`、`docs/m3-rsi.md`。
 - 不做控制面完整 UI（写入/提案/评估）、自动批准/合并/发布或无人值守 RSI；M2 只提供最小只读面板，M3 只手动 `runOnce`，发布仍需人工。
 
 ## 权威顺序

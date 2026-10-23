@@ -25,7 +25,7 @@ import {
 
 const TEST_TMP_BASE =
   process.env.SAGE_KIT_TEST_TMPDIR ?? join(homedir(), ".cache", "sage-kit-tests");
-const TOKEN = "sage-kit-control-test-token";
+
 const cleanups = [];
 await mkdir(TEST_TMP_BASE, { recursive: true });
 
@@ -88,7 +88,7 @@ async function expectRejects(promise, code) {
 async function withControlServer(fn) {
   const dir = await tempProject();
   const store = trackStore(openControl(dir));
-  const server = await createControlServer({ store, token: TOKEN });
+  const server = await createControlServer({ store });
   try {
     return await fn({ dir, store, server });
   } finally {
@@ -106,7 +106,6 @@ async function api(server, path, options = {}) {
     headers["content-type"] = headers["content-type"] ?? "application/json";
     body = options.rawBody;
   }
-  if (options.token !== null) headers.authorization = `Bearer ${options.token ?? TOKEN}`;
   const response = await fetch(`${server.url}${path}`, {
     method: options.method ?? "GET",
     headers,
@@ -670,23 +669,13 @@ describe("M2 control store: recovery", () => {
 });
 
 describe("M2 control HTTP API", () => {
-  it("binds loopback only and requires the bearer token", async () => {
+  it("binds loopback only and serves without a token", async () => {
     await withControlServer(async ({ server }) => {
       assert.equal(server.host, "127.0.0.1");
       assert.equal(server.url, `http://127.0.0.1:${server.port}`);
       const address = server.server.address();
       assert.equal(address.address, "127.0.0.1");
       assert.equal(address.family, "IPv4");
-
-      const missing = await api(server, "/v1/health", { token: null });
-      assert.equal(missing.status, 401);
-      assert.equal(missing.json.error.code, "E_UNAUTHORIZED");
-      assert.ok(!missing.text.includes(TOKEN));
-
-      const wrong = await api(server, "/v1/health", { token: "wrong-token" });
-      assert.equal(wrong.status, 401);
-      const basic = await api(server, "/v1/health", { token: null, headers: { authorization: "Basic abc" } });
-      assert.equal(basic.status, 401);
 
       const health = await api(server, "/v1/health");
       assert.equal(health.status, 200);
@@ -696,43 +685,44 @@ describe("M2 control HTTP API", () => {
       assert.equal(health.json.service, "sage-kit-control");
       assert.equal(health.json.apiVersion, 1);
       assert.equal(health.json.schemaVersion, CONTROL_SCHEMA_VERSION);
+
+      // A stray Authorization header is harmless; there is no token check.
+      const withHeader = await api(server, "/v1/health", { headers: { authorization: "Basic abc" } });
+      assert.equal(withHeader.status, 200);
     });
   });
 
-  it("serves a public read-only UI shell but keeps /v1 behind auth", async () => {
+  it("serves a public read-only UI shell and data without a token", async () => {
     await withControlServer(async ({ server }) => {
-      const root = await api(server, "/", { token: null });
+      const root = await api(server, "/");
       assert.equal(root.status, 200);
       assert.equal(root.headers["content-type"], "text/html; charset=utf-8");
       assert.equal(root.headers["x-frame-options"], "DENY");
       assert.match(root.headers["content-security-policy"], /default-src 'none'/);
       assert.match(root.text, /SAGE-Kit Control/);
       assert.match(root.text, /只读/);
-      assert.match(root.text, /Bearer Token/);
 
-      const ui = await api(server, "/ui", { token: null });
+      const ui = await api(server, "/ui");
       assert.equal(ui.status, 200);
       assert.match(ui.text, /id="tasks"/);
       const script = ui.text.match(/<script>([\s\S]*?)<\/script>/);
       assert.ok(script, "read-only UI must include an inline script");
       assert.doesNotThrow(() => new Function(script[1]), "read-only UI script must parse");
 
-      const favicon = await api(server, "/favicon.ico", { token: null });
+      const favicon = await api(server, "/favicon.ico");
       assert.equal(favicon.status, 204);
 
-      const data = await api(server, "/v1/tasks", { token: null });
-      assert.equal(data.status, 401);
+      const data = await api(server, "/v1/tasks");
+      assert.equal(data.status, 200);
     });
   });
 
   it("rejects non-loopback binds and invalid options", async () => {
     await withStore(async ({ store }) => {
-      await expectRejects(createControlServer({ store, token: "" }), "E_BAD_TOKEN");
-      await expectRejects(createControlServer({ store, token: "   " }), "E_BAD_TOKEN");
-      await expectRejects(createControlServer({ store, token: TOKEN, host: "0.0.0.0" }), "E_BAD_HOST");
-      await expectRejects(createControlServer({ store, token: TOKEN, host: "::1" }), "E_BAD_HOST");
-      await expectRejects(createControlServer({ store, token: TOKEN, port: 70_000 }), "E_BAD_PORT");
-      await expectRejects(createControlServer({ token: TOKEN }), "E_BAD_CONFIG");
+      await expectRejects(createControlServer({ store, host: "0.0.0.0" }), "E_BAD_HOST");
+      await expectRejects(createControlServer({ store, host: "::1" }), "E_BAD_HOST");
+      await expectRejects(createControlServer({ store, port: 70_000 }), "E_BAD_PORT");
+      await expectRejects(createControlServer({}), "E_BAD_CONFIG");
     });
   });
 
@@ -759,6 +749,9 @@ describe("M2 control HTTP API", () => {
       const single = await api(server, `/v1/tasks/${ready.id}`);
       assert.equal(single.status, 200);
       assert.equal(single.json.task.title, "one");
+      assert.deepEqual(single.json.runs, []);
+      assert.ok(Array.isArray(single.json.events));
+      assert.equal(single.json.lease, null);
       const notFound = await api(server, "/v1/tasks/task-missing");
       assert.equal(notFound.status, 404);
       assert.equal(notFound.json.error.code, "E_TASK_NOT_FOUND");
@@ -850,14 +843,13 @@ describe("M2 control HTTP API", () => {
       const okRaw = await rawRequest(server, {
         method: "GET",
         path: "/v1/health",
-        headers: { authorization: `Bearer ${TOKEN}` },
       });
       assert.equal(okRaw.status, 200);
 
       const evilHost = await rawRequest(server, {
         method: "GET",
         path: "/v1/health",
-        headers: { host: "evil.example", authorization: `Bearer ${TOKEN}` },
+        headers: { host: "evil.example" },
       });
       assert.equal(evilHost.status, 403);
       assert.equal(evilHost.json.error.code, "E_NON_LOOPBACK");
@@ -871,7 +863,7 @@ describe("M2 control HTTP API", () => {
       const response = await rawRequest(server, {
         method: "POST",
         path: "/v1/leases/acquire",
-        headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+        headers: { "content-type": "application/json" },
         body: oversized,
       });
       assert.equal(response.status, 413);
@@ -882,7 +874,7 @@ describe("M2 control HTTP API", () => {
   it("closes idempotently", async () => {
     const dir = await tempProject();
     const store = trackStore(openControl(dir));
-    const server = await createControlServer({ store, token: TOKEN });
+    const server = await createControlServer({ store });
     await server.close();
     await server.close();
     store.close();

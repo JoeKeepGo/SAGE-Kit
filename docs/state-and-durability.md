@@ -81,7 +81,7 @@ P0 未实现、不要写进布局的东西：
 
 - 控制面是唯一写者；Worker 和 CLI 都通过本地 API 操作。
 - SQLite 开 WAL、`foreign_keys=ON`、`busy_timeout=5000`、`synchronous=FULL`。
-- 默认绑定 `127.0.0.1`；变更操作需要本地 token；不监听公网。
+- 默认绑定 `127.0.0.1` + loopback Host 校验；本地单用户不设 token；不监听公网。
 - 进程崩溃后 WAL 自动恢复；启动时执行恢复扫描。
 
 ### 2.3 模式切换（`TARGET`）

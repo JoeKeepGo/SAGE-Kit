@@ -711,9 +711,9 @@ describe("M1/M2/M3 CLI integration", () => {
     assert.deepEqual(payload.proposals, []);
   });
 
-  it("control serve binds loopback and requires the Bearer token", async () => {
+  it("control serve binds loopback and serves UI/API without a token", async () => {
     const cwd = await tempDir();
-    const child = spawn(process.execPath, [CLI, "control", "serve", "--port", "0", "--token", "test-token", "--json"], {
+    const child = spawn(process.execPath, [CLI, "control", "serve", "--port", "0", "--json"], {
       cwd,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -737,12 +737,11 @@ describe("M1/M2/M3 CLI integration", () => {
       const started = JSON.parse(line);
       assert.equal(started.ok, true);
       assert.match(started.url, /^http:\/\/127\.0\.0\.1:\d+$/);
-      const health = await fetch(`${started.url}/v1/health`, {
-        headers: { Authorization: "Bearer test-token" },
-      });
+      const health = await fetch(`${started.url}/v1/health`);
       assert.equal(health.status, 200);
-      const unauthorized = await fetch(`${started.url}/v1/health`);
-      assert.equal(unauthorized.status, 401);
+      assert.match(started.uiUrl, /\/ui$/);
+      const ui = await fetch(`${started.url}/ui`);
+      assert.equal(ui.status, 200);
     } finally {
       if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
       await new Promise((resolvePromise) => {

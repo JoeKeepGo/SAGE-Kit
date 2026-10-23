@@ -111,7 +111,7 @@ Usage:
   sage-kit worktree remove --task <id> [--force]
   sage-kit worktree list [--json]
   sage-kit run --task <id> [--no-worktree] -- <command> [args...]
-  sage-kit control serve [--port <n>] [--token <text>] [--recover] [--json]
+  sage-kit control serve [--port <n>] [--recover] [--json]
   sage-kit control status [--json]
   sage-kit control recover [--json]
   sage-kit feedback sync --source local|github|gitea [--repo <owner/name>] [--file <path>] [--json]
@@ -554,31 +554,25 @@ async function runControlCommand(argv: string[], cwd: string): Promise<number> {
   }
 
   const parsed = parseArgs(argv.slice(1), {
-    value: ["port", "token"],
+    value: ["port"],
     boolean: ["recover", "json"],
     multi: [],
   });
   const port = parsePort(parsed.flags.port);
-  const explicitToken = typeof parsed.flags.token === "string" ? parsed.flags.token : undefined;
-  const envToken = process.env.SAGE_KIT_CONTROL_TOKEN;
-  const token = explicitToken ?? envToken ?? (await import("node:crypto")).randomBytes(24).toString("base64url");
-  if (token.trim().length === 0) throw new SageError("Control API token must not be empty", "E_USAGE", 2);
   const store = control.openControl(root);
   if (boolFlag(parsed.flags, "recover")) store.recoverStale();
-  const server = await control.createControlServer({ store, token, port });
+  const server = await control.createControlServer({ store, port });
   const payload = {
     ok: true,
     url: server.url,
     uiUrl: `${server.url}/ui`,
     host: server.host,
     port: server.port,
-    tokenGenerated: !explicitToken && !envToken,
   };
   if (boolFlag(parsed.flags, "json")) process.stdout.write(`${JSON.stringify(payload)}\n`);
   else {
     process.stdout.write(`SAGE-Kit control listening on ${server.url}\n`);
     process.stdout.write(`Read-only UI: ${payload.uiUrl}\n`);
-    if (payload.tokenGenerated) process.stdout.write(`Bearer token (shown once): ${token}\n`);
     process.stdout.write("Press Ctrl+C to stop.\n");
   }
 

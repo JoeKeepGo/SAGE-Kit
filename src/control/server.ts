@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { SageError } from "../core/errors.js";
 import type { TaskStatus } from "../core/tasks.js";
@@ -9,11 +8,9 @@ import { renderControlUiHtml } from "./ui.js";
 const LOOPBACK_HOST = "127.0.0.1";
 const LOOPBACK_CLIENTS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOST_HEADERS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
-const BEARER_PATTERN = /^Bearer\s+(.+)$/i;
 
 export interface ControlServerOptions {
   store: ControlStore;
-  token: string;
   host?: string;
   port?: number;
 }
@@ -34,28 +31,8 @@ interface HealthPayload {
   now: string;
 }
 
-function requireToken(token: unknown): string {
-  if (typeof token !== "string" || token.trim().length === 0) {
-    throw new SageError("A non-empty control API Bearer token is required", "E_BAD_TOKEN", 2);
-  }
-  const value = token.trim();
-  if (value.length > 512) throw new SageError("Control API token must be <= 512 characters", "E_BAD_TOKEN", 2);
-  return value;
-}
-
 function isLoopbackAddress(address: string | undefined): boolean {
   return address !== undefined && LOOPBACK_CLIENTS.has(address);
-}
-
-function authorized(req: IncomingMessage, token: string): boolean {
-  const header = req.headers.authorization;
-  if (typeof header !== "string") return false;
-  const match = BEARER_PATTERN.exec(header.trim());
-  if (!match) return false;
-  const provided = Buffer.from((match[1] ?? "").trim(), "utf8");
-  const expected = Buffer.from(token, "utf8");
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(provided, expected);
 }
 
 /** DNS-rebinding guard: a loopback-bound server must only see loopback Host names. */
@@ -105,7 +82,6 @@ function sendNoContent(res: ServerResponse, status: number): void {
 }
 
 function statusForError(code: string): number {
-  if (code === "E_UNAUTHORIZED" || code === "E_BAD_TOKEN") return 401;
   if (code === "E_NON_LOOPBACK" || code === "E_FORBIDDEN") return 403;
   if (code === "E_NOT_FOUND" || code === "E_TASK_NOT_FOUND" || code === "E_RUN_NOT_FOUND" || code === "E_LEASE_NOT_HELD") {
     return 404;
@@ -225,7 +201,7 @@ function methodNotAllowed(res: ServerResponse, allowed: string[]): void {
   sendError(res, 405, "E_METHOD_NOT_ALLOWED", `Allowed methods: ${allowed.join(", ")}`);
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, store: ControlStore, token: string): Promise<void> {
+async function route(req: IncomingMessage, res: ServerResponse, store: ControlStore): Promise<void> {
   try {
     if (!isLoopbackAddress(req.socket.remoteAddress)) {
       throw new SageError("Control API accepts loopback connections only", "E_NON_LOOPBACK", 1);
@@ -250,10 +226,6 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
       return;
     }
 
-    if (!authorized(req, token)) {
-      throw new SageError("Missing or invalid Authorization: Bearer token", "E_UNAUTHORIZED", 1);
-    }
-
     if (pathname === "/v1/health") {
       if (method !== "GET") return methodNotAllowed(res, ["GET"]);
       const payload: HealthPayload = {
@@ -276,7 +248,11 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
     if (pathname.startsWith("/v1/tasks/")) {
       if (method !== "GET") return methodNotAllowed(res, ["GET"]);
       const id = pathname.slice("/v1/tasks/".length);
-      sendJson(res, 200, { task: store.getTask(id) });
+      const task = store.getTask(id);
+      const runs = store.listRuns({ taskId: id });
+      const events = store.listEvents({ taskId: id });
+      const lease = store.getLease(id);
+      sendJson(res, 200, { task, runs, events, lease: lease ?? null });
       return;
     }
     if (pathname === "/v1/leases/acquire") {
@@ -319,8 +295,8 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
  * Start the minimal local control API.
  *
  * - Binds `127.0.0.1` only; any other `host` is rejected before listening.
- * - Every request (including health) needs `Authorization: Bearer <token>`.
- * - Loopback socket + loopback Host header are both required.
+ * - No token: the security boundary is the loopback socket + loopback Host
+ *   header, plus the OS user account. This is a single-user local tool.
  * - JSON in, JSON out; unknown paths -> 404; wrong methods -> 405.
  */
 export async function createControlServer(options: ControlServerOptions): Promise<ControlServer> {
@@ -338,7 +314,6 @@ export async function createControlServer(options: ControlServerOptions): Promis
   ) {
     throw new SageError("createControlServer requires an open ControlStore", "E_BAD_CONFIG", 2);
   }
-  const token = requireToken(options.token);
   const host = options.host ?? LOOPBACK_HOST;
   if (host !== LOOPBACK_HOST) {
     throw new SageError(`Control API must bind ${LOOPBACK_HOST} only (got ${host})`, "E_BAD_HOST", 2);
@@ -348,7 +323,7 @@ export async function createControlServer(options: ControlServerOptions): Promis
     throw new SageError("port must be an integer between 0 and 65535", "E_BAD_PORT", 2);
   }
   const server = createServer((req, res) => {
-    void route(req, res, store, token);
+    void route(req, res, store);
   });
   server.on("clientError", (_error, socket) => {
     if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");

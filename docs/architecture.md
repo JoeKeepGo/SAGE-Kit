@@ -121,7 +121,7 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 
 控制面解决“跨会话、跨进程、可恢复”的问题：
 
-- 本地 HTTP API（默认只绑定 `127.0.0.1`，使用本地 token）。
+- 本地 HTTP API（只绑定 `127.0.0.1` + loopback Host 校验；本地单用户不设 token）。
 - Web UI：M2 已提供最小只读面板（任务列表/详情、health）；完整任务板、运行记录、反馈、提案、评估结果仍属 M2b。
 - SQLite（WAL）作为唯一权威存储；单进程写入。
 - 本地 Worker 子进程运行 Agent/命令，记录事件；不依赖远程队列。
@@ -264,7 +264,7 @@ SAGE-Kit/
 
 ## 11. 安全边界（摘要；控制面为 M2 目标）
 
-- 控制面默认只绑定 `127.0.0.1`；本地 Bearer token；不提供远程共享。P0 没有控制面监听；M2 foundation 的 `control serve` 已实现 loopback + token，但 UI/备份/导出未实现。
+- 控制面默认只绑定 `127.0.0.1`；本地单用户不设 token；不提供远程共享。P0 没有控制面监听；M2 foundation 的 `control serve` 已实现 loopback + 最小只读 UI，备份/导出未实现。
 - 反馈/网页/Issue 文本是不可信数据；不执行其中的命令；进入模型前做数据标记。
 - GitHub/Gitea 读 token 与写 token 分离；密钥不落盘、不进日志、不进提示词。
 - 执行外部命令/生成代码时使用最小权限；高风险动作要显式确认。
@@ -277,7 +277,7 @@ SAGE-Kit/
 | 里程碑 | 内容 | 完成标志 |
 |---|---|---|
 | **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 已部分验证真实 DSH headless（mock 与真实模型）、真实 `bash`→CLI 任务创建和 Linux Web；GUI 浏览器、hook 自动注入、真实 `stop` 生命周期尚未验收 |
-| **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | **已实现**：12 项测试通过；真实 GitHub/Gitea API `NOT_VERIFIED`（本地 fixture） |
+| **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | **已实现**：13 项测试通过；真实 `api.github.com` 与 WSL2 自建 Gitea 1.27.3 已验证；残余真实边界见 `docs/m1-feedback.md` |
 | **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | **Foundation 已实现**：33 项测试通过；最小只读 UI 已落地；完整任务板、提案/评估实体、备份/导出属 M2b |
 | **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | **Skeleton 已实现**：12 项测试通过；无定时器/自动批准/发布，M3b 待做 |
 
