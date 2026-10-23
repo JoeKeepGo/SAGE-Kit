@@ -6,9 +6,9 @@ import { buildBrief } from "./core/brief.js";
 import { readPackageVersion } from "./core/config.js";
 import { detectHosts, formatDoctor, runDoctor } from "./core/doctor.js";
 import { SageError, toSageError } from "./core/errors.js";
-import { executeHookSafely, type HookOptions } from "./core/hooks.js";
+import { executeHookSafely, HOOK_TIMEOUT_EXIT_CODE, parseHookTimeout, type HookOptions, type HookOutput } from "./core/hooks.js";
 import { initSageKit, uninstallSageKit } from "./core/install.js";
-import { findProjectRoot, packageRoot, statePaths } from "./core/paths.js";
+import { entryPackageRoot, findProjectRoot, homeDirectory, statePaths } from "./core/paths.js";
 import {
   createTask,
   isTaskStatus,
@@ -95,8 +95,8 @@ function boolFlag(flags: Record<string, string | boolean>, name: string): boolea
   return flags[name] === true;
 }
 
-function printHelp(): void {
-  process.stdout.write(`sage-kit ${VERSION}
+function printHelp(version: string): void {
+  process.stdout.write(`sage-kit ${version}
 
 Usage:
   sage-kit init --host dsh [--scope project|global] [--mode copy|symlink] [--force] [--no-instructions]
@@ -119,7 +119,13 @@ Commands run in the nearest git project root. Hooks read one JSON object from st
 `);
 }
 
-const VERSION = "0.1.0";
+async function packageVersion(): Promise<string> {
+  try {
+    return await readPackageVersion(entryPackageRoot(import.meta.url));
+  } catch {
+    return "0.0.0";
+  }
+}
 
 async function readStdin(): Promise<string> {
   if (process.stdin.isTTY) return "";
@@ -137,11 +143,11 @@ if (NODE_MAJOR < 22) {
 async function main(argv: string[]): Promise<number> {
   const command = argv[0];
   if (!command || command === "help" || command === "--help" || command === "-h") {
-    printHelp();
+    printHelp(await packageVersion());
     return 0;
   }
   if (command === "version" || command === "--version") {
-    process.stdout.write(`${VERSION}\n`);
+    process.stdout.write(`${await packageVersion()}\n`);
     return 0;
   }
 
@@ -205,7 +211,7 @@ async function main(argv: string[]): Promise<number> {
   if (command === "doctor") {
     const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
     const root = await projectRootFrom(cwd);
-    const result = await runDoctor(root);
+    const result = await runDoctor(root, process.env, homeDirectory(process.env));
     if (boolFlag(parsed.flags, "json")) json(result);
     else process.stdout.write(`${formatDoctor(result)}\n`);
     return result.ok ? 0 : 1;
@@ -271,23 +277,44 @@ async function main(argv: string[]): Promise<number> {
       boolean: ["strict"],
       multi: [],
     });
-    const raw = await readStdin();
-    let hookCwd = cwd;
-    try {
-      const parsedInput = JSON.parse(raw) as { cwd?: unknown };
-      if (typeof parsedInput.cwd === "string" && parsedInput.cwd.length > 0) hookCwd = parsedInput.cwd;
-    } catch {
-      // Invalid JSON is handled by the hook runner; retain the process cwd.
-    }
-    const root = await projectRootFrom(hookCwd);
+    const timeoutMs = parseHookTimeout(parsed.flags.timeout);
     const options: HookOptions = {
       ...(typeof parsed.flags.event === "string" ? { event: parsed.flags.event } : {}),
       strict: boolFlag(parsed.flags, "strict"),
-      ...(typeof parsed.flags.timeout === "string" ? { timeoutMs: Number(parsed.flags.timeout) } : {}),
     };
-    const result = await executeHookSafely(statePaths(root), raw, options);
-    json(result.output);
-    return result.exitCode;
+    // Hard budget for the whole hook path (stdin wait + local processing). On
+    // expiry emit a valid HookOutput and exit 124; hosts ignore/record it.
+    const timeoutOutput: HookOutput = {
+      contractVersion: "1",
+      action: "warn",
+      message: `Hook timed out after ${timeoutMs}ms`,
+      code: "E_HOOK_TIMEOUT",
+    };
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      process.stdout.write(`${JSON.stringify(timeoutOutput)}\n`, () => process.exit(HOOK_TIMEOUT_EXIT_CODE));
+    }, timeoutMs);
+    try {
+      const raw = await readStdin();
+      let hookCwd = cwd;
+      try {
+        const parsedInput = JSON.parse(raw) as { cwd?: unknown };
+        if (typeof parsedInput.cwd === "string" && parsedInput.cwd.length > 0) hookCwd = parsedInput.cwd;
+      } catch {
+        // Invalid JSON is handled by the hook runner; retain the process cwd.
+      }
+      const root = await projectRootFrom(hookCwd);
+      const result = await executeHookSafely(statePaths(root), raw, options);
+      if (settled) return HOOK_TIMEOUT_EXIT_CODE;
+      settled = true;
+      clearTimeout(timer);
+      json(result.output);
+      return result.exitCode;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   if (command === "uninstall") {

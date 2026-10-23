@@ -6,7 +6,7 @@
 
 - **P0 本地文件模式已实现**（TypeScript CLI + fake adapter）；文档中的控制面、SQLite、反馈同步、提案/评估/RSI 仍是设计目标。
 - 不要在文档或提交信息中声称任何能力“已实现”“已验证”，除非有对应测试、命令输出或运行证据。
-- P0-A1–A12 有自动化覆盖（A11 模拟中断，部分边界未覆盖）；P0-A13 的真实 DSH headless + mock 和 Linux Web 启动已部分验证 Skill 发现/加载，真实模型、浏览器 GUI 和 hook 自动注入仍未验收。未通过前，不把宿主集成写成已验收。
+- P0-A1–A12 有 19 项自动化覆盖（A11 含真实 SIGKILL；缺 Node<22 集成与 bundle 仍不在 P0 范围）；P0-A13 的真实 DSH headless + mock 和 Linux Web 启动已部分验证 Skill 发现/加载，真实模型、浏览器 GUI 和 hook 自动注入仍未验收。未通过前，不把宿主集成写成已验收。
 - 未完成 P0 前，不做控制面 UI、反馈自动提案或 RSI。
 
 ## 权威顺序

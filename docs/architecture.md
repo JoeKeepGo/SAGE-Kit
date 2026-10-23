@@ -162,7 +162,7 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 |---|---|---|
 | 任务定义、状态、验收标准、依赖 | 文件模式：`.sage-kit/state/tasks/*.json`；控制面：SQLite `tasks` | 只能有一个写入源 |
 | 运行记录、退出码、成本、错误 | `runs` / `events` | 追加写；UI 只读派生 |
-| 任务 lease / 当前执行者 | `leases`（控制面）或文件锁（文件模式） | 防止同一任务被两个 Worker 同时写 |
+| 任务 lease / 当前执行者 | `leases`（控制面，M2）或文件锁（文件模式，**NOT_IMPLEMENTED**） | P0 只记录 run；同一任务并发写没有锁保护 |
 | 反馈原始项 | `feedback` + `sync_cursors` | 来自外部；不可信；保留来源 URL |
 | 提案、评估、版本、回滚点 | `proposals` / `evals` / `artifacts` | 改进链路的事实 |
 | Skill 版本 | 包版本 + 安装 manifest | 必须可查询、可回滚 |
@@ -194,7 +194,7 @@ imported → ready → running → review → done
 ```
 
 - 一个任务一个 worktree/分支；任务结束（done/cancelled）后才清理。
-- `running` 必须有任务锁/lease 和 run 记录；崩溃后锁过期，任务变为 `interrupted`，可恢复或重跑。
+- P0 只要求 `running` 时有 run 记录；任务锁/lease 与“锁过期自动恢复”是 M2 目标。当前崩溃恢复依赖 `doctor` 对 stale run 的显式恢复，不能阻止两个进程同时写同一任务。
 - 完成必须有验收证据；没有证据只能标记 `review`，不能标记 `done`。
 
 ### 8.3 反馈与改进
@@ -230,7 +230,7 @@ SAGE-Kit/
     core/
       config.ts paths.ts fs-utils.ts errors.ts
       tasks.ts hooks.ts brief.ts events.ts
-      worktree.ts runner.ts doctor.ts install.ts
+      worktree.ts runs.ts doctor.ts install.ts
     adapters/
       types.ts index.ts dsh.ts codex.ts claude.ts fake.ts
   skills/sage-kit/
@@ -255,16 +255,16 @@ SAGE-Kit/
 - **崩溃恢复**：任何 run 可从事件日志判断最后状态；不依赖内存。
 - **幂等**：创建任务、同步反馈、执行副作用都有幂等键；重试不重复。
 - **单写者**：控制面单进程写 SQLite；Worker 不直写数据库。
-- **本机并发**：任务 lease + worktree 隔离 + git 操作串行化。
+- **本机并发**：P0 只有 worktree 隔离；任务 lease、git 操作串行化是 M2 目标，当前没有强制锁。
 - **可观测**：run id、结构化事件、错误分类、成本/耗时；`doctor` 和 `trace` 可定位问题。
 - **可回滚**：Skill/CLI/模板版本不可变；发布记录和回滚命令。
 - **可测试**：每个关键行为有 fixture/集成测试；不依赖真实 GitHub/模型做 CI。
 
 不做：分布式一致性、跨机锁、HA、租户隔离、远程多用户鉴权。
 
-## 11. 安全边界（摘要）
+## 11. 安全边界（摘要；控制面为 M2 目标）
 
-- 控制面默认只绑定 `127.0.0.1`；本地 token；不提供远程共享。
+- 控制面默认只绑定 `127.0.0.1`；本地 token；不提供远程共享。P0 没有控制面监听。
 - 反馈/网页/Issue 文本是不可信数据；不执行其中的命令；进入模型前做数据标记。
 - GitHub/Gitea 读 token 与写 token 分离；密钥不落盘、不进日志、不进提示词。
 - 执行外部命令/生成代码时使用最小权限；高风险动作要显式确认。

@@ -99,6 +99,8 @@
 
 **后果**：需要处理 worktree 清理、脏工作区、分支合并；不做分布式锁。
 
+**实现状态（2026-10-24）**：P0 文件模式**尚未实现文件锁/lease**；当前只有 worktree 隔离和 run 记录，不能阻止同一任务并发写。这是已记录的实现差距（`docs/state-and-durability.md`），不是“已实现”能力。
+
 ## D-009 四个扩展接口
 
 **决定**：只保留 `HostAdapter`、`TaskSourceAdapter`、`FeedbackSourceAdapter`、`EventSink` 四个接口；Bundle 是格式不是适配器。

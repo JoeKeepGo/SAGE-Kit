@@ -30,10 +30,10 @@
 
 按顺序、按需读取：
 
-1. `SESSION_BRIEF.md`（若存在；≤ 2 KB，优先）；
+1. `sage-kit brief` 的实时输出（优先；`SESSION_BRIEF.md` 是 init 时的快照，可能已过期）；
 2. `.sage-kit/config.json`（模式、宿主、任务目录）；
 3. 当前任务文件（`.sage-kit/state/tasks/<id>.json` 或控制面）；
-4. 与任务相关的 `references/`（只读需要的部分）；
+4. 与任务相关的 `references/`（M1 目标；P0 未随包提供该目录）；
 5. 相关源码/测试（按任务范围）。
 
 不要一次性加载全部历史、全部反馈、全部 references。
@@ -127,14 +127,14 @@ Skill 行为至少满足：
 
 ## 9. 参考加载策略
 
-`SKILL.md` 保持短小（目标 < 500 行）；详细规则放 `references/`：
+`SKILL.md` 保持短小（目标 < 500 行）；详细规则放 `references/`（M1 目标；P0 只随包提供 `SKILL.md`，当前没有这些文件）：
 
 - `references/workflow.md`：任务/验收/交接细节；
 - `references/feedback.md`：反馈分类与安全；
 - `references/evaluation.md`：评估/发布规则；
 - `references/hosts.md`：宿主差异。
 
-只在需要时读取对应文件；不要把全部 references 注入上下文。
+只在需要时读取对应文件；不要把全部 references 注入上下文。在 M1 落地前，Agent 不应引用不存在的 `references/` 路径。
 
 ## 10. 与文档的关系
 

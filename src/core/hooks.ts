@@ -1,12 +1,20 @@
 import { buildBrief } from "./brief.js";
 import { appendEvent } from "./events.js";
-import { clampNumber, redactRecord, validateTaskId } from "./fs-utils.js";
+import { redactRecord, validateTaskId } from "./fs-utils.js";
 import { SageError } from "./errors.js";
 import { findActiveTask, listTasks, readTask } from "./tasks.js";
 import type { StatePaths } from "./paths.js";
 
 export const HOOK_EVENTS = ["session.start", "command.after", "stop"] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
+
+// Hard budget for one hook invocation. The CLI enforces it around the whole
+// hook path (including waiting for stdin) and exits 124 with a valid
+// HookOutput when exceeded; see docs/hooks-and-host-adapters.md §3.4.
+export const HOOK_TIMEOUT_DEFAULT_MS = 2000;
+export const HOOK_TIMEOUT_MIN_MS = 50;
+export const HOOK_TIMEOUT_MAX_MS = 2000;
+export const HOOK_TIMEOUT_EXIT_CODE = 124;
 
 export interface HookInput {
   contractVersion?: 1;
@@ -35,7 +43,27 @@ export interface HookOutput {
 export interface HookOptions {
   event?: string;
   strict?: boolean;
-  timeoutMs?: number;
+}
+
+export function parseHookTimeout(value: string | boolean | undefined): number {
+  if (value === undefined || value === false) return HOOK_TIMEOUT_DEFAULT_MS;
+  if (typeof value !== "string") {
+    throw new SageError("--timeout requires a value", "E_USAGE", 2);
+  }
+  const timeoutMs = Number(value);
+  if (
+    !Number.isFinite(timeoutMs) ||
+    !Number.isInteger(timeoutMs) ||
+    timeoutMs < HOOK_TIMEOUT_MIN_MS ||
+    timeoutMs > HOOK_TIMEOUT_MAX_MS
+  ) {
+    throw new SageError(
+      `--timeout must be an integer between ${HOOK_TIMEOUT_MIN_MS} and ${HOOK_TIMEOUT_MAX_MS} ms`,
+      "E_USAGE",
+      2,
+    );
+  }
+  return timeoutMs;
 }
 
 export function isHookEvent(value: string): value is HookEvent {
@@ -83,8 +111,6 @@ export async function runHook(
   options: HookOptions = {},
 ): Promise<{ exitCode: number; output: HookOutput }> {
   const event = resolveEvent(input, options);
-  const timeoutMs = clampNumber(options.timeoutMs ?? 2000, 50, 2000);
-  void timeoutMs;
   const task = await taskForInput(paths, input);
 
   if (event === "session.start") {

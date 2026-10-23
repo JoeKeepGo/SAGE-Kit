@@ -4,6 +4,8 @@
 环境：WSL2 Ubuntu 26.04.1 LTS；Node v22.22.1；npm 9.2.0；DSH npm 包 `@deepseek-ai/dsh@0.2.1-rc.2`  
 隔离目录：`/home/kayann/sage-kit-linux-dsh`
 
+> 历史说明：本报告记录的 `npm test 10/10` 是 2026-10-24 早期 **10 项测试**版本；P0 套件此后扩展到 **19 项**，最新结果见 [`README.md`](README.md)。本报告的 Web/token/SPA 与 Skill 加载结论不受测试计数影响。
+
 ## 安装方式
 
 没有使用桌面应用，而是在 Linux 文件系统中直接安装公开的 npm 包：
@@ -59,7 +61,7 @@ dsh web: http://127.0.0.1:18766/?token=<process-token>
 
 这证明 Linux 上的 DSH 运行时同样能发现项目 `.dsh/skills/sage-kit`，并加载完整的 SAGE-Kit Skill。
 
-持久环境的一键回归脚本 `refresh-and-test.sh` 已跑通当前源码：Linux 构建成功、`npm test` 10/10、项目安装最新 tgz、DSH headless 再次返回 `skill` 工具结果。
+持久环境的一键回归脚本 `refresh-and-test.sh` 已跑通当前源码：Linux 构建成功、`npm test` 当时 10/10（当时套件版本；当前套件 19 项，最新结果见 [`README.md`](README.md)）、项目安装最新 tgz、DSH headless 再次返回 `skill` 工具结果。mock 模型驱动下 Skill → `bash` → SAGE-Kit CLI 创建/列出任务的完整链路见 [`dsh-e2e-model.md`](dsh-e2e-model.md)。
 
 ## 结论
 
@@ -71,7 +73,7 @@ dsh web: http://127.0.0.1:18766/?token=<process-token>
 2. **不要直接暴露**：默认只适合单用户/本机；对外服务必须加 TLS、反向代理、访问控制，不能只依赖启动 token。
 3. **单用户语义**：Web surface 仍是单用户 GUI，不是多租户服务；不要把它直接当成多玩家共享服务。
 4. **进程管理**：用 systemd/容器托管，不要依赖交互式终端后台进程；DSH 需要一个持续运行的 Node 进程。
-5. **浏览器验收**：本次验证了 HTTP/SPA、token/cookie 和 headless Skill 加载；真实浏览器交互、真实模型和 GUI 端到端仍未验收。
+5. **浏览器验收**：本次验证了 HTTP/SPA、token/cookie 和 headless Skill 加载；真实浏览器交互、真实模型和 GUI 端到端仍未验收。mock 模型的模型驱动 E2E（Skill → bash → CLI）见 [`dsh-e2e-model.md`](dsh-e2e-model.md)，同样不是真实模型证据。
 
 ## 复现脚本
 
