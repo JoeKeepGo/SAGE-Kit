@@ -1,6 +1,6 @@
 # SAGE-Kit
 
-**状态：P0 本地文件模式已实现，未发布到 npm registry。** P0-A1–A12 有自动化覆盖（缺 Node <22 分支未覆盖；A11 含模拟 stale run 与真实 SIGKILL 恢复；A8 覆盖 hook 超时；bundle 导入/导出不在 P0 范围）；A13 已做真实 DSH headless + **mock 模型**和 Linux Web 启动的部分验证（Skill 发现/加载），真实模型、浏览器 GUI 和 hook 自动注入未执行。控制面、SQLite、反馈同步、提案/评估/RSI 未实现（M1–M3 目标）。
+**状态：P0 本地文件模式已实现，未发布到 npm registry。** P0-A1–A12 有自动化覆盖（缺 Node <22 分支未覆盖；A11 含模拟 stale run 与真实 SIGKILL 恢复；A8 覆盖 hook 超时；bundle 导入/导出不在 P0 范围）；A13 已做真实 DSH headless + **mock 模型**、**真实 DeepSeek 模型**和 Linux Web 启动的部分验证；真实模型已能调用 `skill` → `bash` → SAGE-Kit 创建/列出任务，但浏览器 GUI 和 hook 自动注入未执行。控制面、SQLite、反馈同步、提案/评估/RSI 未实现（M1–M3 目标）。
 
 SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：它提供一份可安装的 Skill、一个本地文件模式的任务/证据 CLI，以及（设计目标）本地控制面和受控的“反馈 → 提案 → 评估 → 发布”改进闭环。P0 只实现本地文件模式，`docs/` 中标 `TARGET` 的能力均未实现。
 
@@ -56,7 +56,7 @@ node dist/cli.js task list
 - P0 本地文件模式已实现：`init`、`detect`、`doctor`、`task`、`worktree`、`run`、`brief`、`hook`、`uninstall`、`version`。
 - 文件适配器：DSH（项目 `.dsh/skills/sage-kit` + `AGENTS.md`，固定版本源码已核对）、Codex（`.agents/skills` + `AGENTS.md`）、Claude Code（`.claude/skills` + `CLAUDE.md`）；全局作用域安装到宿主全局目录，说明块默认跳过。P0 不安装宿主原生 hook；OpenCode 为 M1 目标。
 - 自动化测试：`npm test`（主测试环境 Linux/WSL）；当前 **19 项 / 19 通过 / 0 失败**（WSL2 Ubuntu 26.04、Node v22.22.1，2026-10-24），覆盖矩阵与已知缺口见 [`docs/p0-acceptance.md`](docs/p0-acceptance.md) 和 [`reports/p0/README.md`](reports/p0/README.md)。已知缺口：缺 Node <22 的运行时集成测试（A4d 只覆盖版本策略单元断言）；真实宿主 hook 自动注入无实现。
-- A13 部分证据：真实 DSH 0.2.1-rc.2 headless + mock 模型验证了项目 Skill 发现/加载，mock 模型触发 `skill` 与 `bash` 工具后由 CLI 创建任务；Linux DSH Web 启动、token/cookie/SPA 检查通过。**真实模型、浏览器 GUI 交互、hook 自动注入 `NOT_EXECUTED`**。证据见 [`reports/p0/dsh-e2e-model.md`](reports/p0/dsh-e2e-model.md)、[`reports/p0/dsh-real-host.md`](reports/p0/dsh-real-host.md)、[`reports/p0/dsh-linux-web.md`](reports/p0/dsh-linux-web.md)。
+- A13 部分证据：真实 DSH 0.2.1-rc.2 headless + mock 模型验证了项目 Skill 发现/加载；**真实 DeepSeek 模型 headless** 调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务 JSON 由独立命令复核；Linux DSH Web 启动、token/cookie/SPA 检查通过。**浏览器 GUI 交互、hook 自动注入、真实 `stop` 生命周期 `NOT_EXECUTED`**，因此 A13 未完整通过。证据见 [`reports/p0/dsh-real-model-e2e.md`](reports/p0/dsh-real-model-e2e.md)、[`reports/p0/dsh-e2e-model.md`](reports/p0/dsh-e2e-model.md)、[`reports/p0/dsh-real-host.md`](reports/p0/dsh-real-host.md)、[`reports/p0/dsh-linux-web.md`](reports/p0/dsh-linux-web.md)。
 - `NOT_IMPLEMENTED`：控制面/UI、SQLite、lease、反馈同步、提案/评估/RSI、Bundle 导入/导出、宿主 hook 自动安装。
 - 文档中“目标设计（`TARGET`）”与“已实现（`P0`）”分开标注；实现偏差先改 ADR/文档，再改代码。
 
