@@ -582,6 +582,38 @@ describe("M1 feedback: Gitea adapter", () => {
       .filter(Boolean);
     assert.deepEqual(sinceValues, ["2024-03-02T00:00:00.000Z"]);
   });
+
+  it("normalizes real Gitea local-offset timestamps to UTC in items and cursor", async () => {
+    const root = await tempDir();
+    // Gitea 1.27.3 returns RFC3339 timestamps with the server's local offset
+    // (observed on the isolated instance: "2026-10-24T07:03:50+13:00"). Stored
+    // values and cursors must be normalized to UTC so comparisons stay ordered.
+    const server = await startHttpServer(async (request, response) => {
+      const host = request.headers.host ?? "127.0.0.1";
+      const url = new URL(request.url ?? "/", `http://${host}`);
+      if (url.pathname !== "/api/v1/repos/acme/widgets/issues") {
+        return sendJson(response, 404, { message: "not found" });
+      }
+      return sendJson(response, 200, [giteaIssue(7, "2026-10-24T07:03:50+13:00")], {
+        "x-total-count": "1",
+      });
+    });
+
+    const result = await runFeedback(
+      root,
+      ["sync", "--source", "gitea", "--repo", "acme/widgets", "--json"],
+      { GITEA_API_URL: `${server.baseUrl}/api/v1` },
+    );
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.json.fetched, 1);
+    assert.equal(result.json.added, 1);
+    assert.equal(result.json.cursor, "2026-10-23T18:03:50.000Z", "cursor is UTC");
+
+    const stored = await readJsonl(join(root, ".sage-kit", "feedback", "items.jsonl"));
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].id, "gitea:acme/widgets:issue:7");
+    assert.equal(stored[0].updatedAt, "2026-10-23T18:03:50.000Z");
+  });
 });
 
 // ---------------------------------------------------------------------------

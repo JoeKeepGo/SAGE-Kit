@@ -1,0 +1,53 @@
+APP_NAME = SAGE-Kit M1 Gitea
+RUN_USER = kayann
+RUN_MODE = prod
+WORK_PATH = /home/kayann/sage-kit-gitea
+
+[server]
+PROTOCOL = http
+HTTP_ADDR = 127.0.0.1
+HTTP_PORT = 3000
+ROOT_URL = http://127.0.0.1:3000/
+DISABLE_SSH = true
+START_SSH_SERVER = false
+LFS_START_SERVER = false
+OFFLINE_MODE = true
+APP_DATA_PATH = /home/kayann/sage-kit-gitea/data
+
+[database]
+DB_TYPE = sqlite3
+PATH = /home/kayann/sage-kit-gitea/data/gitea.db
+
+[repository]
+ROOT = /home/kayann/sage-kit-gitea/data/repos
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = <redacted>
+INTERNAL_TOKEN = <redacted>
+
+[service]
+DISABLE_REGISTRATION = true
+REQUIRE_SIGNIN_VIEW = false
+ENABLE_NOTIFY_MAIL = false
+REGISTER_EMAIL_CONFIRM = false
+DEFAULT_ALLOW_CREATE_ORGANIZATION = false
+
+[openid]
+ENABLE_OPENID_SIGNIN = false
+ENABLE_OPENID_SIGNUP = false
+
+[log]
+ROOT_PATH = /home/kayann/sage-kit-gitea/log
+MODE = file
+LEVEL = Info
+
+[session]
+PROVIDER = file
+PROVIDER_CONFIG = /home/kayann/sage-kit-gitea/data/sessions
+
+[cron]
+ENABLED = false
+
+[oauth2]
+JWT_SECRET = <redacted>

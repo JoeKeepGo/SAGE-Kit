@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "source": "gitea",
+  "repo": "m1test/m1-feedback-test",
+  "fetched": 15,
+  "added": 1,
+  "duplicates": 14,
+  "total": 58,
+  "unique": 57,
+  "cursor": "2026-10-23T18:05:13.000Z",
+  "cursorKey": "gitea:m1test/m1-feedback-test",
+  "itemsFile": ".sage-kit/feedback/items.jsonl",
+  "cursorsFile": ".sage-kit/feedback/cursors.json",
+  "untrustedData": true
+}
