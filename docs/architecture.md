@@ -122,7 +122,7 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 控制面解决“跨会话、跨进程、可恢复”的问题：
 
 - 本地 HTTP API（默认只绑定 `127.0.0.1`，使用本地 token）。
-- Web UI：任务板、运行记录、反馈、提案、评估结果。
+- Web UI：M2 已提供最小只读面板（任务列表/详情、health）；完整任务板、运行记录、反馈、提案、评估结果仍属 M2b。
 - SQLite（WAL）作为唯一权威存储；单进程写入。
 - 本地 Worker 子进程运行 Agent/命令，记录事件；不依赖远程队列。
 - 调度/恢复：启动时恢复未完成任务，处理过期 lease。
@@ -278,10 +278,10 @@ SAGE-Kit/
 |---|---|---|
 | **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 已部分验证真实 DSH headless（mock 与真实模型）、真实 `bash`→CLI 任务创建和 Linux Web；GUI 浏览器、hook 自动注入、真实 `stop` 生命周期尚未验收 |
 | **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | **已实现**：12 项测试通过；真实 GitHub/Gitea API `NOT_VERIFIED`（本地 fixture） |
-| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | **Foundation 已实现**：32 项测试通过；UI、提案/评估实体、备份/导出属 M2b |
+| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | **Foundation 已实现**：33 项测试通过；最小只读 UI 已落地；完整任务板、提案/评估实体、备份/导出属 M2b |
 | **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | **Skeleton 已实现**：12 项测试通过；无定时器/自动批准/发布，M3b 待做 |
 
-P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。M1 反馈同步、M2 foundation、M3 skeleton 已落地；控制面 UI、M2b 备份/导出、M3 定时/自动循环未实现。全部完成并确定 A13 边界前不发布 release。
+P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。M1 反馈同步、M2 foundation（含最小只读 UI）、M3 skeleton 已落地；控制面完整 UI、M2b 备份/导出、M3 定时/自动循环未实现。全部完成并确定 A13 边界前不发布 release。
 
 ## 13. 未决问题
 

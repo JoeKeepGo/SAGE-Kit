@@ -1,6 +1,6 @@
 # 状态与持久化
 
-**实现状态：P0 文件模式已实现；M2 SQLite foundation（tasks/runs/events/leases/API/恢复）已实现；M2b 备份导出/UI/提案评估实体、M3 定时循环仍是 `TARGET`。**
+**实现状态：P0 文件模式已实现；M2 SQLite foundation（tasks/runs/events/leases/API/恢复）和最小只读 Web UI 已实现；M2b 备份导出/完整控制台/提案评估实体、M3 定时循环仍是 `TARGET`。**
 本文定义 SAGE-Kit 的两套状态模式、数据模型、恢复规则和并发约束。P0 只实现文件模式，布局与字段以 §2.1、§3、§4、§5 的 `[P0 已实现]` 为准（代码：`src/core/paths.ts`、`src/core/tasks.ts`、`src/core/runs.ts`、`src/core/events.ts`、`src/core/worktree.ts`）；`[TARGET]` 部分是设计目标，不构成实现声明。验收依据见 `docs/p0-acceptance.md`。
 
 ## 1. 范围与原则

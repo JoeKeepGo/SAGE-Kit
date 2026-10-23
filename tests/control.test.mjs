@@ -699,6 +699,32 @@ describe("M2 control HTTP API", () => {
     });
   });
 
+  it("serves a public read-only UI shell but keeps /v1 behind auth", async () => {
+    await withControlServer(async ({ server }) => {
+      const root = await api(server, "/", { token: null });
+      assert.equal(root.status, 200);
+      assert.equal(root.headers["content-type"], "text/html; charset=utf-8");
+      assert.equal(root.headers["x-frame-options"], "DENY");
+      assert.match(root.headers["content-security-policy"], /default-src 'none'/);
+      assert.match(root.text, /SAGE-Kit Control/);
+      assert.match(root.text, /只读/);
+      assert.match(root.text, /Bearer Token/);
+
+      const ui = await api(server, "/ui", { token: null });
+      assert.equal(ui.status, 200);
+      assert.match(ui.text, /id="tasks"/);
+      const script = ui.text.match(/<script>([\s\S]*?)<\/script>/);
+      assert.ok(script, "read-only UI must include an inline script");
+      assert.doesNotThrow(() => new Function(script[1]), "read-only UI script must parse");
+
+      const favicon = await api(server, "/favicon.ico", { token: null });
+      assert.equal(favicon.status, 204);
+
+      const data = await api(server, "/v1/tasks", { token: null });
+      assert.equal(data.status, 401);
+    });
+  });
+
   it("rejects non-loopback binds and invalid options", async () => {
     await withStore(async ({ store }) => {
       await expectRejects(createControlServer({ store, token: "" }), "E_BAD_TOKEN");

@@ -4,6 +4,7 @@ import { SageError } from "../core/errors.js";
 import type { TaskStatus } from "../core/tasks.js";
 import { MAX_HTTP_BODY_BYTES } from "./schema.js";
 import type { ControlStore } from "./store.js";
+import { renderControlUiHtml } from "./ui.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const LOOPBACK_CLIENTS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
@@ -81,6 +82,26 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
 
 function sendError(res: ServerResponse, status: number, code: string, message: string): void {
   sendJson(res, status, { error: { code, message } });
+}
+
+function sendHtml(res: ServerResponse, status: number, html: string): void {
+  const body = Buffer.from(html, "utf8");
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "content-length": body.length,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+    "content-security-policy":
+      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  });
+  res.end(body);
+}
+
+function sendNoContent(res: ServerResponse, status: number): void {
+  res.writeHead(status, { "cache-control": "no-store" });
+  res.end();
 }
 
 function statusForError(code: string): number {
@@ -210,9 +231,6 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
       throw new SageError("Control API accepts loopback connections only", "E_NON_LOOPBACK", 1);
     }
     requireLoopbackHost(req);
-    if (!authorized(req, token)) {
-      throw new SageError("Missing or invalid Authorization: Bearer token", "E_UNAUTHORIZED", 1);
-    }
     let url: URL;
     try {
       url = new URL(req.url ?? "/", `http://${LOOPBACK_HOST}`);
@@ -221,6 +239,20 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
     }
     const pathname = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
+
+    // The shell is public HTML with no data; every /v1/* call still requires auth.
+    if ((pathname === "/" || pathname === "/ui") && method === "GET") {
+      sendHtml(res, 200, renderControlUiHtml());
+      return;
+    }
+    if (pathname === "/favicon.ico" && method === "GET") {
+      sendNoContent(res, 204);
+      return;
+    }
+
+    if (!authorized(req, token)) {
+      throw new SageError("Missing or invalid Authorization: Bearer token", "E_UNAUTHORIZED", 1);
+    }
 
     if (pathname === "/v1/health") {
       if (method !== "GET") return methodNotAllowed(res, ["GET"]);

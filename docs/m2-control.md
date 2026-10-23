@@ -1,9 +1,9 @@
 # M2 控制面基础（SQLite + lease + 本地 HTTP）
 
-**状态：M2 foundation 已实现并已验证（`IMPLEMENTED` / `VERIFIED`）；M2b 与 UI/提案/评估未实现。**
+**状态：M2 foundation 已实现并已验证（`IMPLEMENTED` / `VERIFIED`）；最小只读 Web UI 已实现；M2b 完整控制台、提案/评估实体、备份导出未实现。**
 本文只描述 `src/control/**` 这一个可选层。它不改变 P0 文件模式，不写 `.sage-kit/state/`，不做模式切换。Lead 已接入 `sage-kit control serve/status/recover`（lazy import）；全局设计基线仍是 `docs/state-and-durability.md` §2.2/§6 与 `docs/decisions.md` D-005/D-006/D-007/D-008。
 
-验证环境与证据（2026-10-24，Windows Node v24.22.0；WSL2 Ubuntu Node v22.22.1 上完整 `npm test` 79/79 通过，`node:sqlite` 可用但会打印 ExperimentalWarning）：
+验证环境与证据（2026-10-24，Windows Node v24.22.0；WSL2 Ubuntu Node v22.22.1 上完整 `npm test` 80/80 通过，`node:sqlite` 可用但会打印 ExperimentalWarning）：
 
 ```text
 npm run build                     # tsc -p tsconfig.json
@@ -31,7 +31,7 @@ node --test tests/control.test.mjs
 | CLI `control` 子命令 / `src/cli.ts` 接线 | `IMPLEMENTED`（Lead） | `serve/status/recover`，lazy import；P0 默认启动不加载 SQLite |
 | `config.json` 的 `mode = "control"` 与模式切换 | `NOT_IMPLEMENTED`（M2b） | 绝不双写；本模块不碰 config |
 | `state export/import/migrate`、备份（`VACUUM INTO`） | `NOT_IMPLEMENTED`（M2b） | 见 `docs/state-and-durability.md` §7 |
-| 提案/评估/RSI、Web UI、多用户/远程 | `NOT_IMPLEMENTED`（M3/M2b） | 不在本 slice |
+| 提案/评估/RSI、完整控制台（写入/提案/评估）、多用户/远程 | `NOT_IMPLEMENTED`（M3/M2b） | 最小只读面板除外 |
 | 任务依赖表、feedback/outbox/artifacts 表 | `NOT_IMPLEMENTED`（M2b） | 本 slice 只建 4 张最小表 |
 | run 进程监督（pid 存活检测、自动心跳定时器） | `NOT_IMPLEMENTED`（M2b） | 恢复依据 lease，不依据 pid |
 | HTTP `renew`/events 端点、分页 cursor | `NOT_IMPLEMENTED` | 按任务要求只交付 5 端点 |
@@ -201,7 +201,8 @@ server.close();  // 幂等
 - 校验 `Host` 头只接受 loopback/localhost（防 DNS rebinding）；异常 Host → 403。
 - Bearer 比较使用 `timingSafeEqual`；空/缺失/错误 token 一律 401；token 不出现在响应、事件、日志里。
 - 请求体上限 64 KiB，事件 payload 上限 32 KiB；非法 JSON → 400；未知路由 → 404。
-- 无 CORS、无 UI、无静态文件、无 TLS（仅 loopback，本地进程间调用）。
+- 无 CORS、无第三方静态资源、无 TLS（仅 loopback，本地进程间调用）。
+- `GET /` 与 `GET /ui` 返回自包含只读 HTML（无数据、无需 token）；`/v1/*` 仍全部要求 Bearer token。页面用 `sessionStorage` 保存 token；CSP 禁止外部脚本/样式、`frame-ancestors 'none'`。只调用 `/v1/health`、`/v1/tasks`、`/v1/tasks/:id`，没有写操作。
 
 ## 5. 任务状态机（与 P0 一致）
 

@@ -569,6 +569,7 @@ async function runControlCommand(argv: string[], cwd: string): Promise<number> {
   const payload = {
     ok: true,
     url: server.url,
+    uiUrl: `${server.url}/ui`,
     host: server.host,
     port: server.port,
     tokenGenerated: !explicitToken && !envToken,
@@ -576,6 +577,7 @@ async function runControlCommand(argv: string[], cwd: string): Promise<number> {
   if (boolFlag(parsed.flags, "json")) process.stdout.write(`${JSON.stringify(payload)}\n`);
   else {
     process.stdout.write(`SAGE-Kit control listening on ${server.url}\n`);
+    process.stdout.write(`Read-only UI: ${payload.uiUrl}\n`);
     if (payload.tokenGenerated) process.stdout.write(`Bearer token (shown once): ${token}\n`);
     process.stdout.write("Press Ctrl+C to stop.\n");
   }
