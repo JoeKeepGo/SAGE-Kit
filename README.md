@@ -1,154 +1,59 @@
 # SAGE-Kit
 
-[English](README.md) | [中文](README.zh-CN.md)
+**状态：P0 本地文件模式已实现。P0-A1–A12 有自动化覆盖（A11 为模拟中断，部分边界未覆盖）；真实 DSH 0.2.1-rc.2 headless 和 Linux Web 部署已验证 Skill 发现/加载，真实模型/GUI 和 hook 自动注入未验；控制面、反馈同步和 RSI 未实现。**
 
-[![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)
-[![Latest release](https://img.shields.io/github/v/release/JoeKeepGo/SAGE-Kit)](https://github.com/JoeKeepGo/SAGE-Kit/releases)
-[![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：它提供一份可安装的 Skill、一个可选的本地控制面，以及一个受控的“反馈 → 提案 → 评估 → 发布”改进闭环。
 
-SAGE-Kit is a model-native SPEC and Harness framework for long-running,
-agent-assisted product development. It keeps product authority, execution,
-evidence, review, and acceptance distinct without placing another runtime
-between the model and the project.
+它不是团队协作平台，也不是多租户服务；团队任务系统只通过稳定接口接入。
 
-SAGE-Kit has no CLI, package runtime, daemon, scheduler, or hidden validator.
-Models follow the project's current authority and SPEC, use the project's own
-tools, and let the project's CI verify the final candidate.
+## P0 快速开始
 
-## Core Workflow
-
-```mermaid
-flowchart LR
-  A["Idea and product authority"] --> B["Blueprint and roadmap"]
-  B --> C["Milestone / Wave / Phase / Lane"]
-  C --> D["Bounded plan or optional Graph"]
-  D --> E["Implementation loop"]
-  E --> F["Project-native focused checks"]
-  F --> G["Risk-based independent review"]
-  G --> H["Required final project CI"]
-  H --> I["Human acceptance and closeout"]
+```bash
+npm install
+npm run build
+# 在一个 git 仓库中安装到项目
+node dist/cli.js init --host dsh --scope project
+node dist/cli.js doctor --json
+node dist/cli.js task create --title "First task" --acceptance "tests pass"
+node dist/cli.js task list
 ```
 
-The loop does the work. The optional Graph makes dependencies, joins, gates,
-and parallelism explicit when that structure improves a decision. Light work
-does not need a Graph.
+安装到目标仓库后可用 `sage-kit`（或 `npx sage-kit`，若已发布/全局安装）；本仓库开发时用 `node dist/cli.js`。
 
-Before substantial implementation in a complex milestone, keep one compact
-view of the real product path in the existing SPEC or plan: ownership,
-execution, evidence, entry, durable outcome, and packaged delivery. This catches
-architecture drift early without creating another required document, review,
-or default end-to-end gate.
+主测试环境是 WSL/Linux（见 `docs/platform-support.md`）；Windows 不作为测试套件执行环境，但发布前必须用 `scripts/windows-smoke.ps1` 做兼容冒烟。
 
-## Quick Adoption
+`init` 会写入 `.sage-kit/config.json`、宿主 Skill 目录和受管的 `AGENTS.md` 块（Codex/Claude 分别用 `.agents/skills`/`AGENTS.md`、`.claude/skills`/`CLAUDE.md`）。P0 不自动安装宿主 hooks；`hook` 命令可由宿主显式调用。
 
-Install the Skill once, bootstrap each project, and then work normally:
+## 文档索引
 
-1. Install or reference the complete [`skills/sage-kit`](skills/sage-kit)
-   directory through the host's Skill mechanism. Its
-   [`skill-manifest.json`](skills/sage-kit/skill-manifest.json) identifies the
-   package and binds every required framework reference to a package-local
-   SHA-256 digest, so normal routing does not depend on a source checkout.
-2. Add the lightweight project entry from the
-   [`AGENTS.md` bootstrap template](docs/templates/AGENTS_SAGE_BOOTSTRAP_TEMPLATE.md)
-   and point it to current project authority. Claude Code projects use a
-   `CLAUDE.md` that imports the bootstrap; see the host references.
-3. Let automatic project instructions handle Light work, including Light review
-   and mechanical corrective work. Standard/Heavy work, materially semantic
-   review/corrective work, acceptance, and release load the complete Skill once
-   per controller context.
-4. Use explicit `$sage-kit` invocation to override or diagnose routing whenever
-   adoption, current authority, or required Skill content cannot be resolved.
-5. Keep project-native focused checks and run final CI only when the project,
-   merge, release, or acceptance gate requires it.
+按顺序阅读：
 
-Start with [`SAGE_CORE.md`](docs/SAGE_CORE.md),
-[`AGENT_HARNESS.md`](docs/agent/AGENT_HARNESS.md), and the reusable
-[`templates`](docs/templates).
+1. [`docs/architecture.md`](docs/architecture.md) — 目标架构、分层、状态归属、运行模式、路线图。
+2. [`docs/state-and-durability.md`](docs/state-and-durability.md) — 文件模式/控制面模式、数据模型、恢复、并发与备份。
+3. [`docs/extension-contracts.md`](docs/extension-contracts.md) — 四个扩展接口：宿主、任务源、反馈源、事件出口；Bundle 是导入/导出格式。
+4. [`docs/feedback-and-rsi.md`](docs/feedback-and-rsi.md) — GitHub/Gitea 反馈、提案、独立评估、发布与回滚、L0–L2 自我改进。
+5. [`docs/hooks-and-host-adapters.md`](docs/hooks-and-host-adapters.md) — 宿主适配、三类 hook、失败降级。
+6. [`docs/security.md`](docs/security.md) — 威胁模型、密钥、提示注入、沙箱、供应链。
+7. [`docs/p0-acceptance.md`](docs/p0-acceptance.md) — P0 范围、命令、验收场景与自动化测试要求。
+8. [`docs/platform-support.md`](docs/platform-support.md) — Windows/Linux/WSL 支持边界与主测试环境。
+9. [`docs/skill-contract.md`](docs/skill-contract.md) — Skill 的触发、工作流、停止条件与质量门槛。
+10. [`docs/decisions.md`](docs/decisions.md) — 设计基线决策（ADR 摘要）。
+11. [`docs/references.md`](docs/references.md) — 参考项目、可借鉴点与不采用的边界。
+12. [`SECURITY.md`](SECURITY.md) — 安全报告方式、支持范围与响应边界。
 
-Update the installed Skill as one directory rather than mixing individual
-files from different releases. A matching source archive remains useful for
-deeper reading, but it is optional and must agree with the packaged resource
-digests before it substitutes for a packaged reference.
+## 一句话边界
 
-## Governance Levels
+- **做**：本地单用户、单仓库、多任务并发、可恢复执行、反馈驱动的受控改进。
+- **不做**：多机、团队、多租户、实时协作、RBAC、远程共享 API、自动合并、无人值守递归自改。
 
-| Level | Use it for | Typical shape |
-|---|---|---|
-| Light | Small, low-risk, bounded changes | 0-1 docs, controller may execute, no independent review by default, 1-2 focused checks; CI only for a project/merge/release gate |
-| Standard | Normal multi-file product work | Short plan + result, risk-based controller/subagents, one affected review, focused checks, and project CI once per unchanged candidate only when project authority, acceptance, or a merge/release gate requires it |
-| Heavy | Concrete safety, authority, production, release, destructive, or broad integration risk | 3-5 purposeful docs by default, one independent final review, risk checks + project-required final CI when selected, explicit high-risk human gates |
+## 当前阶段
 
-Governance level and permission are independent. A Heavy controller does not
-automatically receive write, corrective, submit, or acceptance authority.
+- P0 本地文件模式已实现：`init`、`doctor`、`task`、`worktree`、`run`、`brief`、`hook`、`uninstall`。
+- 文件适配器：DSH（优先，已按固定版本源码核对 Skill/AGENTS 路径）、Codex（`.agents/skills` + `AGENTS.md`）、Claude Code（`.claude/skills` + `CLAUDE.md`）；OpenCode 为 M1。
+- 自动化测试：`npm test`；证据场景见 `docs/p0-acceptance.md` 和 [`reports/p0/README.md`](reports/p0/README.md)。
+- 未执行：真实 DSH/Codex/Claude 会话验收；控制面、SQLite、反馈同步、提案/评估/RSI。
+- 文档中的“目标设计”与“已实现”分开标注；实现偏差先改 ADR/文档，再改代码。
 
-## What Remains Authoritative
+## 许可证
 
-- The active SPEC and project authority own the normative objective, product
-  intent, acceptance criteria, and acceptance decision.
-- Git, runtimes, checks, reviews, and artifacts own the facts they expose;
-  `ACTIVE_CONTEXT` owns only the compact status/findings/blockers/next-action
-  snapshot and its references, not intent or a second source of machine truth.
-- Capability realization and evidence trust are owned by
-  [`CLAIM_EVIDENCE_TRUST.md`](docs/agent/CLAIM_EVIDENCE_TRUST.md); other
-  surfaces link to it instead of duplicating the model.
-- [`contracts`](contracts) contains optional static, language-neutral Graph and
-  Node Result schemas. Contract presence never executes work or grants
-  authority.
-- [`docs`](docs) contains the governance model and planning templates.
-- [`skills/sage-kit`](skills/sage-kit) activates and routes the model-native
-  workflow for supported hosts.
-
-## Supported Hosts
-
-The Skill includes guidance for Codex, Claude Code, OpenCode, and Kimi. Their
-project-instruction and Skill routes are expected host capabilities that should
-be confirmed against the adopted host version and configuration. They guide
-the model but do not create hard enforcement.
-SAGE-Kit can coexist with specialist Skills, plugins, MCP tools, native
-subagents, and project-specific automation. Those capabilities remain subject
-to project authority and must not silently broaden scope.
-
-Cross-milestone continuation depends on the host and is bounded to already
-admitted, preauthorized milestones. The coordinator records authority,
-admissions, completion/next-admission rules, drift, resume, handoff, and
-convergence. Stop for product acceptance, scope/permission expansion, a new
-threat-model decision, destructive/production work, credentials, merge, or
-release. Explicit project authority may allow `DONE_PENDING_ACCEPTANCE` to
-continue within the admitted envelope.
-
-## Verification Economy
-
-```text
-each change        -> project-native focused check
-affected boundary  -> affected-only review or verification
-unchanged inputs   -> reuse attributable evidence
-relevant input     -> rerun affected product/package/E2E proof
-final candidate    -> project CI once only when project authority, acceptance, or a merge/release gate requires it
-finding fixed      -> targeted re-review, not full review replay
-```
-
-Progress may continue while findings converge and scope stays fixed. Two
-consecutive no-progress rounds for the same root cause trigger strategy
-reassessment and a diagnostic handoff; report `BLOCKED` only when a genuine
-authority, permission, required-input, or required-evidence gap prevents safe
-progress. Ordinary wording, EOF, and non-semantic consistency issues are
-corrected directly when ownership is clear.
-
-## Repository Layout
-
-```text
-contracts/          Optional machine-readable static contracts
-docs/               Canonical governance docs, profiles, and templates
-skills/sage-kit/    Model activation and host routing
-scripts/            Lightweight repository-integrity checks
-tests/              Shell/PowerShell checks for shipped adapters and Skill packaging
-```
-
-For migration from the former executable line, see the
-[`model-native migration guide`](docs/MIGRATION_MODEL_NATIVE.md).
-
-## Fit
-
-SAGE-Kit is useful when work spans sessions, milestones, people, or agents and
-when authority, evidence, and completion must stay auditable. A short script or
-disposable prototype usually needs less structure.
+MIT。第三方代码/依赖的来源、许可证和版本在实现时单独记录；不为参考项目增加运行依赖。

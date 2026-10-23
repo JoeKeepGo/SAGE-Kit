@@ -1,6 +1,7 @@
-# Canonical contracts use stable LF bytes across platforms.
-/contracts/** text eol=lf
-
-# Host adapters keep their native script conventions explicit.
+* text=auto eol=lf
 *.sh text eol=lf
 *.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
