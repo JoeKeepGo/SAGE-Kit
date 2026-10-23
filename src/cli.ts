@@ -1,0 +1,404 @@
+#!/usr/bin/env node
+import { readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { getAdapter, listAdapters } from "./adapters/index.js";
+import { buildBrief } from "./core/brief.js";
+import { readPackageVersion } from "./core/config.js";
+import { detectHosts, formatDoctor, runDoctor } from "./core/doctor.js";
+import { SageError, toSageError } from "./core/errors.js";
+import { executeHookSafely, type HookOptions } from "./core/hooks.js";
+import { initSageKit, uninstallSageKit } from "./core/install.js";
+import { findProjectRoot, packageRoot, statePaths } from "./core/paths.js";
+import {
+  createTask,
+  isTaskStatus,
+  listTasks,
+  readTask,
+  updateTaskStatus,
+  type TaskStatus,
+} from "./core/tasks.js";
+import { createWorktree, listWorktrees, removeWorktree } from "./core/worktree.js";
+import { startRun } from "./core/runs.js";
+
+interface Parsed {
+  positional: string[];
+  flags: Record<string, string | boolean>;
+  multi: Record<string, string[]>;
+}
+
+interface ParseSpec {
+  boolean?: string[];
+  value?: string[];
+  multi?: string[];
+}
+
+function parseArgs(argv: string[], spec: ParseSpec): Parsed {
+  const result: Parsed = { positional: [], flags: {}, multi: {} };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index] as string;
+    if (arg === "-h" || arg === "--help") {
+      result.flags.help = true;
+      continue;
+    }
+    if (!arg.startsWith("--")) {
+      result.positional.push(arg);
+      continue;
+    }
+    const body = arg.slice(2);
+    const equals = body.indexOf("=");
+    const name = equals >= 0 ? body.slice(0, equals) : body;
+    const inline = equals >= 0 ? body.slice(equals + 1) : undefined;
+    if (spec.boolean?.includes(name)) {
+      if (inline !== undefined) throw new SageError(`--${name} does not take a value`, "E_USAGE", 2);
+      result.flags[name] = true;
+      continue;
+    }
+    if (spec.value?.includes(name)) {
+      const value = inline ?? argv[index + 1];
+      if (value === undefined || value.startsWith("--")) throw new SageError(`--${name} requires a value`, "E_USAGE", 2);
+      result.flags[name] = value;
+      if (inline === undefined) index += 1;
+      continue;
+    }
+    if (spec.multi?.includes(name)) {
+      const value = inline ?? argv[index + 1];
+      if (value === undefined) throw new SageError(`--${name} requires a value`, "E_USAGE", 2);
+      (result.multi[name] ??= []).push(value);
+      if (inline === undefined) index += 1;
+      continue;
+    }
+    throw new SageError(`Unknown option: --${name}`, "E_USAGE", 2);
+  }
+  return result;
+}
+
+function json(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function output(value: unknown, asJson: boolean): void {
+  if (asJson) json(value);
+  else if (typeof value === "string") process.stdout.write(`${value}\n`);
+}
+
+async function projectRootFrom(cwd: string): Promise<string> {
+  return findProjectRoot(cwd);
+}
+
+function requireString(flags: Record<string, string | boolean>, name: string): string {
+  const value = flags[name];
+  if (typeof value !== "string") throw new SageError(`--${name} is required`, "E_USAGE", 2);
+  return value;
+}
+
+function boolFlag(flags: Record<string, string | boolean>, name: string): boolean {
+  return flags[name] === true;
+}
+
+function printHelp(): void {
+  process.stdout.write(`sage-kit ${VERSION}
+
+Usage:
+  sage-kit init --host dsh [--scope project|global] [--mode copy|symlink] [--force] [--no-instructions]
+  sage-kit doctor [--json]
+  sage-kit detect [--json]
+  sage-kit task create --title <text> [--description <text>] [--acceptance <text>]... [--id <id>]
+  sage-kit task list [--status <status>] [--json]
+  sage-kit task show <id> [--json]
+  sage-kit task status <id> <status> [--evidence <text>]... [--note <text>] [--json]
+  sage-kit brief [--task <id>] [--max-bytes <n>] [--json]
+  sage-kit worktree create --task <id>
+  sage-kit worktree remove --task <id> [--force]
+  sage-kit worktree list [--json]
+  sage-kit run --task <id> [--no-worktree] -- <command> [args...]
+  sage-kit hook [--event session.start|command.after|stop] [--strict] [--timeout <ms>]
+  sage-kit uninstall [--purge]
+  sage-kit version
+
+Commands run in the nearest git project root. Hooks read one JSON object from stdin.
+`);
+}
+
+const VERSION = "0.1.0";
+
+async function readStdin(): Promise<string> {
+  if (process.stdin.isTTY) return "";
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+const NODE_MAJOR = Number(process.versions.node.split(".")[0] ?? 0);
+if (NODE_MAJOR < 22) {
+  process.stderr.write(`sage-kit requires Node.js >=22 (current ${process.versions.node}).\n`);
+  process.exit(1);
+}
+
+async function main(argv: string[]): Promise<number> {
+  const command = argv[0];
+  if (!command || command === "help" || command === "--help" || command === "-h") {
+    printHelp();
+    return 0;
+  }
+  if (command === "version" || command === "--version") {
+    process.stdout.write(`${VERSION}\n`);
+    return 0;
+  }
+
+  const cwd = process.cwd();
+  if (command === "init") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["host", "scope", "mode", "project-root"],
+      boolean: ["force", "instructions", "no-instructions"],
+      multi: [],
+    });
+    let instructions: boolean | undefined;
+    if (parsed.flags["no-instructions"] === true) instructions = false;
+    if (parsed.flags.instructions === true) instructions = true;
+    const scope = parsed.flags.scope;
+    if (scope !== undefined && scope !== "project" && scope !== "global") {
+      throw new SageError("--scope must be project or global", "E_USAGE", 2);
+    }
+    const mode = parsed.flags.mode;
+    if (mode !== undefined && mode !== "copy" && mode !== "symlink") {
+      throw new SageError("--mode must be copy or symlink", "E_USAGE", 2);
+    }
+    const projectRoot = await projectRootFrom(
+      typeof parsed.flags["project-root"] === "string" ? parsed.flags["project-root"] : cwd,
+    );
+    const result = await initSageKit({
+      ...(typeof parsed.flags.host === "string" ? { host: parsed.flags.host } : {}),
+      ...(scope ? { scope } : {}),
+      ...(mode ? { mode } : {}),
+      force: boolFlag(parsed.flags, "force"),
+      ...(instructions === undefined ? {} : { instructions }),
+      projectRoot,
+    });
+    const lines = [
+      `Initialized SAGE-Kit (${result.host}, ${result.scope}).`,
+      `config: ${result.configPath}`,
+      `skill:  ${result.skillPath}`,
+      ...(result.instructionsPath ? [`instructions: ${result.instructionsPath}`] : ["instructions: skipped"]),
+      ...result.warnings.map((warning) => `warning: ${warning}`),
+    ];
+    output(lines.join("\n"), false);
+    return 0;
+  }
+
+  if (command === "detect") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const root = await projectRootFrom(cwd);
+    const result = await detectHosts(root);
+    if (boolFlag(parsed.flags, "json")) {
+      json({ ok: true, projectRoot: root, ...result, adapters: listAdapters() });
+    } else {
+      const lines = [`project: ${root}`];
+      for (const detection of result.detections) {
+        lines.push(`${detection.found ? "[found]" : "[missing]"} ${detection.host}: ${detection.evidence.join(", ")}`);
+        for (const note of detection.notes) lines.push(`  note: ${note}`);
+      }
+      output(lines.join("\n"), false);
+    }
+    return 0;
+  }
+
+  if (command === "doctor") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const root = await projectRootFrom(cwd);
+    const result = await runDoctor(root);
+    if (boolFlag(parsed.flags, "json")) json(result);
+    else process.stdout.write(`${formatDoctor(result)}\n`);
+    return result.ok ? 0 : 1;
+  }
+
+  if (command === "brief") {
+    const parsed = parseArgs(argv.slice(1), { value: ["task", "max-bytes"], boolean: ["json"] });
+    const root = await projectRootFrom(cwd);
+    const paths = statePaths(root);
+    const maxBytes = parsed.flags["max-bytes"] ? Number(parsed.flags["max-bytes"]) : 2048;
+    if (!Number.isFinite(maxBytes) || maxBytes < 128) {
+      throw new SageError("--max-bytes must be >=128", "E_USAGE", 2);
+    }
+    const brief = await buildBrief(paths, typeof parsed.flags.task === "string" ? parsed.flags.task : undefined, maxBytes);
+    if (boolFlag(parsed.flags, "json")) json(brief);
+    else process.stdout.write(`${brief.text}\n`);
+    return 0;
+  }
+
+  if (command === "run") {
+    const separator = argv.indexOf("--");
+    if (separator < 2) throw new SageError("usage: sage-kit run --task <id> -- <command> [args...]", "E_USAGE", 2);
+    const parsed = parseArgs(argv.slice(1, separator), { value: ["task"], boolean: ["no-worktree"], multi: [] });
+    const taskId = requireString(parsed.flags, "task");
+    const run = await startRun(statePaths(await projectRootFrom(cwd)), taskId, argv.slice(separator + 1), {
+      worktree: parsed.flags["no-worktree"] !== true,
+    });
+    json({ ok: run.status === "exited", run });
+    return run.status === "exited" ? 0 : 1;
+  }
+
+  if (command === "worktree") {
+    const sub = argv[1];
+    const root = await projectRootFrom(cwd);
+    const paths = statePaths(root);
+    if (sub === "create") {
+      const parsed = parseArgs(argv.slice(2), { value: ["task"], boolean: ["json"] });
+      const task = await createWorktree(paths, requireString(parsed.flags, "task"));
+      if (boolFlag(parsed.flags, "json")) json({ ok: true, task });
+      else process.stdout.write(`${task.id}: ${task.worktree} (${task.branch})\n`);
+      return 0;
+    }
+    if (sub === "remove") {
+      const parsed = parseArgs(argv.slice(2), { value: ["task"], boolean: ["force", "json"] });
+      const task = await removeWorktree(paths, requireString(parsed.flags, "task"), boolFlag(parsed.flags, "force"));
+      if (boolFlag(parsed.flags, "json")) json({ ok: true, task });
+      else process.stdout.write(`${task.id}: worktree removed\n`);
+      return 0;
+    }
+    if (sub === "list") {
+      const parsed = parseArgs(argv.slice(2), { boolean: ["json"] });
+      const worktrees = await listWorktrees(paths);
+      if (boolFlag(parsed.flags, "json")) json({ ok: true, worktrees });
+      else process.stdout.write(`${worktrees.map((item) => `${item.path} ${item.branch ?? ""}`).join("\n")}\n`);
+      return 0;
+    }
+    throw new SageError("worktree requires create|remove|list", "E_USAGE", 2);
+  }
+
+  if (command === "hook") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["event", "timeout"],
+      boolean: ["strict"],
+      multi: [],
+    });
+    const raw = await readStdin();
+    let hookCwd = cwd;
+    try {
+      const parsedInput = JSON.parse(raw) as { cwd?: unknown };
+      if (typeof parsedInput.cwd === "string" && parsedInput.cwd.length > 0) hookCwd = parsedInput.cwd;
+    } catch {
+      // Invalid JSON is handled by the hook runner; retain the process cwd.
+    }
+    const root = await projectRootFrom(hookCwd);
+    const options: HookOptions = {
+      ...(typeof parsed.flags.event === "string" ? { event: parsed.flags.event } : {}),
+      strict: boolFlag(parsed.flags, "strict"),
+      ...(typeof parsed.flags.timeout === "string" ? { timeoutMs: Number(parsed.flags.timeout) } : {}),
+    };
+    const result = await executeHookSafely(statePaths(root), raw, options);
+    json(result.output);
+    return result.exitCode;
+  }
+
+  if (command === "uninstall") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["purge"], value: ["project-root"] });
+    const root = await projectRootFrom(
+      typeof parsed.flags["project-root"] === "string" ? parsed.flags["project-root"] : cwd,
+    );
+    const result = await uninstallSageKit({ projectRoot: root, purge: boolFlag(parsed.flags, "purge") });
+    process.stdout.write(
+      [
+        "Uninstalled SAGE-Kit.",
+        ...result.removed.map((path) => `removed: ${path}`),
+        ...result.kept.map((path) => `kept: ${path}`),
+        ...result.warnings.map((warning) => `warning: ${warning}`),
+      ].join("\n") + "\n",
+    );
+    return 0;
+  }
+
+  if (command === "task") {
+    return await runTaskCommand(argv.slice(1), cwd);
+  }
+
+  throw new SageError(`Unknown command: ${command}`, "E_USAGE", 2);
+}
+
+async function runTaskCommand(argv: string[], cwd: string): Promise<number> {
+  const sub = argv[0];
+  const root = await projectRootFrom(cwd);
+  const paths = statePaths(root);
+  if (!sub || sub === "list") {
+    const parsed = parseArgs(argv.slice(1), { value: ["status"], boolean: ["json"] });
+    const tasks = await listTasks(paths);
+    const filtered =
+      typeof parsed.flags.status === "string" ? tasks.filter((task) => task.status === parsed.flags.status) : tasks;
+    if (boolFlag(parsed.flags, "json")) {
+      json({ ok: true, tasks: filtered });
+    } else if (filtered.length === 0) {
+      process.stdout.write("No tasks.\n");
+    } else {
+      const lines = ["ID                           STATUS    TITLE"];
+      for (const task of filtered) lines.push(`${task.id.padEnd(28)} ${task.status.padEnd(9)} ${task.title}`);
+      process.stdout.write(`${lines.join("\n")}\n`);
+    }
+    return 0;
+  }
+
+  if (sub === "create") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["title", "description", "id", "status"],
+      multi: ["acceptance"],
+      boolean: ["json"],
+    });
+    const task = await createTask(paths, {
+      title: requireString(parsed.flags, "title"),
+      ...(typeof parsed.flags.description === "string" ? { description: parsed.flags.description } : {}),
+      ...(typeof parsed.flags.id === "string" ? { id: parsed.flags.id } : {}),
+      ...(typeof parsed.flags.status === "string"
+        ? { status: parsed.flags.status as TaskStatus }
+        : {}),
+      acceptance: parsed.multi.acceptance ?? [],
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, task });
+    else process.stdout.write(`Created ${task.id}: ${task.title}\n`);
+    return 0;
+  }
+
+  if (sub === "show") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const id = parsed.positional[0];
+    if (!id) throw new SageError("task show requires <id>", "E_USAGE", 2);
+    const task = await readTask(paths, id);
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, task });
+    else process.stdout.write(`${JSON.stringify(task, null, 2)}\n`);
+    return 0;
+  }
+
+  if (sub === "status") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["note", "source"],
+      multi: ["evidence"],
+      boolean: ["json"],
+    });
+    const id = parsed.positional[0];
+    const next = parsed.positional[1];
+    if (!id || !next) throw new SageError("task status requires <id> <status>", "E_USAGE", 2);
+    if (!isTaskStatus(next)) throw new SageError(`Unknown task status: ${next}`, "E_USAGE", 2);
+    const task = await updateTaskStatus(paths, id, next, {
+      evidence: parsed.multi.evidence ?? [],
+      ...(typeof parsed.flags.note === "string" ? { note: parsed.flags.note } : {}),
+      ...(typeof parsed.flags.source === "string" ? { source: parsed.flags.source } : {}),
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, task });
+    else process.stdout.write(`${task.id}: ${task.status}\n`);
+    return 0;
+  }
+
+  throw new SageError(`Unknown task command: ${sub}`, "E_USAGE", 2);
+}
+
+main(process.argv.slice(2))
+  .then((code) => {
+    process.exitCode = code;
+  })
+  .catch((error) => {
+    const sage = toSageError(error);
+    const wantsJson = process.argv.includes("--json") || process.argv.includes("hook");
+    if (wantsJson) {
+      json({ ok: false, error: { code: sage.code, message: sage.message } });
+    } else {
+      process.stderr.write(`sage-kit: ${sage.message}\n`);
+    }
+    process.exitCode = sage.exitCode;
+  });

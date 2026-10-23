@@ -1,7 +1,10 @@
-.worktrees/
-local/
-docs/ACTIVE_CONTEXT.md
-docs/DOC_ROUTING.md
-docs/M[0-9]*/
-docs/runs/
-docs/task-records/
+node_modules/
+dist/
+work/
+.sage-kit/
+.dsh/
+*.tgz
+*.log
+.DS_Store
+coverage/
+reports/p0/requests/
