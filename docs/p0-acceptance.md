@@ -135,7 +135,7 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 操作：优先选 DSH（Taluvia 主开发宿主），其次 Claude Code 或 Codex；在临时项目执行 `init`，启动一次会话。
 - 预期：Skill 可被发现；`session.start` 能由宿主调用并注入 brief（若该宿主支持 hook）；`stop` 可运行；卸载干净。
 - 证据：截图/命令输出/宿主日志；记录宿主版本。
-- 自动化：否（发布前人工验收，不阻塞 CI）。2026-10-24 补充：真实 DSH 0.2.1-rc.2 headless + mock 模型已验证 Skill 发现与 `skill` 工具加载；真实模型、GUI 会话和 hook 自动注入未验证。证据见 `reports/p0/dsh-real-host.md`。
+- 自动化：否（发布前人工验收，不阻塞 CI）。2026-10-24 补充：真实 DSH 0.2.1-rc.2 headless + mock 模型已验证 Skill 发现与 `skill` 工具加载；**真实 DeepSeek 模型 headless 已通过**：模型调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务文件独立校验通过。GUI 会话、hook 自动注入、`stop` 生命周期仍未验证，因此 A13 仍不能写完整通过。证据见 `reports/p0/dsh-real-host.md`、`reports/p0/dsh-e2e-model.md`、`reports/p0/dsh-real-model-e2e.md`。
 
 ## 4. 通过标准
 

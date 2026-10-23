@@ -3,7 +3,7 @@
 日期：2026-10-24（本地）
 运行环境：主测试环境 WSL2 Ubuntu 26.04.1 LTS（Node v22.22.1、npm 9.2.0、git 2.53.0）；开发机 Windows（Node v24.22.0、npm 11.19.1，未作为测试套件执行环境）
 包版本：0.1.0
-状态：P0 文件模式实现；A13 已做真实 DSH headless + **mock 模型**和 Linux Web 启动的部分验证，真实模型、浏览器 GUI 与 hook 自动注入未执行。
+状态：P0 文件模式实现；A13 已做真实 DSH headless + **mock 模型**、**真实 DeepSeek 模型**和 Linux Web 启动的部分验证；浏览器 GUI 与 hook 自动注入未执行。
 
 ## 自动化测试
 
@@ -31,7 +31,18 @@ npm test
 - 真实宿主 hook 生命周期/自动注入：`NOT_EXECUTED`（DSH 0.2.1-rc.2 未发现可安装的原生第三方 hook 配置）。
 - bundle 导入/导出：P0 没有该命令，属 M2（见 `docs/p0-acceptance.md` 范围）。
 - Windows 测试套件：按约定不在 Windows 执行（见 `docs/platform-support.md`）；Windows 冒烟脚本本次 `NOT_EXECUTED`。
-- 真实模型、浏览器 GUI：`NOT_EXECUTED`（见下）。
+- 浏览器 GUI：`NOT_EXECUTED`（见下）；真实模型 headless 路径已执行。
+
+## 真实模型 DSH E2E（2026-10-24）
+
+在隔离 WSL 环境配置真实 DeepSeek key（`0600` 文件，不落仓库），真实 `@deepseek-ai/dsh@0.2.1-rc.2` headless 完成一个真实模型 turn：
+
+- 模型调用 `skill` 加载项目 `.dsh/skills/sage-kit`；
+- 模型调用真实 `bash` 执行 `sage-kit task create`，创建 `task-20261023160745-26c829`（status `ready`）；
+- 模型再调用 `task list --json` 与 `test -f` 校验；
+- 独立命令复核 `task list` / `task show` / 文件存在，任务 JSON sha256 `fa3693ef…`。
+
+证据：[`dsh-real-model-e2e.md`](dsh-real-model-e2e.md)（`work/dsh-linux/real-e2e/run-01/events.jsonl` 被 `.gitignore` 忽略）。这证明真实模型 headless 路径可用；**GUI 浏览器和 hook 自动注入仍未验证**，不把 A13 写成完整通过。
 
 ## DSH 适配器 smoke
 

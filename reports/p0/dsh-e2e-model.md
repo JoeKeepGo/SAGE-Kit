@@ -260,4 +260,4 @@ rm -f .sage-kit/state/tasks/*.json .sage-kit/state/events/events.jsonl
 可以写：**DSH 0.2.1-rc.2（Linux/WSL，headless）在 mock 模型驱动下完成了 Skill 发现/加载，并经真实 `bash`
 工具调用 SAGE-Kit CLI 创建、列出了任务，任务 JSON 与状态事件由独立命令校验。**
 
-不能写：真实模型会话已验收、GUI 已验证、hook 已自动注入。P0-A13 的真实模型与 GUI 项保持 `NOT_EXECUTED`。
+不能写：本报告（mock 模型）证明真实模型会话或 GUI 已验收。真实模型 headless 的独立证据在 `reports/p0/dsh-real-model-e2e.md`（2026-10-24 追加）；GUI 与 hook 自动注入仍保持 `NOT_EXECUTED`。
