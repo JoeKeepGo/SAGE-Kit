@@ -6,7 +6,7 @@ SAGE-Kit 是一个面向**单用户、本地开发**的 Agent 开发工具包：
 
 它不是团队协作平台，也不是多租户服务；团队任务系统只通过稳定接口接入（设计目标）。
 
-另有**可选 DSH 原生插件** [`packages/dsh-plugin`](packages/dsh-plugin/README.md)（包名 `sage-kit-dsh`）：在 DSH 中提供原生任务工具与 `agent/pre-step` 自动 brief。它是宿主适配包，独立安装、版本受 `engines.dsh` 约束，不是核心 CLI/Skill 的替代，也不进入核心安装依赖。插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（profile 安装、5 个原生工具、真实模型调用、brief 首次/更新/去重、无 `.sage-kit` 不注入，见 [`reports/plugin/dsh-plugin-e2e.md`](reports/plugin/dsh-plugin-e2e.md)）；独立评审结论为**有条件可安装**（[`reports/plugin/review.md`](reports/plugin/review.md)）；评审的 F-1/F-2 已修复（消息 source 不再声明非法 form；`engines.dsh` 上界改为 `<0.3.0-0`），F-3 文档已对齐。Web GUI、Windows/macOS 与配置分支等边界未执行（`NOT_EXECUTED`），不要据此对外称全平台“已验证可用”。
+另有**可选 DSH 原生插件** [`packages/dsh-plugin`](packages/dsh-plugin/README.md)（包名 `sage-kit-dsh`）：在 DSH 中提供原生任务工具与 `agent/pre-step` 自动 brief。它是宿主适配包，独立安装、版本受 `engines.dsh` 约束，不是核心 CLI/Skill 的替代，也不进入核心安装依赖。插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（profile 安装、5 个原生工具、真实模型调用、brief 首次/更新/去重、无 `.sage-kit` 不注入，见 [`reports/plugin/dsh-plugin-e2e.md`](reports/plugin/dsh-plugin-e2e.md)）；独立评审结论为**有条件可安装**（[`reports/plugin/review.md`](reports/plugin/review.md)）；评审的 F-1/F-2 已修复（消息 source 不再声明非法 form；`engines.dsh` 上界改为 `<0.3.0-0`），F-3 文档已对齐。另在一个隔离的零依赖小项目 `tiny-notes` 上用真实模型跑通了“插件 brief → 任务 running/review/done → 测试证据”的完整会话（[`reports/plugin/sandbox-tiny-notes.md`](reports/plugin/sandbox-tiny-notes.md)）。Web GUI、Windows/macOS 与配置分支等边界未执行（`NOT_EXECUTED`），不要据此对外称全平台“已验证可用”。
 
 ## P0 快速开始
 

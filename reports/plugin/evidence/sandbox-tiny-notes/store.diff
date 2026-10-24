@@ -1,0 +1,14 @@
+diff --git a/src/store.js b/src/store.js
+index 7139abc..d027f79 100644
+--- a/src/store.js
++++ b/src/store.js
+@@ -37,8 +37,7 @@ export async function removeNote(dataDir, id) {
+   const notes = await loadNotes(dataDir);
+   const index = notes.findIndex((note) => note.id === id);
+   if (index < 0) return false;
+-  // Deliberate seed bug: removing an item also drops the item after it.
+-  notes.splice(index + 1, 1);
++  notes.splice(index, 1);
+   await saveNotes(dataDir, notes);
+   return true;
+ }

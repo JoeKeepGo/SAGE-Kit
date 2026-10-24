@@ -136,6 +136,7 @@ dsh --profile sage-kit --json "<prompt>"
 | 原生工具在真实 DSH 会话中可调用 | 已通过：确定性 mock 调满 5 个；真实模型（`deepseek-flash`）6 步调用 `skill` + 4 个任务工具（同报告） |
 | `agent/pre-step` 自动 brief：首次一次、任务变化后更新、不变更不重复、无 `.sage-kit` 不注入、隔离 `DSH_HOME` 可加载 | 已通过（同报告；3 个 brief 指纹、6 步 3 次注入、非初始化目录 0 注入） |
 | 真实模型端到端（非 mock） | 已通过（`deepseek-official`/`deepseek-flash`，1 次任务；不做模型质量统计） |
+| 真实小项目会话（隔离仓库 + 种子 bug + 测试 + 证据） | 已通过（[`reports/plugin/sandbox-tiny-notes.md`](../../reports/plugin/sandbox-tiny-notes.md)：4/4 测试、任务 ready→running→review→done、4 次 brief；发现未发布包的 `npx` E404 摩擦） |
 | `--dump-config` 真正加载插件代码/执行插件逻辑 | 不能由 `--dump-config` 证明；插件加载与工具执行由上述 headless E2E 覆盖 |
 | Lead 本地 fake-ctx 验证（加载/工具/注入去重） | 无仓库内可提交报告，**不作为验收依据**；评审 F-3 建议补 `reports/plugin/fake-ctx.md` 或降级表述 |
 | DSH Web（GUI）中的插件加载/工具/brief 注入 | `NOT_EXECUTED`（E2E 仅 headless；loader 与 pre-step 路径相同，但未跑 GUI） |

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "task-20261024063224-b0061b",
+  "title": "Fix removeNote deleting the wrong note",
+  "description": "removeNote must delete exactly the requested note and leave every other note untouched.",
+  "status": "done",
+  "acceptance": [
+    "node --test passes",
+    "removing an unknown id is a no-op"
+  ],
+  "evidence": [
+    {
+      "at": "2026-10-24T06:41:48.695Z",
+      "note": "src/store.js:41 changed `notes.splice(index + 1, 1)` to `notes.splice(index, 1)` so only the matched note is removed.",
+      "source": "dsh-plugin"
+    },
+    {
+      "at": "2026-10-24T06:41:48.695Z",
+      "note": "node --test -> exit 0; TAP 1..4: # tests 4, # pass 4, # fail 0, # cancelled 0, # skipped 0, # todo 0, # duration_ms 160.156198. Subtests: 'removes exactly the requested note' ok 3; 'removing an unknown note is a no-op' ok 4.",
+      "source": "dsh-plugin"
+    },
+    {
+      "at": "2026-10-24T06:41:48.695Z",
+      "note": "git diff -- src/store.js confirms the only code change is the single splice index; no commit or push performed.",
+      "source": "dsh-plugin"
+    }
+  ],
+  "createdAt": "2026-10-24T06:32:24.181Z",
+  "updatedAt": "2026-10-24T06:41:48.695Z"
+}
