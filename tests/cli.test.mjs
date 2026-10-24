@@ -127,9 +127,14 @@ describe("P0 CLI", () => {
   it("A1b: packs and installs a runtime-dependency-free CLI offline", async () => {
     const packDir = await tempDir();
     const installDir = await tempDir();
-    const pack = await runProcess(NPM, ["pack", "--json", "--pack-destination", packDir], REPO_ROOT, {
-      shell: process.platform === "win32",
-    });
+    // `npm test` already built dist; ignore prepack to avoid rewriting dist while
+    // sibling test files import it concurrently (CI Linux caught this race).
+    const pack = await runProcess(
+      NPM,
+      ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir],
+      REPO_ROOT,
+      { shell: process.platform === "win32" },
+    );
     assert.equal(pack.code, 0, pack.stderr);
     const [packInfo] = JSON.parse(pack.stdout);
     assert.equal(packInfo.name, "sage-kit");
