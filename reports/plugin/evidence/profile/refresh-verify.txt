@@ -1,0 +1,15 @@
+
+=== refreshed snapshot (README landed; fresh profile re-verify) ===
+date_utc=2026-10-24T03:44:48Z
+root_tgz=/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg/sage-kit-0.1.0.tgz bytes=203017 sha256=281be36c2f7971bebb10accdd5c694e6a6b717bc2551f2564d290a22bd90fb2b
+plugin_tgz=/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg/sage-kit-dsh-0.1.0.tgz bytes=9593 sha256=651e8de0da9fdb288ea75e418d18a96487a32646b7c6d2d68b38b1436ec8e3a0
+plugin_tgz_files:
+package/index.js
+package/package.json
+package/README.md
+package/cordis.patch.yml
+earlier_snapshot_archived_at=/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg-earlier (root 312fe82c…, plugin 9a99b8e2… 3 files 3389 B)
+fresh_profile=sage-kit-plugin-refreshed
+verify_scenario=scenario A (mock, all 5 tools) in /home/kayann/sage-kit-linux-dsh/plugin-e2e/project-d
+verify_tool_calls=sage_task_create,sage_task_list,sage_task_status,sage_task_show,sage_brief
+verify_stderr_bytes=0

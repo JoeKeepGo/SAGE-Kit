@@ -172,7 +172,7 @@ export async function updateTaskStatus(
   await appendEvent(
     paths,
     "task.status_changed",
-    { from, to: next, ...(options.note ? { note: options.note } : {}) },
+    { from, to: next, ...(options.note ? { note: cleanText(options.note, "note", 2000) } : {}) },
     task.id,
   );
   return task;

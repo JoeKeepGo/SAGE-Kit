@@ -35,6 +35,7 @@
 | D-020 | 团队系统通过适配器接入，不内建多用户 | Accepted |
 | D-021 | 宿主顺序：DSH 优先，Codex/Claude 其次；P0 只安装 Skill/说明块，不宣称原生 hook | Accepted |
 | D-022 | M2 最小本地可写 Web UI 由控制面同源提供；写操作仅限 loopback UI/API，不引入前端框架/CORS/远程/多用户 | Accepted |
+| D-023 | DSH 原生插件是可选宿主适配包，不是核心必装包；核心 CLI/Skill 仍是权威源 | Accepted |
 
 ## D-001 单用户、本地、单仓库
 
@@ -166,6 +167,8 @@
 
 **后果**：核心不能用 DSH 专有 API；适配器负责宿主差异；DSH 适配需按固定版本源码验证。
 
+**补充（D-023，2026-10-24）**：DSH 另有**可选原生插件包**（`packages/dsh-plugin`，包名 `sage-kit-dsh`），独立安装、不进入核心依赖；核心仍不依赖 DSH。见 D-023。
+
 ## D-017 密钥只从环境/密钥存储读取
 
 **决定**：token/key 不写入仓库、状态文件、日志、提示词、UI；只从环境变量/宿主密钥存储读取。
@@ -206,6 +209,8 @@
 
 **后果**：P0-A13 已在真实 DSH 0.2.1-rc.2 + 真实模型上完成 GUI、真实 stop、卸载/重装的验收；DSH 不提供 hook 自动注入，手动 `hook` 与 AGENTS 指令路径可用。Codex/Claude 的 hook 配置仍未验证，保持“不支持自动 hook”的诚实边界，不做伪实现。
 
+**补充（D-023，2026-10-24）**：DSH 原生插件（可选）通过 DSH 插件机制提供原生工具与 `agent/pre-step` 自动 brief；这不是 `sage-kit hook` 的自动安装，文档不得把两者混写。见 D-023。
+
 ## D-022 M2 最小本地可写 Web UI
 
 **决定**：控制面以 `GET /`、`GET /ui` 提供同源自包含 HTML 控制面板；使用原生 HTML/CSS/JS，不引入前端框架、构建链或 CORS；页面自动读取 `GET /v1/health`、`GET /v1/tasks`，单击任务行直接读取 `GET /v1/tasks/:id` 并展开详情。面板允许**仅经 loopback UI/API** 的本地写操作：创建任务、状态转换（带 evidence/note 与 `expectedVersion` 乐观并发）、lease acquire/renew/release、恢复 stale；所有写操作复用 `ControlStore` 方法与 P0 状态机，无自动重跑、无自动批准/合并/发布。不提供远程/多用户访问，也不把写操作扩成远程共享 API；提案/评估实体归文件模式 `src/rsi/**`，控制面不复制。
@@ -213,6 +218,28 @@
 **原因**：在不引入前端框架、CORS 或远程攻击面的前提下，让单用户能真正闭环使用控制面（建任务、推进状态、处理 lease 与恢复），而不只是查看；写操作是显式用户动作，服务端仍是唯一权威。
 
 **后果**：`/v1/*` 仍只允许 loopback 访问且无 token，信任边界是 loopback + OS 账户（同机同用户进程可读写）；UI 自身不携带数据、无外部资源，动态值一律 `textContent` 写入。若后续需要远程/多用户/提案评估写入，另立控制台契约，不在本 UI 上直接扩展。
+
+## D-023 DSH 原生插件是可选宿主适配层
+
+**决定**：在核心 `sage-kit` 包之外，新增**可选、独立安装**的 DSH 原生插件包 `packages/dsh-plugin`（包名 `sage-kit-dsh`，0.1.0，MIT）。它通过 DSH 的 profile/插件机制显式安装，使用 DSH 插件 API 注册原生工具（`sage_task_create`、`sage_task_list`、`sage_task_show`、`sage_task_status`、`sage_brief`）并在 `agent/pre-step` 注入 brief；工具与 brief 都调用 `sage-kit` 库对外导出（`src/index.ts`）的文件模式 API，读写与 CLI 相同的 `.sage-kit/` 状态。核心 CLI/Skill 仍是唯一产品面与权威写入源。
+
+本决定细化而不推翻 D-002、D-016、D-021：
+
+- 对 D-002：核心分发仍是“一个仓库、一个 npm 包”；插件是**可选宿主适配包**，不进入核心 `files`/安装依赖，不是“必装包”，也不拆仓库。插件独立版本（0.1.0），通过 peer 依赖 `sage-kit@^0.1.0` 与核心库对齐。
+- 对 D-016：核心仍不依赖 DSH；DSH 专有插件 API 只出现在 `packages/dsh-plugin`。
+- 对 D-021：DSH 仍不提供 `sage-kit hook` 的自动安装；插件走 DSH 原生插件机制（工具注册 + `agent/pre-step`），文档不得写成“hook 自动注入”。
+
+本插件不是通用插件系统/市场（D-015 不变）：只有一个宿主（DSH）、一个独立可选包，不提供插件注册发现机制。
+
+**原因**：DSH 是主开发环境；原生工具 + pre-step 自动 brief 能降低“Agent 忘记调用 CLI”的概率，且比把命令写进提示词更可测试。同时，独立可选包避免把 DSH 专有 API 和依赖带进核心，保持单用户、零重依赖、可移植。
+
+**后果**：
+
+- 核心 `npm install sage-kit` 不会安装或启用插件；插件安装/卸载走 DSH 插件管理器（`dsh plugin --profile <name> add|remove ...`），并遵循 DSH 的 `engines.dsh` 校验（插件声明 `>=0.2.1-rc.2 <0.3.0-0`；不匹配时 DSH 拒绝安装/启动，显式版本豁免除外，见 DSH 插件管理器文档）。
+- 插件只操作文件模式状态；不提供控制面（M2）、评估/发布（M3）、不自动合并/发布、不重写 Skill，也不复制任务/事件数据库。
+- 插件必须 fail-open：没有已初始化 `.sage-kit` 的项目不注入 brief；brief 生成/注入失败不阻断宿主 turn；自动 brief 按 session + 内容 sha256 去重，任务变化后重新注入。
+- `sage-kit init` 不安装插件；插件不是 Skill，不能替代 Skill/CLI。
+- 证据要求：实现存在不等于已验证；打包安装 + `--dump-config` 组合冒烟已通过（`reports/plugin/packaging.md`）；真实 DSH 0.2.1-rc.2 headless E2E 也已通过——profile 安装、5 个原生工具、真实模型调用、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入、隔离 `DSH_HOME`（`reports/plugin/dsh-plugin-e2e.md`）。独立评审结论为有条件可安装（`reports/plugin/review.md`）；评审 F-1（非法 message form）与 F-2（`engines.dsh` 预发布上界）已修复，F-3 文档已对齐。Web GUI、Windows/macOS、配置分支、故障降级等未执行项标 `NOT_EXECUTED`，不得写成已验证。
 
 ## 未决事项（不冻结）
 
@@ -231,3 +258,4 @@
 | 2026-10-24 | 初始设计基线 | 建立单用户/本地/单包/无状态 Skill/可选控制面/RSI L2 等决策 |
 | 2026-10-24 | M2 本地可写 Web UI | D-022：同源原生 HTML，无框架/CORS；loopback 写操作 |
 | 2026-10-24 | M2 本地可写控制面板（D-022 修订） | 写操作仅限 loopback UI/API（任务创建/状态转换/lease/恢复）；仍无框架/CORS/远程/多用户；复用 store 与 P0 状态机 |
+| 2026-10-24 | DSH 原生插件（D-023） | 可选独立包 `sage-kit-dsh`；版本由 `engines.dsh` 约束；复用核心库/文件状态，不复制状态、不自动发布 |

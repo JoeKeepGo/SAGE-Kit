@@ -1,0 +1,16 @@
+# SAGE-Kit brief
+
+Task: task-20261024033340-61f5e0
+Title: DSH plugin mock task
+Status: running
+
+Acceptance:
+- Created through sage_task_create
+- Visible in sage_task_list
+
+Evidence: none yet
+
+Rules:
+- Read before editing; keep changes inside the task scope.
+- Run the task's checks and record exact evidence.
+- Do not claim done without evidence; stop if blocked.

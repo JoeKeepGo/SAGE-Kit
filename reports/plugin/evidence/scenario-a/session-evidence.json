@@ -1,0 +1,96 @@
+{
+  "sessionId": "session-dc6e83c8-f585-41b4-a9c0-ca26a0f3c910",
+  "injections": [
+    {
+      "seq": 9,
+      "source": {
+        "kind": "sage-kit",
+        "form": "brief"
+      },
+      "taskId": "task-20261024033326-3acee4",
+      "title": "Pre-existing plugin task B",
+      "status": "ready",
+      "evidenceLine": "none yet",
+      "fingerprint": "6cb1e5716641106be60e1c8e681f006a117df0b9f2003ee37e1999a52fe394cd",
+      "text": "<sage-kit-brief>\n# SAGE-Kit brief\n\nTask: task-20261024033326-3acee4\nTitle: Pre-existing plugin task B\nStatus: ready\n\nAcceptance:\n- brief injection target B\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked.\n</sage-kit-brief>"
+    },
+    {
+      "seq": 25,
+      "source": {
+        "kind": "sage-kit",
+        "form": "brief"
+      },
+      "taskId": "task-20261024033340-61f5e0",
+      "title": "DSH plugin mock task",
+      "status": "ready",
+      "evidenceLine": "none yet",
+      "fingerprint": "3c3c63302fdc6c0d1a4fc5866a13c578899be26bddb89c94b0736acf00744440",
+      "text": "<sage-kit-brief>\n# SAGE-Kit brief\n\nTask: task-20261024033340-61f5e0\nTitle: DSH plugin mock task\nStatus: ready\n\nAcceptance:\n- Created through sage_task_create\n- Visible in sage_task_list\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked.\n</sage-kit-brief>"
+    },
+    {
+      "seq": 38,
+      "source": {
+        "kind": "sage-kit",
+        "form": "brief"
+      },
+      "taskId": "task-20261024033340-61f5e0",
+      "title": "DSH plugin mock task",
+      "status": "running",
+      "evidenceLine": "none yet",
+      "fingerprint": "e39988f29faafc059b9412b7a62b7f91e3f2d945f1d4bfab1ef4b67ac26102cc",
+      "text": "<sage-kit-brief>\n# SAGE-Kit brief\n\nTask: task-20261024033340-61f5e0\nTitle: DSH plugin mock task\nStatus: running\n\nAcceptance:\n- Created through sage_task_create\n- Visible in sage_task_list\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked.\n</sage-kit-brief>"
+    }
+  ],
+  "injectionCount": 3,
+  "toolCalls": [
+    {
+      "seq": 19,
+      "tool": "sage_task_create"
+    },
+    {
+      "seq": 28,
+      "tool": "sage_task_list"
+    },
+    {
+      "seq": 34,
+      "tool": "sage_task_status"
+    },
+    {
+      "seq": 41,
+      "tool": "sage_task_show"
+    },
+    {
+      "seq": 47,
+      "tool": "sage_brief"
+    }
+  ],
+  "toolResults": [
+    {
+      "seq": 22,
+      "resultHead": "{\"turn\":1,\"step\":1,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_001\"},\"toolCallId\":\"toolu_mock_001\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"task\\\": {\\n    \\\"schemaVersion\\\": 1,\\n    \\\"id\\\": \\\"task-20261024033340-61f5e0\\\",\\n    \\\"title\\\": \\\"DSH plugin mock task\\\",\\n    \\\"description\\\": \\\"\\\",\\n    \\\"status\\\": \\\"ready\\\",\\n    \\\"acceptance\\\": [\\n      \\\"Created through sage_task_create\\\",\\n      \\\"Visible in sage_task_list\\\"\\n    ],\\n    \\\"evidence\\\": [],\\n    \\\"createdAt\\\": \\\"2026-10-24T03:33:40.600Z\\\",\\n    \\\"updatedAt\\\": \\\"2026-10-24T03:33:40.600Z\\\"\\n "
+    },
+    {
+      "seq": 29,
+      "resultHead": "{\"turn\":1,\"step\":2,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_003\"},\"toolCallId\":\"toolu_mock_003\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"tasks\\\": [\\n    {\\n      \\\"schemaVersion\\\": 1,\\n      \\\"id\\\": \\\"task-20261024033340-61f5e0\\\",\\n      \\\"title\\\": \\\"DSH plugin mock task\\\",\\n      \\\"description\\\": \\\"\\\",\\n      \\\"status\\\": \\\"ready\\\",\\n      \\\"acceptance\\\": [\\n        \\\"Created through sage_task_create\\\",\\n        \\\"Visible in sage_task_list\\\"\\n      ],\\n      \\\"evidence\\\": [],\\n      \\\"createdAt\\\": \\\"2026-10-24T03:33:40.600Z\\\",\\n      \\\"updatedAt\\\":"
+    },
+    {
+      "seq": 35,
+      "resultHead": "{\"turn\":1,\"step\":3,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_004\"},\"toolCallId\":\"toolu_mock_004\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"task\\\": {\\n    \\\"schemaVersion\\\": 1,\\n    \\\"id\\\": \\\"task-20261024033340-61f5e0\\\",\\n    \\\"title\\\": \\\"DSH plugin mock task\\\",\\n    \\\"description\\\": \\\"\\\",\\n    \\\"status\\\": \\\"running\\\",\\n    \\\"acceptance\\\": [\\n      \\\"Created through sage_task_create\\\",\\n      \\\"Visible in sage_task_list\\\"\\n    ],\\n    \\\"evidence\\\": [],\\n    \\\"createdAt\\\": \\\"2026-10-24T03:33:40.600Z\\\",\\n    \\\"updatedAt\\\": \\\"2026-10-24T03:33:40.703Z\\\"\\"
+    },
+    {
+      "seq": 42,
+      "resultHead": "{\"turn\":1,\"step\":4,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_005\"},\"toolCallId\":\"toolu_mock_005\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"task\\\": {\\n    \\\"schemaVersion\\\": 1,\\n    \\\"id\\\": \\\"task-20261024033340-61f5e0\\\",\\n    \\\"title\\\": \\\"DSH plugin mock task\\\",\\n    \\\"description\\\": \\\"\\\",\\n    \\\"status\\\": \\\"running\\\",\\n    \\\"acceptance\\\": [\\n      \\\"Created through sage_task_create\\\",\\n      \\\"Visible in sage_task_list\\\"\\n    ],\\n    \\\"evidence\\\": [],\\n    \\\"createdAt\\\": \\\"2026-10-24T03:33:40.600Z\\\",\\n    \\\"updatedAt\\\": \\\"2026-10-24T03:33:40.703Z\\\"\\"
+    },
+    {
+      "seq": 48,
+      "resultHead": "{\"turn\":1,\"step\":5,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_006\"},\"toolCallId\":\"toolu_mock_006\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"text\\\": \\\"# SAGE-Kit brief\\\\n\\\\nTask: task-20261024033340-61f5e0\\\\nTitle: DSH plugin mock task\\\\nStatus: running\\\\n\\\\nAcceptance:\\\\n- Created through sage_task_create\\\\n- Visible in sage_task_list\\\\n\\\\nEvidence: none yet\\\\n\\\\nRules:\\\\n- Read before editing; keep changes inside the task scope.\\\\n- Run the task's checks and record exact evidence.\\\\n- Do not claim done without evidence; stop if blocked.\\\",\\n  \\\"taskId\\\": \\\"task-20261"
+    }
+  ],
+  "final": "Used sage_task_create, sage_task_list, sage_task_status, sage_task_show and sage_brief.",
+  "turnEnd": {
+    "turn": 1,
+    "reason": {
+      "kind": "completed"
+    }
+  }
+}

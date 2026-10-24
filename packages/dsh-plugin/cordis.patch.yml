@@ -1,0 +1,6 @@
+- insert:
+    - id: sage-kit-dsh
+      name: sage-kit-dsh
+      config:
+        autoBrief: true
+        maxBriefBytes: 2048

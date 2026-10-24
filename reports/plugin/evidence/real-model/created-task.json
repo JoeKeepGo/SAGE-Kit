@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "task-20261024033521-f06e62",
+  "title": "DSH plugin real-model task",
+  "description": "",
+  "status": "running",
+  "acceptance": [
+    "created through the sage_task_create tool",
+    "visible in sage_task_list"
+  ],
+  "evidence": [],
+  "createdAt": "2026-10-24T03:35:21.449Z",
+  "updatedAt": "2026-10-24T03:35:24.100Z"
+}

@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "tasks": [
+    {
+      "schemaVersion": 1,
+      "id": "task-20261024033516-eb64fd",
+      "title": "Pre-existing real-model plugin task",
+      "description": "",
+      "status": "ready",
+      "acceptance": [
+        "brief injection target"
+      ],
+      "evidence": [],
+      "createdAt": "2026-10-24T03:35:16.476Z",
+      "updatedAt": "2026-10-24T03:35:16.476Z"
+    }
+  ]
+}

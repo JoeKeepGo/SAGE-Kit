@@ -1,0 +1,6 @@
+.bin
+.modules.yaml
+.pnpm
+.pnpm-workspace-state-v1.json
+sage-kit
+sage-kit-dsh

@@ -1,0 +1,17 @@
+{
+  "name": "dsh-profile-sage-kit-plugin",
+  "private": true,
+  "dependencies": {
+    "sage-kit": "file:/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg/sage-kit-0.1.0.tgz",
+    "sage-kit-dsh": "file:/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg/sage-kit-dsh-0.1.0.tgz"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless",
+        "sage-kit-dsh"
+      ]
+    }
+  }
+}

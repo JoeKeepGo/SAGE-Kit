@@ -136,6 +136,7 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 预期：Skill 可被发现；`session.start` 能由宿主调用并注入 brief（若该宿主支持 hook）；`stop` 可运行；卸载干净。
 - 证据：截图/命令输出/宿主日志；记录宿主版本。
 - 自动化：否（发布前人工验收，不阻塞 CI）。2026-10-24 补充：真实 DSH 0.2.1-rc.2 headless + mock 模型已验证 Skill 发现与 `skill` 工具加载；**真实 DeepSeek 模型 headless 已通过**：模型调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务文件独立校验通过。**真实模型 GUI E2E 已通过**（2026-10-24）：WSL2 内 `dsh web` + 真实 DeepSeek-V4.1-Flash，经 Windows Chromium 访问（localhost 转发）；模型调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务文件独立校验；停止 `dsh web` 后重启，任务状态与会话恢复；`stop` 生命周期仅有 CLI `sage-kit hook` 契约验证（默认 warn、`--strict` block，宿主未自动调用）；**hook 自动注入 NOT_AVAILABLE**（DSH 0.2.1-rc.2 无 hook 安装机制；当前路径为 AGENTS.md 指令 + 模型主动 `npx sage-kit brief`）；**卸载/重装循环已验证**（卸载保留 `.sage-kit/state` 任务，重装后任务保留、skill 哈希一致）。**A13 判定：PASS（真实 DSH；宿主限制见上）**。A13 的标准是“至少一个宿主可被发现、能运行、可清理”；hook 自动注入只在“宿主支持 hook”时要求，DSH 0.2.1-rc.2 不提供该能力，故记录为宿主边界，不是未完成。Linux 原生浏览器 GUI、多轮长会话、多工作区属于可选补充覆盖，不阻塞 A13。证据见 `reports/p0/dsh-gui-e2e.md`、`reports/p0/dsh-real-host.md`、`reports/p0/dsh-e2e-model.md`、`reports/p0/dsh-real-model-e2e.md`。
+- 补充（可选扩展，不属于 P0/A13 判定）：DSH 原生插件 `sage-kit-dsh`（`packages/dsh-plugin`）已在真实 DSH 0.2.1-rc.2 headless 通过 E2E：profile 安装、5 个原生工具、真实模型（`deepseek-flash`）调用、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入；证据见 `reports/plugin/dsh-plugin-e2e.md`。该插件不是 `hook` 自动注入，也不改变 A13 的宿主边界结论；Web GUI 中的插件加载未执行（`NOT_EXECUTED`）。
 
 ## 4. 通过标准
 

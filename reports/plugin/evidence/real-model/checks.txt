@@ -1,0 +1,12 @@
+scenario=real model headless via DSH profile
+project=/home/kayann/sage-kit-linux-dsh/plugin-e2e/project-c
+provider=deepseek-official model=deepseek-flash (from session request/header)
+dsh_exit=0
+stderr_bytes=0
+steps=6
+tool_calls=skill,sage_task_create,sage_task_list,sage_task_status,sage_task_show
+created_task=task-20261024033521-f06e62 status=running
+injection_count=3
+injection_sequence=task-20261024033516-eb64fd:ready,task-20261024033521-f06e62:ready,task-20261024033521-f06e62:running
+duplicate_fingerprints=none
+turn_end=completed

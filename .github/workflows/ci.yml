@@ -107,3 +107,39 @@ jobs:
           '
 
           echo "Packaging gate PASSED: $tarball"
+
+  plugin-smoke:
+    # The DSH plugin is a separate package from the core CLI. This job proves the
+    # two packed tarballs compose into a profile layer on a real DSH runtime.
+    # DSH plus its dependency tree is large (~600 packages), so it runs as its own
+    # job and its toolchain install is allowed to fail with an explicit skip: a
+    # registry outage must not hide the blocking checks in `linux`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DSH_VERSION: 0.2.1-rc.2
+      PNPM_VERSION: 10.34.8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install pinned DSH CLI and pnpm
+        id: install-toolchain
+        continue-on-error: true
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pnpm-env" --no-audit --no-fund "pnpm@$PNPM_VERSION"
+          npm install --prefix "$RUNNER_TEMP/dsh-env" --no-audit --no-fund "@deepseek-ai/dsh@$DSH_VERSION"
+          echo "$RUNNER_TEMP/pnpm-env/node_modules/.bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/dsh-env/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/pnpm-env/node_modules/.bin/pnpm" --version
+          "$RUNNER_TEMP/dsh-env/node_modules/.bin/dsh" --version
+      - name: Plugin packaging + fresh DSH profile smoke
+        if: steps.install-toolchain.outcome == 'success'
+        run: bash scripts/plugin-smoke.sh
+      - name: DSH plugin smoke skipped (explicit)
+        if: steps.install-toolchain.outcome != 'success'
+        run: |
+          echo "::warning title=DSH plugin smoke skipped::Could not install @deepseek-ai/dsh@${DSH_VERSION} or pnpm@${PNPM_VERSION} from npm (registry unreachable or version withdrawn). The SAGE-Kit/DSH plugin packaging smoke did NOT run; the linux job still covers build, tests, and the root npm tarball."

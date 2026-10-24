@@ -1,0 +1,12 @@
+run_id=mock-d deterministic (mock model double, not a model)
+scenario=A initialized project, mock calls all 5 plugin tools
+project=/home/kayann/sage-kit-linux-dsh/plugin-e2e/project-b
+dsh_exit=0
+stderr_bytes=0
+steps=6
+injection_count=3
+injection_sequence=task-20261024033326-3acee4:ready,task-20261024033340-61f5e0:ready,task-20261024033340-61f5e0:running
+duplicate_fingerprints=none
+tool_calls=sage_task_create,sage_task_list,sage_task_status,sage_task_show,sage_brief
+post_task_list=ID                           STATUS    TITLE;task-20261024033340-61f5e0   running   DSH plugin mock task;task-20261024033326-3acee4   ready     Pre-existing plugin task B;
+turn_end=completed

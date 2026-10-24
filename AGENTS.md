@@ -7,7 +7,8 @@
 - **P0 + M1 + M2 本地可写控制面 + M3 评估闭环已实现**（TypeScript CLI + fake adapter + 文件/可选控制面/Rsi 文件层）。多用户/远程控制面、自动批准/合并/发布、无人值守定时 RSI 为设计上不实现；M1 真实 GitHub/Gitea 只读同步已验证，真实边界见 `docs/m1-feedback.md`。
 - 不要在文档或提交信息中声称任何能力“已实现”“已验证”，除非有对应测试、命令输出或运行证据。
 - P0-A1–A12 有自动化覆盖（A11 含真实 SIGKILL；Node<22 与 bundle 不在 P0 范围）；P0-A13 已在真实 DSH 0.2.1-rc.2 + 真实 DeepSeek 模型上通过 GUI、`bash`→CLI、卸载/重装与真实 `stop`；DSH 不提供 hook 自动注入，记录为宿主能力边界（手动 `hook`/AGENTS 指令可用）。
-- 当前测试：`npm test` 93 项全绿（Windows Node 24.22.0 与 WSL2 Node 22.22.1）；M1/M2/M3 的未验证边界分别见 `docs/m1-feedback.md`、`docs/m2-control.md`、`docs/m3-rsi.md`。
+- 当前测试：`npm test` 103 项全绿（Windows Node 24.22.0 与 WSL2 Node 22.22.1；含 DSH 插件 lib/manifest 回归测试）；M1/M2/M3 的未验证边界分别见 `docs/m1-feedback.md`、`docs/m2-control.md`、`docs/m3-rsi.md`。
+- 可选 DSH 原生插件属于宿主适配层，不是核心依赖；核心 CLI/Skill 仍是唯一产品面与权威状态写入源（D-023）。插件 E2E 只证明了 DSH 0.2.1-rc.2 headless/Linux/WSL2 路径；Windows/macOS、DSH Web、autoBrief:false 等仍为 `NOT_EXECUTED`。
 - 不做多用户/远程控制面、自动批准/合并/发布或无人值守 RSI；M2 只提供 loopback 本地面板，M3 只手动 `runOnce`，发布仍需人工。
 
 ## 权威顺序

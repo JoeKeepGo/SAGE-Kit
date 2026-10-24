@@ -37,6 +37,8 @@
 
 `<project-root>` 的解析：从当前目录向上找最近一个包含 `.git` 的目录；找不到则使用当前工作目录（`src/core/paths.ts` 的 `findProjectRoot()`）。
 
+宿主原生插件（可选，当前为 DSH 的 `sage-kit-dsh`）不新增任何状态文件：它通过 `src/index.ts` 导出的库 API 读写同一份 `.sage-kit/` 文件状态，与 CLI 共用权威源；插件不启动控制面，也不双写（D-023）。
+
 P0 文件模式不包含、不要写进布局的东西：
 
 - `feedback/<id>.json`：`[TARGET]` M1 反馈缓存。

@@ -1,6 +1,6 @@
 # SAGE-Kit 架构
 
-**状态：架构基线；P0 文件模式已实现，控制面/反馈/RSI 仍是设计目标。**  
+**状态：架构基线；P0 文件模式、M1 反馈、M2 控制面、M3 评估闭环已实现；DSH 原生插件为可选独立包（D-023），核心 CLI/Skill 仍是权威源，插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（`reports/plugin/dsh-plugin-e2e.md`）。**
 本文描述目标架构与已实现的 P0 边界。实现状态以 `docs/p0-acceptance.md` 和实际测试为准。
 
 ## 1. 定位
@@ -138,6 +138,11 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 
 接口细节见 `docs/extension-contracts.md`。
 
+宿主适配有两种形态：
+
+- **文件安装适配器**（`HostAdapter`，已实现）：`init` 复制 Skill/受管说明块，不需要宿主安装插件。
+- **宿主原生插件**（可选，当前仅 DSH）：独立包 `packages/dsh-plugin`（`sage-kit-dsh`），用 DSH 插件 API 注册原生工具并在 `agent/pre-step` 注入 brief；必须复用核心库 `src/index.ts` 的文件模式 API 和同一份 `.sage-kit/` 状态，不复制状态、不启动控制面。核心不依赖该包；安装与版本兼容由宿主插件管理器负责（D-023）。该插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（5 工具、自动 brief、无项目不注入）；Web GUI 路径未跑（`NOT_EXECUTED`）。
+
 ## 6. 运行模式
 
 ### 6.1 文件模式（默认，轻量）
@@ -217,9 +222,11 @@ stop → 检查完成证据 → 提醒/阻断（--strict）
 
 Hook 是尽力而为的适配层；状态和恢复不依赖 Hook 是否成功。细节见 `docs/hooks-and-host-adapters.md`。
 
+DSH 另有可选原生插件（`packages/dsh-plugin`）：它在宿主 `agent/pre-step` 注入 brief，与上文 `sage-kit hook` 协议是两条独立路径；两者都调用同一 `buildBrief`/文件状态，失败都不阻断主流程。DSH 仍不会自动安装 `sage-kit hook` 配置（D-021/D-023）。
+
 ## 9. 包结构与依赖策略
 
-目标：**一个 npm 包、一个仓库、多个懒加载入口**。
+目标：**核心一个 npm 包、一个仓库、多个懒加载入口**；另有一个可选宿主插件包（DSH），不进入核心安装依赖（D-023）。
 
 ```text
 SAGE-Kit/
@@ -227,12 +234,18 @@ SAGE-Kit/
   tsconfig.json
   src/
     cli.ts                     # 参数解析、命令分发、JSON/human 输出
+    index.ts                   # 稳定库入口：供宿主插件复用文件模式 API
     core/
       config.ts paths.ts fs-utils.ts errors.ts
       tasks.ts hooks.ts brief.ts events.ts
       worktree.ts runs.ts doctor.ts install.ts
     adapters/
       types.ts index.ts dsh.ts codex.ts claude.ts fake.ts
+  packages/dsh-plugin/         # 可选 DSH 原生插件包（sage-kit-dsh），不随核心安装
+    index.js                   # DSH 插件：原生工具注册 + agent/pre-step 自动 brief
+    cordis.patch.yml           # DSH bundle patch（默认 autoBrief/maxBriefBytes）
+    package.json               # engines.dsh + peerDependencies（sage-kit、DSH 运行时包）
+    README.md
   skills/sage-kit/
     SKILL.md                   # P0 只带 Skill 正文；references/templates 在 M1 按需补
   tests/
@@ -245,6 +258,7 @@ SAGE-Kit/
 依赖规则：
 
 - 核心 `dependencies` 目标为 0；只使用 Node.js 内置模块。
+- 宿主原生插件（DSH）是独立可选包，不并入核心 `dependencies`/`files`；核心通过 `src/index.ts` 暴露稳定的文件模式库 API（任务、brief、paths、config、错误类型）供其复用（D-023）。
 - 控制面所需的 `better-sqlite3` 放 `optionalDependencies`，通过动态 `import()` 懒加载；缺失时 CLI 给出清晰提示并回退文件模式。
 - UI 构建产物随包携带；不引入运行时 UI 框架依赖。
 - Feedback 使用内置 `fetch`；GitHub/Gitea 优先复用 `gh`/`tea` 登录态，REST 作为回退。
@@ -288,6 +302,6 @@ P0 文件模式、M1 只读反馈、M2 本地控制面、M3 评估闭环均已�
 以下问题不阻塞文档定稿，但必须在对应里程碑前决定：
 
 - 首批宿主：已确定 **DSH 优先**（Taluvia 主开发环境），Codex、Claude Code 其次；OpenCode 后续。
-- Skill 安装路径与宿主目录的权威映射：DSH 已按固定版本源码核对 `.dsh/skills` 与 `AGENTS.md`；Codex/Claude 的路径仍需按各自实际安装验证，不凭记忆硬编码。
+- Skill 安装路径与宿主目录的权威映射：DSH 已按固定版本源码核对 `.dsh/skills` 与 `AGENTS.md`，并已提供可选原生插件接入（`packages/dsh-plugin`，D-023）；Codex/Claude 的路径仍需按各自实际安装验证，不凭记忆硬编码。
 - UI 技术选型：M2 已确定原生 HTML/CSS/JS、同源、无框架/无 CORS；后续若需要复杂控制台另立契约。
 - 许可证：发布前确定；未定前不复制第三方实现代码。
