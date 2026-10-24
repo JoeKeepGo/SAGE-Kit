@@ -1,0 +1,173 @@
+{
+  "sessionFile": "/home/kayann/sage-kit-linux-dsh/plugin-e2e/runs/mock-20261024T033326Z/scenario-a/session.v4.jsonl",
+  "steps": 6,
+  "injectedCount": 3,
+  "injected": [
+    {
+      "seq": 9,
+      "taskId": "task-20261024033326-3acee4",
+      "title": "Pre-existing plugin task B",
+      "status": "ready",
+      "evidence": "none yet",
+      "firstLine": "# SAGE-Kit brief",
+      "bytes": 366
+    },
+    {
+      "seq": 25,
+      "taskId": "task-20261024033340-61f5e0",
+      "title": "DSH plugin mock task",
+      "status": "ready",
+      "evidence": "none yet",
+      "firstLine": "# SAGE-Kit brief",
+      "bytes": 396
+    },
+    {
+      "seq": 38,
+      "taskId": "task-20261024033340-61f5e0",
+      "title": "DSH plugin mock task",
+      "status": "running",
+      "evidence": "none yet",
+      "firstLine": "# SAGE-Kit brief",
+      "bytes": 398
+    }
+  ],
+  "duplicateTaskIds": [
+    "task-20261024033340-61f5e0"
+  ],
+  "toolCalls": [
+    {
+      "seq": 19,
+      "tool": "sage_task_create"
+    },
+    {
+      "seq": 28,
+      "tool": "sage_task_list"
+    },
+    {
+      "seq": 34,
+      "tool": "sage_task_status"
+    },
+    {
+      "seq": 41,
+      "tool": "sage_task_show"
+    },
+    {
+      "seq": 47,
+      "tool": "sage_brief"
+    }
+  ],
+  "requestInjectionCounts": [
+    {
+      "file": "001.json",
+      "toolCount": 30,
+      "roles": [
+        "user"
+      ],
+      "injectionOccurrences": 2,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4"
+      ]
+    },
+    {
+      "file": "002.json",
+      "toolCount": 0,
+      "roles": [
+        "user"
+      ],
+      "injectionOccurrences": 1,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4"
+      ]
+    },
+    {
+      "file": "003.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 3,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4",
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "004.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 2,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4",
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "005.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 4,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4",
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "006.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 3,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4",
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "007.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 3,
+      "distinctBriefs": [
+        "task-20261024033326-3acee4",
+        "task-20261024033340-61f5e0"
+      ]
+    }
+  ]
+}

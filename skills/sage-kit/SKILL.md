@@ -54,8 +54,9 @@ can move `running → review → done`; record evidence on the `review → done`
 
 1. Create or select one task before substantial edits. Keep one active task.
 2. Read the task brief before editing; it is the bounded context, not a replacement for
-   the repository's own instructions. `sage-kit brief` prints the current brief;
-   `SESSION_BRIEF.md` at the project root is an init-time snapshot and may be stale.
+   the repository's own instructions. Prefer a host-exposed brief tool if available
+   (e.g. the DSH plugin's `sage_brief`); otherwise `sage-kit brief` prints the current
+   brief. `SESSION_BRIEF.md` at the project root is an init-time snapshot and may be stale.
 3. `done` requires at least one evidence item. If the acceptance criteria are not met,
    leave the task `running`, `review`, or `blocked` — do not claim completion.
 4. Never fabricate evidence. Evidence is a pointer (file, test, exact command output),
@@ -73,10 +74,11 @@ can move `running → review → done`; record evidence on the `review → done`
 ## Host notes
 
 - **DSH:** repository instructions are `AGENTS.md`; the project skill is installed at
-  `.dsh/skills/sage-kit/`. A real DSH 0.2.1-rc.2 headless session with a **mock model**
-  discovered and loaded that folder (real model/GUI acceptance is `NOT_EXECUTED`). That
-  DSH version exposes no installable native third-party hook config, so `session.start`
-  is not injected automatically.
+  `.dsh/skills/sage-kit/`. Real DSH 0.2.1-rc.2 headless sessions (mock and real model)
+  discovered and loaded it; an optional native plugin (`sage-kit-dsh`) can expose
+  `sage_brief` / `sage_task_*` and inject the brief at `agent/pre-step`. DSH exposes no
+  installable native third-party hook config for the CLI's `hook` protocol, so
+  `session.start` is not injected automatically; GUI plugin acceptance is `NOT_EXECUTED`.
 - **Codex:** repository instructions are `AGENTS.md`; the file adapter installs the skill
   into the project's `.agents/skills/sage-kit/`. Real Codex session discovery is
   `NOT_VERIFIED`.

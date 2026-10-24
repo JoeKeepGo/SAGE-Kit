@@ -1,0 +1,3 @@
+date_utc=2026-10-23T18:49:11Z
+curl_after_final_stop_status=000
+curl_exit_or_000_means_connection_refused=yes

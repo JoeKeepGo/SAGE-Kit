@@ -7,6 +7,15 @@
   "engines": {
     "node": ">=22"
   },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "sage-kit": "dist/cli.js"
   },
@@ -21,7 +30,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
-    "test": "npm run build && node --test tests/cli.test.mjs",
+    "test": "npm run build && node --test tests/cli.test.mjs tests/feedback.test.mjs tests/control.test.mjs tests/rsi.test.mjs tests/api.test.mjs tests/plugin.test.mjs",
     "pack:check": "npm pack --dry-run"
   },
   "devDependencies": {

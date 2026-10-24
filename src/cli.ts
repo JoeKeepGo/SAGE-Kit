@@ -111,6 +111,21 @@ Usage:
   sage-kit worktree remove --task <id> [--force]
   sage-kit worktree list [--json]
   sage-kit run --task <id> [--no-worktree] -- <command> [args...]
+  sage-kit control serve [--port <n>] [--recover] [--json]
+  sage-kit control status [--json]
+  sage-kit control recover [--json]
+  sage-kit feedback sync --source local|github|gitea [--repo <owner/name>] [--file <path>] [--json]
+  sage-kit feedback list [--json]
+  sage-kit feedback show <id> [--json]
+  sage-kit rsi create --file <proposal.json>
+  sage-kit rsi list [--status <status>] [--json]
+  sage-kit rsi run-once --test-command <json-array> [--repeats <n>] [--export] [--out <path>] [--json]
+  sage-kit rsi export <evaluation-id> [--out <path>] [--json]
+  sage-kit rsi record-control <evaluation-id> [--json]
+  sage-kit rsi request-approval <proposal-id> [--json]
+  sage-kit rsi rollback-point --base-commit <sha> --base-version <ver> [--json]
+  sage-kit rsi approve <proposal-id> --token <t> --decided-by <name> --rollback-point <id> [--json]
+  sage-kit rsi reject <proposal-id> --decided-by <name> --reason <text> [--json]
   sage-kit hook [--event session.start|command.after|stop] [--strict] [--timeout <ms>]
   sage-kit uninstall [--purge]
   sage-kit version
@@ -338,7 +353,308 @@ async function main(argv: string[]): Promise<number> {
     return await runTaskCommand(argv.slice(1), cwd);
   }
 
+  if (command === "control") {
+    return await runControlCommand(argv.slice(1), cwd);
+  }
+
+  if (command === "feedback") {
+    const { runFeedbackCommand } = await import("./feedback/command.js");
+    return await runFeedbackCommand(argv.slice(1), await projectRootFrom(cwd));
+  }
+
+  if (command === "rsi") {
+    return await runRsiCommand(argv.slice(1), await projectRootFrom(cwd));
+  }
+
   throw new SageError(`Unknown command: ${command}`, "E_USAGE", 2);
+}
+
+async function runRsiCommand(argv: string[], root: string): Promise<number> {
+  const sub = argv[0];
+  if (!sub) throw new SageError("rsi requires a subcommand", "E_USAGE", 2);
+  const rsi = await import("./rsi/index.js");
+  const store = rsi.openRsi(root);
+
+  if (sub === "list") {
+    const parsed = parseArgs(argv.slice(1), { value: ["status"], boolean: ["json"] });
+    const proposals = await store.listProposals(
+      typeof parsed.flags.status === "string" ? { status: parsed.flags.status as never } : {},
+    );
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, proposals });
+    else if (proposals.length === 0) process.stdout.write("No RSI proposals.\n");
+    else {
+      process.stdout.write(
+        proposals.map((proposal) => `${proposal.id}\t${proposal.status}\t${proposal.hypothesis}`).join("\n") + "\n",
+      );
+    }
+    return 0;
+  }
+
+  if (sub === "create") {
+    const parsed = parseArgs(argv.slice(1), { value: ["file"], boolean: ["json"] });
+    const file = requireString(parsed.flags, "file");
+    let text = await readFile(resolve(root, file), "utf8");
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+    const input = JSON.parse(text) as Parameters<typeof store.createProposal>[0];
+    const proposal = await store.createProposal(input);
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, proposal });
+    else process.stdout.write(`created ${proposal.id} (${proposal.status})\n`);
+    return 0;
+  }
+
+  if (sub === "run-once") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["test-command", "repeats", "out"],
+      boolean: ["json", "export"],
+    });
+    const command = JSON.parse(requireString(parsed.flags, "test-command")) as string[];
+    if (!Array.isArray(command) || command.some((item) => typeof item !== "string") || command.length === 0) {
+      throw new SageError("--test-command must be a non-empty JSON string array", "E_USAGE", 2);
+    }
+    let repeats: number | undefined;
+    if (parsed.flags.repeats !== undefined) {
+      repeats = Number(parsed.flags.repeats);
+      if (!Number.isInteger(repeats) || repeats < 1) {
+        throw new SageError("--repeats must be a positive integer", "E_USAGE", 2);
+      }
+    }
+    const result = await rsi.runOnce({
+      projectRoot: root,
+      testCommand: command,
+      ...(repeats === undefined ? {} : { repeats }),
+    });
+    let exportFile: string | undefined;
+    if (boolFlag(parsed.flags, "export") && result.evaluationId !== undefined) {
+      const outFile = typeof parsed.flags.out === "string" ? parsed.flags.out : undefined;
+      const exported = await rsi.exportEvaluationSummary({
+        projectRoot: root,
+        evaluationId: result.evaluationId,
+        ...(outFile === undefined ? {} : { outFile }),
+      });
+      exportFile = exported.filePath;
+    }
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, result, ...(exportFile === undefined ? {} : { exportFile }) });
+    else {
+      process.stdout.write(`${result.outcome}: evaluated=${result.evaluated}${result.proposalId ? ` ${result.proposalId}` : ""}\n`);
+      if (exportFile !== undefined) process.stdout.write(`exported: ${exportFile}\n`);
+    }
+    return result.outcome === "failed" ? 1 : 0;
+  }
+
+  if (sub === "export") {
+    const parsed = parseArgs(argv.slice(1), { value: ["out"], boolean: ["json"] });
+    const evaluationId = parsed.positional[0];
+    if (!evaluationId) throw new SageError("rsi export requires <evaluation-id>", "E_USAGE", 2);
+    const outFile = typeof parsed.flags.out === "string" ? parsed.flags.out : undefined;
+    const exported = await rsi.exportEvaluationSummary({
+      projectRoot: root,
+      evaluationId,
+      ...(outFile === undefined ? {} : { outFile }),
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, filePath: exported.filePath, summary: exported.summary });
+    else process.stdout.write(`exported: ${exported.filePath}\n`);
+    return 0;
+  }
+
+  if (sub === "record-control") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const evaluationId = parsed.positional[0];
+    if (!evaluationId) throw new SageError("rsi record-control requires <evaluation-id>", "E_USAGE", 2);
+    const evaluation = await store.getEvaluation(evaluationId);
+    const proposal = await store.getProposal(evaluation.proposalId);
+    const control = await import("./control/index.js");
+    const controlStore = control.openControl(root);
+    try {
+      const record = rsi.recordEvaluationInControl({ store: controlStore, proposal, evaluation });
+      if (boolFlag(parsed.flags, "json")) json({ ok: true, record });
+      else process.stdout.write(`recorded task=${record.taskId} run=${record.runId}\n`);
+    } finally {
+      controlStore.close();
+    }
+    return 0;
+  }
+
+  if (sub === "request-approval") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const proposalId = parsed.positional[0];
+    if (!proposalId) throw new SageError("rsi request-approval requires <proposal-id>", "E_USAGE", 2);
+    const challenge = await rsi.requestApproval({ projectRoot: root, proposalId });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, challenge });
+    else process.stdout.write(`approval token (shown once): ${challenge.approvalToken}\nexpires: ${challenge.expiresAt}\n`);
+    return 0;
+  }
+
+  if (sub === "rollback-point") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["base-commit", "base-version", "artifact", "note"],
+      boolean: ["json"],
+    });
+    const point = await rsi.createRollbackPoint({
+      projectRoot: root,
+      baseCommit: requireString(parsed.flags, "base-commit"),
+      baseVersion: requireString(parsed.flags, "base-version"),
+      ...(typeof parsed.flags.artifact === "string" ? { artifactPath: parsed.flags.artifact } : {}),
+      ...(typeof parsed.flags.note === "string" ? { note: parsed.flags.note } : {}),
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, point });
+    else process.stdout.write(`${point.id}\t${point.rollbackCommand}\n`);
+    return 0;
+  }
+
+  if (sub === "approve") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["token", "decided-by", "rollback-point", "note"],
+      boolean: ["json"],
+    });
+    const proposalId = parsed.positional[0];
+    if (!proposalId) throw new SageError("rsi approve requires <proposal-id>", "E_USAGE", 2);
+    const approval = await rsi.approve({
+      projectRoot: root,
+      proposalId,
+      approvalToken: requireString(parsed.flags, "token"),
+      decidedBy: requireString(parsed.flags, "decided-by"),
+      rollbackPointId: requireString(parsed.flags, "rollback-point"),
+      ...(typeof parsed.flags.note === "string" ? { note: parsed.flags.note } : {}),
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, approval });
+    else process.stdout.write(`${proposalId}: ${approval.decision}\n`);
+    return 0;
+  }
+
+  if (sub === "reject") {
+    const parsed = parseArgs(argv.slice(1), {
+      value: ["decided-by", "reason"],
+      boolean: ["json"],
+    });
+    const proposalId = parsed.positional[0];
+    if (!proposalId) throw new SageError("rsi reject requires <proposal-id>", "E_USAGE", 2);
+    const approval = await rsi.rejectProposal({
+      projectRoot: root,
+      proposalId,
+      decidedBy: requireString(parsed.flags, "decided-by"),
+      reason: requireString(parsed.flags, "reason"),
+    });
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, approval });
+    else process.stdout.write(`${proposalId}: ${approval.decision}\n`);
+    return 0;
+  }
+
+  throw new SageError(`Unknown rsi command: ${sub}`, "E_USAGE", 2);
+}
+
+function parsePort(value: unknown): number {
+  if (value === undefined) return 0;
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    throw new SageError("--port must be an integer between 0 and 65535", "E_USAGE", 2);
+  }
+  const port = Number(value);
+  if (!Number.isSafeInteger(port) || port < 0 || port > 65535) {
+    throw new SageError("--port must be an integer between 0 and 65535", "E_USAGE", 2);
+  }
+  return port;
+}
+
+async function runControlCommand(argv: string[], cwd: string): Promise<number> {
+  const sub = argv[0] ?? "status";
+  const root = await projectRootFrom(cwd);
+  const control = await import("./control/index.js");
+
+  if (sub === "status") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const store = control.openControl(root);
+    try {
+      const tasks = store.listTasks({ limit: 500 });
+      const runs = store.listRuns({ limit: 500 });
+      const leases = store.listLeases();
+      const payload = {
+        ok: true,
+        projectRoot: root,
+        dbPath: store.debugInfo().dbPath,
+        counts: { tasks: tasks.length, runs: runs.length, leases: leases.length },
+        statuses: Object.fromEntries(
+          [...new Set(tasks.map((task) => task.status))].sort().map((status) => [
+            status,
+            tasks.filter((task) => task.status === status).length,
+          ]),
+        ),
+        activeLeases: leases.filter((lease) => lease.expiresAt > new Date().toISOString()).length,
+      };
+      if (boolFlag(parsed.flags, "json")) json(payload);
+      else {
+        const statusLines = Object.entries(payload.statuses).map(([status, count]) => `${status}=${count}`);
+        process.stdout.write(
+          `control db: ${payload.dbPath}\ntasks: ${payload.counts.tasks}${
+            statusLines.length ? ` (${statusLines.join(", ")})` : ""
+          }\nruns: ${payload.counts.runs}\nleases: ${payload.counts.leases} (active ${payload.activeLeases})\n`,
+        );
+      }
+      return 0;
+    } finally {
+      store.close();
+    }
+  }
+
+  if (sub === "recover") {
+    const parsed = parseArgs(argv.slice(1), { boolean: ["json"] });
+    const store = control.openControl(root);
+    try {
+      const report = store.recoverStale();
+      if (boolFlag(parsed.flags, "json")) json({ ok: true, report });
+      else {
+        process.stdout.write(
+          `recovered runs=${report.interruptedRuns.length} leases=${report.expiredLeases.length} tasks=${report.interruptedTasks.length}\n`,
+        );
+      }
+      return 0;
+    } finally {
+      store.close();
+    }
+  }
+
+  if (sub !== "serve") {
+    throw new SageError(`Unknown control command: ${sub}`, "E_USAGE", 2);
+  }
+
+  const parsed = parseArgs(argv.slice(1), {
+    value: ["port"],
+    boolean: ["recover", "json"],
+    multi: [],
+  });
+  const port = parsePort(parsed.flags.port);
+  const store = control.openControl(root);
+  if (boolFlag(parsed.flags, "recover")) store.recoverStale();
+  const server = await control.createControlServer({ store, port });
+  const payload = {
+    ok: true,
+    url: server.url,
+    uiUrl: `${server.url}/ui`,
+    host: server.host,
+    port: server.port,
+  };
+  if (boolFlag(parsed.flags, "json")) process.stdout.write(`${JSON.stringify(payload)}\n`);
+  else {
+    process.stdout.write(`SAGE-Kit control listening on ${server.url}\n`);
+    process.stdout.write(`Read-only UI: ${payload.uiUrl}\n`);
+    process.stdout.write("Press Ctrl+C to stop.\n");
+  }
+
+  await new Promise<void>((resolvePromise) => {
+    let stopping = false;
+    const stop = () => {
+      if (stopping) return;
+      stopping = true;
+      server
+        .close()
+        .catch(() => undefined)
+        .finally(() => {
+          store.close();
+          resolvePromise();
+        });
+    };
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+  });
+  return 0;
 }
 
 async function runTaskCommand(argv: string[], cwd: string): Promise<number> {

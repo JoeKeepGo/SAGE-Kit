@@ -1,0 +1,9 @@
+scenario=C non-initialized directory, mock calls plugin tools anyway
+noninit_dir=/home/kayann/sage-kit-linux-dsh/plugin-e2e/noninit2
+dsh_exit=0
+stderr_bytes=0
+tool_result_errors=3
+tool_error_message=SAGE-Kit is not initialized for this project. Run `sage-kit init --host dsh --scope project` (or `npx sage-kit init ...`) first.
+tool_result_status=error (turn still completed; no crash, no injection)
+sage_kit_dir_created=no
+injection_occurrences_in_requests=0

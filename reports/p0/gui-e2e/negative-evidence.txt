@@ -1,0 +1,93 @@
+=== hook capability negative evidence ===
+date_utc=2026-10-23T18:49:11Z
+--- dsh --version ---
+0.2.1-rc.2
+--- packages matching *hook* ---
+NONE
+--- dsh --help (no hook command) ---
+Usage: dsh [--profile] <name> [options] [app-args...]
+       dsh plugin --profile <name> <pnpm-args...>
+
+dsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch
+layers under your own overrides.
+
+Arguments:
+  args                           arguments for the booted profile's app (see:
+                                 dsh --profile <name> --help)
+
+Options:
+  -V, --version                  output the version number
+  --profile <name>               the profile under $DSH_HOME/profiles to boot
+  --from-default-profile <name>  replace a custom profile with a fresh copy of a
+                                 shipped profile template
+  --patch <path>                 extra patch-list overlay applied after the
+                                 profile layer (repeatable)
+  --dump-config                  print the composed profile tree and exit
+  --dump-config-schema           print JSON Schema for profile entries and
+                                 patches without mounting
+  --dump-default-config          print the profile tree without its user layer
+                                 or --patch overlays and exit
+
+Examples:
+  dsh web                                   boot the web profile (same as: dsh --profile web)
+  dsh rescue --from-default-profile web
+                                            recreate rescue from the shipped web template, then boot it
+  dsh headless "run the tests"              answer one task, print the result, and exit
+  dsh tui --patch ./extra.yml               boot a custom profile with one extra overlay
+  dsh tui --resume <session>                arguments after the launcher flags reach the app
+  dsh web --help                            the web app's own flags and help
+  dsh plugin --profile tui add <package>    install a plugin into the tui profile
+
+--- dsh plugin --help ---
+Usage: dsh plugin [options] [args...]
+
+manage a profile's plugins by forwarding the remaining arguments to pnpm in the
+profile directory
+
+Arguments:
+  args              pnpm arguments, forwarded verbatim (add <pkg>, remove <pkg>,
+                    why <pkg>, ...)
+
+Options:
+  --profile <name>  the profile whose plugins to manage (initialized on first
+                    use)
+  -h, --help        show this help
+--- web profile bundles ---
+{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dependencies": {},
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app"
+      ]
+    }
+  }
+}
+--- headless profile bundles ---
+{
+  "name": "dsh-profile-headless",
+  "private": true,
+  "dependencies": {},
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless"
+      ]
+    }
+  }
+}
+--- dsh-base patch hook mentions ---
+56:    # and its Client half publishes the standard access Hooks.
+--- dsh-web-app patch hook mentions ---
+275:    # Unified resource model: protocol providers behind the useResource hook.
+--- files/dirs named hook in isolated DSH_HOME ---
+count=0
+--- dsh package README hook mentions (first 10) ---
+54:`config/examples/` ships opt-in overlays for GitHub review webhooks, memory MCP servers, and runtime Cordis tools. They are never part of a default profile; the [user guides](../../docs/user/guide/index.md) and [developer practice guides](../../docs/user/develop/practice/index.md) own setup and safety instructions.
+--- SAGE-Kit doc status for DSH ---
+3:**状态：协议已实现；DSH 适配器实现 Skill/说明块安装，宿主 hook 自动安装未实现。**  
+131:| DSH | 已实现 `.dsh/skills/sage-kit` + `AGENTS.md` 受管块；DSH Web/headless 可用 npm 包在 Linux 运行，不需要桌面应用；DSH 当前未发现可安装的原生 hook 配置，`hook` 由宿主/用户显式调用 | Skill/说明块和 Linux Web 启动已验证；hook 自动安装 `NOT_AVAILABLE`；真实模型/浏览器交互未验 |

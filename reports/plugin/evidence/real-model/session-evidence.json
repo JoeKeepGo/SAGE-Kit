@@ -1,0 +1,96 @@
+{
+  "sessionId": "session-3bb8b23c-6588-446e-8133-c600ea5068d8",
+  "injections": [
+    {
+      "seq": 9,
+      "source": {
+        "kind": "sage-kit",
+        "form": "brief"
+      },
+      "taskId": "task-20261024033516-eb64fd",
+      "title": "Pre-existing real-model plugin task",
+      "status": "ready",
+      "evidenceLine": "none yet",
+      "fingerprint": "eacea46493393e4b1e1fa3a666ef68754fa806065cae51e831bd2d477dfa7750",
+      "text": "<sage-kit-brief>\n# SAGE-Kit brief\n\nTask: task-20261024033516-eb64fd\nTitle: Pre-existing real-model plugin task\nStatus: ready\n\nAcceptance:\n- brief injection target\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked.\n</sage-kit-brief>"
+    },
+    {
+      "seq": 31,
+      "source": {
+        "kind": "sage-kit",
+        "form": "brief"
+      },
+      "taskId": "task-20261024033521-f06e62",
+      "title": "DSH plugin real-model task",
+      "status": "ready",
+      "evidenceLine": "none yet",
+      "fingerprint": "23c924f31d191eab8b9453535c72001cde99e44a88df637ce97b4ac94ce3df55",
+      "text": "<sage-kit-brief>\n# SAGE-Kit brief\n\nTask: task-20261024033521-f06e62\nTitle: DSH plugin real-model task\nStatus: ready\n\nAcceptance:\n- created through the sage_task_create tool\n- visible in sage_task_list\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked.\n</sage-kit-brief>"
+    },
+    {
+      "seq": 44,
+      "source": {
+        "kind": "sage-kit",
+        "form": "brief"
+      },
+      "taskId": "task-20261024033521-f06e62",
+      "title": "DSH plugin real-model task",
+      "status": "running",
+      "evidenceLine": "none yet",
+      "fingerprint": "4821026b685e0e06e350f3d788f781b049dc4c5e087c43f0fe54e427cf61fecf",
+      "text": "<sage-kit-brief>\n# SAGE-Kit brief\n\nTask: task-20261024033521-f06e62\nTitle: DSH plugin real-model task\nStatus: running\n\nAcceptance:\n- created through the sage_task_create tool\n- visible in sage_task_list\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked.\n</sage-kit-brief>"
+    }
+  ],
+  "injectionCount": 3,
+  "toolCalls": [
+    {
+      "seq": 21,
+      "tool": "skill"
+    },
+    {
+      "seq": 27,
+      "tool": "sage_task_create"
+    },
+    {
+      "seq": 34,
+      "tool": "sage_task_list"
+    },
+    {
+      "seq": 40,
+      "tool": "sage_task_status"
+    },
+    {
+      "seq": 47,
+      "tool": "sage_task_show"
+    }
+  ],
+  "toolResults": [
+    {
+      "seq": 22,
+      "resultHead": "{\"turn\":1,\"step\":1,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_Wmm0hllYMNIGcuk5ygkB0475\"},\"toolCallId\":\"call_00_Wmm0hllYMNIGcuk5ygkB0475\",\"content\":[{\"type\":\"text\",\"text\":\"<skill_content name=\\\"sage-kit\\\">\\n<skill_resources>\\nBase directory for this skill: /home/kayann/sage-kit-linux-dsh/plugin-e2e/project-c/.dsh/skills/sage-kit\\nResolve relative paths mentioned by this skill against the base directory before using them. Load referenced resources only as needed.\\n</skill_resources>\\n\\n<skill_instructions>\\n# SAGE-Kit\\n\\nSAGE-Kit is a single-user, local, single-repository"
+    },
+    {
+      "seq": 28,
+      "resultHead": "{\"turn\":1,\"step\":2,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_a2nnzRnWjiwsP6h176CI1230\"},\"toolCallId\":\"call_00_a2nnzRnWjiwsP6h176CI1230\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"task\\\": {\\n    \\\"schemaVersion\\\": 1,\\n    \\\"id\\\": \\\"task-20261024033521-f06e62\\\",\\n    \\\"title\\\": \\\"DSH plugin real-model task\\\",\\n    \\\"description\\\": \\\"\\\",\\n    \\\"status\\\": \\\"ready\\\",\\n    \\\"acceptance\\\": [\\n      \\\"created through the sage_task_create tool\\\",\\n      \\\"visible in sage_task_list\\\"\\n    ],\\n    \\\"evidence\\\": [],\\n    \\\"createdAt\\\": \\\"2026-10-24T03:35:21.449Z\\\",\\"
+    },
+    {
+      "seq": 35,
+      "resultHead": "{\"turn\":1,\"step\":3,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_9AEM6RarBU53Zbw2ppr94730\"},\"toolCallId\":\"call_00_9AEM6RarBU53Zbw2ppr94730\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"tasks\\\": [\\n    {\\n      \\\"schemaVersion\\\": 1,\\n      \\\"id\\\": \\\"task-20261024033521-f06e62\\\",\\n      \\\"title\\\": \\\"DSH plugin real-model task\\\",\\n      \\\"description\\\": \\\"\\\",\\n      \\\"status\\\": \\\"ready\\\",\\n      \\\"acceptance\\\": [\\n        \\\"created through the sage_task_create tool\\\",\\n        \\\"visible in sage_task_list\\\"\\n      ],\\n      \\\"evidence\\\": [],\\n      \\\"createdAt\\\": "
+    },
+    {
+      "seq": 41,
+      "resultHead": "{\"turn\":1,\"step\":4,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ET_TlrL0ogIlmimNL9IgZjm8592\"},\"toolCallId\":\"call_00_ET_TlrL0ogIlmimNL9IgZjm8592\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"task\\\": {\\n    \\\"schemaVersion\\\": 1,\\n    \\\"id\\\": \\\"task-20261024033521-f06e62\\\",\\n    \\\"title\\\": \\\"DSH plugin real-model task\\\",\\n    \\\"description\\\": \\\"\\\",\\n    \\\"status\\\": \\\"running\\\",\\n    \\\"acceptance\\\": [\\n      \\\"created through the sage_task_create tool\\\",\\n      \\\"visible in sage_task_list\\\"\\n    ],\\n    \\\"evidence\\\": [],\\n    \\\"createdAt\\\": \\\"2026-10-24T03:35:21."
+    },
+    {
+      "seq": 48,
+      "resultHead": "{\"turn\":1,\"step\":5,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"call_00_ET_YPYCbjy3Tyl08LxFOn1V8541\"},\"toolCallId\":\"call_00_ET_YPYCbjy3Tyl08LxFOn1V8541\",\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"ok\\\": true,\\n  \\\"task\\\": {\\n    \\\"schemaVersion\\\": 1,\\n    \\\"id\\\": \\\"task-20261024033521-f06e62\\\",\\n    \\\"title\\\": \\\"DSH plugin real-model task\\\",\\n    \\\"description\\\": \\\"\\\",\\n    \\\"status\\\": \\\"running\\\",\\n    \\\"acceptance\\\": [\\n      \\\"created through the sage_task_create tool\\\",\\n      \\\"visible in sage_task_list\\\"\\n    ],\\n    \\\"evidence\\\": [],\\n    \\\"createdAt\\\": \\\"2026-10-24T03:35:21."
+    }
+  ],
+  "final": "All steps completed. No files were edited by me.\n\n**Task id:** `task-20261024033521-f06e62`\n\n**Steps performed:**\n1. Created via `sage_task_create` — status `ready`\n2. Confirmed via `sage_task_list` — appears in list\n3. Moved to `running` via `sage_task_status` with note `real model run`\n4. Inspected via `sage_task_show` — status `running`\n\n**`sage_task_list` output (as received):**\n\n```json\n{\n  \"ok\": true,\n  \"tasks\": [\n    {\n      \"schemaVersion\": 1,\n      \"id\": \"task-20261024033521-f06e62\",\n      \"title\": \"DSH plugin real-model task\",\n      \"description\": \"\",\n      \"status\": \"ready\",\n      \"acceptance\": [\n        \"created through the sage_task_create tool\",\n        \"visible in sage_task_list\"\n      ],\n      \"evidence\": [],\n      \"createdAt\": \"2026-10-24T03:35:21.449Z\",\n      \"updatedAt\": \"2026-10-24T03:35:21.449Z\"\n    },\n    {\n      \"schemaVersion\": 1,\n      \"id\": \"task-20261024033516-eb64fd\",\n      \"title\": \"Pre-existing real-model plugin task\",\n      \"description\": \"\",\n      \"status\": \"ready\",\n      \"acceptance\": [\n        \"brief injection target\"\n      ],\n      \"evidence\": [],\n      \"createdAt\": \"2026-10-24T03:35:16.476Z\",\n      \"updatedAt\": \"2026-10-24T03:35:16.476Z\"\n    }\n  ]\n}\n```\n\nNote: the list snapshot above was taken before the status change, so it shows the new task as `ready`; `sage_task_show` afterwards confirms it is now `running`.",
+  "turnEnd": {
+    "turn": 1,
+    "reason": {
+      "kind": "completed"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # 状态与持久化
 
-**实现状态：P0 文件模式已实现；控制面/SQLite/lease/反馈同步/提案评估/备份导出是 `TARGET`（M1–M3，未实现）。**
+**实现状态：P0 文件模式已实现；M2 SQLite 控制面（tasks/runs/events/leases/API/恢复）和本地可写控制面板已实现；M3 评估闭环已实现；备份导出、定时循环仍是 `TARGET`。**
 本文定义 SAGE-Kit 的两套状态模式、数据模型、恢复规则和并发约束。P0 只实现文件模式，布局与字段以 §2.1、§3、§4、§5 的 `[P0 已实现]` 为准（代码：`src/core/paths.ts`、`src/core/tasks.ts`、`src/core/runs.ts`、`src/core/events.ts`、`src/core/worktree.ts`）；`[TARGET]` 部分是设计目标，不构成实现声明。验收依据见 `docs/p0-acceptance.md`。
 
 ## 1. 范围与原则
@@ -37,7 +37,9 @@
 
 `<project-root>` 的解析：从当前目录向上找最近一个包含 `.git` 的目录；找不到则使用当前工作目录（`src/core/paths.ts` 的 `findProjectRoot()`）。
 
-P0 未实现、不要写进布局的东西：
+宿主原生插件（可选，当前为 DSH 的 `sage-kit-dsh`）不新增任何状态文件：它通过 `src/index.ts` 导出的库 API 读写同一份 `.sage-kit/` 文件状态，与 CLI 共用权威源；插件不启动控制面，也不双写（D-023）。
+
+P0 文件模式不包含、不要写进布局的东西：
 
 - `feedback/<id>.json`：`[TARGET]` M1 反馈缓存。
 - `locks/`：`[TARGET]`；P0 无任务锁/仓库锁。
@@ -81,7 +83,7 @@ P0 未实现、不要写进布局的东西：
 
 - 控制面是唯一写者；Worker 和 CLI 都通过本地 API 操作。
 - SQLite 开 WAL、`foreign_keys=ON`、`busy_timeout=5000`、`synchronous=FULL`。
-- 默认绑定 `127.0.0.1`；变更操作需要本地 token；不监听公网。
+- 默认绑定 `127.0.0.1` + loopback Host 校验；本地单用户不设 token；不监听公网。
 - 进程崩溃后 WAL 自动恢复；启动时执行恢复扫描。
 
 ### 2.3 模式切换（`TARGET`）
@@ -146,14 +148,14 @@ cancelled   → （终态）
 - 一个任务最多一个 worktree：路径固定为 `.sage-kit/worktrees/<task-id>`（不是可配置外部目录）；已挂 worktree 的任务再次 `worktree create` 会报 `E_WORKTREE_EXISTS`。
 - 分支命名：`sage-kit/<task-id>`，从当前 `HEAD` 创建（P0 不支持 `base branch` 配置，也没有 `sage/<task-id>-<slug>` 命名；后者是早期设计稿，未实现）。
 - Git 操作**没有**仓库锁/串行化（`git worktree add/remove/list` 直接调用）；`git` 子进程有 60 秒超时（`src/core/process.ts`）。
-- 没有任务 lease：P0 防止同一任务被两个 Worker 写靠“单用户 + 不并发操作”的约定，不是强制锁。D-008 说“P0 用文件锁”，但**当前 P0 代码没有实现锁**；AGENTS.md 也明确 P0 只实现 worktree 与 run 记录、lease/SQLite 属 M2。这里记录该差异为已知缺口（`NOT_IMPLEMENTED`），不把文件锁写成已实现。
+- 文件模式是单用户单写者：不以文件锁/lease 强制跨进程互斥，依靠“单用户 + 不并发操作”的约定；M2 控制面另用 SQLite lease/单写者，两者不双写。这不是未完成的功能，而是文件模式的并发边界。
 - `worktree create/remove/list` 是显式命令；`run` 默认在任务没有 worktree 时自动创建，`--no-worktree` 可直接在项目根运行。
 - 完成后不自动 push/merge/publish（P0 没有这些命令）；worktree 只由 `worktree remove` 清理。
 - 清理：默认拒绝删除有未提交改动的 worktree；`--force` 才会 `git worktree remove --force`。
 
-## 6. 数据模型（控制面 SQLite，`TARGET`，M2）
+## 6. 数据模型（控制面 SQLite，M2 已实现）
 
-以下是逻辑 schema，未实现；实现时用 migration 管理。所有表带 `created_at` / `updated_at`（UTC ISO 8601）。
+以下 schema 已由 `src/control/schema.ts` 的 migration v1 实现；字段以代码和 `docs/m2-control.md` 为准。所有表带 `created_at` / `updated_at`（UTC ISO 8601）。
 
 ### 6.1 任务与依赖
 
@@ -233,7 +235,7 @@ leases(
 
 ### 6.3 反馈、提案、评估、发布、outbox
 
-`feedback`、`sync_cursors`、`proposals`、`evals`、`artifacts`、`outbox` 的表设计保持早期设计稿（见 `docs/feedback-and-rsi.md` 与 `docs/decisions.md`）；P0 未实现，M1/M2 实现前需重新评审字段。
+`feedback`、`sync_cursors`、`proposals`、`evals`、`artifacts`、`outbox` 仅保留为早期设计稿（见 `docs/feedback-and-rsi.md`）；M1 反馈实际用 JSONL store，M3 评估实际用 `.sage-kit/rsi/` 文件 store，控制面不建这些表，避免双写。
 
 ## 7. 备份、导出与保留（`TARGET`）
 

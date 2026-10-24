@@ -1,6 +1,6 @@
 # Hook 与宿主适配
 
-**状态：协议已实现；DSH 适配器实现 Skill/说明块安装，宿主 hook 自动安装未实现。**  
+**状态：协议已实现；DSH 文件适配实现 Skill/说明块安装；DSH 另有可选原生插件（原生工具 + `agent/pre-step` 自动 brief，独立包，见 `packages/dsh-plugin/README.md`）；宿主 hook 自动安装未实现。**
 Hook 是 SAGE-Kit 接入宿主生命周期的**最薄适配层**。它只做两件事：注入会话摘要、记录关键事实。它不持有状态，不做网络请求，不调用模型，不承担恢复/调度/评审。
 
 ## 1. 设计目标
@@ -127,8 +127,18 @@ Rules:
 |---|---|---|
 | Claude Code | 已实现 `.claude/skills/sage-kit` + `CLAUDE.md` 受管块；hook 配置属于 M1 | Skill/说明块已实现；hook 自动安装未实现 |
 | Codex | 已实现 `.agents/skills/sage-kit` + `AGENTS.md` 受管块；hook 配置属于 M1 | Skill/说明块已实现；hook 自动安装未实现 |
-| OpenCode | 适配器安装插件/命令；按公开 API 实现 | 未实现（M1） |
-| DSH | 已实现 `.dsh/skills/sage-kit` + `AGENTS.md` 受管块；DSH Web/headless 可用 npm 包在 Linux 运行，不需要桌面应用；DSH 当前未发现可安装的原生 hook 配置，`hook` 由宿主/用户显式调用 | Skill/说明块和 Linux Web 启动已验证；hook 自动安装 `NOT_AVAILABLE`；真实模型/浏览器交互未验 |
+| OpenCode | 适配器安装插件/命令；按公开 API 实现 | 不在当前宿主范围（DSH/Codex/Claude 优先） |
+| DSH | 已实现 `.dsh/skills/sage-kit` + `AGENTS.md` 受管块；DSH Web/headless 可用 npm 包在 Linux 运行，不需要桌面应用。另提供**可选原生插件** `sage-kit-dsh`（独立包，经 DSH 插件机制显式安装）：注册原生工具并在 `agent/pre-step` 自动注入 brief。DSH 仍不自动安装本协议的 hook 配置，`hook` 由宿主/用户显式调用 | Skill/说明块、Linux Web、真实模型 GUI、真实 stop 与卸载/重装已验证；原生插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（profile 安装、5 个原生工具、真实模型 `deepseek-flash`、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入、隔离 `DSH_HOME`；`reports/plugin/dsh-plugin-e2e.md`）；该插件的 Web GUI 路径未跑（`NOT_EXECUTED`）；hook 自动安装 `NOT_AVAILABLE`（宿主边界） |
+
+DSH 原生插件不是本文件 `hook` 协议的实现，而是 DSH 宿主专有的第二种适配路径：
+
+- **安装**：独立包 `packages/dsh-plugin`（`sage-kit-dsh`）经 DSH profile/插件管理器显式安装；`sage-kit init` 不会安装它。
+- **能力**：原生工具 `sage_task_create` / `sage_task_list` / `sage_task_show` / `sage_task_status` / `sage_brief`；在 `agent/pre-step` 注入 `<sage-kit-brief>` 用户消息；与 CLI 共用同一 `sage-kit` 库 API 和文件状态。
+- **边界**：无控制面、无网络/模型调用、无自动合并/发布；没有已初始化 `.sage-kit` 的项目不注入；失败 fail-open，不阻断宿主 turn。
+- **版本**：插件用 `engines.dsh` 限定 DSH 版本范围，由宿主插件管理器校验；范围外默认拒绝（显式豁免除外）。
+- **验证边界**：插件实现存在不等于已验证；真实 DSH 0.2.1-rc.2 headless E2E 已通过（加载、工具、自动 brief、无项目不注入，见 `reports/plugin/dsh-plugin-e2e.md`），但 Web GUI、配置分支、故障降级路径仍未执行（`NOT_EXECUTED`），不要把未执行项写成已验证。
+
+详见 `packages/dsh-plugin/README.md`。
 
 约束：
 
@@ -141,11 +151,12 @@ Rules:
 
 ```text
 sage-kit init --host <host>          # P0：安装 Skill + 受管说明块
-sage-kit hook install --host <host>  # M1：安装宿主 hooks（尚未实现）
+sage-kit hook install --host <host>  # 宿主支持时才安装；DSH 0.2.1-rc.2 不提供，当前命令不假装已注入
 sage-kit hook uninstall --host <host> # M1
 ```
 
 - P0 的 `init` 不自动安装宿主 hooks；`sage-kit hook` 是可被宿主显式调用的命令。
+- DSH 原生插件不在 `sage-kit init` 范围；用 DSH 插件管理器显式安装/卸载（如 `dsh plugin --profile <name> add <tgz>` / `remove <pkg>`，实际参数以 DSH 版本为准）。
 - **M1 目标**：安装前备份/展示将修改的配置文件；P0 的 `init` 只追加受管块，不备份、不展示 diff，也不自动安装 hook。
 - 卸载只删除 SAGE-Kit 自己的条目；保留用户配置。
 - 安装记录写入 `.sage-kit/config.json`（host、路径、版本、时间），用于更新/回滚。

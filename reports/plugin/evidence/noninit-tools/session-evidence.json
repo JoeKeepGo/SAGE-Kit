@@ -1,0 +1,40 @@
+{
+  "sessionId": "session-fa419e2d-b253-455d-9407-aca054de4c9c",
+  "injections": [],
+  "injectionCount": 0,
+  "toolCalls": [
+    {
+      "seq": 16,
+      "tool": "sage_task_create"
+    },
+    {
+      "seq": 24,
+      "tool": "sage_task_list"
+    },
+    {
+      "seq": 30,
+      "tool": "sage_brief"
+    }
+  ],
+  "toolResults": [
+    {
+      "seq": 19,
+      "resultHead": "{\"turn\":1,\"step\":1,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_001\"},\"toolCallId\":\"toolu_mock_001\",\"content\":[{\"type\":\"text\",\"text\":\"Error: SAGE-Kit is not initialized for this project. Run `sage-kit init --host dsh --scope project` (or `npx sage-kit init ...`) first.\"}],\"isError\":true,\"id\":\"6e7a009b-6355-4ae8-a3c5-7a4916a89158\"}}"
+    },
+    {
+      "seq": 25,
+      "resultHead": "{\"turn\":1,\"step\":2,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_003\"},\"toolCallId\":\"toolu_mock_003\",\"content\":[{\"type\":\"text\",\"text\":\"Error: SAGE-Kit is not initialized for this project. Run `sage-kit init --host dsh --scope project` (or `npx sage-kit init ...`) first.\"}],\"isError\":true,\"id\":\"dd372e7e-7b97-4dde-8b31-e1f6581c68d4\"}}"
+    },
+    {
+      "seq": 31,
+      "resultHead": "{\"turn\":1,\"step\":3,\"message\":{\"role\":\"tool\",\"source\":{\"kind\":\"tool\",\"callId\":\"toolu_mock_004\"},\"toolCallId\":\"toolu_mock_004\",\"content\":[{\"type\":\"text\",\"text\":\"Error: SAGE-Kit is not initialized for this project. Run `sage-kit init --host dsh --scope project` (or `npx sage-kit init ...`) first.\"}],\"isError\":true,\"id\":\"30af07dd-f799-4b7b-bd2e-67ab217dbbde\"}}"
+    }
+  ],
+  "final": "Used sage_task_create, sage_task_list, sage_task_status, sage_task_show and sage_brief.",
+  "turnEnd": {
+    "turn": 1,
+    "reason": {
+      "kind": "completed"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+tag=after-restart
+date_utc=2026-10-23T18:48:45Z
+web_pid_file=148646
+web_process_alive=yes
+port_18766_listeners=1
+dsh_web_processes=1
+--- sage-kit task list ---
+ID                           STATUS    TITLE
+task-20261023183753-3bd706   ready     DSH GUI E2E task
+task-20261023160745-26c829   ready     Real model DSH E2E
+--- task files ---
+task-20261023160745-26c829.json
+task-20261023183753-3bd706.json
+--- sha256 ---
+20345ee69914c0234e087f57a9b066e7e38e94912184136b7c56dabf45e69bea  .dsh/skills/sage-kit/SKILL.md
+fcf31fcfe3123fb07ce2139c2bf144a84951f5f22786645721a0e610346b6373  AGENTS.md
+2ca0a1e52431373215956a4775eef7cf17d5fbe7a6eb5cea437a283b9f857eae  .sage-kit/config.json
+fa3693ef6a24a5af18d538f07732ae1bbc16510eeb0fc8d696721f3123f098e2  .sage-kit/state/tasks/task-20261023160745-26c829.json
+a0baf51b50f19b0d775b442a70814a4677571355fb19debeddd19eb59c900484  .sage-kit/state/tasks/task-20261023183753-3bd706.json
+--- dsh session dirs for this project ---
+14
+--- gui session log (E2E) ---
+-rw------- 1 kayann kayann 42735 Oct 24 07:46 /home/kayann/sage-kit-linux-dsh/home/sessions/--home-kayann-sage-kit-linux-dsh-project--/session-7cc09bfc-983f-4427-8bee-872f7303a31d/session.v4.jsonl.zstd
+--- gui session log sha256 ---
+3e8a94af73fc0e11ccf97eeff910985b2d0f13c6f1b121ed444df05ba36c21ec  /home/kayann/sage-kit-linux-dsh/home/sessions/--home-kayann-sage-kit-linux-dsh-project--/session-7cc09bfc-983f-4427-8bee-872f7303a31d/session.v4.jsonl.zstd

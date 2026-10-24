@@ -1,0 +1,4 @@
+final_build_sync_evidence=host-sync-3-final-build.json (fetched=1, added=0, total=57)
+gitea_version=1.27.3
+instance_dir=/home/kayann/sage-kit-gitea
+stopped_at=2026-10-24T07:10:47+13:00

@@ -1,0 +1,61 @@
+{
+  "sessionFile": "/home/kayann/sage-kit-linux-dsh/plugin-e2e/runs/real-model/session.v4.jsonl",
+  "steps": 6,
+  "injectedCount": 3,
+  "injected": [
+    {
+      "seq": 9,
+      "taskId": "task-20261024033516-eb64fd",
+      "title": "Pre-existing real-model plugin task",
+      "status": "ready",
+      "evidence": "none yet",
+      "fingerprint": "eacea46493393e4b1e1fa3a666ef68754fa806065cae51e831bd2d477dfa7750",
+      "bytes": 373
+    },
+    {
+      "seq": 31,
+      "taskId": "task-20261024033521-f06e62",
+      "title": "DSH plugin real-model task",
+      "status": "ready",
+      "evidence": "none yet",
+      "fingerprint": "23c924f31d191eab8b9453535c72001cde99e44a88df637ce97b4ac94ce3df55",
+      "bytes": 411
+    },
+    {
+      "seq": 44,
+      "taskId": "task-20261024033521-f06e62",
+      "title": "DSH plugin real-model task",
+      "status": "running",
+      "evidence": "none yet",
+      "fingerprint": "4821026b685e0e06e350f3d788f781b049dc4c5e087c43f0fe54e427cf61fecf",
+      "bytes": 413
+    }
+  ],
+  "duplicateTaskIds": [
+    "task-20261024033521-f06e62"
+  ],
+  "duplicateFingerprints": [],
+  "toolCalls": [
+    {
+      "seq": 21,
+      "tool": "skill"
+    },
+    {
+      "seq": 27,
+      "tool": "sage_task_create"
+    },
+    {
+      "seq": 34,
+      "tool": "sage_task_list"
+    },
+    {
+      "seq": 40,
+      "tool": "sage_task_status"
+    },
+    {
+      "seq": 47,
+      "tool": "sage_task_show"
+    }
+  ],
+  "requestInjectionCounts": []
+}

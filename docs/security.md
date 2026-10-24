@@ -1,7 +1,7 @@
 # 安全与威胁模型
 
-**实现状态：P0 文件模式已实现；控制面/反馈同步/RSI `NOT_IMPLEMENTED`。**
-本文的 `[P0]` 小节以当前代码与测试为准；标 `[TARGET]` 的控制是设计目标（M1–M3），不得当作已实现的安全能力。安全目标仍是**防止本机上的代码/数据被不可信输入或错误自动化破坏**，不是防御多租户或远程攻击者。
+**实现状态：P0 文件模式、M1 只读反馈、M2 loopback 控制面、M3 评估闭环均已实现；多用户/远程/自动发布不实现。**
+本文的 `[P0]` 小节以当前代码与测试为准；M1–M3 的实现安全边界见 `docs/m1-feedback.md`、`docs/m2-control.md`、`docs/m3-rsi.md`。标 `[TARGET]` 且未实现的控制仍不得当作已实现能力。安全目标仍是**防止本机上的代码/数据被不可信输入或错误自动化破坏**，不是防御多租户或远程攻击者。
 
 ## 1. 资产
 
@@ -12,13 +12,13 @@
 - 用户的 Agent 会话与提示内容（SAGE-Kit 之外的宿主负责）。
 - 本机其他项目/文件（SAGE-Kit 不应越界访问）。
 
-`[TARGET]` 未来资产：GitHub/Gitea token、模型 API key、本地控制面 token、反馈/提案/评估/发布记录。P0 不读取、不保存任何密钥（没有密钥相关功能）。
+`[TARGET]` 未来资产：模型 API key、提案/评估/发布记录。M1 从环境变量读取 GitHub/Gitea 只读 token；本地控制面不设 token（D-006）。P0 不读取、不保存任何密钥（没有密钥相关功能）。
 
 ## 2. P0 实际安全行为与限制
 
 先读这一节；第 3–4 节的设计控制只有标注 `[P0]` 的部分已实现。
 
-1. **无网络、无服务** `[P0]`：CLI 启动不做网络请求，没有 HTTP server、没有监听端口、没有 `fetch` 调用；hook 不联网、不调用模型。控制面相关的 localhost/token 控制全部是 `[TARGET]`（M2）。
+1. **P0 无网络、无服务** `[P0]`：P0 文件模式 CLI 启动不做网络请求，没有 HTTP server、没有监听端口、没有 `fetch` 调用；hook 不联网、不调用模型。M2 的控制面是显式 `control serve` 才启动的可选 loopback 服务，不随 P0 自动启动。
 2. **无密钥处理** `[P0]`：P0 不读取 token/API key，没有密钥存储/凭据服务。反过来，P0 的脱敏也不是“统一脱敏”：
    - `[P0]` 事件 `data` 经 `redactRecord`：按键名（`password`/`token`/`secret`/`authorization`/`api_key` 等）、值模式（`password=...`、`sk-...`）替换，深度 ≤4、每层 ≤30 键、字符串截断 500 字符（`src/core/fs-utils.ts`、`src/core/events.ts`）。
    - `[P0]` run 的 `command` argv 经 `redactCommand`：敏感 flag 的下一个参数替换为 `<redacted>`，`bearer`/`sk-`/`ghp_` 前缀值替换（`src/core/runs.ts`）。
@@ -35,13 +35,13 @@
 ```text
 [可信] 用户显式操作、SAGE-Kit 自身代码、已校验的本地配置
    │
-   ├─ [不可信] 外部 Issue/PR/网页/CI 日志/第三方 bundle（P0 不接入，M1+）
+   ├─ [不可信] 外部 Issue/PR/网页/CI 日志/第三方 bundle（M1 只读接入，正文始终作为数据）
    ├─ [不可信] 被修改的仓库内容、依赖、git hook
    ├─ [受限] 宿主 Agent 生成的命令/代码改动
-   └─ [本机] 控制面 localhost API（TARGET，M2；P0 不存在）
+   └─ [本机] M2 loopback 控制面（默认不启动；无 token，信任同机同用户）
 ```
 
-规则：跨边界的文本一律当数据；跨边界的执行一律要校验/确认。P0 没有外部反馈入口，因此“不可信外部文本”主要来自用户粘贴的内容与仓库文件本身，不能把 SAGE-Kit 当作已具备外部反馈隔离能力。
+规则：跨边界的文本一律当数据；跨边界的执行一律要校验/确认。M1 的反馈正文只作为 `UNTRUSTED DATA` 展示/带入 brief，不执行其中指令；仍不能把 SAGE-Kit 当作已具备对抗恶意提示注入的完整隔离。
 
 ## 4. 威胁与控制
 
@@ -76,15 +76,16 @@
 
 - `[P0]` 不读取任何密钥；事件 data 与 run argv 尽力脱敏（§2.1）。
 - `[P0 限制]` 脱敏不覆盖任务文本、CLI 错误、`run` 子进程输出；`run` 继承环境变量。
-- `[TARGET]` 统一脱敏；密钥只从环境/密钥存储读取；模型上下文不含密钥；读/写 token 分离；控制面 token 随机生成、只存本地。
+- `[TARGET]` 统一脱敏；密钥只从环境/密钥存储读取；模型上下文不含密钥；M1 只读 token 与未来写 token 分离；本地控制面不设 token（D-006）。
 
-### 4.5 本地控制面（`TARGET`，M2）
+### 4.5 本地控制面（M2 foundation 已实现）
 
-P0 **没有**控制面：没有 HTTP API、没有 token、没有 `Origin`/`Host`/CSP 处理。设计目标：
+M2 的控制面是显式 `control serve` 才启动的可选 loopback 服务：
 
-- 只绑定 `127.0.0.1`，不绑定 `0.0.0.0`；不提供远程访问。
-- 所有状态变更要求本地 token；token 不放 URL；校验 `Origin`/`Host`。
-- UI 使用严格 CSP；不渲染不可信 HTML；控制面进程以当前用户运行。
+- 只绑定 `127.0.0.1`，不绑定 `0.0.0.0`；校验 `socket.remoteAddress` 与 `Host` 只接受 loopback（防 DNS rebinding）；不提供远程访问。
+- **不设本地 token**（D-006）：信任边界是 OS 用户账户；同一 OS 用户下的进程可读取控制面状态。token 不能有效防御本地同用户进程，因此不作为必要控制。
+- UI 使用严格 CSP（无外部脚本/样式、`frame-ancestors 'none'`）；不渲染不可信 HTML；控制面进程以当前用户运行；本地面板允许任务/状态/lease/恢复写操作，但仅限 loopback，且无自动合并/发布。
+- 控制面不随 P0 文件模式自动启动。
 
 ### 4.6 Git 与 worktree
 
@@ -112,9 +113,9 @@ P0 无 `export`/`import`/`backup` 命令。目标控制：manifest schema/hash/�
 
 | 项 | P0 实际 | 目标 |
 |---|---|---|
-| 控制面监听/鉴权 | 不存在控制面 | `127.0.0.1` + 本地 token |
-| 外部反馈 | 未实现（无入口） | 只读同步 |
-| GitHub/Gitea 权限 | 不读取 | 最小只读；写权限显式配置 |
+| 控制面监听/鉴权 | M2 `control serve` 可选；loopback + Host 校验，无 token | 保持 loopback，不设 token |
+| 外部反馈 | M1 只读同步（`GITHUB_TOKEN`/`GITEA_TOKEN`） | 保持只读 |
+| GitHub/Gitea 权限 | M1 从环境变量读取只读 token，不落盘 | 最小只读；写权限显式配置 |
 | 自动 push/merge/publish | 关闭（无这些命令） | 关闭 |
 | Hook 网络/模型调用 | 禁止（代码无网络/模型路径） | 禁止 |
 | 密钥来源 | P0 不读取密钥 | 环境变量/宿主密钥存储 |
@@ -136,7 +137,7 @@ P0 无 `export`/`import`/`backup` 命令。目标控制：manifest schema/hash/�
 
 `NOT_IMPLEMENTED`（P0 不承诺）：
 
-- 控制面只绑定 localhost 且无 token 拒绝写操作（无控制面）。
+- 控制面远程鉴权/TLS（当前只允许 loopback，无远程入口）。
 - `run` 的命令超时/取消（只有内部 `git` 有超时）。
 - 密钥扫描测试；统一脱敏。
 - symlink 逃逸防护（无 realpath 校验）。

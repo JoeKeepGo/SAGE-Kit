@@ -127,9 +127,14 @@ describe("P0 CLI", () => {
   it("A1b: packs and installs a runtime-dependency-free CLI offline", async () => {
     const packDir = await tempDir();
     const installDir = await tempDir();
-    const pack = await runProcess(NPM, ["pack", "--json", "--pack-destination", packDir], REPO_ROOT, {
-      shell: process.platform === "win32",
-    });
+    // `npm test` already built dist; ignore prepack to avoid rewriting dist while
+    // sibling test files import it concurrently (CI Linux caught this race).
+    const pack = await runProcess(
+      NPM,
+      ["pack", "--json", "--ignore-scripts", "--pack-destination", packDir],
+      REPO_ROOT,
+      { shell: process.platform === "win32" },
+    );
     assert.equal(pack.code, 0, pack.stderr);
     const [packInfo] = JSON.parse(pack.stdout);
     assert.equal(packInfo.name, "sage-kit");
@@ -674,5 +679,80 @@ describe("P0 CLI", () => {
     ]);
     assert.equal(metachar.code, 0, metachar.stderr);
     await assert.rejects(readFile(injected));
+  });
+});
+
+describe("M1/M2/M3 CLI integration", () => {
+  it("feedback list returns an empty untrusted payload in a fresh repo", async () => {
+    const cwd = await tempDir();
+    const result = await runCli(cwd, ["feedback", "list", "--json"]);
+    assert.equal(result.code, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.untrustedData, true);
+    assert.equal(payload.count, 0);
+  });
+
+  it("control status opens the SQLite foundation without changing file-mode tasks", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Control bridge task");
+    const result = await runCli(cwd, ["control", "status", "--json"]);
+    assert.equal(result.code, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.counts.tasks, 0);
+    const fileTask = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(fileTask.status, "ready");
+    assert.equal(fileTask.title, "Control bridge task");
+  });
+
+  it("rsi list is available and empty in a fresh repo", async () => {
+    const cwd = await tempDir();
+    const result = await runCli(cwd, ["rsi", "list", "--json"]);
+    assert.equal(result.code, 0, result.stderr);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.ok, true);
+    assert.deepEqual(payload.proposals, []);
+  });
+
+  it("control serve binds loopback and serves UI/API without a token", async () => {
+    const cwd = await tempDir();
+    const child = spawn(process.execPath, [CLI, "control", "serve", "--port", "0", "--json"], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    try {
+      let stdout = "";
+      const line = await new Promise((resolvePromise, rejectPromise) => {
+        const timer = setTimeout(() => rejectPromise(new Error(`control serve did not print a URL: ${stdout}`)), 10_000);
+        child.stdout.on("data", (chunk) => {
+          stdout += chunk.toString();
+          const newline = stdout.indexOf("\n");
+          if (newline >= 0) {
+            clearTimeout(timer);
+            resolvePromise(stdout.slice(0, newline));
+          }
+        });
+        child.once("exit", (code) => {
+          clearTimeout(timer);
+          rejectPromise(new Error(`control serve exited early with ${code}: ${stdout}`));
+        });
+      });
+      const started = JSON.parse(line);
+      assert.equal(started.ok, true);
+      assert.match(started.url, /^http:\/\/127\.0\.0\.1:\d+$/);
+      const health = await fetch(`${started.url}/v1/health`);
+      assert.equal(health.status, 200);
+      assert.match(started.uiUrl, /\/ui$/);
+      const ui = await fetch(`${started.url}/ui`);
+      assert.equal(ui.status, 200);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+      await new Promise((resolvePromise) => {
+        if (child.exitCode !== null || child.signalCode !== null) resolvePromise(undefined);
+        else child.once("exit", () => resolvePromise(undefined));
+      });
+    }
   });
 });

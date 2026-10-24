@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "source": "github",
+  "repo": "JoeKeepGo/SAGE-Kit",
+  "fetched": 26,
+  "added": 26,
+  "duplicates": 0,
+  "total": 26,
+  "unique": 26,
+  "cursor": "{\"issues\":\"2026-10-23T18:02:12.000Z\",\"reviews\":null}",
+  "cursorKey": "github:JoeKeepGo/SAGE-Kit",
+  "itemsFile": ".sage-kit/feedback/items.jsonl",
+  "cursorsFile": ".sage-kit/feedback/cursors.json",
+  "untrustedData": true
+}
