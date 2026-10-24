@@ -1,0 +1,142 @@
+{
+  "sessionFile": "/home/kayann/sage-kit-linux-dsh/plugin-e2e/runs/final-20261024T040455Z/scenario-a/session.v4.jsonl",
+  "steps": 6,
+  "injectedCount": 0,
+  "injected": [],
+  "duplicateTaskIds": [],
+  "duplicateFingerprints": [],
+  "toolCalls": [
+    {
+      "seq": 19,
+      "tool": "sage_task_create"
+    },
+    {
+      "seq": 27,
+      "tool": "sage_task_list"
+    },
+    {
+      "seq": 33,
+      "tool": "sage_task_status"
+    },
+    {
+      "seq": 40,
+      "tool": "sage_task_show"
+    },
+    {
+      "seq": 46,
+      "tool": "sage_brief"
+    }
+  ],
+  "requestInjectionCounts": [
+    {
+      "file": "001.json",
+      "toolCount": 30,
+      "roles": [
+        "user"
+      ],
+      "injectionOccurrences": 2,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "002.json",
+      "toolCount": 0,
+      "roles": [
+        "user"
+      ],
+      "injectionOccurrences": 1,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "003.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 1,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "004.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 1,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0"
+      ]
+    },
+    {
+      "file": "005.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 3,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0",
+        "task-20261024040510-b5d45d"
+      ]
+    },
+    {
+      "file": "006.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 2,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0",
+        "task-20261024040510-b5d45d"
+      ]
+    },
+    {
+      "file": "007.json",
+      "toolCount": 30,
+      "roles": [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user"
+      ],
+      "injectionOccurrences": 2,
+      "distinctBriefs": [
+        "task-20261024033340-61f5e0",
+        "task-20261024040510-b5d45d"
+      ]
+    }
+  ]
+}

@@ -184,3 +184,15 @@ bash "$REPO/work/plugin-e2e/prep/assemble-evidence.sh"
 - `isolated-home/`：`checks.txt`、`dsh-home.txt`、`001.json`（isolated 下 tools=30 含 5 sage 工具）、`session-evidence.json`、`dsh-events.jsonl`（exit 0、stderr 0）
 
 （原始脚本与未压缩日志在 gitignored 的 `work/plugin-e2e/`；本报告未修改 src/docs/packages，未 commit。）
+
+## 最终修复后复跑（2026-10-24 04:04 UTC，HEAD `48fb297`）
+
+在 F-1（省略非法 `source.form`）与 F-2（`engines.dsh` 上界 `<0.3.0-0`）修复后，用当前 HEAD 重新构建/打包并装入同一隔离 profile，运行确定性 mock 场景：
+
+- tarball：root `21fe81fceb9d5e7f99a34c1e0bc95dc6bd2f3f555dd3419d3d562d5a3fa260c2`，plugin `628dcee8b9e19554253463807f58633f2f3016e74047d94a1e89bda0c4599084`；`--dump-config` 仍出现 `# == sage-kit-dsh`。
+- 场景 A：DSH exit 0、stderr 0 B；5 个工具全部调用（`sage_task_create/list/status/show/brief`）；session 中 source 已是 `{"kind":"sage-kit"}`；模型请求可见 brief，任务落盘并可被 CLI 列出。
+- 场景 B：无 `.sage-kit` 目录，0 次注入、0 个 `.sage-kit` 目录产生、tool calls 0。
+- 证据：`reports/plugin/evidence/final-postfix/summary.json`、`scenario-a/session.v4.jsonl`、`scenario-a/injection.json`、`scenario-b/checks.txt`。
+- 局限：本复跑是确定性 mock（未重跑真实模型）；`injection.json` 的 `injectedCount` 统计依赖旧 source form 解析，最终以 `requestInjectionCounts`/session source 为准；Web GUI、autoBrief:false 等仍未执行。
+
+该复跑覆盖 F-1 修复后的消息 shape 与插件加载/工具路径；完整早期真实模型证据见上文。
