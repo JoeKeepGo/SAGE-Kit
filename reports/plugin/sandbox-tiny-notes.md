@@ -43,7 +43,7 @@ session 中实际出现 4 条 `<sage-kit-brief>` user 消息，对应任务状�
 ## 4. 发现
 
 1. **插件路径工作正常**：模型先尝试 `npx sage-kit brief`，因包未发布到 npm 返回 E404；随后按插件能力改用 `sage_task_*` 工具并完成全部状态/证据操作。没有手动编辑 `.sage-kit`。
-2. **可改进点**：`sage-kit init` 写入的 AGENTS 受管块仍写“先运行 `npx sage-kit brief`”；在未发布/未本地安装核心包的 DSH 插件场景会先产生一次 E404。建议后续把受管说明改成“宿主提供 SAGE-Kit 插件工具时优先 `sage_brief`/`sage_task_*`；否则使用已安装 CLI”，并在 SKILL 中同样说明。本轮只记录，不修改产品行为。
+2. **已修复的可改进点**：本次会话暴露 `sage-kit init` 写入的 AGENTS 受管块优先写“运行 `npx sage-kit brief`”，在未发布/未本地安装核心包的 DSH 插件场景会先产生一次 E404。随后已把受管说明改为“宿主提供 SAGE-Kit 工具时优先 `sage_brief`/`sage_task_*`；否则使用已安装 CLI”，并在 `SKILL.md` 的 Rules/Host notes 中同步；`npm test` 仍为 103/103。本轮沙箱原始会话仍保留 E404 证据，便于追溯修复前行为。
 3. 沙箱项目未纳入版本控制，避免把测试 fixture 混入产品仓库；证据已复制到 `reports/plugin/evidence/sandbox-tiny-notes/`。
 
 ## 5. 证据清单
