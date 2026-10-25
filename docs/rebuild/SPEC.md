@@ -1,7 +1,8 @@
 # SAGE-Kit 治理、持续执行与 RSI 重建 SPEC
 
-状态：R1 可选本地持续执行支撑已通过组件/fixture 检查，协议见
-[持续执行约定](continuation.md)；真实宿主自主开发、完整 RSI 集成仍 `NOT_EXECUTED`。
+状态：R1 持续执行支撑与 R2 DSH 原生接入已通过本地检查，协议见
+[持续执行约定](continuation.md)和 [DSH 接入](dsh.md)。R2 使用真实宿主及确定性
+模型替身；真实模型自主开发质量、完整 RSI 集成与 Codex/Claude 执行接入仍未验证。
 权威：[当前决策](../decisions.md)。验收 owner：提出本次重建要求的用户。
 
 ## 目标与不变量

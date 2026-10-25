@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, stat, utimes } from 'node:fs/promises';
+import fileSystem, { mkdtemp, mkdir, readFile, writeFile, rm, symlink, stat, utimes, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir, platform, release, arch } from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { openContinuation } from '../adapters/continuation.mjs';
 
 const execute = promisify(execFile);
@@ -529,4 +530,136 @@ test('state write budget rejects oversized finish without destroying the recover
   await assert.rejects(f.controller.finish(pendingId, largeResult), { code: 'E_STATE_BUDGET' });
   assert.deepEqual(await readFile(stateFile), before);
   assert.equal((await f.controller.inspect()).action, 'reconcile');
+});
+
+test('observe omits historical proof reads and never grants admission despite idle status', async (t) => {
+  const f = await fixture(t, { plan: { steps: [step('first'), step('second', { dependsOn: ['first'] })] } });
+  await f.controller.begin('first', 'observed-first');
+  const result = await f.pass('observation');
+  await f.controller.finish('observed-first', result);
+  await rm(join(f.root, result.checks[0].evidence));
+  const observed = await f.controller.observe();
+  assert.equal(observed.status, 'idle');
+  assert.equal(observed.action, undefined);
+  const sizes = await Promise.all([f.config.planPath, f.layout.authority, f.config.statePath]
+    .map(path => stat(join(f.root, path))));
+  assert.deepEqual(observed.io, { filesRead: 3, bytesRead: sizes.reduce((sum, info) => sum + info.size, 0) });
+  assert.deepEqual(observed.context.constraints, f.plan.constraints);
+  assert.equal(observed.context.goal, f.plan.goal);
+  assert.equal((await f.controller.inspect()).action, 'evidence_changed');
+  await assert.rejects(f.controller.begin('second', 'observation-is-not-permission'));
+});
+
+test('observe and inspect report stable identities, state revisions, and authority/status changes', async (t) => {
+  const f = await fixture(t);
+  const idle = await f.controller.observe();
+  assert.equal(idle.status, 'idle');
+  assert.match(idle.fingerprint, /^[a-f0-9]{64}$/);
+  assert.match(idle.revision, /^[a-f0-9]{64}$/);
+  assert.deepEqual((await f.controller.observe()).io, idle.io);
+  const initial = await f.controller.inspect();
+  assert.equal(initial.fingerprint, idle.fingerprint);
+  assert.equal(initial.revision, idle.revision);
+  await f.controller.begin('first', 'observed-active');
+  const active = await f.controller.observe();
+  assert.equal(active.status, 'active');
+  assert.equal(active.step.id, 'first');
+  assert.equal(active.attempt.id, 'observed-active');
+  assert.equal(active.fingerprint, idle.fingerprint);
+  assert.notEqual(active.revision, idle.revision);
+  const saved = JSON.parse(await readFile(join(f.root, f.config.statePath), 'utf8'));
+  assert.equal(active.revision, createHash('sha256').update(JSON.stringify(saved)).digest('hex'));
+  assert.equal((await f.controller.inspect()).revision, active.revision);
+  await f.controller.finish('observed-active', { outcome: 'not_executed', checks: [] });
+  const finished = await f.controller.observe();
+  assert.equal(finished.status, 'idle');
+  assert.notEqual(finished.revision, active.revision);
+  await f.put(f.layout.authority, 'Changed governing conditions.\n');
+  const changed = await f.controller.observe();
+  assert.equal(changed.status, 'authority_changed');
+  assert.notEqual(changed.fingerprint, finished.fingerprint);
+  assert.equal(changed.revision, finished.revision);
+  await f.put(f.config.planPath, JSON.stringify({ ...f.plan, expiresAt: '2000-01-01T00:00:00.000Z' }));
+  assert.equal((await f.controller.observe()).status, 'expired');
+  await f.put(f.config.planPath, JSON.stringify({ ...f.plan, revoked: true, expiresAt: '2000-01-01T00:00:00.000Z' }));
+  assert.equal((await f.controller.observe()).status, 'revoked');
+});
+
+test('pre-aborted observe, inspect, begin and finish reject without changing state', async (t) => {
+  const f = await fixture(t);
+  await f.controller.begin('first', 'abort-pending');
+  const result = await f.pass('abort-proof');
+  const before = await readFile(join(f.root, f.config.statePath));
+  const cancellation = new Error('fixture cancelled before operation');
+  const signal = AbortSignal.abort(cancellation);
+  for (const operation of [
+    () => f.controller.observe({ signal }), () => f.controller.inspect({ signal }),
+    () => f.controller.begin('first', 'abort-pending', { signal }),
+    () => f.controller.finish('abort-pending', result, { signal }),
+  ]) await assert.rejects(operation(), error => error === cancellation);
+  assert.deepEqual(await readFile(join(f.root, f.config.statePath)), before);
+  assert.equal((await f.controller.inspect()).action, 'reconcile');
+  await assert.rejects(stat(`${join(f.root, f.config.statePath)}.lock`), { code: 'ENOENT' });
+});
+
+test('mid-read abort closes the current file and stops before further chunks or authorities', async (t) => {
+  const f = await fixture(t, { plan: { authority: ['authority/first.txt', 'authority/second.txt'] } });
+  await f.put('authority/first.txt', 'x'.repeat(1024 * 1024));
+  await f.put('authority/second.txt', 'must not be opened');
+  const cancellation = new Error('fixture cancelled during bounded read');
+  const abort = new AbortController();
+  const originalOpen = fileSystem.open;
+  const opened = [];
+  let readCalls = 0, closed = false;
+  const mock = t.mock.method(fileSystem, 'open', async (...args) => {
+    opened.push(String(args[0]));
+    const handle = await originalOpen(...args);
+    if (String(args[0]) === join(f.root, 'authority/first.txt')) {
+      const originalRead = handle.read.bind(handle), originalClose = handle.close.bind(handle);
+      handle.read = async (...readArgs) => {
+        readCalls++;
+        const result = await originalRead(...readArgs);
+        abort.abort(cancellation);
+        return result;
+      };
+      handle.close = async () => { await originalClose(); closed = true; };
+    }
+    return handle;
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(f.controller.observe({ signal: abort.signal }), error => error === cancellation);
+    assert.equal(readCalls, 1);
+    assert.equal(closed, true);
+    assert.equal(opened.includes(join(f.root, 'authority/second.txt')), false);
+    assert.equal(opened.includes(join(f.root, f.config.statePath)), false);
+  } finally { mock.mock.restore(); syncBuiltinESMExports(); }
+});
+
+test('abort after temporary state sync prevents rename and cleans the lock and temporary file', async (t) => {
+  const f = await fixture(t);
+  await f.controller.begin('first', 'abort-before-rename');
+  const result = await f.pass('rename-proof');
+  const stateFile = join(f.root, f.config.statePath);
+  const before = await readFile(stateFile);
+  const cancellation = new Error('fixture cancelled after temporary state sync');
+  const abort = new AbortController();
+  const originalOpen = fileSystem.open;
+  let synced = false;
+  const mock = t.mock.method(fileSystem, 'open', async (...args) => {
+    const handle = await originalOpen(...args);
+    if (String(args[0]).startsWith(`${stateFile}.`) && String(args[0]).endsWith('.tmp')) {
+      const originalSync = handle.sync.bind(handle);
+      handle.sync = async () => { await originalSync(); synced = true; abort.abort(cancellation); };
+    }
+    return handle;
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(f.controller.finish('abort-before-rename', result, { signal: abort.signal }), error => error === cancellation);
+    assert.equal(synced, true);
+    assert.deepEqual(await readFile(stateFile), before);
+    assert.equal((await f.controller.inspect()).action, 'reconcile');
+    assert.deepEqual(await readdir(dirname(stateFile)), [stateFile.split('/').at(-1)]);
+  } finally { mock.mock.restore(); syncBuiltinESMExports(); }
 });

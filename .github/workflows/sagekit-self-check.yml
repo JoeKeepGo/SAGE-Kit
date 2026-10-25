@@ -24,6 +24,31 @@ jobs:
       - name: Check optional continuation adapter
         run: node --test tests/continuation.test.mjs
 
+  dsh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the tested host into an isolated test directory
+        run: npm install --prefix "$RUNNER_TEMP/sage-dsh-host" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh@0.2.1-rc.2
+      - name: Pack and install the optional artifact without lifecycle scripts
+        run: |
+          mkdir -p "$RUNNER_TEMP/sage-dsh-pack"
+          npm pack ./adapters --ignore-scripts --pack-destination "$RUNNER_TEMP/sage-dsh-pack" --json > "$RUNNER_TEMP/sage-dsh-pack/manifest.json"
+          artifact_name=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1]))[0].filename' "$RUNNER_TEMP/sage-dsh-pack/manifest.json")
+          artifact_path="$RUNNER_TEMP/sage-dsh-pack/$artifact_name"
+          npm install --prefix "$RUNNER_TEMP/sage-dsh-installed" --ignore-scripts --legacy-peer-deps --offline --no-audit --no-fund "$artifact_path"
+          ln -s "$RUNNER_TEMP/sage-dsh-host/node_modules/@deepseek-ai" "$RUNNER_TEMP/sage-dsh-installed/node_modules/@deepseek-ai"
+          echo "SAGE_DSH_TARBALL=$artifact_path" >> "$GITHUB_ENV"
+      - name: Check native DSH integration and recovery
+        env:
+          SAGE_DSH_NODE_MODULES: ${{ runner.temp }}/sage-dsh-host/node_modules
+          SAGE_DSH_PLUGIN_PATH: ${{ runner.temp }}/sage-dsh-installed/node_modules/@sage-kit/dsh-plugin/dsh.mjs
+        run: node --test tests/dsh*.test.mjs
+
   posix:
     runs-on: ubuntu-latest
     env:

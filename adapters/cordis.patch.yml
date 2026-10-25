@@ -1,0 +1,4 @@
+- insert:
+    - id: sage-kit-dsh
+      name: '@sage-kit/dsh-plugin'
+      disabled: true

@@ -6,7 +6,7 @@
 
 ## 接入与权威
 
-`openContinuation({ root, planPath, statePath })` 返回 `inspect/begin/finish`。
+`openContinuation({ root, planPath, statePath })` 返回 `inspect/observe/begin/finish`。
 root 为项目目录；planPath、statePath 是项目内显式相对路径，无固定项目目录布局。
 plan 由已授权控制者从现行项目计划映射，不能由外部反馈授权；state 仅存执行观察。
 项目规范及计划摘要 SHA-256 绑定该轮执行；任何变化停止进一步准入，要求控制者
@@ -19,11 +19,16 @@ plan JSON：`version:1`、`goal`、`authority:[相对文件路径]`、`constrain
 所有 step 明确指定这些字段；Light 可 `requiresReview:false`，checks 按项目要求选择。
 拒绝重复/不存在的依赖及循环，拒绝不安全相对路径、symlink 路径与损坏状态。
 
-## 三个操作
+## 操作
 
 - `inspect()`：只读当前规范摘要与约束，返回 `action`、`step`（如有）和 `context`。
   `context` 包含完整 goal/constraints、权威引用/摘要及当前 step 的范围/必要检查。
   输入大小有界；超限报错，不静默截断治理条件。宿主可在开始/恢复/压缩后调用。
+- `observe()`：仅重读 plan/authority/state，返回规范 context、运行中 attempt/step
+  （如有）、status（revoked/expired/authority_changed/active/idle）、io；不读取历史
+  证据，不返回准入 action。active/idle 只表示观察，不能授权工具执行或下一任务。
+  inspect/observe 均返回 fingerprint（当前规范与计划）、revision（执行记录摘要），
+  供宿主识别内容变化；完整准入仍须 begin，不能用轻量观察替换证据检查。
 - `begin(stepId, attemptId)`：必须匹配 inspect 选出的下一项；先原子保存 intent，
   再返回 step 给宿主执行。attemptId 为宿主生成的幂等键，重复调用不启动第二次操作；
   返回 `replayed:true` 时宿主不得重执行。模块自身从不执行 step 的 shell/模型操作。
@@ -39,6 +44,11 @@ plan JSON：`version:1`、`goal`、`authority:[相对文件路径]`、`constrain
 `complete_pending_acceptance`。终止/阻塞时不生成新执行；独立已准入 step 可先推进。
 恢复后的 finish 是控制者核对事实后的显式记录；模块不能从 PID/会话消失推断未执行。
 已通过 evidence 被更改/删除时停止下游准入，避免继续使用失效证明。
+
+inspect/observe 的首参以及 begin/finish 的可选末参接受 `{signal}`。读取按至多
+64 KiB 块、文件操作及写入 rename 前合作检查取消；取消后停止新增工作并清理本次
+锁/临时文件。单次内核文件调用不能强制中断，不能声称硬实时退出。取消与持久化
+并发时先核对实际 state，不能凭取消推断未执行。DSH 的 deadline 来自宿主接入层。
 
 ## 持久化与信任边界
 

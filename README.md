@@ -1,16 +1,17 @@
 # SAGE-Kit
 
 > Reconstruction in progress: governance is restored from **v2026.8.13.1**.
-> Governed continuation, lifecycle hooks, and controlled RSI are core development
-> goals, not delivered capabilities. See the [current decisions](docs/decisions.md),
+> Governed continuation and native DSH hooks have passed local integration checks;
+> controlled RSI and further host integrations remain in development. See the [current decisions](docs/decisions.md),
 > [rebuild SPEC](docs/rebuild/SPEC.md), and [progress](docs/rebuild/progress.md).
 > The model-native description below describes the restored baseline; optional
-> host execution support will be added without making a runtime mandatory for governance.
+> host execution support does not make a runtime mandatory for governance.
 
-The first optional [continuation adapter](adapters/continuation.mjs) now has local
-component tests for scoped admission, evidence, and interruption/reconciliation.
-Its [protocol and limits](docs/rebuild/continuation.md) are explicit: this is not
-yet a delivered DSH/Codex/Claude integration or an autonomous development acceptance.
+The optional [DSH adapter](adapters/README.md) connects governed continuation to
+DSH 0.2.1-rc.2. Local checks cover the installed package, native profile loader,
+real tools, interruption/recovery, and bounded resource use. They use a deterministic
+model double: real-model development quality and Codex/Claude execution integration
+remain unverified. See the [protocol and limits](docs/rebuild/dsh.md).
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -23,7 +24,8 @@ agent-assisted product development. It keeps product authority, execution,
 evidence, review, and acceptance distinct without placing another runtime
 between the model and the project.
 
-SAGE-Kit has no CLI, package runtime, daemon, scheduler, or hidden validator.
+The governance Skill requires no CLI, package runtime, daemon, scheduler, or hidden validator.
+The optional DSH package runs within the existing host and adds no model executor.
 Models follow the project's current authority and SPEC, use the project's own
 tools, and let the project's CI verify the final candidate.
 

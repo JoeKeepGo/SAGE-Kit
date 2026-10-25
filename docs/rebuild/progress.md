@@ -2,7 +2,7 @@
 
 ## 当前范围
 
-2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0 基线恢复与方案检查完成；
+2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R2 本地实现与检查完成；
 持续开发、治理 hook 和 RSI 是核心目标。规范见 [SPEC](SPEC.md)，权威见
 [决策](../decisions.md)。本记录只协调进度，不取代规范、Git 或测试结果。
 
@@ -134,6 +134,70 @@ agents/session/projections/llm/system-prompt/tools/loop 服务，使用本地确
 无网络/真实模型调用。证明可在宿主内接入而无需逐工具启动 CLI；尚未接入 R1
 适配器，不是完整 headless、插件安装、压缩恢复或长会话资源验收。
 
-下一项：在隔离目录把 R1 语义接入真实 DSH 插件，验证治理上下文注入、实际工具及
-异常降级/门禁；先完成本地组件装配，再跑固定模型 fixture 与可用的真实会话。
-Codex/Claude 对应接入与 R3 仍待实现，不把 R1 本地支持扩大成整体完成。
+该探针之后的 R2 实现与证据见下文。
+
+## R2：DSH 原生接入与本地安装验收（2026-10-26）
+
+用户明确授权进入 R2。依据 [DSH 约定](dsh.md)，新增可选私有包
+`adapters/`：在真实 `agent/pre-step`、`tools/pre-execute` 与 tools registry 中接入
+治理提醒、准入、结果和恢复，不另建模型循环。普通模型步骤只读有限规范/状态，
+首次/新 turn/实际 surface replacement/记录变化才完整核对历史证据；begin 始终
+完整准入。工具失败或取消立即清除本会话执行许可，同批后续工具不能沿用。
+
+原 Skill、契约、治理核心和模板保持基线；核心不依赖该包。包内只有现有宿主 peers，
+无 CLI、安装脚本、后台轮询或同步 RSI。bundle 初装禁用，必须配置项目映射后启用；
+测试确实启用并执行，未使用“发现禁用 entry”代替交付。默认用户 profile 未改动。
+
+### 最终候选证据
+
+- WSL2、Node v22.22.1、DSH **0.2.1-rc.2**，最终安装包：
+  `node --test tests/continuation.test.mjs tests/dsh*.test.mjs`，**68 PASS / 0 FAIL /
+  0 SKIP**（底层 49、原生闭环 9、故障 8、真实中断 1、原生 profile 1）。
+- 实际三步本地任务、检查/必需评审引用、人工关口、规范变更、重放拒绝、同批失败
+  拦截、超时/取消、上下文上限、实际 surface replacement 均有对应反例/正例。
+  子进程在真实工具副作用发生后、finish 前被 SIGKILL，重建宿主核对后继续，
+  副作用最终仅 `first\nsecond\n`，未重复执行已发生的动作。
+- 原生 DSH CLI/profile loader 从本地 tgz 装包、启用 bundle、完整投影 schema，
+  启动隔离 fixture application：4 次模型替身请求、1 次实际写入、3 个成功工具
+  结果、持久状态 passed、turn completed。不是 stock headless 或真实模型质量验收。
+- 工件：`local/rebuild-dsh/sage-kit-dsh-plugin-0.0.0-rebuild-r2.tgz`，SHA-256：
+  `ca6a8278b491fa2a15ca3d4f490143dbeb74ae306bd7b322f7913c8f23386366`。
+  测试显式指定该 tgz 与其 `installed-final/` 安装入口，禁用安装脚本及联网安装；
+  宿主使用本机已有版本，没有调用 provider 或读取凭据。
+- 独立审查发现并修复 1 个 P1：显式治理工具读入失败后，同批后续工具可沿用旧
+  owner。补真实 DSH 多工具批次回归后通过；独立针对性静态复核无剩余阻断。
+  审查者没有运行最终套件，最终执行证据由控制者提供。
+- 仓库静态完整性 PASS；portable references 10 resources / 24 package files 与
+  Markdown closure PASS；原 Claude advisory hook fixture 14/14（不是真实 Claude
+  会话）。基线资源差异为空；源码、tgz 和安装目录的 6 个包文件逐字节一致。
+  受影响文档链接与空白检查通过。Windows/macOS 原生及远程 CI 尚未执行。
+- 本机原始记录：`local/rebuild-dsh/final-tests.log`、`mounted-measurement.log`、
+  `package-pack.json`、`package-install-final.log`、`artifact-check.log`、`review.txt`、
+  `{repository-integrity,portable-references,claude-advisory,baseline,diff,doc-links}.log`。本地
+  `validation-plan.json/validation-state.json` 从最终验证开始记录 intent/结果，
+  不倒填此前实现过程，不随包交付，也不替代项目权威。
+
+### 资源观察
+
+同一真实宿主 fixture：1 份 64 KiB 历史证明、25 次确定性模型请求。下表为该循环
+总量（含宿主处理；不含 fixture 准备和随后单独的 surface replacement 检查）：
+
+| fixture 位置 | wall | 进程 CPU（user + system） | 逻辑内容读取 | 治理注入 |
+|---|---|---|---|---|
+| Linux `/tmp` | 121.385 ms | 110.201 + 24.492 ms | 76 文件次 / 98,935 bytes | 4 |
+| 本仓库 `local/rebuild-dsh/tmp`（`/mnt/d`） | 754.283 ms | 245.640 + 50.743 ms | 76 文件次 / 98,935 bytes | 4 |
+
+测试另外断言普通 observe 每次 3 文件、低于 16 KiB，历史完整检查仅 1–2 次；
+同 turn 真正替换 surface 后重新注入。单次本机样本，不是物理 IO、旧 CLI 对照、
+故障文件系统硬实时保证或真实长任务的 CPU 上限。RSI 独立预算仍在 R3 验证。
+
+### 受控改进与下一项
+
+本轮沿用 SAGE-Kit 与 RSI 的观察—假设—反例—修复—复核流程：独立评审暴露
+同批工具边界，先固定反例，再清理失效执行标记；未自动修改目标、验收或原 Skill。
+这不等于 R3 自动 RSI 已实现。
+
+下一项是 **R3：受控 RSI 闭环**。从真实失败/返工证据产生隔离候选，固定基线与
+评估资产，双侧检查保护边界，批准绑定候选/评估，采用前有人工关口并可回滚。
+真实模型长任务质量、更多压缩插件、Windows/macOS 原生和 Codex/Claude 接入
+仍未验证；本地 R2 完成不代表整体用户验收、远程 CI 或发布完成。

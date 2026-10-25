@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-# R-003 permits this optional host module, not an executable dependency of the Skill.
-unexpected_adapters=$(git ls-files adapters/ | grep -vFx 'adapters/continuation.mjs' || true)
+# R-003 permits this exact optional host package, never a core Skill dependency.
+unexpected_adapters=$(git ls-files adapters/ | grep -Ev '^adapters/(continuation\.mjs|dsh\.mjs|package\.json|cordis\.patch\.yml|README\.md|LICENSE)$' || true)
 test -z "$unexpected_adapters" || { printf 'unreviewed optional adapter: %s\n' "$unexpected_adapters" >&2; exit 1; }
 
 for path in AGENTS.md README.md docs/SAGE_CORE.md docs/agent/AGENT_HARNESS.md \
@@ -22,7 +22,7 @@ done
 
 entrypoints=$(git ls-files | grep -Ei '(^|/)(bin|src)/(sagekit|sage-kit)(/|$)|(^|/)(sagekit|sage-kit)(\.(sh|ps1|bash|zsh|fish|bat|cmd|exe|py|js|mjs|cjs|ts|tsx|rs|go|java|cs|rb|php))?$' || true)
 test -z "$entrypoints" || { printf 'forbidden shipped runtime or entrypoint surface:\n%s\n' "$entrypoints" >&2; exit 1; }
-package_manifests=$(git ls-files | grep -Ei '(^|/)(pyproject\.toml|setup\.py|setup\.cfg|requirements[^/]*\.txt|tox\.ini|noxfile\.py|Pipfile|poetry\.lock|uv\.lock|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|deno\.json|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|Gemfile|Gemfile\.lock|composer\.json|composer\.lock|mix\.exs|rebar\.config|pubspec\.yaml|Package\.swift|[^/]+\.(csproj|fsproj|vbproj))$' | grep -Ev '^(docs|tests|scripts|\.github)/' || true)
+package_manifests=$(git ls-files | grep -Ei '(^|/)(pyproject\.toml|setup\.py|setup\.cfg|requirements[^/]*\.txt|tox\.ini|noxfile\.py|Pipfile|poetry\.lock|uv\.lock|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|deno\.json|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|Gemfile|Gemfile\.lock|composer\.json|composer\.lock|mix\.exs|rebar\.config|pubspec\.yaml|Package\.swift|[^/]+\.(csproj|fsproj|vbproj))$' | grep -Ev '^(docs|tests|scripts|\.github)/|^adapters/package\.json$' || true)
 test -z "$package_manifests" || { printf 'forbidden shipped executable dependency surface:\n%s\n' "$package_manifests" >&2; exit 1; }
 
 # Package and interpreter tooling is permitted for docs, tests, and release
@@ -169,6 +169,21 @@ require_json_keys() {
 }
 
 for path in $(git ls-files '*.json'); do json_parse "$path" || { printf 'invalid JSON: %s\n' "$path" >&2; exit 1; }; done
+
+# The optional host package may consume existing host peers, but cannot grow a
+# CLI, installation hooks or its own mandatory dependency/runtime layer.
+require_json_string 'optional adapter package name' '@sage-kit/dsh-plugin' adapters/package.json '.name' name
+require_json_string 'optional adapter entry' 'dsh.mjs' adapters/package.json '.main' main
+if [ "$json_backend" = jq ]; then
+  jq -e '.private == true and ([keys[] | select(. == "scripts" or . == "bin" or . == "dependencies" or . == "optionalDependencies" or . == "devDependencies")] | length == 0)' adapters/package.json >/dev/null || { printf 'optional adapter must remain private with host peers only\n' >&2; exit 1; }
+else
+  private_xml=$(plutil -extract private xml1 -o - adapters/package.json) || exit 1
+  printf '%s\n' "$private_xml" | grep -Eq '<true[[:space:]]*/>' || { printf 'optional adapter must remain private\n' >&2; exit 1; }
+  adapter_xml=$(plutil -convert xml1 -o - adapters/package.json) || exit 1
+  if printf '%s\n' "$adapter_xml" | grep -Eq '<key>(scripts|bin|dependencies|optionalDependencies|devDependencies)</key>'; then
+    printf 'optional adapter must contain only host peers\n' >&2; exit 1
+  fi
+fi
 
 sha256_file=''
 if command -v sha256sum >/dev/null 2>&1; then sha256_file=sha256sum
