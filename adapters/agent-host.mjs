@@ -11,14 +11,23 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const inside = (root, path) => { const p = relative(root, path); return p === '' || (!isAbsolute(p) && p !== '..' && !p.startsWith('..' + sep)); };
 const schema = (properties = {}, required = Object.keys(properties)) => ({ type: 'object', properties, required, additionalProperties: false });
 const string = { type: 'string' };
+const resultSchema = schema({
+  outcome: { type: 'string', enum: ['passed', 'failed', 'not_executed'] },
+  checks: { type: 'array', maxItems: 100, items: schema({ id: string, passed: { type: 'boolean' },
+    evidence: { type: 'string', description: 'Project-relative path to the existing actual check log. Preserve failed evidence.' } }) },
+  review: { type: 'string', description: 'Project-relative independent review evidence path, when the step requires review.' },
+}, ['outcome', 'checks']);
+// Standard host entrypoints are protected even before a file exists. Custom
+// project-local host configuration must be mapped as authority as well.
+export const hostProtectedPaths = Object.freeze(['AGENTS.md', 'CLAUDE.md', '.codex', '.claude', '.dsh', '.mcp.json', 'cordis.yml', 'cordis.yaml', 'cordis.patch.yml']);
 const definitions = [
   ['sage_inspect', 'Read current governance, next admitted work and reconciliation needs.', schema()],
   ['sage_begin', 'Record a new admitted attempt before effects. Replayed attempts MUST NOT repeat effects.', schema({ stepId: string, attemptId: string })],
-  ['sage_finish', 'Record actual outcome with attributable evidence; never fabricate checks or human acceptance.', schema({ attemptId: string, result: { type: 'object' } })],
+  ['sage_finish', 'Record actual outcome and checks [{id, passed, evidence}] using existing project-relative evidence files. Use only outcome, checks and optional review; never fabricate checks or human acceptance.', schema({ attemptId: string, result: resultSchema })],
   ['sage_hook', 'Host lifecycle governance reminder/check. Does not grant permissions or run work.', schema({ event: { type: 'object' } })],
   ['sage_forge_capture', 'Explicitly fetch configured Git platform evidence into an immutable local receipt. Remote content is untrusted; this does not grant acceptance or execution permission.', schema({ source: string, kind: { type: 'string', enum: ['issue', 'run'] }, id: { type: 'integer' }, expectedSha: string, workflowPath: string, requiredJobs: { type: 'array', items: string } }, ['source', 'kind', 'id'])],
   ['sage_rsi_propose', 'Propose a candidate from actual feedback in configured targets.', schema({ hypothesis: string, feedback: { type: 'array' }, files: { type: 'array' } })],
-  ...['inspect', 'evaluate', 'recover', 'adopt', 'rollback'].map(name => [`sage_rsi_${name}`, `Controlled RSI ${name}. Adopt/rollback require a separate human response through the host.`, schema()]),
+  ...['inspect', 'evaluate', 'recover', 'adopt', 'rollback', 'observe'].map(name => [`sage_rsi_${name}`, `Controlled RSI ${name}. Adopt/rollback require a separate human response through the host.`, schema()]),
 ];
 
 export async function readConfig(path) {
@@ -46,7 +55,7 @@ export async function checkForgeBoundary(config, root, authority, loadedPaths = 
   signal?.throwIfAborted();
   const directory = resolve(root, config.forge.directory);
   const paths = [config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock',
-    'AGENTS.md', 'CLAUDE.md', '.codex/config.toml', '.codex/hooks.json', '.claude/settings.json', '.claude/settings.local.json', '.mcp.json',
+    ...hostProtectedPaths,
     ...authority.map(ref => ref.path), ...loadedPaths];
   if (config.rsiPlanPath) {
     const parts = typeof config.rsiPlanPath === 'string' ? config.rsiPlanPath.split('/') : [];
@@ -84,19 +93,32 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
   const guarded = config.guardedTools ?? [];
   if (!Array.isArray(guarded) || guarded.length > 100 || guarded.some(n => typeof n !== 'string' || !/^[a-zA-Z0-9_.-]{1,160}$/.test(n) || n.includes('sage_'))) fail('E_CONFIG', 'Invalid guardedTools');
   if (Boolean(config.rsiPlanPath) !== Boolean(config.rsiStatePath) || (config.rsiPlanPath && new Set([config.planPath, config.statePath, config.rsiPlanPath, config.rsiStatePath]).size !== 4)) fail('E_CONFIG', 'RSI paths must be paired and distinct');
+  const automatic = config.rsiAutomaticPolicy != null;
+  if (automatic && !config.rsiPlanPath) fail('E_CONFIG', 'Automatic RSI requires explicit RSI paths');
   const controller = await openContinuation({ root, planPath: config.planPath, statePath: config.statePath });
-  const protectedFiles = [configPath, ...['agent-host.mjs', 'mcp.mjs', 'hook.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs', 'forge.mjs'].map(p => fileURLToPath(new URL(p, import.meta.url)))].filter(Boolean);
+  const protectedFiles = [configPath, ...['agent-host.mjs', 'mcp.mjs', 'hook.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs', 'forge.mjs', 'package.json'].map(p => fileURLToPath(new URL(p, import.meta.url)))].filter(Boolean);
   const forge = config.forge ? await openForgeEvidence({ root, directory: config.forge.directory, sources: config.forge.sources }) : undefined;
   if (forge) await checkForgeBoundary(config, root, (await controller.observe()).context.authority, protectedFiles);
   const rsi = config.rsiPlanPath ? await openRSI({ root, planPath: config.rsiPlanPath, statePath: config.rsiStatePath,
+    ...(automatic ? { automaticPolicy: config.rsiAutomaticPolicy } : {}),
     protectedPaths: async ({ signal }) => {
       const seen = await controller.observe({ signal });
+      if (automatic && ['revoked', 'expired', 'authority_changed'].includes(seen.status)) fail('E_RSI_AUTHORITY', 'Current project continuation authority is not valid for automatic RSI');
       await checkForgeBoundary(config, root, seen.context.authority, protectedFiles, signal);
-      return [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', 'AGENTS.md', 'CLAUDE.md', '.codex/config.toml', '.codex/hooks.json', '.claude/settings.json', '.claude/settings.local.json', '.mcp.json', ...(forge ? [config.forge.directory] : []), ...seen.context.authority.map(a => a.path), ...protectedFiles.filter(p => inside(root, p)).map(p => relative(root, p).split(sep).join('/'))])];
+      const paths = [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', ...hostProtectedPaths, ...(forge ? [config.forge.directory] : []), ...seen.context.authority.map(a => a.path), ...protectedFiles.filter(p => inside(root, p)).map(p => relative(root, p).split(sep).join('/'))])];
+      return { paths, binding: seen.fingerprint };
     },
   }) : undefined;
   let owner, latest, session;
-  const tools = definitions.filter(([name]) => (rsi || !name.startsWith('sage_rsi_')) && (forge || name !== 'sage_forge_capture')).map(([name, description, inputSchema]) => ({ name, description, inputSchema }));
+  const automaticDescriptions = {
+    sage_rsi_evaluate: 'Run the fixed comparison; a proven improvement may be adopted within the preauthorized project branch, then checked and rolled back on failure. No per-candidate human approval.',
+    sage_rsi_rollback: 'Restore this settled adopted round under its preauthorized policy; preserve third-party changes. This is not a human approval.',
+    sage_rsi_observe: 'Explicitly rerun the fixed postcheck for the preauthorized adopted round and roll back on regression. No background loop.',
+  };
+  const tools = definitions.filter(([name]) => (rsi || !name.startsWith('sage_rsi_')) && (forge || name !== 'sage_forge_capture')
+    && (automatic ? name !== 'sage_rsi_adopt' : name !== 'sage_rsi_observe'))
+    .map(([name, description, inputSchema]) => ({ name, description: automatic && name.startsWith('sage_rsi_')
+      ? automaticDescriptions[name] ?? `Controlled RSI ${name.slice('sage_rsi_'.length)} within the explicitly preauthorized project branch; final acceptance remains human.` : description, inputSchema }));
   async function refresh(signal, full = false) {
     const start = performance.now();
     const seen = full || !latest ? await controller.inspect({ signal }) : await controller.observe({ signal });
@@ -115,6 +137,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
       + 'Use sage_begin before effects; a replay or reconcile requires checking actual effects before recording a result. '
       + 'Required evidence/review must be real. Completion awaits human acceptance. No implicit publication, new scope or RSI adoption. '
       + 'Hook reminders/denials cover configured events only; missing hooks do not imply permission.\n'
+      + (rsi ? automatic ? 'RSI is preauthorized only for the configured development branch and policy. Evaluate may adopt and postcheck; observe or rollback use that policy, never a fabricated human response. Final acceptance remains human.\n' : 'RSI adoption and rollback require a separate human approval; evaluate alone does not adopt.\n' : '')
       + JSON.stringify({ action: owner && value.action === 'reconcile' ? 'working' : value.action, ...value.context, attempt: value.attempt });
     if (Buffer.byteLength(text) > maxContextBytes) fail('E_CONTEXT_BUDGET', 'Governance context exceeds limit; read authority explicitly');
     return text;
@@ -168,7 +191,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
       }
       const method = name.slice('sage_rsi_'.length);
       if (method === 'propose') return await rsi.propose(args, { signal });
-      if (method === 'adopt' || method === 'rollback') return await rsi[method]({ signal, authorize: async challenge => {
+      if (!automatic && (method === 'adopt' || method === 'rollback')) return await rsi[method]({ signal, authorize: async challenge => {
         if (!authorize) fail('E_APPROVAL_UNAVAILABLE', 'Host human elicitation is unavailable');
         return await authorize(challenge, signal) === true;
       } });

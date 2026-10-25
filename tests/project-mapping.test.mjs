@@ -85,7 +85,8 @@ test('minimal example setup rejects missing, expired and unbounded expiry before
 
 test('minimal example local documentation links resolve', async t => {
   const documents = [new URL('../adapters/README.md', import.meta.url),
-    new URL('../examples/rebuild/minimal/README.md', import.meta.url), new URL('../examples/rebuild/minimal/SPEC.md', import.meta.url)];
+    new URL('../examples/rebuild/minimal/README.md', import.meta.url), new URL('../examples/rebuild/minimal/SPEC.md', import.meta.url),
+    new URL('../examples/rebuild/from-docset/README.md', import.meta.url), new URL('../docs/rebuild/from-docset.md', import.meta.url)];
   let checked = 0;
   for (const document of documents) {
     const markdown = await readFile(document, 'utf8');
@@ -96,6 +97,29 @@ test('minimal example local documentation links resolve', async t => {
   }
   assert.ok(checked >= 6);
   t.diagnostic(`${checked} local links resolved across ${documents.length} affected documents`);
+});
+
+test('from-docset example starts without implementation and cannot satisfy fixed acceptance or skip dependencies', async t => {
+  const f = await fixture(t);
+  for (const name of ['SPEC.md', 'check.mjs', 'plan.template.json', 'host.template.json']) {
+    await cp(new URL(`../examples/rebuild/from-docset/${name}`, import.meta.url), join(f.root, name));
+  }
+  for (const name of ['src', 'bin', 'tests', 'package.json', 'README.md']) {
+    await assert.rejects(access(join(f.root, name)), { code: 'ENOENT' });
+  }
+  await execute(process.execPath, [new URL('../examples/rebuild/minimal/prepare.mjs', import.meta.url).pathname,
+    new Date(Date.now() + 60000).toISOString()], { cwd: f.root, timeout: 5000 });
+  const configPath = join(f.root, 'host.json');
+  const host = await openAgentHost(parse(await readFile(configPath)), { configPath });
+  const initial = await host.call('sage_inspect');
+  assert.equal(initial.step.id, 'engine');
+  assert.match(initial.step.objective, /TL-01\/TL-02/);
+  await assert.rejects(host.call('sage_begin', { stepId: 'cli', attemptId: 'skip-engine' }));
+  await host.call('sage_begin', { stepId: 'engine', attemptId: 'engine-1' });
+  await assert.rejects(execute(process.execPath, ['check.mjs', 'core'], { cwd: f.root, timeout: 5000 }), /ERR_MODULE_NOT_FOUND/);
+  await assert.rejects(host.call('sage_finish', { attemptId: 'engine-1', result: { outcome: 'passed', checks: [] } }));
+  assert.equal((await host.call('sage_inspect')).action, 'reconcile');
+  t.diagnostic('Empty implementation is not completion; positive development evidence belongs to the real-model trial');
 });
 
 async function recordMappingCheck(f, controller, id, check) {

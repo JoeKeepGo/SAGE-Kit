@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, stat, cp } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, stat, cp, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { once } from 'node:events';
+import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openAgentHost, readConfig } from '../adapters/agent-host.mjs';
@@ -144,6 +146,25 @@ test('transport closes on overlong input instead of retaining an unbounded line'
   await c.exited; assert.equal(c.child.exitCode, 0);
 });
 
+test('stdio publishes the finish evidence contract and accepts it without relaxing failed or missing evidence', async t => {
+  const f = await fixture(t), c = await client(t, f);
+  const definition = (await c.request('tools/list')).result.tools.find(tool => tool.name === 'sage_finish');
+  const contract = definition.inputSchema.properties.result;
+  assert.deepEqual(contract.required, ['outcome', 'checks']);
+  assert.deepEqual(contract.properties.outcome.enum, ['passed', 'failed', 'not_executed']);
+  assert.deepEqual(contract.properties.checks.items.required, ['id', 'passed', 'evidence']);
+  assert.equal(contract.properties.review.type, 'string');
+  await c.call('sage_begin', { stepId: 'one', attemptId: 'first' });
+  const check = { id: 'check', passed: true, evidence: 'check.txt' };
+  assert.equal((await c.call('sage_finish', { attemptId: 'first', result: { outcome: 'passed', checks: [check] } })).isError, true, 'missing file stays refused');
+  await f.put('check.txt', 'Actual fixture check observation');
+  assert.equal((await c.call('sage_finish', { attemptId: 'first', result: { outcome: 'passed', checks: [{ ...check, passed: false }] } })).isError, true, 'failed check cannot pass');
+  const oldShape = { outcome: 'passed', checks: [{ id: 'check', passed: true, logPath: 'check.txt' }] };
+  assert.equal((await c.call('sage_finish', { attemptId: 'first', result: oldShape })).isError, true, 'trial failure shape stays refused');
+  assert.notEqual((await c.call('sage_finish', { attemptId: 'first', result: { outcome: 'passed', checks: [check] } })).isError, true);
+  assert.equal((await c.call('sage_inspect')).structuredContent.action, 'human_gate');
+});
+
 test('config reads have a hard actual byte cap', async t => {
   const f = await fixture(t); await f.put('config.json', ' '.repeat(65537));
   await assert.rejects(readConfig(f.configPath), /64 KiB/);
@@ -156,6 +177,7 @@ for (const response of ['unsupported', 'decline', 'accept', 'cancel', 'invalid-r
     await f.put('eval.mjs', "import{readFileSync}from'node:fs';process.exitCode=readFileSync('strategy.txt','utf8')==='GOOD'?0:1;");
     await f.put('rsi-plan.json', { version: 1, authority: ['SPEC.md'], inputs: ['strategy.txt', 'eval.mjs'], targets: ['strategy.txt'], command: [process.execPath, 'eval.mjs'], expiresAt: '2099-01-01T00:00:00Z', revoked: false, maxEvaluations: 1, timeoutMs: 2000, maxOutputBytes: 4096 });
     const c = await client(t, f, response === 'unsupported' ? {} : { elicitation: {} });
+    assert.ok(!(await c.request('tools/list')).result.tools.some(tool => tool.name === 'sage_rsi_observe'), 'manual mode must not expose automatic observation');
     assert.notEqual((await c.call('sage_rsi_propose', { hypothesis: 'Repair observed failure', feedback: [{ path: 'feedback.txt', kind: 'failure' }], files: [{ path: 'strategy.txt', content: 'GOOD' }] })).isError, true);
     assert.equal((await c.call('sage_rsi_evaluate')).structuredContent.evaluation.eligible, true);
     assert.equal((await c.call('sage_rsi_adopt', { approve: true })).isError, true);
@@ -170,5 +192,70 @@ for (const response of ['unsupported', 'decline', 'accept', 'cancel', 'invalid-r
     const result = await adopting;
     assert.equal(result.isError === true, response !== 'accept');
     assert.equal(await readFile(join(f.root, 'strategy.txt'), 'utf8'), response === 'accept' ? 'GOOD' : 'BAD');
+  });
+}
+
+
+async function automaticFixture(t, { postFailure = false, target = 'strategy.txt' } = {}) {
+  const f = await fixture(t, { rsiPlanPath: 'rsi-plan.json', rsiStatePath: 'rsi-state.json' });
+  await mkdir(join(f.root, '.claude'), { recursive: true });
+  await f.put(target, 'BAD');
+  const marker = join(f.root, 'regression.flag');
+  await f.put('eval.mjs', `import{readFileSync,existsSync}from'node:fs';const good=readFileSync(${JSON.stringify(target)},'utf8')==='GOOD';process.exitCode=good&&!existsSync(${JSON.stringify(marker)})&&!(${postFailure}&&process.cwd()===${JSON.stringify(f.root)})?0:1;`);
+  let failure;
+  try { await promisify(execFile)(process.execPath, ['eval.mjs'], { cwd: f.root, timeout: 3000, maxBuffer: 4096 }); }
+  catch (cause) { failure = cause; }
+  assert.equal(failure?.code, 1, 'the original fixed check must really fail');
+  await f.put('feedback.txt', 'Fixed original evaluator exit 1.\n' + (failure.stdout ?? '') + (failure.stderr ?? ''));
+  await f.put('rsi-plan.json', { version: 1, authority: ['SPEC.md'], inputs: [target, 'eval.mjs'], targets: [target], command: [process.execPath, 'eval.mjs'], expiresAt: '2099-01-01T00:00:00Z', revoked: false, maxEvaluations: 2, timeoutMs: 2000, maxOutputBytes: 4096 });
+  f.config.rsiAutomaticPolicy = { branch: 'workflow/auto-fixture', baseBranch: 'main', planSha256: createHash('sha256').update(await readFile(join(f.root, 'rsi-plan.json'))).digest('hex'), maxRounds: 2, improvement: { kind: 'repair' } };
+  await f.put('config.json', f.config);
+  await f.put('.gitignore', 'state.json*\nrsi-state.json*\nregression.flag\n');
+  const git = args => promisify(execFile)('git', args, { cwd: f.root, env: { PATH: '/usr/bin:/bin', HOME: f.root, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' }, timeout: 3000, maxBuffer: 65536 });
+  await git(['init', '-b', 'main']); await git(['add', '.']);
+  await git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@invalid', '-c', 'core.hooksPath=/dev/null', 'commit', '--no-gpg-sign', '-m', 'Isolated acceptance baseline']);
+  await git(['checkout', '-b', 'workflow/auto-fixture']);
+  const proposal = { hypothesis: 'Repair observed failure within preauthorized branch', feedback: [{ path: 'feedback.txt', kind: 'failure' }], files: [{ path: target, content: 'GOOD' }] };
+  return { ...f, proposal, target };
+}
+
+for (const recovery of ['observe', 'rollback']) test(`automatic RSI real stdio adopts without elicitation and ${recovery} restores the original`, { skip: process.platform === 'win32', timeout: 20000 }, async t => {
+  const f = await automaticFixture(t), c = await client(t, f);
+  const tools = (await c.request('tools/list')).result.tools;
+  assert.ok(tools.some(tool => tool.name === 'sage_rsi_observe'));
+  assert.ok(!tools.some(tool => tool.name === 'sage_rsi_adopt'));
+  assert.match(tools.find(tool => tool.name === 'sage_rsi_evaluate').description, /preauthorized|pre-authorized/);
+  assert.equal((await c.call('sage_rsi_propose', { ...f.proposal, rsiAutomaticPolicy: f.config.rsiAutomaticPolicy })).isError, true);
+  assert.notEqual((await c.call('sage_rsi_propose', f.proposal)).isError, true);
+  const adopted = await c.call('sage_rsi_evaluate');
+  assert.notEqual(adopted.isError, true, JSON.stringify(adopted));
+  assert.equal(adopted.structuredContent.status, 'adopted');
+  assert.equal(await readFile(join(f.root, f.target), 'utf8'), 'GOOD');
+  assert.equal(c.elicited.length, 0);
+  if (recovery === 'observe') await f.put('regression.flag', 'Observed external regression');
+  const observed = await c.call(`sage_rsi_${recovery}`);
+  assert.notEqual(observed.isError, true, JSON.stringify(observed));
+  assert.equal(observed.structuredContent.status, 'rolled_back');
+  assert.equal(await readFile(join(f.root, f.target), 'utf8'), 'BAD');
+  assert.equal(c.elicited.length, 0, 'preauthorization must never be represented as a human response');
+});
+
+test('automatic RSI failing actual-project postcheck restores the original without a human service', { skip: process.platform === 'win32', timeout: 20000 }, async t => {
+  const f = await automaticFixture(t, { postFailure: true }), h = await openAgentHost(f.config, { configPath: f.configPath, authorize: () => assert.fail('automatic mode must not call human approval') });
+  await h.call('sage_rsi_propose', f.proposal);
+  const result = await h.call('sage_rsi_evaluate');
+  assert.equal(result.status, 'rolled_back');
+  assert.equal(await readFile(join(f.root, f.target), 'utf8'), 'BAD');
+  await assert.rejects(h.call('sage_rsi_adopt'));
+  assert.match((await h.call('sage_inspect')).reminder, /preauthorized|pre-authorized/);
+});
+
+for (const target of ['AGENTS.md', '.claude/settings.json', 'config.json']) {
+  test(`automatic RSI cannot propose changing its protected host rules ${target}`, { skip: process.platform === 'win32', timeout: 10000 }, async t => {
+    const f = await automaticFixture(t, { target }), h = await openAgentHost(f.config, { configPath: f.configPath });
+    const before = await readFile(join(f.root, target));
+    await assert.rejects(h.call('sage_rsi_propose', f.proposal));
+    assert.deepEqual(await readFile(join(f.root, target)), before);
+    await assert.rejects(readFile(join(f.root, 'rsi-state.json')), { code: 'ENOENT' });
   });
 }

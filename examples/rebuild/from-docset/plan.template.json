@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "goal": "Build Task Lens from an implementation-empty docset, prove TL-A01–TL-A04, then await human acceptance",
+  "authority": ["SPEC.md", "check.mjs", "host.json"],
+  "constraints": [
+    "Preserve specification, fixed acceptance, plan, templates and host configuration",
+    "Local Node standard library only; no network, dependencies, credentials, commits, remote writes or RSI adoption",
+    "Real execution evidence, six attempts maximum, stop at expiry or human_acceptance"
+  ],
+  "maxAttempts": 6,
+  "expiresAt": "<EXPLICIT_ROUND_EXPIRY>",
+  "revoked": false,
+  "steps": [
+    {
+      "id": "engine", "objective": "Implement SPEC.md TL-01/TL-02; run node check.mjs core for TL-A01/TL-A02",
+      "dependsOn": [], "scope": ["src", "package.json", "tests", "evidence"],
+      "checks": ["core"], "requiresReview": false, "admitted": true, "humanGate": false
+    },
+    {
+      "id": "cli", "objective": "Implement SPEC.md TL-03; run node check.mjs cli for TL-A03",
+      "dependsOn": ["engine"], "scope": ["src", "bin", "package.json", "tests", "evidence"],
+      "checks": ["cli"], "requiresReview": false, "admitted": true, "humanGate": false
+    },
+    {
+      "id": "delivery", "objective": "Deliver SPEC.md TL-04; node check.mjs all and node --test tests/*.test.mjs; preserve previous evidence",
+      "dependsOn": ["cli"], "scope": ["src", "bin", "tests", "README.md", "package.json", "evidence"],
+      "checks": ["all", "own"], "requiresReview": false, "admitted": true, "humanGate": false
+    },
+    {
+      "id": "human_acceptance", "objective": "Project owner reviews actual product, tests and independent review",
+      "dependsOn": ["delivery"], "scope": ["evidence"],
+      "checks": [], "requiresReview": false, "admitted": true, "humanGate": true
+    }
+  ]
+}

@@ -2,7 +2,8 @@
 
 ## 当前范围
 
-2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R5 本地实现与检查完成；
+2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R6 已有分层证据，
+R7 增加从文档启动空项目与项目分支自动 RSI，当前结果见末尾；
 持续开发、治理 hook 和 RSI 是核心目标。规范见 [SPEC](SPEC.md)，权威见
 [决策](../decisions.md)。本记录只协调进度，不取代规范、Git 或测试结果。
 
@@ -527,3 +528,95 @@ MCP CPU 为 0.83 秒。这些是可见进程采样下界，短命 hook/工具可
 下一项优先处理**真实宿主工具名/嵌套调用覆盖及 begin 前拒绝的负向预检**，再开展
 下一轮长任务资源与治理保持试验。本次不追加真实模型运行；Windows/macOS 原生、
 真实模型自然压缩、长期收益和人工策略采用仍待单列验证，整体交付仍待用户验收。
+
+## R7：项目分支自动 RSI 与从文档开发（2026-10-26）
+
+用户选择项目开发分支内自动采用/回滚，并补充必须能依据文档从零建立项目。
+依据 R-009，新增[从文档开发路径](from-docset.md)及
+[空实现样例](../../examples/rebuild/from-docset/README.md)，沿用原 continuation 与宿主，
+没有增加模型执行器、后台循环或项目生成 CLI。Taluvia 原 docset 继续只读，未启动
+其产品任务。工作分支为 `workflow/automatic-rsi`；本轮未 push、合并主线或发布。
+
+### 自动 RSI 与治理保持
+
+可信配置可以批准具体分支、固定计划摘要、修复/数值改进判据和最多三轮。
+候选经固定双侧评估后自动采用，在真实项目目录后验，失败回滚本轮已知文件；
+显式观察也可回退。保留原人工模式，不伪造新的人类审批。第三方修改、权限失效、
+同轮 HEAD 变化或未知中断先交接；轮间允许符合固定祖先及输入约束的正常产品提交。
+两轮连续无改进/回退停止，后续观察每轮最多三次。最终产品验收仍是人工关口。
+
+独立审查实际复现了一个 P1：continuation 规范已变化而 RSI 仍可采用。修复将开发
+计划语义和规范内容指纹绑定到 RSI，同时拒绝撤销、过期和 authority_changed；正常
+执行状态 revision 不进入该指纹。定向反例及正常 begin/finish 兼容通过后独立关闭。
+缺失 metric 名称被隐式转换的问题也已修复。原治理核心对 v2026.8.13.1 仍无差异。
+
+### 安装包与回归
+
+- 初次完整本地套件 **265 项：264 PASS / 0 FAIL / 1 SKIP**，97.25 秒；跳过的是
+  Windows 专属进程树拒绝场景。原生 Codex/Claude、实际 DSH 使用确定性本地模型；
+  Taluvia 原文件映射显式启用，只读校验通过，不是 Taluvia 产品证明。
+- 真实模型试验暴露 `sage_finish.result` schema 只声明 object，模型连续猜错证据
+  字段。补全既有 outcome/checks[].id/passed/evidence/可选 review 契约，不改变
+  continuation 验收。旧 logPath、缺文件、失败检查继续拒绝。独立定向复核通过。
+- 因此形成两份明确工件：初包 SHA-256
+  `cbac8cf40b3dd2d9f98966787e44a6f122647159647333e83ae5b84a59663c25`；最终包
+  `aa14e9dd16ac844b683e3cafbeb281af9cd5e25c0fd620132a5ce17c071a9755`。
+  两者均为私有 `0.0.0-rebuild-r7`，唯一载荷差异是 agent-host 工具结构说明。
+  最终源码/tgz/安装位置的 12 文件逐字节一致；离线安装、禁用生命周期脚本。
+- 最终包的受影响 MCP、原生 Codex/Claude 和打包身份检查 **48/48 PASS**，23.63 秒。
+  其余未变输入复用初套件证据，不把两组通过数相加，也不冒充最终候选一次全量运行。
+- 仓库完整性 PASS，portable references 10 resources / 24 package files PASS，原
+  Claude advisory 14/14。这些静态检查不证明原生宿主长期开发；本轮远程 CI 未运行。
+
+本机原始证据在 `local/rebuild-r7/`：`core-tests.log`、`authority-tests.log`、
+`host-authority-tests.log`、`review.json`、`final/{tests,successor-tests}.log`、
+`final/{checks,checks-successor}.json`、`final/artifact*-verification.json`；
+`package-final/` 和 `installed-final/` 保存最终工件。全部在忽略目录，不随仓库提交。
+最终验证开始才建立 continuation 记录，不倒填实现过程；保留初候选及受影响修正证据。
+
+### 资源边界
+
+固定小型修复在完整套件中的一次 auto evaluate：40 文件次 / 6,133 bytes / 16 条
+只读 Git 命令；显式 rollback：12 文件次 / 5,420 bytes / 8 条 Git。后验失败且自动
+回退的完整 evaluate：51 文件次 / 7,376 bytes / 24 条 Git。三次固定检查各约
+155–166ms。以上是该 fixture 样本，不是大型项目或物理 IO/长期 CPU 保证。
+Git 只在显式自动 RSI 操作中执行，每 API 最多 32 条、每条 2秒/4KiB；hook/inspect
+不执行 Git/RSI、不轮询。8MiB/128 文件次、2MiB state 与命令/总期限仍约束实际操作。
+
+### 从零开发的真实模型验证
+
+真实 Codex 0.163.0-alpha.11.2、`gpt-6.1-sol` / `xhigh` 在新的隔离 Git 开发分支
+开始。初始只有 SPEC、固定 check、两份映射模板，再由控制者生成 plan/host；没有
+src、bin、tests、package.json 或产品 README。空项目实际执行验收失败被保留。
+模型按文档独立开发 Task Lens：任务依赖分析库、离线 JSON 命令行、自有测试及
+可直接运行的使用文档；控制者未提供实现补丁。
+
+首段 engine 实现已通过固定检查，但模型六次提交了错误的 finish 格式，均被拒绝；
+控制者停止重复猜测并补充工具 schema。原状态、代码、检查和失败日志均保留，
+同会话加载修正包恢复后自行提交正确证据，继续 CLI/delivery。原 plan、固定验收、
+允许路径、期限和 80 工具/16MiB 总预算未改变。记录为 **1 次控制者接口修正、
+0 次启动修正、0 次额外用户干预**，不是全程无人干预或单一工件的完整运行。
+
+三项实际 finish 均 passed；控制者从最终安装包独立 inspect，结果为
+`human_gate` / `human_acceptance`。控制者复跑 `node check.mjs all` 通过，自有
+产品测试 **54/54 PASS**，README 给出的 CLI 示例实际输出与文档一致。原六份
+固定输入摘要、初始 Git HEAD、规定分支、已绑定旧证据均保持不变。产品与证据
+23 文件 / 67,338 bytes 保全在 `local/rebuild-r7/from-zero/project/`，不把临时 Git
+历史、凭据或生成产品代码塞入 SAGE-Kit 源码；可复现的空实现样例则正常随源码交付。
+
+测试控制器记录的宿主运行时长约 540 秒；含修正间隔墙钟 618.58 秒（约 10 分 19 秒），
+33 次工具完成、105,668 bytes 宿主输出，均在原预算内。每两秒采样的 267 个快照中，
+长期治理 MCP 合计观察到 CPU 0.43 秒、峰值 RSS 71.17MiB。只说明本轮可见进程
+采样下界；不能覆盖短命 helper、完整 hook 门禁或长期负载，也不是旧 CLI 对照。
+两个临时登录目录已删除，自有宿主/MCP 进程已结束，无后台续跑。
+
+从零开发原始证据：`from-zero/{setup,initial-git,controller-empty-baseline}.json`、
+两段输出/会话记录、`run-summary.json`、`project-manifest.json`、`cleanup-verification.json`；
+控制者的独立结果在 `final/product-{fixed,tests}.log`、`product-example.json`、
+`product-inspect.json` 和 `product-verification.json`。独立最终评审另记在 `review.json`。
+这证明本轮小型离线项目从文档到实际代码/检查/人工关口的可行性；自动 RSI 的实际
+采用/回滚由另一组真实宿主组件/固定命令证明，没有把二者拼成“模型已在 Taluvia
+自动自我改进”的结论。完整 hook 覆盖、自然压缩、长期收益及大型项目仍未验收。
+独立最终评审无未关闭的阻塞发现，结论为本轮实现完成且可审阅，非人工验收。
+SAGE-Kit 自身的本轮验证记录也已到 `human_gate`；后续优先补完整宿主工具覆盖，
+再扩展真实项目长期试验，不在本轮继续运行模型或启动后台开发。

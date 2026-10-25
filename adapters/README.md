@@ -1,7 +1,7 @@
 # Optional SAGE-Kit host adapters
 
 This package adds governance reminders and continuation tools to DSH, Codex and
-Claude Code, with separately configured controlled RSI. The original governance
+Claude Code, with separately configured manual or preauthorized automatic RSI. The original governance
 Skill works without this package. There is no task CLI, polling daemon, model
 call, install script, or task database. DSH runs in its existing host; Codex and
 Claude own one optional stdio MCP process per connection, plus a startup-only
@@ -15,6 +15,10 @@ host mapping, actual file check and evidence-to-human-gate walkthrough. Copy it
 to a disposable project and select an explicit authorization and expiry. It uses
 the existing MCP tools; it does not install a host or alter default settings.
 The examples live in the source repository and are not shipped in this package.
+For development from a docset without any implementation, use
+`examples/rebuild/from-docset/README.md`. Its three admitted tasks build a real
+library, CLI and tests; initial files contain specification, mapping and fixed
+acceptance only. `docs/rebuild/from-docset.md` describes the general workflow.
 
 Pack it locally with `npm pack ./adapters --ignore-scripts --pack-destination <directory>`
 from the repository, then install that artifact into an isolated DSH environment
@@ -104,7 +108,7 @@ provider call, automatic retry, or recurring job occurs. Environment credentials
 are not inherited. The temporary directories are not an operating-system sandbox;
 the configured command must already be authorized for local execution.
 
-`sage_rsi_adopt()` and `sage_rsi_rollback()` each request a separate native DSH
+In the default manual mode, `sage_rsi_adopt()` and `sage_rsi_rollback()` each request a separate native DSH
 one-time approval for the exact differences and evaluation. A working
 `dsh-user-approval` service with a human answerer is required. Missing/rejected/
 cancelled/unavailable approval never changes the targets. The tool rechecks all
@@ -122,6 +126,57 @@ logs and command duration are bounded separately. RSI tools have a 180-second
 host budget, separate from the short governance hook deadline. Windows evaluation
 is explicitly unavailable until process-tree termination is verified. Full protocol
 and evidence boundaries are in `docs/rebuild/rsi.md` in the source repository.
+
+### Preauthorized project-branch automation
+
+An owner may approve one bounded automatic policy in the trusted host mapping:
+
+```json
+{
+  "rsiAutomaticPolicy": {
+    "branch": "workflow/project-dev",
+    "baseBranch": "main",
+    "planSha256": "<SHA-256 of the exact approved RSI plan bytes>",
+    "maxRounds": 3,
+    "improvement": { "kind": "repair" }
+  }
+}
+```
+
+Keep `rsiPlanPath`/`rsiStatePath`. The plan fixes targets, authority, evaluator and
+expiry. Include custom host/configuration files in authority; standard root
+AGENTS/CLAUDE files, `.codex/`, `.claude/`, `.dsh/`, `.mcp.json`, root Cordis patch
+files and the loaded adapter files/metadata are protected automatically. These
+paths are safeguards, not discovery of every custom configuration location.
+
+`repair` requires a valid failing baseline and passing candidate. Alternatively
+use `{"kind":"metric","name":"score","direction":"increase","minDelta":1}`
+(`decrease` is supported). Both evaluations must succeed and stdout must be one
+JSON object such as `{"metrics":{"score":42}}`; the fixed rule measures the
+minimum improvement. Put diagnostics on stderr. No model-supplied approval field
+or changed evaluator can authorize a candidate.
+
+In this mode `sage_rsi_evaluate` adopts an improved candidate and reruns the same
+check in the actual project directory. Failure rolls back this round's known
+target files while the policy remains valid. Conflicting edits or changed
+authority/branch/HEAD/expiry require reconciliation, not overwriting. The fixed
+command must be approved for safe repeated execution; temporary snapshots and
+postchecks are not an OS sandbox or a rollback of arbitrary external effects.
+
+`sage_rsi_adopt` is hidden. `sage_rsi_observe` explicitly reruns the postcheck and
+may roll back; at most three later observations per round. `sage_rsi_rollback`
+can restore a settled adoption under the same policy. Unknown interrupted writes
+cannot be blindly retried or converted to manual state. Receipts identify the
+preauthorized policy, not a fresh human approval; no approval service is needed.
+
+Propose the next immutable candidate using the same state after a settled round.
+At most three rounds, with two consecutive failures/regressions stopping the
+window. Normal product commits may occur between rounds on the same branch and
+baseline ancestry; frozen non-target inputs and last target contents must remain
+unchanged. Git queries occur only in explicit RSI operations, never in hooks or
+inspect (32 commands per API, each at most 2 seconds/4 KiB). There is no polling,
+automatic commit, main merge, push, deployment, release or product acceptance.
+Without this optional policy, manual behavior remains unchanged.
 
 ## Codex and Claude Code
 
@@ -223,7 +278,7 @@ not isolation. Internal hook failures return a normal denial where the event
 supports it; native permissions and project authority still apply. Keep the
 governance Skill/project instructions and use `sage_inspect` if reminders fail.
 
-RSI adoption/rollback request a form elicitation from the connected host. Only
+Manual RSI adoption/rollback request a form elicitation from the connected host. Only
 its explicit `accept` plus boolean `approve:true` can approve the bound challenge;
 missing capabilities, cancellation, protocol errors and rejection cannot. The
 host must route this question to a human, never an automatic answerer. Unit

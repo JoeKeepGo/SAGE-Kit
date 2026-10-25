@@ -1,0 +1,9 @@
+{
+  "host": "codex",
+  "projectRoot": "<ABSOLUTE_PROJECT_ROOT>",
+  "planPath": "plan.json",
+  "statePath": "state.json",
+  "guardedTools": ["exec_command", "apply_patch", "Bash", "Write", "Edit"],
+  "deadlineMs": 2000,
+  "maxContextBytes": 12000
+}

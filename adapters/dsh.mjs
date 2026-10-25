@@ -9,7 +9,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { openContinuation } from './continuation.mjs';
 import { openForgeEvidence } from './forge.mjs';
-import { checkForgeBoundary } from './agent-host.mjs';
+import { checkForgeBoundary, hostProtectedPaths } from './agent-host.mjs';
 
 export const name = 'sage-kit-dsh';
 export const inject = ['tools'];
@@ -19,6 +19,14 @@ export const Config = Schema.object({
   statePath: Schema.string().required(),
   rsiPlanPath: Schema.string().default(''),
   rsiStatePath: Schema.string().default(''),
+  rsiAutomaticPolicy: Schema.union([Schema.const(null), Schema.object({
+    branch: Schema.string().required(), baseBranch: Schema.string().required(),
+    planSha256: Schema.string().required(), maxRounds: Schema.number().required(),
+    improvement: Schema.union([
+      Schema.object({ kind: Schema.const('repair').required() }),
+      Schema.object({ kind: Schema.const('metric').required(), name: Schema.string().required(), direction: Schema.union(['increase', 'decrease']).required(), minDelta: Schema.number().required() }),
+    ]).required(),
+  })]).default(null),
   forge: Schema.union([Schema.const(null), Schema.object({
     directory: Schema.string().required(),
     sources: Schema.dict(Schema.object({ provider: Schema.union(['github', 'gitea']).required(), apiBase: Schema.string().required(), repo: Schema.string().required(), tokenEnv: Schema.string() })).required(),
@@ -45,20 +53,25 @@ export async function apply(ctx, config) {
   if (config.rsiPlanPath && new Set([config.planPath, config.statePath, config.rsiPlanPath, config.rsiStatePath]).size !== 4) {
     throw error('E_CONFIG', 'RSI and continuation must use distinct plan and state paths');
   }
+  const automatic = config.rsiAutomaticPolicy != null;
+  if (automatic && !config.rsiPlanPath) throw error('E_CONFIG', 'Automatic RSI requires explicit RSI paths');
   const root = await realpath(config.projectRoot);
   const controller = await openContinuation({ root, planPath: config.planPath, statePath: config.statePath });
-  const loadedPaths = ['dsh.mjs', 'agent-host.mjs', 'forge.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs'].map(name => fileURLToPath(new URL(name, import.meta.url)));
+  const loadedPaths = ['dsh.mjs', 'agent-host.mjs', 'forge.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs', 'package.json'].map(name => fileURLToPath(new URL(name, import.meta.url)));
   const forge = config.forge ? await openForgeEvidence({ root, directory: config.forge.directory, sources: config.forge.sources }) : undefined;
   if (forge) await checkForgeBoundary(config, root, (await controller.observe()).context.authority, loadedPaths);
   const rsi = config.rsiPlanPath ? await (await import('./rsi.mjs')).openRSI({
     root, planPath: config.rsiPlanPath, statePath: config.rsiStatePath,
+    ...(automatic ? { automaticPolicy: config.rsiAutomaticPolicy } : {}),
     protectedPaths: async ({ signal }) => {
       // Resolve current governance on explicit RSI operations and again at
       // approval commit, never from cached startup mappings or model input.
       const current = await controller.observe({ signal });
+      if (automatic && ['revoked', 'expired', 'authority_changed'].includes(current.status)) throw error('E_RSI_AUTHORITY', 'Current project continuation authority is not valid for automatic RSI');
       await checkForgeBoundary(config, root, current.context.authority, loadedPaths, signal);
       const localModules = loadedPaths.map(path => relative(root, path)).filter(path => !isAbsolute(path) && path !== '..' && !path.startsWith('..' + sep)).map(path => path.split(sep).join('/'));
-      return [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', ...(forge ? [config.forge.directory] : []), ...current.context.authority.map(ref => ref.path), ...localModules])];
+      const paths = [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', ...hostProtectedPaths, ...(forge ? [config.forge.directory] : []), ...current.context.authority.map(ref => ref.path), ...localModules])];
+      return { paths, binding: current.fingerprint };
     },
   }) : undefined;
   const sessions = new WeakMap();
@@ -109,7 +122,7 @@ export async function apply(ctx, config) {
       + 'Read the referenced rules. Use sage_begin before the next admitted task; replayed begins must not repeat side effects. '
       + 'On reconcile, inspect actual effects and record their result before continuing. Required checks and review must be real. '
       + 'Completion awaits human acceptance; do not expand scope, publish, or adopt RSI candidates without authority.\n'
-      + (rsi ? 'Controlled RSI tools are available: propose, inspect, evaluate, adopt, rollback and recover. Adopt and rollback require a native one-time human approval; governance hooks never run RSI.\n' : '')
+      + (rsi ? automatic ? 'RSI is preauthorized for the configured development branch and fixed policy. Evaluate may adopt and postcheck; observe or rollback use that policy without a per-candidate human response. Final acceptance remains human; governance hooks never run RSI.\n' : 'Controlled RSI tools are available: propose, inspect, evaluate, adopt, rollback and recover. Adopt and rollback require a native one-time human approval; governance hooks never run RSI.\n' : '')
       + content;
     if (Buffer.byteLength(text) > config.maxContextBytes) throw error('E_CONTEXT_BUDGET', 'Governance context exceeds the configured budget');
     return text;
@@ -246,7 +259,7 @@ export async function apply(ctx, config) {
             if (outcome !== 'allowed-once') throw error('E_APPROVAL_REQUIRED', `RSI action not approved: ${outcome}`);
             return true;
           };
-          const value = await operation(toolName, signal, opts => run(args, { ...opts, authorize }));
+          const value = await operation(toolName, signal, opts => run(args, automatic ? opts : { ...opts, authorize }));
           return JSON.stringify(value);
         },
       }));
@@ -260,9 +273,10 @@ export async function apply(ctx, config) {
       return rsi.propose({ hypothesis: args.hypothesis, feedback: JSON.parse(args.feedback), files: JSON.parse(args.files) }, opts);
     });
     registerRsi('sage_rsi_inspect', {}, 'Inspect the current RSI candidate, evaluation and bound differences without changing policy.', (_args, opts) => rsi.inspect(opts));
-    registerRsi('sage_rsi_evaluate', {}, 'Evaluate the candidate and baseline using only the fixed project plan commands and budgets.', (_args, opts) => rsi.evaluate(opts));
-    registerRsi('sage_rsi_adopt', {}, 'Request one-time native human approval for the exact evaluated RSI change, then revalidate and adopt.', (_args, opts) => rsi.adopt(opts));
-    registerRsi('sage_rsi_rollback', {}, 'Request a separate one-time native human approval to restore the recorded original files.', (_args, opts) => rsi.rollback(opts));
+    registerRsi('sage_rsi_evaluate', {}, automatic ? 'Evaluate fixed baseline and candidate; proven improvement may be adopted in the preauthorized branch, then postchecked and rolled back on failure.' : 'Evaluate the candidate and baseline using only the fixed project plan commands and budgets.', (_args, opts) => rsi.evaluate(opts));
+    if (!automatic) registerRsi('sage_rsi_adopt', {}, 'Request one-time native human approval for the exact evaluated RSI change, then revalidate and adopt.', (_args, opts) => rsi.adopt(opts));
+    registerRsi('sage_rsi_rollback', {}, automatic ? 'Restore the settled adopted round under its preauthorized policy, preserving third-party changes; no human response is requested.' : 'Request a separate one-time native human approval to restore the recorded original files.', (_args, opts) => rsi.rollback(opts));
+    if (automatic) registerRsi('sage_rsi_observe', {}, 'Explicitly rerun the fixed postcheck and roll back a regression under the preauthorized policy; no background work.', (_args, opts) => rsi.observe(opts));
     registerRsi('sage_rsi_recover', {}, 'Inspect and record interrupted RSI work without rerunning commands or approving file changes.', (_args, opts) => rsi.recover(opts));
   }
 

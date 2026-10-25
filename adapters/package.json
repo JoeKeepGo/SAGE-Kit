@@ -1,8 +1,8 @@
 {
   "name": "@sage-kit/dsh-plugin",
-  "version": "0.0.0-rebuild-r5",
+  "version": "0.0.0-rebuild-r7",
   "private": true,
-  "description": "Optional governance, controlled RSI and explicit forge evidence adapters",
+  "description": "Optional governance, manual or preauthorized RSI, and explicit forge evidence adapters",
   "type": "module",
   "main": "dsh.mjs",
   "exports": {

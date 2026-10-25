@@ -5,17 +5,22 @@
 [![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)
 [![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-SAGE-Kit helps AI agents develop from project documents across tasks and sessions.
+SAGE-Kit helps AI agents build projects from documents, starting with no code or
+continuing existing development across tasks and sessions.
 The project owner sets the objective, scope, budget and acceptance conditions;
 agents implement, check, review and continue within that authorization. Hooks
-refresh governance context, while controlled RSI evaluates improvements to the
-development method before a human decides whether to adopt them.
+refresh governance context, while RSI evaluates improvements to the development
+method through human approval or preauthorized project-branch adoption and rollback.
 
-**Current main is a rebuild preview.** It preserves the governance core from
+**The current source is a rebuild preview.** It preserves the governance core from
 **v2026.8.13.1** and adds optional execution support. A first real-model Codex trial
 completed three document-defined tasks and resumed at a completed-task boundary.
 It also exposed a tool-hook coverage gap: long-term semi-autonomous reliability
 has not been accepted. See [verification and limits](#verification-and-limits).
+R7 also used a real model to build a dependency-analysis library, CLI, tests and
+documentation from a docset with no implementation. Independent fixed checks and
+54 product tests passed. One finish-tool schema correction and session resume
+were needed; this proves the small-project path, not unattended large-project delivery.
 
 ## How it fits together
 
@@ -25,9 +30,11 @@ has not been accepted. See [verification and limits](#verification-and-limits).
 - **Execution support:** the optional [host adapters](adapters/README.md) connect
   DSH, Codex and Claude Code to bounded plans, local recovery records and hooks.
   The existing agent host runs the model and tools.
-- **Controlled RSI:** failure and review evidence can lead to an isolated candidate,
-  a fixed baseline comparison, human approval, adoption and rollback. RSI cannot
-  grant permission or rewrite its evaluation criteria.
+- **RSI:** manual approval is the default. An owner may instead preauthorize a
+  specific development branch, targets, improvement rule and budget for automatic
+  adoption, postchecks and rollback. No improvement means no adoption; two
+  consecutive failures stop the window. RSI cannot authorize itself, rewrite
+  acceptance or merge main. Product acceptance remains human-owned.
 - **Platform evidence:** explicit GitHub/Gitea tools capture Issue feedback and
   Actions run/job results. A successful run proves only its recorded scope;
   platform content never grants permission or product acceptance.
@@ -43,7 +50,7 @@ flowchart LR
   N -->|Yes| A
   N -->|No| U["Human decision / acceptance"]
   E --> R["RSI candidate + fixed comparison"]
-  R --> P["Human approval to adopt"]
+  R --> P["Human approval / preauthorized policy"]
   P --> A
 ```
 
@@ -66,8 +73,10 @@ state, and RSI evaluation has a separate budget. See the
 3. **Choose an authorized round.** Specify admitted tasks, allowed paths and
    operations, checks, budget, expiry, recovery rules and human gates. A document
    describing a command is not authorization to execute it.
-4. **Add execution support if needed.** Start with the
-   [minimal local example](examples/rebuild/minimal/README.md), then configure
+4. **Add execution support if needed.** For a project with documents but no code,
+   use the [from-docset workflow](docs/rebuild/from-docset.md) and
+   [empty-implementation example](examples/rebuild/from-docset/README.md).
+   For basic wiring use the [minimal local example](examples/rebuild/minimal/README.md), then configure
    [DSH or Codex/Claude MCP and hooks](adapters/README.md) in an isolated profile.
    Match actual host tool names and verify refusal before admission; the current
    hook coverage limitation still applies.
@@ -84,7 +93,7 @@ npm pack ./adapters --ignore-scripts --pack-destination local/packages
 Follow the [adapter installation instructions](adapters/README.md) for the selected
 host. The package does not include the Skill, example project or tests. Its name
 does not imply a published npm installation path. Historical releases may describe
-an earlier architecture; this README describes the current `main` source.
+an earlier architecture; this README describes the current source, not an npm release.
 
 ## Governance that stays in place
 
@@ -135,7 +144,7 @@ explicitly authorized and running.
 | [`docs/agent/`](docs/agent), [`docs/templates/`](docs/templates), [`docs/profiles/`](docs/profiles) | Governance source and optional planning templates/profiles |
 | [`contracts/`](contracts) | Static contracts and compatibility schemas; their presence does not execute work |
 | [`adapters/`](adapters) | Optional continuation, hooks, RSI and platform-evidence implementation |
-| [`examples/rebuild/`](examples/rebuild) | Minimal adoption walkthrough and bounded document-mapping example |
+| [`examples/rebuild/`](examples/rebuild) | From-docset empty project, minimal adoption and bounded document mapping |
 | [`tests/`](tests), [`scripts/`](scripts), [CI](.github/workflows/sagekit-self-check.yml) | Regression checks, native-host fixtures and package integrity |
 | [`docs/rebuild/`](docs/rebuild), [decisions](docs/decisions.md) | Rebuild specification, protocols, acceptance criteria and evidence summaries |
 

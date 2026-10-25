@@ -5,13 +5,17 @@
 [![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)
 [![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-SAGE-Kit 帮助 AI Agent 依据项目文档，跨任务、跨会话持续开发。项目负责人确定
+SAGE-Kit 帮助 AI Agent 依据项目文档从零建立项目，或在已有项目上跨任务、跨会话持续开发。项目负责人确定
 目标、范围、预算与验收条件，Agent 在授权内实现、检查、评审并继续下一项工作。
-Hook 在关键节点带回治理上下文；受控 RSI 评估开发方法的改进，再由人决定是否采用。
+Hook 在关键节点带回治理上下文；RSI 评估开发方法的改进，支持逐次人工批准或
+项目开发分支内的预授权自动采用与回滚。
 
-**当前 main 是重建预览版。** 保留 **v2026.8.13.1** 治理核心，并增加可选执行支持。
+**当前源码是重建预览版。** 保留 **v2026.8.13.1** 治理核心，并增加可选执行支持。
 首轮真实 Codex 模型已完成文档规定的三项任务，并在已完成任务的边界重启续接。
 该轮也发现工具 hook 覆盖缺口，长期半自主可靠性仍未验收，详见[验证与限制](#验证与限制)。
+R7 另由真实模型从空实现 docset 开发了任务依赖分析库、CLI、测试和文档，独立复跑
+固定验收及 54 项产品测试通过。试验中修正过一次完成工具的结构说明，再续接完成；
+这证明小项目路径可行，不是大型项目无人干预开发的保证。
 
 ## 各部分如何协作
 
@@ -19,8 +23,9 @@ Hook 在关键节点带回治理上下文；受控 RSI 评估开发方法的改�
   证据归属和人工验收。这一层无需安装额外运行时。
 - **执行支持**：可选[宿主适配器](adapters/README.md)把 DSH、Codex、Claude Code
   接到有界计划、本地恢复记录和 hook；模型与工具仍由现有 Agent 宿主运行。
-- **受控 RSI**：失败和评审证据形成隔离候选，经固定评估与基线对照后，由人批准
-  采用，支持回滚。RSI 不能自行授权，也不能修改评估标准来获取通过。
+- **RSI**：默认经固定评估、基线对照和人工批准后采用；也可预先批准具体开发分支、
+  目标、判据与预算，在其中自动采用、复验及回滚。没有改进不采用，两轮连续失败
+  停止。RSI 不能自行授权、修改验收或合并主线，最终产品验收仍由人决定。
 - **平台证据**：显式调用 GitHub/Gitea 工具，读取 Issue 反馈与 Actions 运行及 job
   结果。流水线成功只证明记录的检查范围，平台内容不授予权限或产品验收。
 
@@ -35,7 +40,7 @@ flowchart LR
   N -->|有| A
   N -->|没有| U["人工决策 / 验收"]
   E --> R["RSI 候选 + 固定对照"]
-  R --> P["人工批准采用"]
+  R --> P["人工批准 / 预授权政策判定"]
   P --> A
 ```
 
@@ -54,7 +59,9 @@ RSI 评估使用独立预算。详见[持续执行](docs/rebuild/continuation.md
    其它宿主的指令入口参照包内说明。更新时整体替换 Skill，不混用不同版本的文件。
 3. **确定一轮授权。** 列明已准入任务、允许路径与操作、检查、预算、到期时间、
    恢复规则和人工关口。文档写了某条命令，不等于已经授权执行它。
-4. **按需接入执行支持。** 从[最小本地示例](examples/rebuild/minimal/README.md)开始，
+4. **按需接入执行支持。** 只有文档的新项目可用[从零开发流程](docs/rebuild/from-docset.md)
+   和[空实现样例](examples/rebuild/from-docset/README.md)；简单接线可用
+   [最小本地示例](examples/rebuild/minimal/README.md)。
    在隔离配置中连接 [DSH 或 Codex/Claude 的 MCP 与 hook](adapters/README.md)。
    按实际宿主工具名配置，并验证未准入操作能被拒绝；当前 hook 覆盖限制仍然适用。
 
@@ -68,7 +75,7 @@ npm pack ./adapters --ignore-scripts --pack-destination local/packages
 
 随后按[适配器安装说明](adapters/README.md)配置所选宿主。适配器包不包含治理 Skill、
 示例项目或测试；包名不意味着已有可直接安装的 npm 发布版。历史 release 可能对应
-较早架构，本页描述当前 `main` 源码。
+较早架构，本页描述当前源码；尚未发布到 npm。
 
 ## 保留的治理能力
 
@@ -112,7 +119,7 @@ Light 工作使用轻量项目入口；Standard/Heavy 与实质语义评审加�
 | [`docs/agent/`](docs/agent)、[`docs/templates/`](docs/templates)、[`docs/profiles/`](docs/profiles) | 治理原文与可选规划模板/专项配置 |
 | [`contracts/`](contracts) | 静态契约与兼容 schema；文件存在不代表执行了工作 |
 | [`adapters/`](adapters) | 可选持续执行、hook、RSI 与平台证据实现 |
-| [`examples/rebuild/`](examples/rebuild) | 最小接入示例与有界文档映射案例 |
+| [`examples/rebuild/`](examples/rebuild) | 从文档启动空项目、最小接入示例与有界文档映射案例 |
 | [`tests/`](tests)、[`scripts/`](scripts)、[CI](.github/workflows/sagekit-self-check.yml) | 回归检查、原生宿主夹具和包完整性 |
 | [`docs/rebuild/`](docs/rebuild)、[决策](docs/decisions.md) | 重建规范、协议、验收条件与证据摘要 |
 

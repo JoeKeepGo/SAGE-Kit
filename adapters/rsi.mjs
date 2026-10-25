@@ -1,5 +1,6 @@
 // Optional, bounded RSI. Project authority selects inputs and commands; a host
-// supplies human approval. Temporary directories are isolation, not a sandbox.
+// supplies human approval or a preauthorized project policy. Temporary evaluation
+// directories are isolation, not a sandbox.
 import { open, lstat, realpath, mkdir, rename, unlink, mkdtemp, rm, opendir } from 'node:fs/promises';
 import { resolve, dirname, join, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -21,8 +22,30 @@ const withoutDigest = ({ digest: ignored, ...rest }) => rest;
 const seal = value => ({ ...value, digest: digest(value) });
 const validSeal = value => object(value) && value.digest === digest(withoutDigest(value));
 const currentRecord = s => s.evaluations.at(-1);
+const sha256 = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const cleanRun = r => r && Number.isInteger(r.exitCode) && r.exitCode >= 0 && !r.timedOut && !r.cancelled && !r.outputExceeded;
 const goodRun = r => r && r.protection === true && Number.isInteger(r.exitCode) && r.exitCode >= 0 && r.timedOut === false && r.cancelled === false && r.outputExceeded === false;
 const eligible = e => e?.complete === true && !e.error && e.runs?.length === 2 && e.runs[0].kind === 'baseline' && e.runs[1].kind === 'candidate' && e.runs.every(goodRun) && e.runs[1].exitCode === 0;
+
+function validateAutomaticPolicy(value) {
+  const branch = b => text(b) && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(b) && !b.includes('..') && !b.endsWith('/') && !b.endsWith('.lock');
+  require(object(value) && Object.keys(value).every(k => ['branch', 'baseBranch', 'planSha256', 'maxRounds', 'improvement'].includes(k)), 'Invalid automatic policy', 'E_RSI_POLICY');
+  const p = structuredClone(value), rule = p.improvement;
+  require(branch(p.branch) && branch(p.baseBranch) && p.branch !== p.baseBranch && !/^(main|master|trunk|develop|development|release)(\/|$)/i.test(p.branch) && sha256(p.planSha256) && Number.isInteger(p.maxRounds) && p.maxRounds >= 1 && p.maxRounds <= 3, 'Invalid automatic policy branch or bounds', 'E_RSI_POLICY');
+  require(object(rule) && (rule.kind === 'repair' && Object.keys(rule).length === 1 || rule.kind === 'metric' && Object.keys(rule).every(k => ['kind', 'name', 'direction', 'minDelta'].includes(k)) && typeof rule.name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(rule.name) && ['increase', 'decrease'].includes(rule.direction) && Number.isFinite(rule.minDelta) && rule.minDelta > 0), 'Invalid improvement rule', 'E_RSI_POLICY');
+  return { branch: p.branch, baseBranch: p.baseBranch, planSha256: p.planSha256, maxRounds: p.maxRounds, improvement: rule.kind === 'repair' ? { kind: 'repair' } : { kind: 'metric', name: rule.name, direction: rule.direction, minDelta: rule.minDelta } };
+}
+function metric(run, rule) {
+  try { const value = JSON.parse(run.stdout); return object(value?.metrics) && Object.hasOwn(value.metrics, rule.name) && Number.isFinite(value.metrics[rule.name]) ? value.metrics[rule.name] : null; }
+  catch { return null; }
+}
+function improvement(record, rule) {
+  const [before, after] = record.runs;
+  if (rule.kind === 'repair') return { kind: 'repair', passed: eligible(record) && before.exitCode > 0 };
+  const baseline = metric(before ?? {}, rule), candidate = metric(after ?? {}, rule);
+  const delta = baseline === null || candidate === null ? null : (candidate - baseline) * (rule.direction === 'increase' ? 1 : -1);
+  return { kind: 'metric', name: rule.name, baseline, candidate, delta, passed: eligible(record) && before.exitCode === 0 && delta !== null && delta >= rule.minDelta };
+}
 
 async function safe(root, name, signal) {
   require(pathName(name), 'Unsafe relative path');
@@ -101,18 +124,23 @@ async function scan(root, signal, budget) {
   await walk(); return { manifest: Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b))), io: { filesRead: read.io.filesRead - start.filesRead, bytesRead: read.io.bytesRead - start.bytesRead } };
 }
 
-export async function openRSI({ root, planPath, statePath, protectedPaths = async () => [] }) {
+export async function openRSI({ root, planPath, statePath, protectedPaths = async () => [], automaticPolicy }) {
+  const policy = automaticPolicy === undefined ? undefined : validateAutomaticPolicy(automaticPolicy);
+  const policyDigest = policy ? digest(policy) : undefined;
   const base = await realpath(root);
   require(pathName(planPath) && pathName(statePath) && planPath !== statePath, 'Invalid RSI paths');
   const stateFile = await safe(base, statePath);
   require(typeof protectedPaths === 'function', 'Host protection resolver must be a function');
   async function protections(paths, signal) {
-    const protectedList = await protectedPaths({ signal });
+    const supplied = await protectedPaths({ signal });
+    const protectedList = Array.isArray(supplied) ? supplied : supplied?.paths;
+    require(Array.isArray(supplied) || object(supplied) && Object.keys(supplied).every(k => ['paths', 'binding'].includes(k)) && sha256(supplied.binding), 'Invalid host authority binding');
     require(Array.isArray(protectedList) && protectedList.length <= 128 && protectedList.every(pathName), 'Invalid host protection set');
     require(paths.every(path => !protectedList.some(p => path === p || path.startsWith(p + '/'))), 'RSI cannot change current host governance or control records', 'E_RSI_PROTECTED');
-    return [...new Set(protectedList)].sort();
+    const normalized = [...new Set(protectedList)].sort();
+    return Array.isArray(supplied) ? normalized : { paths: normalized, binding: supplied.binding };
   }
-  async function save(state) { await safe(base, statePath); await atomic(stateFile, Buffer.from(JSON.stringify(state, null, 2) + '\n')); }
+  async function save(state) { if (state.automatic) state.automatic = seal(withoutDigest(state.automatic)); await safe(base, statePath); await atomic(stateFile, Buffer.from(JSON.stringify(state, null, 2) + '\n')); }
   async function locked(fn) {
     const lock = await safe(base, statePath + '.lock'); await mkdir(dirname(lock), { recursive: true });
     let handle;
@@ -123,7 +151,10 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
     const raw = await read.file(statePath, STATE_LIMIT, true);
     if (!raw) return null;
     const s = JSON.parse(raw.bytes.toString('utf8'));
-    require(s.version === 1 && ['proposed', 'evaluating', 'evaluated', 'applying', 'adopted', 'rolling_back', 'rolled_back'].includes(s.status), 'Invalid RSI state');
+    validateState(s); return s;
+  }
+  function validateState(s, archived = false) {
+    require(s.version === 1 && ['proposed', 'evaluating', 'evaluated', 'applying', 'verifying', 'observing', 'adopted', 'rolling_back', 'rolled_back'].includes(s.status), 'Invalid RSI state');
     require(validSeal(s.proposal) && Array.isArray(s.evaluations) && s.evaluations.length <= 3, 'Invalid proposal/evaluation binding');
     validateCandidate(s.proposal);
     require(Array.isArray(s.proposal.originals) && s.proposal.originals.length === s.proposal.files.length && s.proposal.originals.every((f, i) => f.path === s.proposal.files[i].path && (f.content === null || typeof f.content === 'string') && Number.isInteger(f.mode)), 'Invalid recovery materials');
@@ -132,10 +163,21 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
       require(validSeal(e) && e.proposalDigest === s.proposal.digest && typeof e.complete === 'boolean', 'Invalid evaluation digest');
       require(e.eligible === eligible(e), 'Inconsistent evaluation verdict');
     }
-    if (['applying', 'adopted', 'rolling_back', 'rolled_back'].includes(s.status)) {
+    if (['applying', 'verifying', 'observing', 'adopted', 'rolling_back', 'rolled_back'].includes(s.status)) {
       require(validSeal(s.approval) && s.approval.proposalDigest === s.proposal.digest && s.approval.evaluationDigest === currentRecord(s)?.digest && eligible(currentRecord(s)), 'Invalid adoption approval binding');
     }
-    return s;
+    if (s.automatic) {
+      const a = s.automatic;
+      require(!archived && validSeal(a) && sha256(a.policyDigest) && sha256(a.frozenDigest) && sha256(a.targetDigest) && text(a.branch) && /^[a-f0-9]{40,64}$/.test(a.head) && /^[a-f0-9]{40,64}$/.test(a.anchorHead) && Number.isInteger(a.round) && a.round >= 1 && a.round <= 3 && Number.isInteger(a.maxRounds) && a.round <= a.maxRounds && a.maxRounds <= 3 && Number.isInteger(a.consecutiveFailures) && a.consecutiveFailures >= 0 && a.consecutiveFailures <= 3 && Number.isInteger(a.failuresAtStart) && a.failuresAtStart >= 0 && a.failuresAtStart <= 2 && Array.isArray(a.history) && a.history.length === a.round - 1, 'Invalid automatic policy state');
+      for (const [i, item] of a.history.entries()) { require(validSeal(item) && item.round === i + 1 && !item.state?.automatic, 'Invalid automatic round history'); validateState(item.state, true); }
+      if (s.approval) require(s.approval.source === 'preauthorized-project-policy' && s.approval.policyDigest === a.policyDigest && s.approval.branch === a.branch && s.approval.head === a.head, 'Invalid automatic adoption receipt');
+    }
+    if (s.postchecks) require(Array.isArray(s.postchecks) && s.postchecks.length <= 4 && s.postchecks.every(p => validSeal(p) && p.proposalDigest === s.proposal.digest && p.evaluationDigest === currentRecord(s)?.digest && typeof p.passed === 'boolean' && p.protection === true && (!p.passed || cleanRun(p.run) && p.run.exitCode === 0)), 'Invalid bounded postcheck history');
+    if (s.approval?.source === 'preauthorized-project-policy') {
+      require(currentRecord(s)?.improvement?.passed === true, 'Automatic approval lacks measured improvement');
+      if (s.status === 'adopted') require(s.postchecks?.at(-1)?.passed === true, 'Automatic adoption lacks successful postcheck');
+      if (s.status === 'rolled_back') require(validSeal(s.rollbackApproval) && s.rollbackApproval.source === 'preauthorized-project-policy' && s.rollbackApproval.policyDigest === s.approval.policyDigest && s.rollbackApproval.proposalDigest === s.proposal.digest && s.rollbackApproval.evaluationDigest === currentRecord(s).digest, 'Invalid automatic rollback receipt');
+    }
   }
   function validateCandidate(p) {
     require(text(p.hypothesis) && Array.isArray(p.feedback) && p.feedback.length > 0 && p.feedback.length <= 20 && p.feedback.every(f => object(f) && pathName(f.path) && ['failure', 'review', 'rework'].includes(f.kind)), 'Invalid feedback/hypothesis');
@@ -167,24 +209,142 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
     require(stat.isFile(), 'Evaluator executable is not a regular file');
     const runtime = { executable, size: stat.size, mtimeMs: stat.mtimeMs, mode: stat.mode };
     const fingerprint = digest({ plan: hash(planFile.bytes), authority, inputs, feedback, runtime, hostProtected });
-    return { plan: p, files, inputs, feedback, fingerprint, runtime };
+    const frozenDigest = digest({ plan: hash(planFile.bytes), authority, inputs: Object.fromEntries(Object.entries(inputs).filter(([path]) => !p.targets.includes(path))), runtime, hostProtected });
+    const targetDigest = digest(Object.fromEntries(p.targets.map(path => [path, inputs[path]])));
+    return { plan: p, planSha256: hash(planFile.bytes), files, inputs, feedback, fingerprint, frozenDigest, targetDigest, runtime };
   }
   function summary(s, io) {
     if (!s) return { status: 'empty', next: 'propose', io };
     const evaluation = currentRecord(s);
-    return { status: s.status, next: s.status === 'proposed' ? 'evaluate' : s.status === 'evaluating' || ['applying', 'rolling_back'].includes(s.status) ? 'reconcile' : s.status === 'evaluated' ? (evaluation?.eligible ? 'human_approval' : 'review_failure') : s.status === 'adopted' ? 'observe_or_rollback' : 'complete', proposal: s.proposal, ...(evaluation ? { evaluation } : {}), ...(s.approval ? { approval: s.approval } : {}), io };
+    const result = { status: s.status, next: s.status === 'proposed' ? 'evaluate' : s.status === 'evaluating' || ['applying', 'rolling_back'].includes(s.status) ? 'reconcile' : s.status === 'evaluated' ? (evaluation?.eligible ? 'human_approval' : 'review_failure') : s.status === 'adopted' ? 'observe_or_rollback' : 'complete', proposal: s.proposal, ...(evaluation ? { evaluation } : {}), ...(s.approval ? { approval: s.approval } : {}), io };
+    if (s.automatic) {
+      const { history, digest: ignored, ...automatic } = s.automatic;
+      result.automatic = { ...automatic, history: history.map(h => ({ round: h.round, status: h.state.status, proposalDigest: h.state.proposal.digest, evaluationDigest: currentRecord(h.state)?.digest })) };
+      if (['evaluating', 'applying', 'verifying', 'observing', 'rolling_back'].includes(s.status) || s.status === 'evaluated' && !s.automatic.lastOutcome) result.next = 'reconcile';
+      else if (s.automatic.stopReason) result.next = 'stop';
+      else if (s.status !== 'proposed') result.next = 'continue_propose';
+      if (s.postchecks) result.postchecks = s.postchecks;
+    }
+    return result;
   }
   async function assertSource(read, s, signal) {
     const snap = await snapshot(read, s.proposal, signal);
     require(snap.fingerprint === s.proposal.fingerprint, 'RSI inputs changed; prepare and evaluate a new round', 'E_RSI_STALE');
     return snap;
   }
+  async function gitIdentity(signal, anchorHead, io) {
+    require(policy, 'Automatic policy is required', 'E_RSI_POLICY');
+    async function git(args, allowOne = false) {
+      require((io.gitCommands ?? 0) < 32, 'Git command budget exceeded', 'E_RSI_GIT_BUDGET'); io.gitCommands = (io.gitCommands ?? 0) + 1;
+      const r = await runFixed(['/usr/bin/git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '--no-optional-locks', ...args], { cwd: base, timeoutMs: 2000, maxOutputBytes: 4096, signal });
+      require(cleanRun(r) && (r.exitCode === 0 || allowOne && r.exitCode === 1), 'Bounded Git identity check failed', 'E_RSI_GIT');
+      return r;
+    }
+    const top = (await git(['rev-parse', '--show-toplevel'])).stdout.trim();
+    require(await realpath(top) === base, 'Automatic policy requires the exact repository root', 'E_RSI_GIT');
+    const branch = (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'])).stdout.trim();
+    require(branch === policy.branch, 'Automatic policy branch changed', 'E_RSI_BRANCH');
+    const head = (await git(['rev-parse', '--verify', 'HEAD'])).stdout.trim();
+    anchorHead ??= (await git(['rev-parse', '--verify', 'refs/heads/' + policy.baseBranch])).stdout.trim();
+    require(/^[a-f0-9]{40,64}$/.test(head) && /^[a-f0-9]{40,64}$/.test(anchorHead), 'Invalid Git revision', 'E_RSI_GIT');
+    require((await git(['merge-base', '--is-ancestor', anchorHead, head], true)).exitCode === 0, 'Approved base is not an ancestor of this branch', 'E_RSI_BRANCH');
+    return { branch, head, anchorHead };
+  }
+  async function autoContext(s, read, signal, nextRound = false) {
+    require(policy && s.automatic?.policyDigest === policyDigest, 'Automatic policy changed or unavailable', 'E_RSI_POLICY');
+    const snap = await snapshot(read, s.proposal, signal);
+    require(snap.planSha256 === policy.planSha256 && snap.frozenDigest === s.automatic.frozenDigest, 'Approved plan or protected inputs changed', 'E_RSI_STALE');
+    require(snap.targetDigest === s.automatic.targetDigest, 'Targets changed outside this round; explicit reconciliation required', 'E_RSI_CONFLICT');
+    require(nextRound || same(snap.feedback, s.proposal.feedback), 'Bound feedback changed', 'E_RSI_STALE');
+    const git = await gitIdentity(signal, s.automatic.anchorHead, read.io);
+    require(nextRound || git.head === s.automatic.head, 'Git HEAD changed during this round', 'E_RSI_STALE');
+    return snap;
+  }
+  function failRound(s, reason) {
+    s.automatic.consecutiveFailures = s.automatic.failuresAtStart + 1;
+    s.automatic.lastOutcome = reason;
+    if (s.automatic.consecutiveFailures >= 2) s.automatic.stopReason = 'consecutive_failures';
+    else if (s.automatic.round >= policy.maxRounds) s.automatic.stopReason = 'max_rounds';
+  }
+  function targetDigestFor(s, snap, action) {
+    const expected = { ...snap.inputs };
+    for (const [i, file] of s.proposal.files.entries()) {
+      const original = s.proposal.originals[i], content = action === 'adopt' ? file.content : original.content;
+      expected[file.path] = content === null ? null : { sha256: hash(Buffer.from(content)), mode: original.mode };
+    }
+    return digest(Object.fromEntries(snap.plan.targets.map(path => [path, expected[path]])));
+  }
+  function receipt(s, action) {
+    return seal({ source: 'preauthorized-project-policy', action, policyDigest, branch: s.automatic.branch, head: s.automatic.head, proposalDigest: s.proposal.digest, evaluationDigest: currentRecord(s).digest, decidedAt: new Date().toISOString() });
+  }
+  async function writeAutomatic(s, snap, action, io, signal) {
+    for (const [i, f] of s.proposal.files.entries()) {
+      abort(signal);
+      require(Date.now() < Date.parse(snap.plan.expiresAt), 'RSI authorization expired during application', 'E_RSI_AUTHORITY');
+      const read = reader(base, signal, io), now = identity(await read.file(f.path, CHANGE_LIMIT, true));
+      require(same(now, snap.inputs[f.path]), 'Target changed before write; reconciliation required', 'E_RSI_CONFLICT');
+      const original = s.proposal.originals[i], content = action === 'adopt' ? f.content : original.content;
+      const path = await safe(base, f.path, signal);
+      if (content === null) await unlink(path).catch(cause => { if (cause.code !== 'ENOENT') throw cause; });
+      else await atomic(path, Buffer.from(content), original.mode, signal);
+    }
+    s.automatic.targetDigest = targetDigestFor(s, snap, action);
+  }
+  async function automaticRollback(s, io, signal, reason) {
+    const snap = await autoContext(s, reader(base, signal, io), signal);
+    s.rollbackApproval = receipt(s, 'rollback'); s.status = 'rolling_back'; await save(s);
+    await writeAutomatic(s, snap, 'rollback', io, signal);
+    await autoContext(s, reader(base, signal, io), signal);
+    s.status = 'rolled_back'; failRound(s, reason); await save(s);
+  }
+  async function postcheck(s, io, signal, kind) {
+    require((s.postchecks?.length ?? 0) < 4, 'Explicit observation budget exhausted', 'E_RSI_OBSERVATION_BUDGET');
+    const snap = await autoContext(s, reader(base, signal, io), signal);
+    s.status = kind === 'adoption' ? 'verifying' : 'observing'; await save(s);
+    const run = await runFixed(snap.plan.command, { cwd: base, timeoutMs: snap.plan.timeoutMs, maxOutputBytes: snap.plan.maxOutputBytes, signal });
+    abort(signal);
+    // A changed authority, HEAD or target is a conflict, not permission to restore over it.
+    await autoContext(s, reader(base, signal, io), signal);
+    let passed = cleanRun(run) && run.exitCode === 0;
+    if (policy.improvement.kind === 'metric') {
+      const value = metric(run, policy.improvement), expected = currentRecord(s).improvement.candidate;
+      passed &&= value !== null && (policy.improvement.direction === 'increase' ? value >= expected : value <= expected);
+    }
+    (s.postchecks ??= []).push(seal({ kind, proposalDigest: s.proposal.digest, evaluationDigest: currentRecord(s).digest, run, passed, protection: true }));
+    if (!passed) { await automaticRollback(s, io, signal, 'postcheck_failed'); return; }
+    s.status = 'adopted'; s.automatic.consecutiveFailures = 0; s.automatic.lastOutcome = 'adopted';
+    if (s.automatic.round >= policy.maxRounds) s.automatic.stopReason = 'max_rounds';
+    await save(s);
+  }
+  async function automaticAdopt(s, io, signal) {
+    const snap = await autoContext(s, reader(base, signal, io), signal);
+    require(snap.fingerprint === s.proposal.fingerprint && improvement(currentRecord(s), policy.improvement).passed, 'Automatic adoption requires bound real improvement', 'E_RSI_NOT_ELIGIBLE');
+    s.approval = receipt(s, 'adopt'); s.status = 'applying'; await save(s);
+    await writeAutomatic(s, snap, 'adopt', io, signal);
+    await postcheck(s, io, signal, 'adoption');
+    return summary(s, io);
+  }
+  async function observe({ signal } = {}) {
+    if (!policy) return inspect({ signal });
+    return locked(async () => {
+      const read = reader(base, signal), s = await load(read);
+      require(s?.automatic && s.status === 'adopted', 'Observation requires a settled automatic adoption', 'E_RSI_RECONCILE');
+      await postcheck(s, read.io, signal, 'observation'); return summary(s, read.io);
+    });
+  }
   async function propose(input, { signal } = {}) {
     validateCandidate(input);
     require(Object.keys(input).every(k => ['hypothesis', 'feedback', 'files'].includes(k)), 'Unexpected candidate field');
     return locked(async () => {
       const read = reader(base, signal);
-      require(!(await load(read)), 'This RSI round already has a candidate');
+      const previous = await load(read);
+      require(!previous || policy, 'This RSI round already has a candidate');
+      let automatic;
+      if (previous) {
+        require(previous.automatic && ['adopted', 'rolled_back', 'evaluated'].includes(previous.status) && (previous.status !== 'evaluated' || previous.automatic.lastOutcome), 'Previous automatic round requires reconciliation', 'E_RSI_RECONCILE');
+        require(!previous.automatic.stopReason && previous.automatic.round < policy.maxRounds && previous.automatic.consecutiveFailures < 2, 'Automatic policy window is exhausted', 'E_RSI_AUTO_STOP');
+        await autoContext(previous, reader(base, signal, read.io), signal, true);
+      }
       const snap = await snapshot(read, input, signal);
       require(input.files.every(f => snap.plan.targets.includes(f.path)), 'Candidate touches protected or unadmitted path', 'E_RSI_PROTECTED');
       let bytes = 0;
@@ -196,7 +356,14 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
       require(bytes <= CHANGE_LIMIT, 'Recovery material byte budget exceeded', 'E_RSI_CANDIDATE_BUDGET');
       require(input.files.some((f, i) => f.content !== originals[i].content), 'Candidate has no changes');
       const proposal = seal({ hypothesis: input.hypothesis, feedback: snap.feedback, files: input.files.map(f => ({ path: f.path, content: f.content })), originals, fingerprint: snap.fingerprint });
-      const s = { version: 1, status: 'proposed', proposal, evaluations: [] };
+      if (policy) {
+        require(snap.planSha256 === policy.planSha256, 'Approved RSI plan bytes changed', 'E_RSI_POLICY');
+        const git = await gitIdentity(signal, previous?.automatic.anchorHead, read.io);
+        if (previous) require(snap.frozenDigest === previous.automatic.frozenDigest && snap.targetDigest === previous.automatic.targetDigest, 'Automatic round inputs changed', 'E_RSI_STALE');
+        const { automatic: oldAutomatic, ...oldState } = previous ?? {};
+        automatic = { policyDigest, frozenDigest: snap.frozenDigest, targetDigest: snap.targetDigest, branch: git.branch, head: git.head, anchorHead: git.anchorHead, round: (oldAutomatic?.round ?? 0) + 1, maxRounds: policy.maxRounds, consecutiveFailures: oldAutomatic?.consecutiveFailures ?? 0, failuresAtStart: oldAutomatic?.consecutiveFailures ?? 0, history: oldAutomatic ? [...oldAutomatic.history, seal({ round: oldAutomatic.round, state: oldState })] : [] };
+      }
+      const s = { version: 1, status: 'proposed', proposal, evaluations: [], ...(automatic ? { automatic } : {}) };
       abort(signal); await save(s); return summary(s, read.io);
     });
   }
@@ -205,6 +372,7 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
       const read = reader(base, signal), s = await load(read);
       require(s && ['proposed', 'evaluated'].includes(s.status), 'Evaluation requires a settled proposal; reconcile interrupted work first');
       const snap = await assertSource(read, s, signal);
+      if (s.automatic || policy) { require(s.automatic && s.status === 'proposed', 'Automatic evaluation runs once per proposed round', 'E_RSI_RECONCILE'); await autoContext(s, reader(base, signal, read.io), signal); }
       require(s.evaluations.length < snap.plan.maxEvaluations, 'RSI evaluation count exhausted', 'E_RSI_EVALUATION_BUDGET');
       const record = { id: randomUUID(), proposalDigest: s.proposal.digest, complete: false, eligible: false, runs: [], runtime: snap.runtime };
       s.evaluations.push(seal(record)); s.status = 'evaluating'; abort(signal); await save(s);
@@ -235,11 +403,18 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
         }
         const finalRead = reader(base, signal, read.io); await assertSource(finalRead, s, signal);
         record.complete = true; record.eligible = eligible(record);
+        if (policy) record.improvement = improvement(record, policy.improvement);
       } catch (cause) {
         record.complete = true; record.eligible = false; record.error = cause.code ?? cause.name;
+        if (s.automatic && signal?.aborted) s.automatic.stopReason = 'interrupted';
       } finally {
         await rm(workspace, { recursive: true, force: true });
         s.evaluations[s.evaluations.length - 1] = seal(record); s.status = 'evaluated'; await save(s);
+      }
+      if (s.automatic) {
+        abort(signal);
+        if (record.eligible && record.improvement?.passed) return automaticAdopt(s, read.io, signal);
+        failRound(s, record.error ?? 'no_improvement'); await save(s);
       }
       return summary(s, read.io);
     });
@@ -258,6 +433,7 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
   async function prepare(action, signal, budget) {
     const read = reader(base, signal, budget), s = await load(read);
     require(s, 'No RSI candidate');
+    require(!s.automatic, 'Automatic round requires its bound project policy', 'E_RSI_POLICY');
     let authorityExpiresAt;
     if (action === 'adopt') {
       require(s.status === 'evaluated' && eligible(currentRecord(s)), 'Adoption requires eligible evaluation', 'E_RSI_NOT_ELIGIBLE');
@@ -269,6 +445,8 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
     return { s, read, challenge };
   }
   async function change(action, { authorize, signal } = {}) {
+    require(!policy || action !== 'adopt', 'Automatic policy adopts only through evaluate', 'E_RSI_AUTOMATIC');
+    if (policy && action === 'rollback') return locked(async () => { const read = reader(base, signal), s = await load(read); require(s?.status === 'adopted' && s.automatic, 'Automatic rollback requires a settled adopted round', 'E_RSI_RECONCILE'); await automaticRollback(s, read.io, signal, 'explicit_policy_rollback'); return summary(s, read.io); });
     const initial = await prepare(action, signal);
     require(typeof authorize === 'function', 'Explicit host human approval is required', 'E_RSI_APPROVAL');
     const supplied = structuredClone(initial.challenge);
@@ -301,7 +479,7 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
     const read = reader(base, signal), s = await load(read);
     if (s && ['proposed', 'evaluating', 'evaluated'].includes(s.status)) await assertSource(read, s, signal);
     const result = summary(s, read.io);
-    if (s && ['applying', 'adopted', 'rolling_back', 'rolled_back'].includes(s.status)) {
+    if (s && ['applying', 'verifying', 'observing', 'adopted', 'rolling_back', 'rolled_back'].includes(s.status)) {
       const actual = await targets(read, s);
       const matches = which => actual.every((value, i) => {
         const original = s.proposal.originals[i];
@@ -319,9 +497,11 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
       require(s?.status === 'evaluating', 'Only interrupted evaluation can be settled here; adoption recovery requires approved rollback');
       const e = withoutDigest(currentRecord(s));
       e.complete = true; e.eligible = false; e.error = 'E_RSI_INTERRUPTED';
-      s.evaluations[s.evaluations.length - 1] = seal(e); s.status = 'evaluated'; abort(signal); await save(s);
+      s.evaluations[s.evaluations.length - 1] = seal(e); s.status = 'evaluated';
+      if (s.automatic) { s.automatic.stopReason = 'interrupted'; }
+      abort(signal); await save(s);
       return summary(s, read.io);
     });
   }
-  return { propose, inspect, evaluate, adopt: options => change('adopt', options), rollback: options => change('rollback', options), recover };
+  return { propose, inspect, evaluate, observe, adopt: options => change('adopt', options), rollback: options => change('rollback', options), recover };
 }

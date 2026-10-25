@@ -1,26 +1,31 @@
-# R3：受控 RSI 约定
+# RSI：人工批准与项目分支自动模式
 
-权威：[决策 R-003–R-006](../decisions.md)、[SPEC](SPEC.md)、[验收 A09/A10/A14](acceptance.md)。
-用户授权建设与本地验证；本轮不自动采用真实项目策略，不改原治理 Skill，不发布。
+权威：[决策 R-003–R-006、R-009](../decisions.md)、[SPEC](SPEC.md)、
+[验收 A09/A10/A14/A18–A20](acceptance.md)。默认人工模式保持 R3 语义；R7 增加
+显式预授权的项目开发分支自动模式，不改原治理 Skill，不发布。
 
 ## 用户路径与交付
 
 现有开发流程产生失败、评审或返工证据 → 模型提出有证据引用的假设和文件候选 →
-独立于 builder 参数的固定评估 → 展示具体差异与结果 → 人工一次性批准 → 本地采用 →
-观察后续结果或另行批准回滚。可改进提示、工具、流程及未发布 Skill 草稿；不能通过
+独立于 builder 参数的固定评估 → 展示具体差异与结果 → 人工一次性批准或预授权政策判定 →
+本地采用 → 观察后续结果或回滚。可改进提示、工具、流程及未发布 Skill 草稿；不能通过
 修改目标、测试、验收或评估命令取得通过。采用也不等于产品验收或发布。
 
 可选 `adapters/rsi.mjs` 及有界进程执行模块随 DSH 私有包交付，核心 Skill 无新依赖。
 DSH 显式配置 rsiPlanPath/rsiStatePath 后提供 propose/inspect/evaluate/adopt/rollback 工具；
 普通治理 hook 只提示入口，不运行 RSI。approve 不作为模型可填写的参数。
-每个 state 是一个不可变候选及有限评估轮次；改候选需配置新的独立轮次，旧记录保留。
+人工模式每个 state 是一个不可变候选及有限评估轮次；改候选需配置新的独立轮次。
+自动模式同一 state 允许政策内最多三轮不可变候选，保留前轮完整有界记录。
 不会自行发现反馈、全仓扫描、安装依赖、调用模型或启动后台循环。
 
 ## 配置与 API
 
-`openRSI({root, planPath, statePath, protectedPaths?})`；均为显式项目路径。
-protectedPaths 是可信宿主函数，动态返回不可改路径；DSH 每次从 continuation.observe
-取得现行规范引用，加开发 plan/state/lock。该集合也绑定审批，等待期间改变即拒绝。
+`openRSI({root, planPath, statePath, protectedPaths?, automaticPolicy?})`；均为显式项目路径。
+protectedPaths 是可信宿主函数，返回不可改路径数组，或 `{paths, binding}`；binding
+是宿主权威指纹的 SHA-256。DSH/MCP 从 continuation.observe 取得现行规范引用和
+内容指纹，加开发 plan/state/lock。指纹绑定计划语义与规范内容，不绑定正常推进的
+state revision；该集合及指纹参与候选和跨轮冻结。自动模式拒绝开发授权撤销、过期或
+规范变化；等待期间变化同样拒绝。直接 API 调用者负责提供其项目的权威绑定。
 plan version:1，包含 authority（规范文件）、inputs（固定评估所需文件）、targets（允许
 候选替换的文件，必须属于 inputs）、command（固定 argv，首项绝对可执行路径）、
 expiresAt、revoked、maxEvaluations（1–3）、timeoutMs（每个命令 100–60000）、
@@ -38,7 +43,53 @@ maxOutputBytes（合计 stdout/stderr，1024–65536）。这些值由授权控�
   的函数，收到完整绑定、具体文件差异、评估摘要，只有显式 true 才继续。不是可从
   模型 JSON 传来的批准。等待前后重新核对绑定，在独占写锁中复核后才写文件。
 - `recover({signal}?)`：只将中断评估记为 interrupted；不自动继续命令。中断采用/回滚
-  必须先核对目标文件，再通过 rollback 的人工关口恢复，不能盲重放副作用。
+  必须先核对目标文件，不能盲重放副作用。人工模式可请求绑定恢复批准；自动模式的
+  未知采用/后验/回滚状态必须交接核对，不能通过移除政策绕过原状态绑定。
+
+## 预授权自动模式
+
+可信宿主配置 `rsiAutomaticPolicy`，直接 API 对应 `automaticPolicy`；工具参数不能
+设置、扩大或替换政策。最小形状：
+
+```json
+{
+  "branch": "workflow/project-dev",
+  "baseBranch": "main",
+  "planSha256": "<approved RSI plan bytes SHA-256>",
+  "maxRounds": 3,
+  "improvement": { "kind": "repair" }
+}
+```
+
+另一判据为 `{"kind":"metric","name":"score","direction":"increase","minDelta":1}`，
+`direction` 也可为 `decrease`。评估器 stdout 必须是单个 JSON 对象，包含名为
+`metrics` 的对象及所选数值；额外诊断放 stderr。数值必须有限，最小改进量大于零。
+repair 要求有效基线正常退出非零、候选为零；metric 要求两侧均成功并达到预定增量。
+超时、取消、篡改评估资产或输出超限都不算可用基线。
+
+政策选定具体开发分支与固定 plan 字节；plan 已固定目标、权威、命令、期限和预算。
+Git 根必须与项目根一致，工作分支必须匹配且不能是 main/master 等共享分支名称。
+首次绑定 baseBranch 的祖先提交；每轮绑定当前 HEAD。已结束轮次之间允许同分支
+正常产品提交，但仍须以该祖先为基础，且不能改冻结的规范、非目标输入或上一轮目标。
+一轮中的 HEAD、反馈、目标变化使该轮失效。主线合并/push/发布从来不是 API 动作。
+
+`evaluate()` 在有效改进后自动采用，并在实际项目目录执行同一固定命令作后验。
+后验失败只回滚本轮已知目标；目标有第三方改动、规范/计划/分支变动或期限到期时
+先交接，不越过失效政策写入。后验仅核对清单内绑定输入，不扫描整个产品目录；
+目录外副作用没有自动回滚保证，评估命令须由控制者选择可安全重复执行者。
+采用回执使用 `preauthorized-project-policy`，记录政策/分支/HEAD/候选/评估摘要，
+不伪称刚刚获得真人批准。
+
+自动模式隐藏 `sage_rsi_adopt`，提供 `sage_rsi_observe`。显式 `observe()` 重跑固定
+后验并可触发回退，每轮最多三次后续观察（加采用后验共四条）；无轮询。自动
+`rollback()` 只对已稳定 adopted 的本轮按原政策恢复；未知/部分执行不能盲重放。
+新候选通过同一个 `propose` 开始下一轮，每轮只评估一次；两轮连续无改进或回退、
+最多三轮用完就停止。历史记录和当前后验保存在原有 2MiB state 上限内。
+
+Git 只在显式自动 RSI 操作中读取，不进入 hook/inspect。每条 Git 命令限 2 秒/4KiB，
+每次 API 最多 32 条，禁用 hooks、fsmonitor 和可选锁；不提交、重置或推送。
+固定评估和文件读取仍有原预算；自动 evaluate 另含一次实际目录后验，与宿主总期限
+共同约束。未配置政策仍需逐次人工批准；模型不能改政策或验收以获准。
 
 ## 评估、保护与采用
 
@@ -55,11 +106,12 @@ maxOutputBytes（合计 stdout/stderr，1024–65536）。这些值由授权控�
 采用前保存 intent 与原文件恢复材料；逐文件临时写入/fsync/rename。恢复不是跨多个
 文件的原子事务：崩溃时保留 applying/rolling_back 状态。回滚只在目标仍等于已知
 原版或候选版本时恢复原版，发现第三方修改必须停止，避免覆盖后续工作。
-回滚使用已保存材料，治理计划改变或过期不妨碍向宿主请求明确的恢复批准。
+人工回滚使用已保存材料，治理计划改变或过期不妨碍向宿主请求明确的恢复批准；
+自动回滚仍要求原政策有效，失效或不确定状态交给控制者核对后明确恢复。
 执行记录与摘要不防同用户恶意改写，临时目录不是操作系统沙箱；只运行项目授权的
 评估命令，不宣称阻止任意代码越界、联网或读取宿主资源。
 
-DSH 采用/回滚在工具执行体调用真实 `dsh-user-approval`，仅 allowed-once 通过；
+人工模式 DSH 采用/回滚在工具执行体调用真实 `dsh-user-approval`，仅 allowed-once 通过；
 缺失、拒绝、取消或不可用都不能采用。绑定与差异出现在审批 reason 中。人工等待
 不使用 2 秒治理读取 deadline；使用独立、有限的工具预算及真实取消信号。
 测试 answerer 的同意只证明接线，不宣称真人已经批准真实项目策略。
