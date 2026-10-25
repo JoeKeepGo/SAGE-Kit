@@ -12,14 +12,19 @@ agents implement, check, review and continue within that authorization. Hooks
 refresh governance context, while RSI evaluates improvements to the development
 method through human approval or preauthorized project-branch adoption and rollback.
 
-**The current source is a rebuild preview.** It preserves the governance core from
-**v2026.8.13.1** and adds optional execution support. Real-model Codex trials have
-covered both continuing an existing project and building a small project from
-documents with no implementation. The latter delivered a dependency-analysis
-library, CLI, tests and documentation; independent fixed checks and 54 product
-tests passed after one tool-schema correction and session resume. Complete hook
-coverage and long-term semi-autonomous reliability remain unverified. See
+**Rebuilt alpha: v0.3.0-alpha.1.** It preserves the governance core from
+**v2026.8.13.1** and adds optional execution support. The latest bounded Codex
+trial built Task Lens from documents with no product implementation, passed fixed
+checks and 35 product tests, and completed automatic RSI adoption, rollback and
+same-session boundary recovery before stopping for human acceptance. Its first
+candidate failed on an incomplete tool contract; the corrected package passed
+after the contract and diagnostic scope reminder were repaired. R8 also fixes
+the observed Codex shell/patch Hook gaps. Universal tool coverage and long-term
+semi-autonomous reliability remain unverified. See
 [verification and limits](#verification-and-limits).
+For delivery and upgrade instructions, see [releases](docs/RELEASE.md) and
+[migration](docs/MIGRATION_MODEL_NATIVE.md). The earlier `v0.2.0-alpha.1` release
+contains the archived runtime architecture, not this rebuild.
 
 ## How it fits together
 
@@ -81,8 +86,9 @@ state, and RSI evaluation has a separate budget. See the
    hook coverage limitation still applies.
 
 The optional adapter requires Node.js 22+ and is currently a **private local
-package**, named `@sage-kit/dsh-plugin` for historical compatibility. From this
-source checkout, package it without lifecycle scripts:
+package**, named `@sage-kit/dsh-plugin` for historical compatibility. Use the
+GitHub prerelease tgz after checking its attached SHA-256, or package this
+source checkout without lifecycle scripts:
 
 ```sh
 mkdir -p local/packages
@@ -118,25 +124,28 @@ These are recorded test versions and scopes, not a promise about every host vers
 | DSH 0.2.1-rc.2 | Native plugin/profile, installed package, tools, interruption and RSI protocol checks with deterministic model responses | Real-model long-task quality and human strategy adoption remain unverified |
 | Codex CLI 0.163.0-alpha.11.2 — existing project (R6) | Native regression checks and real `gpt-6.1-sol` development: version fix, package verification, minimal example, same-session boundary resume and human-gate stop | Two startup corrections and one controller rescue; natural real-model compaction and complete hook coverage remain unverified |
 | Codex CLI 0.163.0-alpha.11.2 — from documents (R7) | Real `gpt-6.1-sol` built Task Lens from no implementation; independent fixed checks and 54 product tests passed; stopped at human acceptance | Six invalid finish calls preceded one controller tool-schema correction and same-session resume; small offline project, not unattended large-project delivery |
-| Automatic RSI (R7) | Fixed-command comparisons, actual adoption/postchecks/rollback, policy and authority rejection cases, bounded rounds and DSH/MCP integration tests | Separate from the real-model development trial; no real-model automatic RSI or long-term improvement claim |
+| Automatic RSI (R7) | Fixed-command comparisons, actual adoption/postchecks/rollback, policy and authority rejection cases, bounded rounds and DSH/MCP integration tests | R7 tested components separately; the bounded real-model joint trial is recorded under R8 |
+| Codex Hook correction (R8) | Real direct and code-mode nested shell/patch tests: refusal before begin, fresh execution, replay/reconnect, expiry and missing-authority rejection; old-package failures reproduced | Tested native paths and version only; missing events and transport failures remain host boundaries |
+| Codex joint development and RSI (R8) | Frozen installed package; real model built the product, repaired a method through automatic RSI, observed/rolled back/re-adopted it, used it on actual development evidence and stopped at the human gate after boundary resume | First candidate failed and was corrected; method defect was intentionally seeded, second adoption demonstrates recovery; small offline project, no long-term benefit claim |
 | Claude Code 2.1.310 | Native process, MCP tools and hooks with deterministic model responses | No real-model development trial or native compaction/resume acceptance |
 | GitHub / Gitea | Actual Issue and successful/failed Actions observations; source/run/job bindings | No general claim about deployment state, PR review or artifact contents |
 | OpenCode / Kimi | Packaged governance guidance | No execution-adapter validation in this rebuild |
 
-**Known hook gap:** a real Codex command ran before a fresh `begin`. The tested
-guarded-tool list was incomplete, and code-mode wrapping/nested tool events were
-not resolved from the captured logs. Hooks therefore cannot yet be described as
-covering every command or providing OS isolation. Resource samples apply only to
-that tested configuration, not to fully covered governance under sustained load.
+**Hook scope:** R8 normalizes Codex's shell/patch event names and fixes an error
+response that the host discarded instead of denying the tool. Direct and nested
+calls now have actual refusal/side-effect evidence for the tested paths. Missing
+or disabled hooks, transport failures, hosted/specialized tools and later effects
+of an already running process remain outside that proof. Hooks do not provide OS
+isolation; resource samples do not establish long-term load behavior.
 
 The [main branch CI](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml?query=branch%3Amain)
 runs on every main push: continuation/RSI, DSH, and static/package reference checks
 on Linux, Windows and macOS. Check the run for the commit you use; these jobs do
-not establish native agent support on all three operating systems. R7's initial
-local suite recorded 264 passes and one Windows-only skip; after the tool-schema
-correction, all 48 affected checks passed against the final installed package.
-Unchanged evidence was reused; these overlapping counts are not a single final
-full-suite run. See the [progress record](docs/rebuild/progress.md) for exact checks,
+not establish native agent support on all three operating systems. R8's full
+local suite against the frozen installed package recorded **277 passes, zero
+failures and one Windows-only skip**. Native host regression models are local
+deterministic fixtures; real-model development evidence is recorded separately.
+See the [progress record](docs/rebuild/progress.md) for exact checks,
 failures, interventions and remaining acceptance work.
 Nothing continues after a host stops unless a separate scheduling mechanism is
 explicitly authorized and running.

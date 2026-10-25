@@ -25,9 +25,9 @@ async function fixture(t, steps = [step('first')], hostOptions = {}) {
   return { root, host, controller, plan, put };
 }
 function successful(run) {
+  assert.deepEqual(run.unexpected, [], 'Loopback fixture error');
   assert.equal(run.code, 0, run.stderr + '\n' + run.stdout);
   assert.equal(run.unusedActions, 0, run.stdout);
-  assert.deepEqual(run.unexpected, []);
   assert.ok(run.events.some(event => event.type === 'turn.completed'), run.stdout);
 }
 function calls(run) { return run.events.filter(event => event.type === 'item.completed' && event.item?.type === 'mcp_tool_call').map(event => event.item); }
@@ -157,3 +157,93 @@ test('Codex native automatic compaction reinjects governance through the same MC
   assert.equal((await f.controller.inspect()).action, 'complete_pending_acceptance');
   t.diagnostic('Actual native automatic compaction; deterministic local summary; compact-only MCP SessionStart hook restores working attempt, with real post-compact shell evidence.');
 });
+
+
+const nested = (name, args) => nativeCall('exec', `const selected = ALL_TOOLS.find(t => t.name === ${JSON.stringify(name)} || t.name.endsWith('__' + ${JSON.stringify(name)})); if (!selected) throw new Error('Missing nested tool'); text(await tools[selected.name](${JSON.stringify(args)}));`);
+const effectCall = (mode, name, args) => mode ? nested(name, args) : nativeCall(name, args);
+const patch = (name, body = 'actual patch') => `*** Begin Patch\n*** Add File: ${name}\n+${body}\n*** End Patch`;
+const shellEffect = name => ({ cmd: `printf actual-shell > ${name}`, max_output_tokens: 1000, yield_time_ms: 1000 });
+async function saveHookEvidence(label, run, hooks) {
+  if (!process.env.SAGE_HOOK_EVIDENCE_DIR) return;
+  await mkdir(process.env.SAGE_HOOK_EVIDENCE_DIR, { recursive: true });
+  await writeFile(join(process.env.SAGE_HOOK_EVIDENCE_DIR, label + '.json'), JSON.stringify({ run, hooks }, null, 2));
+}
+
+for (const codeMode of [false, true]) {
+  const mode = codeMode ? 'code-mode' : 'direct';
+  test(`R8 ${mode}: native shell and patch gate unbegun/replay effects while fresh begin works`, options, async t => {
+    const f = await fixture(t, [step('first')], { codeMode, observeHooks: true });
+    const call = (name, args) => effectCall(codeMode, name, args);
+    const run = await f.host.run([
+      call('exec_command', shellEffect('unbegun-shell')),
+      call('apply_patch', patch('unbegun-patch')),
+      call('sage_begin', { stepId: 'first', attemptId: 'gate-attempt' }),
+      call('exec_command', shellEffect('fresh-shell')),
+      call('apply_patch', patch('fresh-patch')),
+      call('sage_begin', { stepId: 'first', attemptId: 'gate-attempt' }),
+      call('exec_command', shellEffect('replay-shell')),
+      call('apply_patch', patch('replay-patch')),
+      { text: 'Reconcile actual existing effects.' }, { text: 'Waiting for reconciliation.' },
+    ]);
+    const hooks = await f.host.observedHooks();
+    await saveHookEvidence(mode + '-admission', run, hooks);
+    successful(run);
+    for (const name of ['unbegun-shell', 'unbegun-patch', 'replay-shell', 'replay-patch']) await assert.rejects(access(join(f.root, name)), { code: 'ENOENT' }, name);
+    assert.equal(await readFile(join(f.root, 'fresh-shell'), 'utf8'), 'actual-shell');
+    assert.equal(await readFile(join(f.root, 'fresh-patch'), 'utf8'), 'actual patch\n');
+    assert.equal((await f.controller.inspect()).action, 'reconcile');
+    const selected = hooks.filter(event => ['Bash', 'apply_patch'].includes(event.tool_name));
+    assert.deepEqual(selected.map(event => event.tool_name), ['Bash', 'apply_patch', 'Bash', 'apply_patch', 'Bash', 'apply_patch']);
+    assert.ok(selected.every(event => event.hook_event_name === 'PreToolUse' && event.cwd === f.root && event.session_id));
+    assert.ok(!hooks.some(event => event.tool_name === 'exec'), 'outer orchestration must not be gated instead of its actual nested effects');
+    t.diagnostic(JSON.stringify({ mode, actualNativeHookNames: selected.map(event => event.tool_name), guardedConfiguration: ['exec_command', 'apply_patch'], unbegunAndReplayEffects: false, freshEffects: true }));
+  });
+
+  for (const failure of ['authority-unreadable', 'expired']) {
+    test(`R8 ${mode}: ${failure} after fresh begin denies both real effects`, options, async t => {
+      const f = await fixture(t, [step('first')], { codeMode, observeHooks: true, guardedTools: ['Bash', 'apply_patch'] });
+      const call = (name, args) => effectCall(codeMode, name, args);
+      const run = await f.host.run([
+        call('sage_begin', { stepId: 'first', attemptId: 'fault-attempt' }),
+        async request => {
+          const state = JSON.parse(await readFile(join(f.root, 'state.json'), 'utf8'));
+          assert.ok(state.attempts.some(attempt => attempt.id === 'fault-attempt' && attempt.outcome === 'running'), 'fault must occur after a real fresh begin');
+          if (failure === 'authority-unreadable') await rm(join(f.root, 'docs/authority.md'));
+          else await f.put('plan.json', JSON.stringify({ ...f.plan, expiresAt: '2000-01-01T00:00:00Z' }));
+          return call('exec_command', shellEffect('fault-shell'))(request);
+        },
+        call('apply_patch', patch('fault-patch')),
+        { text: 'Authority unavailable; stop.' },
+      ]);
+      await saveHookEvidence(mode + '-' + failure, run, await f.host.observedHooks());
+      // Lifecycle failures can stop a turn; neither native effect may run.
+      assert.equal(run.code, 0, run.stderr);
+      assert.deepEqual(run.unexpected, []);
+      await assert.rejects(access(join(f.root, 'fault-shell')), { code: 'ENOENT' });
+      await assert.rejects(access(join(f.root, 'fault-patch')), { code: 'ENOENT' });
+      assert.match(JSON.stringify(run.requests), /blocked by PreToolUse hook|SAGE-Kit governance unavailable|SAGE-Kit: blocked/);
+      assert.equal(run.unusedActions, 0, run.stdout);
+    });
+  }
+
+  test(`R8 ${mode}: real reconnect and resumed replay do not reacquire execution`, options, async t => {
+    const f = await fixture(t, [step('first')], { codeMode, observeHooks: true });
+    const call = (name, args) => effectCall(codeMode, name, args);
+    const first = await f.host.run([call('sage_begin', { stepId: 'first', attemptId: 'resume-attempt' }), call('exec_command', shellEffect('before-reconnect')), { text: 'Pause.' }, { text: 'Wait.' }]);
+    successful(first);
+    const id = first.events.find(event => event.type === 'thread.started')?.thread_id;
+    assert.ok(id);
+    const run = await f.host.run([
+      call('exec_command', shellEffect('reconnect-shell')),
+      call('apply_patch', patch('reconnect-patch')),
+      call('sage_begin', { stepId: 'first', attemptId: 'resume-attempt' }),
+      call('exec_command', shellEffect('resume-replay-shell')),
+      call('apply_patch', patch('resume-replay-patch')),
+      { text: 'Reconcile existing evidence.' }, { text: 'No repeated effects.' },
+    ], { resume: id });
+    await saveHookEvidence(mode + '-reconnect', run, await f.host.observedHooks());
+    successful(run);
+    assert.equal(await readFile(join(f.root, 'before-reconnect'), 'utf8'), 'actual-shell');
+    for (const name of ['reconnect-shell', 'reconnect-patch', 'resume-replay-shell', 'resume-replay-patch']) await assert.rejects(access(join(f.root, name)), { code: 'ENOENT' });
+  });
+}

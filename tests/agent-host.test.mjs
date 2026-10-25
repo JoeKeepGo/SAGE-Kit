@@ -259,3 +259,93 @@ for (const target of ['AGENTS.md', '.claude/settings.json', 'config.json']) {
     await assert.rejects(readFile(join(f.root, 'rsi-state.json')), { code: 'ENOENT' });
   });
 }
+
+
+test('Codex canonical hook names match configured shell and patch API names without gating orchestration', async t => {
+  const f = await fixture(t, { guardedTools: ['exec_command', 'apply_patch'] });
+  const h = await openAgentHost(f.config);
+  for (const name of ['Bash', 'apply_patch']) denied(await h.call('sage_hook', { event: f.event('PreToolUse', { tool_name: name }) }));
+  assert.deepEqual(await h.call('sage_hook', { event: f.event('PreToolUse', { tool_name: 'exec' }) }), {});
+  await begin(h);
+  for (const name of ['Bash', 'apply_patch']) assert.deepEqual(await h.call('sage_hook', { event: f.event('PreToolUse', { tool_name: name }) }), {});
+  const aliases = await openAgentHost({ ...f.config, guardedTools: ['shell_command', 'Edit'] });
+  for (const name of ['Bash', 'apply_patch']) denied(await aliases.call('sage_hook', { event: f.event('PreToolUse', { tool_name: name }) }));
+  const claude = await openAgentHost({ ...f.config, host: 'claude', guardedTools: ['Write'] });
+  denied(await claude.call('sage_hook', { event: f.event('PreToolUse', { tool_name: 'Write' }) }));
+  assert.deepEqual(await claude.call('sage_hook', { event: f.event('PreToolUse', { tool_name: 'apply_patch' }) }), {});
+});
+
+test('PreToolUse failure emits only a native deny; unsupported continue:false must never discard the decision', async t => {
+  const f = await fixture(t), h = await openAgentHost(f.config);
+  await begin(h);
+  await rm(join(f.root, 'SPEC.md'));
+  const value = await h.call('sage_hook', { event: f.event('PreToolUse', { tool_name: 'Write' }) });
+  assert.deepEqual(Object.keys(value), ['hookSpecificOutput']);
+  assert.equal(value.hookSpecificOutput.hookEventName, 'PreToolUse');
+  denied(value);
+  assert.match(value.hookSpecificOutput.permissionDecisionReason, /governance unavailable/);
+  const malformed = await h.call('sage_hook', {});
+  assert.deepEqual(Object.keys(malformed), ['hookSpecificOutput']);
+  denied(malformed);
+});
+
+for (const automatic of [false, true]) {
+  test(`RSI proposal stdio contract exposes nested objects in ${automatic ? 'automatic' : 'manual'} mode and preserves validation`, { skip: process.platform === 'win32', timeout: 10000 }, async t => {
+    const f = automatic ? await automaticFixture(t) : await fixture(t, { rsiPlanPath: 'rsi-plan.json', rsiStatePath: 'rsi-state.json' });
+    if (!automatic) {
+      await f.put('strategy.txt', 'BAD'); await f.put('feedback.txt', 'Existing failure evidence');
+      await f.put('eval.mjs', 'process.exitCode = 1;');
+      await f.put('rsi-plan.json', { version: 1, authority: ['SPEC.md'], inputs: ['strategy.txt', 'eval.mjs'], targets: ['strategy.txt'], command: [process.execPath, 'eval.mjs'], expiresAt: '2099-01-01T00:00:00Z', revoked: false, maxEvaluations: 1, timeoutMs: 2000, maxOutputBytes: 4096 });
+    }
+    const c = await client(t, f);
+    const tools = (await c.request('tools/list')).result.tools;
+    const definition = tools.find(tool => tool.name === 'sage_rsi_propose');
+    const contract = definition.inputSchema;
+    assert.deepEqual(contract.required, ['hypothesis', 'feedback', 'files']);
+    assert.equal(contract.properties.hypothesis.maxLength, 4096);
+    assert.ok(new RegExp(contract.properties.hypothesis.pattern).test('Actual observed failure'));
+    assert.ok(!new RegExp(contract.properties.hypothesis.pattern).test('  \t\n'));
+    for (const name of ['feedback', 'files']) {
+      assert.equal(contract.properties[name].type, 'array');
+      assert.equal(contract.properties[name].minItems, 1);
+      assert.equal(contract.properties[name].maxItems, 20);
+      assert.equal(contract.properties[name].items.type, 'object');
+      assert.equal(contract.properties[name].items.properties.path.type, 'string');
+      assert.equal(contract.properties[name].items.properties.path.maxLength, 4096);
+    }
+    assert.deepEqual(contract.properties.feedback.items.required, ['path', 'kind']);
+    assert.deepEqual(contract.properties.feedback.items.properties.kind.enum, ['failure', 'review', 'rework']);
+    assert.deepEqual(contract.properties.files.items.required, ['path', 'content']);
+    assert.deepEqual(contract.properties.files.items.properties.content.type, ['string', 'null']);
+    assert.match(contract.properties.files.description, /262144 UTF-8 bytes/);
+    assert.match(definition.description, /feedback:\[\{path,kind\}\].*files:\[\{path,content\}\]/);
+    assert.match(definition.description, /does not adopt/);
+    if (automatic) {
+      assert.match(definition.description, /preauthorized/);
+      assert.ok(!tools.some(tool => tool.name === 'sage_rsi_adopt'));
+      assert.ok(tools.some(tool => tool.name === 'sage_rsi_observe'));
+      assert.match(tools.find(tool => tool.name === 'sage_rsi_evaluate').description, /No per-candidate human approval/);
+    } else {
+      assert.match(definition.description, /separate human response/);
+      assert.ok(tools.some(tool => tool.name === 'sage_rsi_adopt'));
+      assert.ok(!tools.some(tool => tool.name === 'sage_rsi_observe'));
+      assert.match(tools.find(tool => tool.name === 'sage_rsi_evaluate').description, /manual mode does not adopt/);
+    }
+    const valid = { hypothesis: 'Repair actual observed failure', feedback: [{ path: 'feedback.txt', kind: 'failure' }], files: [{ path: 'strategy.txt', content: automatic ? 'GOOD' : null }] };
+    for (const invalid of [
+      { ...valid, feedback: ['feedback.txt'] },
+      { ...valid, files: [JSON.stringify(valid.files[0])] },
+      { ...valid, feedback: [{ path: 'feedback.txt', kind: 'approve' }] },
+      { ...valid, files: [{ path: 'strategy.txt' }] },
+      { ...valid, feedback: [{ path: 'missing.txt', kind: 'failure' }] },
+      { ...valid, files: [{ path: 'SPEC.md', content: 'Changed authority' }] },
+      { ...valid, rsiAutomaticPolicy: { branch: 'model-supplied' } },
+    ]) assert.equal((await c.call('sage_rsi_propose', invalid)).isError, true, JSON.stringify(invalid));
+    const accepted = await c.call('sage_rsi_propose', valid);
+    assert.notEqual(accepted.isError, true, JSON.stringify(accepted));
+    assert.equal(accepted.structuredContent.status, 'proposed');
+    assert.equal(accepted.structuredContent.proposal.files[0].content, valid.files[0].content);
+    assert.equal(await readFile(join(f.root, 'strategy.txt'), 'utf8'), 'BAD', 'propose alone must never adopt or delete');
+    assert.equal(c.elicited.length, 0, 'propose is not an approval operation');
+  });
+}

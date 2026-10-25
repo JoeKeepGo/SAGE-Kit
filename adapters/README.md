@@ -8,7 +8,9 @@ Claude own one optional stdio MCP process per connection, plus a startup-only
 reminder helper. Explicit RSI tools can run fixed evaluation commands; governance
 hooks never run those commands. The package keeps its original DSH package name.
 
-The package is private while reconstruction and acceptance are in progress.
+The package is a private, locally installable `0.3.0-alpha.1` preview. Its tgz
+may be distributed with a GitHub prerelease; it is not published to npm. The
+governance Skill keeps its independent `v2026.8.13.1` component identity.
 For a first local project, the source checkout includes
 `examples/rebuild/minimal/README.md`: a specification, expiring bounded plan,
 host mapping, actual file check and evidence-to-human-gate walkthrough. Copy it
@@ -20,7 +22,8 @@ For development from a docset without any implementation, use
 library, CLI and tests; initial files contain specification, mapping and fixed
 acceptance only. `docs/rebuild/from-docset.md` describes the general workflow.
 
-Pack it locally with `npm pack ./adapters --ignore-scripts --pack-destination <directory>`
+Use the release tgz after checking its SHA-256, or pack it locally with
+`npm pack ./adapters --ignore-scripts --pack-destination <directory>`
 from the repository, then install that artifact into an isolated DSH environment
 with the declared host peers. Do not change a user's default profile merely to
 run tests. The package declares a DSH bundle which inserts a disabled
@@ -229,6 +232,13 @@ Merge these hooks into the selected host's hook settings, following its current
 trust/configuration workflow. The startup helper is intentionally absent from
 per-tool hooks. MCP hooks reuse the connected process; no new CLI is started.
 
+Codex reports shell and unified-exec commands as `Bash`; `apply_patch` is its
+canonical patch event name. Its `Edit`/`Write` aliases apply to hook matching.
+The adapter normalizes those known Codex names in `guardedTools`; the host's
+matcher must still include the canonical names, as in the example below.
+Other configured tools retain exact matching. Configure the nested effect tool,
+not an outer code-mode `exec` wrapper that may also contain `sage_begin`.
+
 ```json
 {
   "hooks": {
@@ -277,6 +287,10 @@ failures and host hook errors can bypass this mechanical check. These hooks are
 not isolation. Internal hook failures return a normal denial where the event
 supports it; native permissions and project authority still apply. Keep the
 governance Skill/project instructions and use `sage_inspect` if reminders fail.
+An existing unified-exec process can continue effects after its initial check;
+`write_stdin` does not get a fresh Codex `PreToolUse`. Hosted tools and specialized
+paths can also omit events. Keep separate host permissions and process ownership
+for those boundaries. Never interpret a timeout or missing event as approval.
 
 Manual RSI adoption/rollback request a form elicitation from the connected host. Only
 its explicit `accept` plus boolean `approve:true` can approve the bound challenge;

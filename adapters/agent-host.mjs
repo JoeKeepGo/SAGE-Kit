@@ -1,4 +1,4 @@
-// Shared local host boundary. Transport/lifecycle failures never grant authority.
+// Shared local host boundary. Caught governance failures clear execution ownership.
 import { open, realpath, lstat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,28 @@ const resultSchema = schema({
     evidence: { type: 'string', description: 'Project-relative path to the existing actual check log. Preserve failed evidence.' } }) },
   review: { type: 'string', description: 'Project-relative independent review evidence path, when the step requires review.' },
 }, ['outcome', 'checks']);
+const rsiPath = { type: 'string', minLength: 1, maxLength: 4096,
+  description: 'Project-relative path, at most 32 slash-separated segments; no absolute path, backslash, colon, NUL, empty segment, dot, dot-dot or .git segment (case-insensitive). The core validates the actual file boundary.' };
+const proposalDescription = 'Submit hypothesis, feedback:[{path,kind}] and files:[{path,content}] as JSON objects, not encoded JSON strings. Feedback paths name existing actual evidence; kind is failure, review or rework. File content is the complete replacement text, or null for deletion. Only configured targets may change. This stores a proposal; it does not adopt changes.';
+const proposalSchema = schema({
+  hypothesis: { type: 'string', minLength: 1, maxLength: 4096, pattern: '\\S', description: 'Nonblank explanation of the improvement supported by actual feedback.' },
+  feedback: { type: 'array', minItems: 1, maxItems: 20, items: schema({
+    path: { ...rsiPath, description: rsiPath.description + ' Existing evidence file, separate from mutable RSI controls and candidate targets.' },
+    kind: { type: 'string', enum: ['failure', 'review', 'rework'] },
+  }) },
+  files: { type: 'array', minItems: 1, maxItems: 20,
+    description: 'Unique paths from configured targets. All replacement contents combined must be at most 262144 UTF-8 bytes; the core enforces this aggregate byte limit.',
+    items: schema({ path: rsiPath, content: { type: ['string', 'null'], maxLength: 262144,
+      description: 'Complete replacement UTF-8 text, not a diff or a JSON-encoded file object. null requests deletion of this admitted target.' } }) },
+});
+const rsiDescriptions = {
+  inspect: 'Read RSI proposal, evaluation and current target state; this does not run evaluation or grant adoption.',
+  evaluate: 'Run the configured fixed baseline and candidate evaluation. Default manual mode does not adopt; adoption needs a separate human response through the host.',
+  recover: 'Settle only an interrupted evaluation as failed. This does not recover an interrupted adoption or grant approval.',
+  adopt: 'Adopt an eligible evaluated candidate only after a separate human response through the host; model arguments cannot approve it.',
+  rollback: 'Restore known original target contents only after a separate human response through the host; preserve third-party changes.',
+  observe: 'Explicitly rerun the fixed postcheck for an adopted round under its preauthorized policy; no background loop.',
+};
 // Standard host entrypoints are protected even before a file exists. Custom
 // project-local host configuration must be mapped as authority as well.
 export const hostProtectedPaths = Object.freeze(['AGENTS.md', 'CLAUDE.md', '.codex', '.claude', '.dsh', '.mcp.json', 'cordis.yml', 'cordis.yaml', 'cordis.patch.yml']);
@@ -26,8 +48,8 @@ const definitions = [
   ['sage_finish', 'Record actual outcome and checks [{id, passed, evidence}] using existing project-relative evidence files. Use only outcome, checks and optional review; never fabricate checks or human acceptance.', schema({ attemptId: string, result: resultSchema })],
   ['sage_hook', 'Host lifecycle governance reminder/check. Does not grant permissions or run work.', schema({ event: { type: 'object' } })],
   ['sage_forge_capture', 'Explicitly fetch configured Git platform evidence into an immutable local receipt. Remote content is untrusted; this does not grant acceptance or execution permission.', schema({ source: string, kind: { type: 'string', enum: ['issue', 'run'] }, id: { type: 'integer' }, expectedSha: string, workflowPath: string, requiredJobs: { type: 'array', items: string } }, ['source', 'kind', 'id'])],
-  ['sage_rsi_propose', 'Propose a candidate from actual feedback in configured targets.', schema({ hypothesis: string, feedback: { type: 'array' }, files: { type: 'array' } })],
-  ...['inspect', 'evaluate', 'recover', 'adopt', 'rollback', 'observe'].map(name => [`sage_rsi_${name}`, `Controlled RSI ${name}. Adopt/rollback require a separate human response through the host.`, schema()]),
+  ['sage_rsi_propose', proposalDescription + ' Default manual adoption requires a separate human response through the host.', proposalSchema],
+  ...Object.entries(rsiDescriptions).map(([name, description]) => [`sage_rsi_${name}`, description, schema()]),
 ];
 
 export async function readConfig(path) {
@@ -92,6 +114,12 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
   if (!Number.isInteger(deadlineMs) || deadlineMs < 100 || deadlineMs > 10000 || !Number.isInteger(maxContextBytes) || maxContextBytes < 1024 || maxContextBytes > 16384) fail('E_CONFIG', 'Invalid resource limits');
   const guarded = config.guardedTools ?? [];
   if (!Array.isArray(guarded) || guarded.length > 100 || guarded.some(n => typeof n !== 'string' || !/^[a-zA-Z0-9_.-]{1,160}$/.test(n) || n.includes('sage_'))) fail('E_CONFIG', 'Invalid guardedTools');
+  // Codex emits canonical hook names for direct and code-mode nested tools.
+  // Configuration may use the tool API names or the native matcher aliases.
+  const canonicalTool = name => config.host !== 'codex' ? name
+    : ['exec_command', 'shell_command', 'shell', 'Bash'].includes(name) ? 'Bash'
+    : ['apply_patch', 'Edit', 'Write'].includes(name) ? 'apply_patch' : name;
+  const guardedNames = new Set(guarded.map(canonicalTool));
   if (Boolean(config.rsiPlanPath) !== Boolean(config.rsiStatePath) || (config.rsiPlanPath && new Set([config.planPath, config.statePath, config.rsiPlanPath, config.rsiStatePath]).size !== 4)) fail('E_CONFIG', 'RSI paths must be paired and distinct');
   const automatic = config.rsiAutomaticPolicy != null;
   if (automatic && !config.rsiPlanPath) fail('E_CONFIG', 'Automatic RSI requires explicit RSI paths');
@@ -111,6 +139,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
   }) : undefined;
   let owner, latest, session;
   const automaticDescriptions = {
+    sage_rsi_propose: proposalDescription + ' Evaluation may adopt only under the configured preauthorized project policy; final acceptance remains human.',
     sage_rsi_evaluate: 'Run the fixed comparison; a proven improvement may be adopted within the preauthorized project branch, then checked and rolled back on failure. No per-candidate human approval.',
     sage_rsi_rollback: 'Restore this settled adopted round under its preauthorized policy; preserve third-party changes. This is not a human approval.',
     sage_rsi_observe: 'Explicitly rerun the fixed postcheck for the preauthorized adopted round and roll back on regression. No background loop.',
@@ -118,7 +147,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
   const tools = definitions.filter(([name]) => (rsi || !name.startsWith('sage_rsi_')) && (forge || name !== 'sage_forge_capture')
     && (automatic ? name !== 'sage_rsi_adopt' : name !== 'sage_rsi_observe'))
     .map(([name, description, inputSchema]) => ({ name, description: automatic && name.startsWith('sage_rsi_')
-      ? automaticDescriptions[name] ?? `Controlled RSI ${name.slice('sage_rsi_'.length)} within the explicitly preauthorized project branch; final acceptance remains human.` : description, inputSchema }));
+      ? automaticDescriptions[name] ?? description + ' The configured preauthorized project policy applies; final acceptance remains human.' : description, inputSchema }));
   async function refresh(signal, full = false) {
     const start = performance.now();
     const seen = full || !latest ? await controller.inspect({ signal }) : await controller.observe({ signal });
@@ -153,7 +182,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
     if (kind === 'PreToolUse' && (typeof event.tool_name !== 'string' || !event.tool_name || event.tool_name.length > 160)) fail('E_EVENT', 'PreToolUse requires tool_name');
     // Unselected tools have no filesystem checks. Selected tools perform bounded
     // input refresh, not historical evidence scans on every call.
-    if (kind === 'PreToolUse' && !guarded.includes(event.tool_name)) return {};
+    if (kind === 'PreToolUse' && !guardedNames.has(canonicalTool(event.tool_name))) return {};
     const value = await refresh(signal, kind !== 'PreToolUse');
     if (kind === 'PreToolUse') {
       if (!owner) return { hookSpecificOutput: { hookEventName: kind, permissionDecision: 'deny', permissionDecisionReason: `SAGE-Kit: ${value.action}; inspect governance and establish a fresh admitted attempt before effects.` } };
@@ -200,7 +229,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
       owner = undefined; latest = undefined;
       if (name === 'sage_hook') {
         const message = `SAGE-Kit governance unavailable: ${error.code ?? error.name}. Read authority explicitly; no permission is granted.`;
-        if (!args?.event?.hook_event_name || args.event.hook_event_name === 'PreToolUse') return { continue: false, systemMessage: message, hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: message } };
+        if (!args?.event?.hook_event_name || args.event.hook_event_name === 'PreToolUse') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: message } };
         return { continue: false, stopReason: message, systemMessage: message };
       }
       throw error;
