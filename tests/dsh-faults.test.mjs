@@ -67,8 +67,8 @@ function delayedRead(t, f, { delayMs, onRead }) {
       handle.read = async (...readArgs) => {
         stats.reads++;
         if (stats.reads === 1) {
-          onRead?.();
-          await delay(delayMs);
+          await onRead?.();
+          if (delayMs !== undefined) await delay(delayMs);
         }
         const value = await read(...readArgs);
         stats.completedReads++;
@@ -106,15 +106,39 @@ test('DSH deadline abort settles the pending read and never scans later blocks o
   await f.put('docs/authority.md', 'x'.repeat(1024 * 1024));
   await f.put('docs/later.md', 'This file must never be opened after the deadline.');
   const agent = await f.runtime.createAgent();
-  const stats = delayedRead(t, f, { delayMs: 220 });
+  // Synchronize this fault at the intended boundary. CI can spend the entire
+  // 100ms budget opening earlier files, which would test an earlier abort instead.
+  // Only the clock's start is controlled: the real native timeout/reason and the
+  // product's AbortSignal.any cancellation/settlement path remain in use.
+  const nativeTimeout = AbortSignal.timeout.bind(AbortSignal);
+  const pendingDeadline = new AbortController(), requested = [];
+  const timeout = t.mock.method(AbortSignal, 'timeout', ms => {
+    if (ms !== 100) return nativeTimeout(ms);
+    requested.push(ms);
+    return pendingDeadline.signal;
+  });
+  t.after(() => timeout.mock.restore());
+  let timeoutReason;
+  const stats = delayedRead(t, f, { onRead: async () => {
+    assert.deepEqual(requested, [100], 'the plugin must request its configured deadline');
+    assert.equal(pendingDeadline.signal.aborted, false, 'the read must begin before cancellation');
+    const deadline = nativeTimeout(100);
+    await new Promise(resolve => deadline.addEventListener('abort', () => {
+      timeoutReason = deadline.reason;
+      pendingDeadline.abort(timeoutReason);
+      resolve();
+    }, { once: true }));
+  } });
   const run = await f.runtime.run(agent, [begin(), call('fixture_write')]);
   await noExecution(f, run);
+  assert.deepEqual(requested, [100]);
+  assert.equal(timeoutReason?.name, 'TimeoutError', 'use the actual native deadline reason');
   assert.equal(stats.reads, 1, 'deadline must stop before a second 64 KiB chunk');
   assert.equal(stats.completedReads, 1);
   assert.equal(stats.closes, 1, 'turn must settle the pending reader, not leave a Promise.race loser');
   assert.equal(stats.opened.includes(join(f.root, 'docs/later.md')), false);
   assert.equal(stats.opened.includes(join(f.root, 'state/progress.json')), false);
-  assert.ok(run.diagnostics.some(event => event.operation === 'pre-step-error'));
+  assert.ok(run.diagnostics.some(event => event.operation === 'pre-step-error' && event.code === timeoutReason.code));
   assert.equal(run.diagnostics.some(event => event.operation === 'inspect' && event.io), false);
   const snapshot = JSON.stringify(stats);
   await delay(40);

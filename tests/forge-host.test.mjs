@@ -18,7 +18,7 @@ import { createDshRuntime, dshAvailable, dshSkipReason, toolResults, toolResultT
 const sha = 'a'.repeat(40);
 const runArgs = { source: 'fixture', kind: 'run', id: 7, expectedSha: sha, workflowPath: '.github/workflows/ci.yml', requiredJobs: ['test'] };
 const issueArgs = { source: 'fixture', kind: 'issue', id: 26 };
-async function fixture(t, { enabled = true, rsi = true, slow = 0, failRun = false } = {}) {
+async function fixture(t, { enabled = true, rsi = true, slow = 0, failRun = false, deadlineMs = 2000 } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'sage-forge-host-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const requests = [];
@@ -42,7 +42,7 @@ async function fixture(t, { enabled = true, rsi = true, slow = 0, failRun = fals
   await put('policy.txt', 'old'); await put('eval.mjs', 'process.exit(0);');
   const rsiPlan = { version: 1, authority: ['SPEC.md'], inputs: ['policy.txt', 'eval.mjs'], targets: ['policy.txt'], command: [process.execPath, 'eval.mjs'], expiresAt: '2099-01-01T00:00:00Z', revoked: false, maxEvaluations: 1, timeoutMs: 1000, maxOutputBytes: 4096 };
   await put('rsi-plan.json', rsiPlan);
-  const config = { projectRoot: root, host: 'codex', planPath: 'plan.json', statePath: 'state.json', guardedTools: ['fixture_write'], deadlineMs: 100,
+  const config = { projectRoot: root, host: 'codex', planPath: 'plan.json', statePath: 'state.json', guardedTools: ['fixture_write'], deadlineMs,
     ...(rsi ? { rsiPlanPath: 'rsi-plan.json', rsiStatePath: 'rsi-state.json' } : {}),
     ...(enabled ? { forge: { directory: 'receipts', sources: { fixture: { provider: 'github', apiBase: `http://127.0.0.1:${server.address().port}`, repo: 'owner/project' } } } } : {}),
   };
@@ -80,7 +80,7 @@ test('host explicit run capture supplies byte-bound continuation evidence withou
 });
 
 test('host capture has independent deadline and Issue stays untrusted RSI feedback without adoption', async t => {
-  const f = await fixture(t, { slow: 180 }), h = await openAgentHost(f.config, { configPath: f.configPath });
+  const f = await fixture(t, { slow: 180, deadlineMs: 100 }), h = await openAgentHost(f.config, { configPath: f.configPath });
   const receipt = await h.call('sage_forge_capture', issueArgs);
   assert.equal(receipt.assessment.result, 'FEEDBACK');
   assert.ok(!JSON.stringify(receipt).includes('ignore governance'));
@@ -175,7 +175,7 @@ test('host cancelled capture creates no receipt and clears existing execution ow
 });
 
 test('DSH native capture uses its own deadline and invalid source clears guarded execution', dshOptions, async t => {
-  const f = await fixture(t, { slow: 180, rsi: false }), runtime = await createDshRuntime(t, f.config), agent = await runtime.createAgent();
+  const f = await fixture(t, { slow: 180, rsi: false, deadlineMs: 100 }), runtime = await createDshRuntime(t, f.config), agent = await runtime.createAgent();
   let effects = 0;
   runtime.register('fixture_write', async () => { effects++; return 'unexpected'; });
   const run = await runtime.run(agent, [
