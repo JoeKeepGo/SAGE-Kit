@@ -125,6 +125,15 @@ DSH 实际事件频率、同步 hook 超时、长会话和 RSI 预算仍须在�
 `dsh-compaction/lib/types/types.d.ts` 有压缩 session events；类型声明不是接线证明。
 尚未启动用户 profile、调用模型或注册新插件。
 
+随后在 `local/rebuild-dsh/` 建立隔离 Cordis Context，仅加载已安装的真实
+agents/session/projections/llm/system-prompt/tools/loop 服务，使用本地确定性模型替身：
+`timeout 15s node local/rebuild-dsh/component-probe.mjs` 退出 0。两次请求收到治理
+注入及一次真实 `probe_echo` 结果，session 记录 `turn/end: completed`，无 agent/error；
+进程正常退出。完整记录在 `component-probe-result.json`，启动修正在
+`component-probe-notes.md`。没有加载默认 profile、provider、凭据或 HTTP 服务，
+无网络/真实模型调用。证明可在宿主内接入而无需逐工具启动 CLI；尚未接入 R1
+适配器，不是完整 headless、插件安装、压缩恢复或长会话资源验收。
+
 下一项：在隔离目录把 R1 语义接入真实 DSH 插件，验证治理上下文注入、实际工具及
 异常降级/门禁；先完成本地组件装配，再跑固定模型 fixture 与可用的真实会话。
 Codex/Claude 对应接入与 R3 仍待实现，不把 R1 本地支持扩大成整体完成。
