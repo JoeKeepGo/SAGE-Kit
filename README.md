@@ -22,6 +22,9 @@ after the contract and diagnostic scope reminder were repaired. R8 also fixes
 the observed Codex shell/patch Hook gaps. Universal tool coverage and long-term
 semi-autonomous reliability remain unverified. See
 [verification and limits](#verification-and-limits).
+This checkout also prepares an **unreleased 0.3.0-alpha.2 adapter candidate** for
+DSH rc.3 compatibility and local installation. It does not enable native Windows
+RSI or replace the alpha.1 artifact used by the recorded real-model trial.
 For delivery and upgrade instructions, see [releases](docs/RELEASE.md) and
 [migration](docs/MIGRATION_MODEL_NATIVE.md). The earlier `v0.2.0-alpha.1` release
 contains the archived runtime architecture, not this rebuild.

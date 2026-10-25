@@ -773,3 +773,54 @@ Git 源码；公开摘要不替代原记录。
 **71 PASS、0 FAIL、2 个未配置原生 Codex/Claude 的 SKIP**；实际 DSH profile 安装
 场景通过。证据为 `local/rebuild-r8/ci-correction/`。这次测试修正不改变已完成联合
 试验的输入或工件，后续提交仍须通过实际主线与标签 CI。
+
+R8 后续发布已完成：`721810e` 的[主线 CI](https://github.com/JoeKeepGo/SAGE-Kit/actions/runs/40224021797)
+与[标签 CI](https://github.com/JoeKeepGo/SAGE-Kit/actions/runs/40224181861)各五项通过，
+`v0.3.0-alpha.1` 为 prerelease。发布页下载包与固定 `a49ae858…5726` 工件相同，
+GitHub 标签源码的 167 个文件完成校验；稳定版 latest 仍为 `v2026.8.13.1`。
+核验记录为 `local/rebuild-r8/publication-verification.json`。
+
+## 本机安装与 rc.3 兼容候选（2026-10-26，R-011）
+
+用户要求安装 Windows DSH 与当前 Codex/Work，并禁止重启 ChatGPT。Codex 已有
+完整原治理 Skill，25 文件按 manifest 的规范行尾核对一致，未覆盖。发布版
+alpha.1 适配器已离线安装到用户版本化目录，12 个文件与发布包一致；已注册禁用的
+`sage` MCP，保留全部原配置。占位计划已撤销、零准入，未添加全局 Hook。
+桌面原有执行环境为 WSL，具体项目与 RSI 政策尚未选择，不准入产品任务。
+
+从新安装路径运行的实际 Codex WSL Hook 检查 **2/2 PASS**，覆盖有效任务链和
+未 begin 的实际命令拒绝。另以 Windows Node 24.22.0 启动实际 MCP，完成固定
+文件检查与证据提交，停在 `human_gate` 并正常退出；此项的 Hook 事件由控制者
+注入，不代表 Windows Codex 桌面 Hook 端到端或真实模型开发。证据位于
+`local/windows-install/codex/`。
+
+Windows DSH 实际为 `0.2.1-rc.3` / Node 24.21.0，宿主明确拒绝 alpha.1 声明的
+rc.2 范围。保留该失败与原工件后，用户授权兼容修订。候选 **0.3.0-alpha.2**
+只改包版本、DSH/两项 peer 的明确版本并集 `0.2.1-rc.2 || 0.2.1-rc.3` 和适配说明，
+没有改执行代码、审批、评估或 Windows RSI 拒绝。新包 SHA-256：
+`4ffe2d933f92161c3f87df9199555ceb7719f5baed0a348aaf1caf31e743cf28`。
+
+新包在真实 Windows rc.3 隔离 profile 的 schema 加载完整，确定性本地模型流程
+产生十次请求：未 begin 拒绝、fresh begin 后真实写入、缺证据 finish 拒绝、正确
+证据后停在 `human_gate`，Windows RSI 仍明确 `E_PLATFORM_UNSUPPORTED`，进程
+正常退出。首轮测试看门狗未释放导致退出 124 的夹具错误保留；修正测试看门狗后
+重验通过，未修改产品来通过。更早的跨 WSL Electron 环境探针没有运行预期脚本，
+其 GUI 缓存错误也保留，不计为验证；后续使用 Windows 侧明确的 Node 模式。
+
+同一新包在原 Linux rc.2 的 DSH 整组回归 **71 PASS、0 FAIL、2 个未配置的原生
+Codex/Claude SKIP**，实际 DSH profile 与包身份场景均运行。结果与环境绑定在
+`local/windows-install/linux-rc2/result.json`。Windows rc.3 与此结果不推导新包
+已通过真实模型联合试验，也不扩大长期/跨宿主验收范围。
+
+Windows DSH 已安装原始治理 Skill 25 文件及新包 12 文件；desktop 通过本地
+`link:` 依赖、对应锁记录和 bundle selector 注册，新插件保持 disabled、无项目
+映射。修改前的 package/lock 已备份，移除新增条目后与原结构一致，原插件配置
+字节保持。实际宿主只读解析得到 32 bundles、零 skipped，不启动原桌面服务。
+安装与验证未停止或重启已有 ChatGPT/DSH，也未更改默认模型或其他任务授权。
+
+记录为 `local/windows-install/dsh/alpha2/` 的 `report.md`、
+`desktop-registration.json`、`desktop-final-parse.json`；初始 rc.2 包拒绝证据留在
+上级目录。治理核心与原版保持一致，仓库完整性检查通过。兼容候选只在本机安装，
+尚未推送或发布；本次安装就绪不等于所有现有对话已热加载 Hook/RSI。
+本次受影响范围的独立最终评审通过，无阻塞发现；配置保留、固定工件、实际结果
+归属和进程未重启均已复核，记录为 `local/windows-install/review.json`。

@@ -8,9 +8,13 @@ Claude own one optional stdio MCP process per connection, plus a startup-only
 reminder helper. Explicit RSI tools can run fixed evaluation commands; governance
 hooks never run those commands. The package keeps its original DSH package name.
 
-The package is a private, locally installable `0.3.0-alpha.1` preview. Its tgz
-may be distributed with a GitHub prerelease; it is not published to npm. The
-governance Skill keeps its independent `v2026.8.13.1` component identity.
+This `0.3.0-alpha.2` package is a local compatibility candidate for DSH
+`0.2.1-rc.2` and `0.2.1-rc.3`; it is not a published release or npm package.
+The published `0.3.0-alpha.1` artifact is unchanged. The governance Skill keeps
+its independent `v2026.8.13.1` component identity. Windows governance/profile
+compatibility does not enable RSI evaluation: its command runner still rejects
+Windows with `E_PLATFORM_UNSUPPORTED`. Keep the profile entry disabled until
+a specific project root, admitted plan and state mapping have been selected.
 For a first local project, the source checkout includes
 `examples/rebuild/minimal/README.md`: a specification, expiring bounded plan,
 host mapping, actual file check and evidence-to-human-gate walkthrough. Copy it

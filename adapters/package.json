@@ -1,6 +1,6 @@
 {
   "name": "@sage-kit/dsh-plugin",
-  "version": "0.3.0-alpha.1",
+  "version": "0.3.0-alpha.2",
   "private": true,
   "description": "Optional governance, manual or preauthorized RSI, and explicit forge evidence adapters",
   "type": "module",
@@ -31,11 +31,11 @@
   ],
   "engines": {
     "node": ">=22",
-    "dsh": "0.2.1-rc.2"
+    "dsh": "0.2.1-rc.2 || 0.2.1-rc.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2 || 0.2.1-rc.3",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.1-rc.3",
     "@deepseek-ai/schemastery": "3.18.5"
   },
   "license": "MIT",
