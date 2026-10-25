@@ -70,15 +70,18 @@ dsh --profile sage-kit --json "<prompt>"
 | 键 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `projectRoot` | string（可选） | 自动发现 | SAGE-Kit 项目根绝对路径。设置时会校验 `<root>/.sage-kit/config.json` 存在；相对路径会被拒绝（报可读错误），不做隐式 cwd 解析。不设置时从 DSH 会话工作目录向上找最近的已初始化项目。 |
-| `autoBrief` | boolean | `true` | 是否在 `agent/pre-step` 自动注入 brief。 |
+| `mode` | string | `brief` | `off`：不注入、不 gate；`brief`：只注入 brief；`strict`：注入 brief，并对带 `rsiProposalId` 的活跃任务检查 M3 审批门禁，未通过则 reject 该轮。 |
+| `autoBrief` | boolean | `true` | 已弃用兼容键：仅当 `mode` 未设置时生效；显式 `mode` 优先。 |
 | `maxBriefBytes` | number | `2048` | 自动注入 brief 的字节上限，自动收敛到 256–8192。 |
+
+`strict` 门禁是**只读**检查：提案必须为 `approved`，且其 `evaluationId` 指向 `outcome: "passed"` 的评估、`approvalId` 指向 `decision: "approved"` 的人工批准记录；普通任务（无 `rsiProposalId`）不受影响。门禁失败只拒绝当前轮，不修改任务或提案。
 
 在 profile 的 `cordis.patch.yml`（或 home/profile 层）覆盖该条目即可改配置，示例：
 
 ```yaml
 - id: sage-kit-dsh
   config:
-    autoBrief: true
+    mode: strict
     maxBriefBytes: 4096
     projectRoot: /absolute/path/to/project
 ```
@@ -91,7 +94,7 @@ dsh --profile sage-kit --json "<prompt>"
 
 | 工具 | 参数 | 行为 |
 |---|---|---|
-| `sage_task_create` | `title`（必填）、`description`（可选）、`acceptance`（string[]，可选） | 在 `.sage-kit/state/tasks/` 创建任务；失败返回工具错误。 |
+| `sage_task_create` | `title`（必填）、`description`（可选）、`acceptance`（string[]，可选）、`rsiProposalId`（可选） | 在 `.sage-kit/state/tasks/` 创建任务；`rsiProposalId` 标记该任务受 M3 审批门禁约束（`strict` 模式生效）。失败返回工具错误。 |
 | `sage_task_list` | `status`（可选，枚举 `TASK_STATUSES`） | 列出任务；可按状态过滤。 |
 | `sage_task_show` | `id`（必填） | 读取单个任务 JSON。 |
 | `sage_task_status` | `id`、`status`（必填）、`evidence`（string[]，可选）、`note`（可选） | 走核心状态机转换；`done` 需要至少一条 `evidence`（由核心校验），记录 `source: "dsh-plugin"`。 |
@@ -101,13 +104,14 @@ dsh --profile sage-kit --json "<prompt>"
 
 ## 5. 自动 brief 行为
 
-- **触发**：DSH `agent/pre-step` 事件（waterfall）。插件先调用 `next()` 取得决策；`reject` 决策不注入。
+- **触发**：DSH `agent/pre-step` 事件（waterfall）。`strict` 先检查门禁，再调用 `next()` 取得决策；`reject` 决策不注入。
 - **项目发现**：优先 `projectRoot` 配置；否则从 DSH 会话工作目录（无会话工作目录时用进程 cwd）向上找最近包含 `.sage-kit/config.json` 的目录。
 - **未初始化**：找不到 `.sage-kit/config.json` 时**不注入**，不影响普通项目里的 DSH 使用。
 - **内容**：调用核心 `buildBrief()`，与 `sage-kit brief`/宿主 hook 的 `session.start` 使用同一 brief 生成器（含当前任务、验收、证据、可选最新反馈标记）；受 `maxBriefBytes` 限制。
 - **注入形式**：一条 user 消息，内容为 `<sage-kit-brief>\n...\n</sage-kit-brief>`，消息 `source` 为 `{ kind: "sage-kit" }`（省略 `form`，即 DSH 文档化的“未声明上下文”默认态；此前非法 `form:"brief"` 的 F-1 已修复）；插入到最后一个“已被消费”的消息之后（尽量贴近当前步）。
 - **去重**：按 session 缓存 brief 文本的 sha256；同一 session 内容不变不重复注入；任务/证据变化导致 brief 变化时重新注入。
-- **失败降级（fail-open）**：构建或注入抛异常时只记录 `logger.warn`，返回原决策，不阻断 turn；不写失败事件/状态。
+- **失败降级（fail-open）**：brief 构建或注入抛异常时只记录 `logger.warn`，返回原决策；`strict` 下项目解析失败（含 linked worktree 的 Git 元数据读取失败）、任务读取失败或门禁失败则拒绝当前轮。不写失败事件/状态。
+- **时限**：插件任务读取、门禁检查和 brief 构建共享 2 秒预算；`brief` 超时跳过注入，`strict` 超时拒绝当前轮。预算不负责中止下游 `next()` 或同步阻塞调用；已发起的只读操作可能稍后完成，但不再注入消息。
 - **边界**：不联网、不调用模型；brief 中可能包含任务 worktree 绝对路径，但核心 brief 不含 token/密钥；反馈内容按不可信数据展示。
 
 ## 6. 状态、安全与不做什么
@@ -144,7 +148,7 @@ dsh --profile sage-kit --json "<prompt>"
 | 故障降级：损坏 `config.json`、brief 构建抛错时的 `logger.warn` 路径 | `NOT_EXECUTED`（E2E 报告 §已知边界 3） |
 | 工具边界：无 evidence 标记 done、非法 id、schema 边界 | 部分（仅验证 status enum 一例）；其余 `NOT_EXECUTED` |
 | 多会话并发去重 | `NOT_EXECUTED`（仅单 session 验证） |
-| 插件逻辑的仓库内自动化测试（lib/clamp/discoverRoot/manifest） | 已新增 `tests/plugin.test.mjs`（11 项，含 standard/separate-git-dir/submodule linked worktree 与过期注册表）；工具/注入行为仍由 fake-ctx 与 E2E 覆盖，未做完整 fake-ctx 单测（评审 F-9 部分） |
+| 插件逻辑的仓库内自动化测试（lib/clamp/discoverRoot/manifest/生命周期） | `tests/plugin.test.mjs` 共 16 项，覆盖 lib/manifest、linked worktree/过期注册表，以及模拟宿主生命周期中的 Git 元数据失败、strict 审批与 2 秒时限；当前修复的真实 DSH strict E2E 仍为 `NOT_EXECUTED` |
 | 注入消息 `source.form` 的 DSH 契约合法性 | 已修复（F-1）：省略 `form`，只保留 `source.kind`，符合 DSH 的未声明上下文默认态 |
 | 长会话 compaction 后 brief 重注入 | 未覆盖；当前按 session+内容指纹去重，compaction 丢上下文后同样内容可能不再注入（评审 F-13） |
 | 插件 README 相对链接（`../../docs`、`../../reports`） | 仅在仓库内有效；npm tarball 内这些链接失效（评审 F-14，Info） |

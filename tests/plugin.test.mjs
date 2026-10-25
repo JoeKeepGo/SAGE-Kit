@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,8 @@ import {
   clampBriefBytes,
   configuredRoot,
   discoverRoot,
+  isRsiGateRequired,
+  normalizeMode,
 } from "../packages/dsh-plugin/lib.js";
 import { findProjectRoot } from "../dist/core/paths.js";
 import { initSageKit } from "../dist/core/install.js";
@@ -25,6 +28,21 @@ test("plugin lib clamps brief bytes to the documented range", () => {
   assert.equal(clampBriefBytes(999999), MAX_BRIEF_BYTES);
   assert.equal(clampBriefBytes(12.9), MIN_BRIEF_BYTES);
   assert.equal(clampBriefBytes(Number.NaN), 2048);
+});
+
+test("plugin modes: off/brief/strict, legacy autoBrief and strict RSI marking", () => {
+  assert.equal(normalizeMode(undefined), "brief");
+  assert.equal(normalizeMode(undefined, false), "off");
+  assert.equal(normalizeMode("off"), "off");
+  assert.equal(normalizeMode("brief"), "brief");
+  assert.equal(normalizeMode("strict"), "strict");
+  assert.equal(normalizeMode("unknown"), "brief");
+  assert.equal(normalizeMode("strict", false), "strict");
+
+  assert.equal(isRsiGateRequired("strict", { rsiProposalId: "prop-1" }), true);
+  assert.equal(isRsiGateRequired("strict", {}), false);
+  assert.equal(isRsiGateRequired("brief", { rsiProposalId: "prop-1" }), false);
+  assert.equal(isRsiGateRequired("off", { rsiProposalId: "prop-1" }), false);
 });
 
 test("plugin lib discovers an initialized project from a descendant", async () => {
@@ -271,4 +289,174 @@ test("plugin source does not declare an undeclared DSH message form", async () =
   const source = await readFile(join(plugin, "index.js"), "utf8");
   assert.doesNotMatch(source, /form:\s*["']brief["']/);
   assert.match(source, /source:\s*\{\s*kind:\s*["']sage-kit["']\s*\}/);
+});
+
+test("plugin config leaves mode out of the bundle patch so legacy autoBrief still works", async () => {
+  const patch = await readFile(join(plugin, "cordis.patch.yml"), "utf8");
+  assert.doesNotMatch(patch, /^\s*mode\s*:/m);
+  assert.match(patch, /autoBrief:\s*true/);
+  const source = await readFile(join(plugin, "index.js"), "utf8");
+  assert.match(source, /sage\.checkRsiGate/);
+  assert.match(source, /sage\.listTasksStrict/);
+  assert.match(source, /kind:\s*["']reject["']/);
+});
+
+// Exercise the native callback with only host imports and core reads mocked.
+const moduleUrl = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
+const sageMockUrl = moduleUrl(`
+  export const TASK_STATUSES = [];
+  export const statePaths = root => ({ root });
+  export let listTasksStrict, checkRsiGate, buildBrief;
+  export function setReads(reads) { ({ listTasksStrict, checkRsiGate, buildBrief } = reads); }
+`);
+const hostModules = {
+  "@deepseek-ai/dsh-tools": moduleUrl("export const defineTool = value => value;"),
+  "@deepseek-ai/dsh-llm": moduleUrl("export const createUserMessage = value => value;"),
+  "@deepseek-ai/schemastery": moduleUrl(`
+    const field = { description() { return this; }, default() { return this; } };
+    export default { object: () => field, string: () => field, boolean: () => field, number: () => field };
+  `),
+  "sage-kit": sageMockUrl,
+};
+const loader = registerHooks({
+  resolve(specifier, context, next) {
+    return Object.hasOwn(hostModules, specifier)
+      ? { url: hostModules[specifier], shortCircuit: true }
+      : next(specifier, context);
+  },
+});
+const { apply } = await import("../packages/dsh-plugin/index.js");
+const { setReads } = await import(sageMockUrl);
+loader.deregister();
+
+function preStepFixture(mode, directory, reads = {}) {
+  setReads({
+    listTasksStrict: async () => [],
+    checkRsiGate: async () => ({ ok: true }),
+    buildBrief: async () => ({ text: "current task" }),
+    ...reads,
+  });
+  let callback;
+  const warnings = [];
+  apply({
+    tools: { register() {} },
+    workingDirectory: { get: () => directory },
+    logger: { warn: (message) => warnings.push(message) },
+    on(event, handler) {
+      assert.equal(event, "agent/pre-step");
+      callback = handler;
+    },
+  }, { mode });
+  const decision = { kind: "continue", messages: [] };
+  let nextCalls = 0;
+  return {
+    warnings,
+    decision,
+    nextCalls: () => nextCalls,
+    run: () => callback({ agent: { session: {} }, messages: [] }, async () => {
+      nextCalls++;
+      return decision;
+    }),
+  };
+}
+
+test("R08: strict pre-step rejects linked-worktree metadata read failure", async () => {
+  const temp = await mkdtemp(join(tmpdir(), "sage-plugin-metadata-"));
+  try {
+    const project = join(temp, "main");
+    const linked = join(temp, "linked");
+    const gitDir = join(project, ".git", "worktrees", "linked");
+    await mkdir(join(project, ".sage-kit"), { recursive: true });
+    await writeFile(join(project, ".sage-kit", "config.json"), "{}");
+    await mkdir(linked);
+    await writeFile(join(linked, ".git"), `gitdir: ${gitDir}\n`);
+    // Reading a directory as the commondir file fails on Windows and Linux.
+    await mkdir(join(gitDir, "commondir"), { recursive: true });
+    const strict = preStepFixture("strict", linked);
+    assert.deepEqual(await strict.run(), { kind: "reject" });
+    assert.equal(strict.nextCalls(), 0);
+    assert.match(strict.warnings[0], /could not resolve project/);
+    const brief = preStepFixture("brief", linked);
+    assert.equal(await brief.run(), brief.decision);
+    assert.equal(brief.nextCalls(), 1);
+
+    // A separate metadata directory has no .git path fallback to the main
+    // project; a failed registry read must not make strict treat it as plain Git.
+    const separate = join(temp, "linked-separate");
+    const metadata = join(temp, "metadata");
+    const separateGit = join(metadata, "worktrees", "linked");
+    await mkdir(separate);
+    await mkdir(separateGit, { recursive: true });
+    await writeFile(join(separate, ".git"), "gitdir: " + separateGit + "\n");
+    await writeFile(join(separateGit, "commondir"), "../..\n");
+    await mkdir(join(metadata, "sage-kit-project.json"));
+    const registryFailure = preStepFixture("strict", separate);
+    assert.deepEqual(await registryFailure.run(), { kind: "reject" });
+    assert.equal(registryFailure.nextCalls(), 0);
+    assert.match(registryFailure.warnings[0], /could not resolve project/);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test("native strict pre-step executes gates and injects only after approval", async () => {
+  const temp = await mkdtemp(join(tmpdir(), "sage-plugin-gate-"));
+  try {
+    await mkdir(join(temp, ".sage-kit"));
+    await writeFile(join(temp, ".sage-kit", "config.json"), "{}");
+    const tasks = async () => [{ id: "task-a", status: "ready", rsiProposalId: "prop-a" }];
+    const rejected = preStepFixture("strict", temp, {
+      listTasksStrict: tasks,
+      checkRsiGate: async () => ({ ok: false, reason: "not approved" }),
+    });
+    assert.deepEqual(await rejected.run(), { kind: "reject" });
+    assert.equal(rejected.nextCalls(), 0);
+    const approved = preStepFixture("strict", temp, { listTasksStrict: tasks });
+    const result = await approved.run();
+    assert.equal(result.kind, "continue");
+    assert.equal(result.messages.length, 1);
+    assert.deepEqual(result.messages[0].source, { kind: "sage-kit" });
+    assert.equal(approved.nextCalls(), 1);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test("R14: native pre-step bounds pending task, gate, and brief reads", { timeout: 15_000 }, async () => {
+  const temp = await mkdtemp(join(tmpdir(), "sage-plugin-deadline-"));
+  try {
+    await mkdir(join(temp, ".sage-kit"));
+    await writeFile(join(temp, ".sage-kit", "config.json"), "{}");
+    for (const [mode, stage] of [["strict", "tasks"], ["strict", "gate"], ["strict", "brief"], ["brief", "brief"], ["strict", "combined"]]) {
+      let finishRead;
+      const pending = new Promise((resolve) => { finishRead = resolve; });
+      let briefCalls = 0;
+      const fixture = preStepFixture(mode, temp, {
+        listTasksStrict: async () => {
+          if (stage === "tasks") return pending;
+          if (stage === "combined") await new Promise((resolve) => setTimeout(resolve, 1200));
+          return [{ id: "task-a", status: "ready", rsiProposalId: "prop-a" }];
+        },
+        checkRsiGate: () => stage === "gate" || stage === "combined" ? pending : Promise.resolve({ ok: true }),
+        buildBrief: () => {
+          briefCalls++;
+          return stage === "brief" ? pending : Promise.resolve({ text: "task" });
+        },
+      });
+      const started = performance.now();
+      const result = await fixture.run();
+      const elapsed = performance.now() - started;
+      assert.ok(elapsed >= 1_900 && elapsed < 4_000, `${mode}/${stage}: ${elapsed} ms`);
+      assert.equal(result.kind, mode === "strict" ? "reject" : "continue");
+      assert.equal(fixture.nextCalls(), stage === "brief" ? 1 : 0);
+      assert.equal(briefCalls, stage === "brief" ? 1 : 0);
+      assert.match(fixture.warnings[0], /deadline exceeded/);
+      finishRead(stage === "tasks" ? [] : stage === "brief" ? { text: "late" } : { ok: true });
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(briefCalls, stage === "brief" ? 1 : 0, "timed-out checks must not continue to brief");
+      assert.equal(fixture.decision.messages.length, 0, "late reads must not inject messages");
+    }
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
 });

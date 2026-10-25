@@ -172,7 +172,7 @@ P0 当前把证据保存在 `reports/p0/` 的 Markdown 报告、原始日志和 
 
 ```bash
 npm ci
-npm test              # 构建 + 131 项全量测试（其中 30 项 P0 = P0 CLI 24 + 库 API 6；无网络）
+npm test              # 构建 + 全量测试；本次副本 206 项：205 通过、0 失败、1 跳过
 ```
 
 `test:p0` / `test:security` 是后续拆分目标，当前不存在；不要按不存在的命令写验收记录。

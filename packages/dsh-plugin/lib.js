@@ -10,6 +10,26 @@ const PROJECT_REGISTRY = "sage-kit-project.json";
 export const DEFAULT_BRIEF_BYTES = 2048;
 export const MIN_BRIEF_BYTES = 256;
 export const MAX_BRIEF_BYTES = 8192;
+export const PLUGIN_MODES = ["off", "brief", "strict"];
+
+/**
+ * Resolve the plugin mode. `autoBrief:false` is kept for old profiles and is
+ * only consulted when `mode` is absent; an explicit mode always wins.
+ */
+export function normalizeMode(value, autoBrief = true) {
+  if (value === "off" || value === "brief" || value === "strict") return value;
+  if (value === undefined || value === null || value === "") {
+    return autoBrief === false ? "off" : "brief";
+  }
+  // Unknown values must not silently disable the brief; default to the safe
+  // read-only mode and leave any enforcement to the explicit strict mode.
+  return "brief";
+}
+
+/** Strict mode checks only tasks explicitly linked to an RSI proposal. */
+export function isRsiGateRequired(mode, task) {
+  return mode === "strict" && typeof task?.rsiProposalId === "string" && task.rsiProposalId.length > 0;
+}
 
 export function clampBriefBytes(value) {
   const n = Number.isFinite(value) ? Number(value) : DEFAULT_BRIEF_BYTES;
@@ -42,10 +62,12 @@ export function configuredRoot(value, cwd = process.cwd()) {
  */
 function commonGitDir(gitDir) {
   const commonFile = join(gitDir, "commondir");
-  if (existsSync(commonFile)) {
+  try {
     return resolve(gitDir, readFileSync(commonFile, "utf8").trim());
+  } catch (error) {
+    if (error.code === "ENOENT") return gitDir;
+    throw error;
   }
-  return gitDir;
 }
 
 function commonDirForRoot(root) {
@@ -57,8 +79,9 @@ function commonDirForRoot(root) {
     const match = /^gitdir:\s*(.+)$/im.exec(readFileSync(gitPath, "utf8").trim());
     if (!match) return undefined;
     return commonGitDir(resolve(root, match[1].trim()));
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
   }
 }
 
@@ -67,8 +90,9 @@ function samePath(a, b) {
     const left = realpathSync(a);
     const right = realpathSync(b);
     return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
   }
 }
 
@@ -81,41 +105,38 @@ function readProjectRegistry(common) {
     const candidateCommon = commonDirForRoot(candidate);
     if (!candidateCommon || !samePath(common, candidateCommon)) return undefined;
     return candidate;
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
   }
 }
 
 function gitProjectRoot(current) {
-  try {
-    const gitPath = join(current, ".git");
-    if (!lstatSync(gitPath).isFile()) return current;
-    const match = /^gitdir:\s*(.+)$/im.exec(readFileSync(gitPath, "utf8").trim());
-    if (!match) return current;
-    const gitDir = resolve(current, match[1].trim());
-    const common = commonGitDir(gitDir);
-    const registered = readProjectRegistry(common);
-    if (registered) return registered;
-    if (basename(common).toLowerCase() === ".git") {
-      // A normal linked worktree's common dir is the main worktree's `.git`.
-      // A separate git dir can also be named `.git`; only accept its parent
-      // when the parent owns the same common dir.
-      const candidate = dirname(common);
-      const candidateCommon = commonDirForRoot(candidate);
-      if (
-        candidateCommon &&
-        existsSync(join(candidate, ".sage-kit", "config.json")) &&
-        samePath(common, candidateCommon)
-      ) {
-        return candidate;
-      }
+  const gitPath = join(current, ".git");
+  if (!lstatSync(gitPath).isFile()) return current;
+  const match = /^gitdir:\s*(.+)$/im.exec(readFileSync(gitPath, "utf8").trim());
+  if (!match) return current;
+  const gitDir = resolve(current, match[1].trim());
+  const common = commonGitDir(gitDir);
+  const registered = readProjectRegistry(common);
+  if (registered) return registered;
+  if (basename(common).toLowerCase() === ".git") {
+    // A normal linked worktree's common dir is the main worktree's `.git`.
+    // A separate git dir can also be named `.git`; only accept its parent
+    // when the parent owns the same common dir.
+    const candidate = dirname(common);
+    const candidateCommon = commonDirForRoot(candidate);
+    if (
+      candidateCommon &&
+      existsSync(join(candidate, ".sage-kit", "config.json")) &&
+      samePath(common, candidateCommon)
+    ) {
+      return candidate;
     }
-    const worktree = /^(.*)[/\\]\.git[/\\]worktrees[/\\][^/\\]+$/i.exec(gitDir);
-    if (worktree && existsSync(join(worktree[1], ".sage-kit", "config.json"))) return worktree[1];
-    return current;
-  } catch {
-    return current;
   }
+  const worktree = /^(.*)[/\\]\.git[/\\]worktrees[/\\][^/\\]+$/i.exec(gitDir);
+  if (worktree && existsSync(join(worktree[1], ".sage-kit", "config.json"))) return worktree[1];
+  return current;
 }
 
 /**

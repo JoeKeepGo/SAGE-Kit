@@ -4,7 +4,7 @@
 
 本文只描述 `src/rsi/**` 这一个可选层。它不改变 P0 文件模式，不写 `.sage-kit/state/` 以外的业务状态，不新增依赖、不联网、不调用模型、不 fetch。设计基线：`docs/feedback-and-rsi.md` §5–§9/§12、`docs/decisions.md` D-011（RSI 最高 L2、人工批准）、D-012（Builder/Evaluator 分离、评估资产受保护）、D-017（日志/状态脱敏）、D-018（不得把设计写成已实现）、D-005（单一权威写入源）。
 
-验证环境与证据（2026-10-24，Windows，Node v24.22.0，git 可用，`npm run build` 通过）：
+历史模块验证环境为 2026-10-24 Windows Node v24.22.0；本次修复全量结果来自 2026-10-26 同 Node 版本的工作树；下列计数分别注明历史模块与本次全量范围。
 
 ```text
 # 类型检查
@@ -15,9 +15,10 @@ node --test tests/rsi.test.mjs
 # tests 27, suites 5, pass 27, fail 0, cancelled 0, skipped 0
 # duration_ms ≈ 31s（每个评估用例创建/清理真实 git worktree 并 spawn node --test）
 
-# 全仓测试（F01–F08 定向修复后）
+# 本次修复全仓测试（含 N02/S16/R08/R10–R14）
 npm test
-# tests 131, suites 18, pass 131, fail 0, cancelled 0, skipped 0
+# 2026-10-26 Windows Node 24.22.0, working tree
+# tests 206, suites 25, pass 205, fail 0, cancelled 0, skipped 1
 ```
 
 测试覆盖：提案存储/重载/损坏检测；非 git 仓库与未知 `baseCommit` 不消耗尝试次数；失败候选被阻断且不自动重试；通过候选有基线证据、仍必须显式人工批准（token、`decidedBy`、回滚点、一次性）；未提交改动不被评估、主工作树不被触碰；`repeats=3` 逐次记录；超界 repeats、受保护测试、diff 预算超限在跑测试前失败；超时被杀并清理 worktree；`runOnce` 一次一个候选；拒绝不写代码；证据 JSON 导出；可选控制面记录幂等（task/run/event）；静态检查无网络/模型 SDK/默认定时器。
@@ -181,9 +182,11 @@ recordEvaluationInControl({ store: control, proposal, evaluation });
 const lock = await acquireEvaluationLock(store);
 await lock.release();
 
-// 固定命令执行器（可脱离 RSI 复用；超时 SIGTERM→2s 后 SIGKILL）
+// 固定命令执行器（可脱离 RSI 复用；有界进程树终止，见 §11 L）
 await runFixedCommand(["node", "--version"], cwd, { timeoutMs: 10_000 });
 ```
+
+如果 acquire 已创建 `evaluation.lock` 而随后 acquisition mutex 清理失败，会先释放刚获得的锁再抛错；回滚也失败时以 `AggregateError` 保留两个错误，不丢弃仍需人工处理的锁错误。
 
 默认值：`DEFAULT_RSI_LIMITS = { maxCandidateFiles: 20, maxChangedLines: 500, maxLogBytes: 16_384, evaluationTimeoutMs: 120_000, maxRepeats: 5 }`；`DEFAULT_REPEATS = 1`；`DEFAULT_PROTECTED_PATHS = ["tests","test","eval","holdout",".github","package.json","package-lock.json"]`；`DEFAULT_APPROVAL_TTL_MS = 24h`；git plumbing 单命令预算 `DEFAULT_GIT_TIMEOUT_MS = 60s`。
 
@@ -316,14 +319,14 @@ control.close();
 
 **K. 剥离宿主测试运行器环境。** 当 evaluator 本身跑在 `node --test` 下时，继承的 `NODE_TEST_CONTEXT` 会让嵌套的 `node --test` 误判自己是 runner 子进程而直接退出 0。`fixedCommandEnvironment()` 因此剥离 `NODE_TEST_CONTEXT`/`NODE_TEST_REPORTER`/`NODE_V8_COVERAGE` 并设置 `GIT_TERMINAL_PROMPT=0`；其他宿主环境变量的潜在影响未穷举（§12）。
 
-**L. Windows 信号边界。** 超时先 `SIGTERM`，2s 后 `SIGKILL`；Windows 上只杀直接子进程，不保证杀整棵进程树（§12）。
+**L. 进程超时收尾。** POSIX 命令以独立进程组启动，超时向组发送 `SIGTERM`，2s 后发送 `SIGKILL`；Windows 仍只向直接子进程发送这两个信号。再等至多 2s 仍未收到 `close` 时关闭本地输出管道并返回超时失败，stderr 明确记录可能仍存活的后代，评估和锁释放不再无限等待（§12）。
 
 ## 12. 已知限制与残余风险
 
 - **git 依赖**：评估要求 `projectRoot` 是 git 仓库根、`baseCommit` 已在本地；不 fetch，所以新提交需由用户先同步。浅克隆中缺失的 commit 会 `E_RSI_BAD_BASE_COMMIT`。
 - **评估现场变化**：只评估 base commit + 候选；主工作树的未提交改动**不会**被评估（与 skeleton 的“临时副本”行为相反）。这是有意变化，需要用户先把改动提交或用候选表达。
 - **worktree 清理**：正常/失败/超时路径都会清理；若进程被硬杀（SIGKILL/断电），OS 临时目录与 `.git/worktrees` 管理项可能残留，需要手动 `git worktree prune` 并删除 `sage-kit-rsi-wt-*`。清理失败只记录 `removed: false`，不抛异常（避免掩盖评估结果）。
-- **进程树**：超时只保证终止直接子进程；Windows 上孙进程可能存活（无 job object/taskkill /T）。评估命令应尽量短、可用 `--test` 自带超时。
+- **进程树**：POSIX 另建会话/进程组的后代不在原进程组中；Windows 只终止直接子进程，完整进程树终止仍未实现。管道未关闭时会有界失败并报告未确认退出的后代，不能声称它们已被终止；没有持久化进程树身份或 Windows Job Object。真实 Windows 沙箱中的 `taskkill /T /F` 返回拒绝访问，不能据此声称支持进程树清理。
 - **评估深度**：只有一条固定命令；没有 holdout/隐藏套件、依赖安装、构建缓存；基线对照与重复只能减少误判，不能证明正确性。`p0`/`regression`/`security` 的组合与阈值校准仍是 wiring 责任。
 - **候选大小**：`maxChangedLines`/`maxCandidateFiles` 限制 diff，但 `candidate.files[].content` 的字节大小没有上限；超大候选会在写 worktree 时占用磁盘/内存，需在 Builder/CLI 侧限制。
 - **批准真人性**：`decidedBy` 只是审计字符串，模块无法验证“真人”；必须由 CLI/UI 保证只在人工动作后调用。

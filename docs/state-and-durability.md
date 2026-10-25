@@ -100,11 +100,11 @@ P0 文件模式不包含、不要写进布局的东西：
 
 ```text
 imported    → ready | blocked | failed
-ready       → running | blocked | failed | cancelled
+ready       → running | blocked | failed | cancelled | interrupted
 running     → review | blocked | failed | cancelled | interrupted
-review      → done | running | blocked | failed | cancelled
-blocked     → ready | running | failed | cancelled
-failed      → ready | running
+review      → done | running | blocked | failed | cancelled | interrupted
+blocked     → ready | running | failed | cancelled | interrupted
+failed      → ready | running | interrupted
 interrupted → ready | running | failed
 done        → （终态）
 cancelled   → （终态）
@@ -132,7 +132,7 @@ cancelled   → （终态）
 
 | 场景 | P0 现状 | 目标 |
 |---|---|---|
-| 进程被 kill / 宿主超时 | `[P0 已实现]` `doctor` 扫描 `state/runs/*.json` 中 `running` 且 pid 不存活的记录，把 run 标 `interrupted`；任务状态只由该任务最新 `generation` 的 run 决定——最新 run 才是死的才把仍为 `running` 的任务标 `interrupted`（`recoverStaleRuns`） | 控制面启动时扫描；用户选择 resume/重跑/取消 |
+| 进程被 kill / 宿主超时 | `doctor` 扫描 `state/runs/*.json` 中 `running` 且 pid 不存活或缺失的记录，把 run 标 `interrupted`；只有最新 `generation` 的新恢复 run 可以把任务的 `ready`/`running`/`review`/`blocked`/`failed` 标为 `interrupted`。已处于 `interrupted`、`done`、`cancelled` 或 `imported` 的任务保持原状；已有终态 run 只修正仍为 `running` 的任务，不撤销用户显式恢复的 `ready`。输出分别列出恢复 run 数、实际任务转换及错误；任务修正失败时保留 stale run，允许下次 doctor 重试 | 控制面启动时扫描；用户选择 resume/重跑/取消 |
 | lease 过期 | `[TARGET]` P0 无 lease | 不自动重跑；标中断 |
 | SQLite 被锁/损坏 | `[TARGET]` P0 无 SQLite | 单写者 + `busy_timeout`；`PRAGMA integrity_check` + 备份恢复 |
 | worktree 脏/冲突 | `[P0 已实现]` `worktree remove` 默认拒绝脏 worktree（`E_WORKTREE_DIRTY`），`--force` 才删除；不自动覆盖 | 保留现场/恢复分支 |
@@ -142,6 +142,12 @@ cancelled   → （终态）
 | 发布后回归 | `[TARGET]` P0 无发布流程 | artifact 记录 + 回滚 |
 
 恢复原则：**先判断副作用是否已发生，再决定重试**；不确定时默认不重复执行，要求人工确认。
+
+启动先持久化包含 `generation` 的 run intent，再 spawn 子进程，再保存 PID，最后把任务置 `running`。启动登记失败时，对已启动的直接子进程先发 `SIGTERM` 并等待最多 1 秒，再发 `SIGKILL` 并等待最多 1 秒；确认退出后才记录启动失败。若仍无法确认退出，错误明确列出未解决的 PID，保留 `running` run 并尝试保存 PID；持久化也失败时同时报告，不能声称子进程已清理。
+
+**剩余窗口**：launcher 在 spawn 成功后、PID 持久化前被强制终止时，现有记录没有足以辨认子进程的身份。doctor 将无 PID intent 标为 `interrupted`，这表示执行结果/副作用未知，**不证明子进程已退出**；重跑前必须人工核实旧进程及副作用。当前不引入额外持久化子进程身份协议。
+
+回归验收（`tests/run-recovery.test.mjs`）：PID 保存失败且子进程忽略 `SIGTERM` 时，调用失败前必须确认其已退出；新 stale intent 从每种可启动状态恢复为 `interrupted`；已有 failed/interrupted run 不撤销显式 `ready`；旧 generation 不覆盖新 run；任务写入失败由 doctor 报告且不宣称任务已修正，修复写入故障后可重试。
 
 ## 5. 并发与 worktree（`[P0 已实现]`）
 

@@ -17,6 +17,7 @@
 | [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands) | 控制面/Agent 平台 | Agent Server/控制面/Worker 分离、会话恢复、Docker 运行、REST 边界 | 多仓库、重基础设施、多用户/云端取向；不适合单包本地工具 |
 | [microsoft/RD-Agent](https://github.com/microsoft/RD-Agent) | R&D 自动化 | “提出假设→实现→反馈→迭代”的研究循环、评估思路 | Python/Linux/Docker 重；面向模型研发，不是通用开发治理 |
 | [Taskmaster](https://github.com/eyaltoledano/claude-task-master) | npm CLI + MCP | 任务图/依赖/状态、PRD 解析、多工具接入 | token 开销大、工具面过宽；许可证含 Commons Clause，不能直接复制实现 |
+| [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) | Skill + 多宿主适配器 | 单一 canonical 提示词、SessionStart 注入、模式切换、命令薄封装、安装/卸载矩阵 | 核心是行为提示词，不是任务/证据/RSI 系统；只借鉴分发层，不复制提示词、品牌或 20 宿主适配面 |
 
 ## 2. 对 SAGE-Kit 的具体取舍
 
@@ -67,6 +68,25 @@
 - L2 上限，人工批准发布；
 - 必须有独立 Evaluator 和隐藏用例；
 - 不自动合并/发布。
+
+### 2.6 宿主插件化
+
+借鉴 ponytail 的**分发层**，不借鉴其提示词内核：
+
+- 一份 canonical Skill + 每宿主薄适配器；
+- SessionStart / pre-step 注入，而不是每轮手动读文件；
+- `off/brief/strict` 模式；
+- 命令/工具只映射 CLI；
+- 安装/卸载幂等、owned 文件、每宿主验收。
+
+不采用：
+
+- 把 SAGE-Kit 重写成单一提示词；
+- 一次支持 20 个宿主；
+- 复制 statusline/band/webhook/遥测；
+- 用“自动激活”代替“用户确认 + 标记任务门禁”。
+
+实现状态见 [`host-plugin-upgrade.md`](host-plugin-upgrade.md)（DSH 插件、宿主包与 RSI 门禁已实现；未验证宿主路径仍标 `NOT_EXECUTED`）。
 
 ## 3. 明确不作为依赖
 

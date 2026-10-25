@@ -280,7 +280,17 @@ async function readRecord<T>(file: string, decode: (raw: unknown, file: string) 
   return decode(raw, file);
 }
 
-async function listRecords<T>(dir: string, decode: (raw: unknown, file: string) => T): Promise<T[]> {
+function assertRecordId<T extends { id: string }>(record: T, expected: string, file: string): T {
+  if (record.id !== expected) {
+    corrupt(file, `record id ${record.id} does not match ${expected}`);
+  }
+  return record;
+}
+
+async function listRecords<T extends { id: string }>(
+  dir: string,
+  decode: (raw: unknown, file: string) => T,
+): Promise<T[]> {
   let names: string[];
   try {
     names = await readdir(dir);
@@ -290,7 +300,8 @@ async function listRecords<T>(dir: string, decode: (raw: unknown, file: string) 
   }
   const records: T[] = [];
   for (const name of names.filter((item) => item.endsWith(".json")).sort()) {
-    records.push(await readRecord(join(dir, name), decode));
+    const file = join(dir, name);
+    records.push(assertRecordId(await readRecord(file, decode), name.slice(0, -5), file));
   }
   return records;
 }
@@ -370,7 +381,8 @@ export class RsiStore {
 
   async getProposal(id: string): Promise<Proposal> {
     const proposalId = validateRsiId(id);
-    return readRecord(proposalFile(this.paths, proposalId), decodeProposal);
+    const file = proposalFile(this.paths, proposalId);
+    return assertRecordId(await readRecord(file, decodeProposal), proposalId, file);
   }
 
   /** Oldest proposal first; `runOnce` relies on this order. */
@@ -393,7 +405,8 @@ export class RsiStore {
 
   async getEvaluation(id: string): Promise<Evaluation> {
     const evaluationId = validateRsiId(id);
-    return readRecord(evaluationFile(this.paths, evaluationId), decodeEvaluation);
+    const file = evaluationFile(this.paths, evaluationId);
+    return assertRecordId(await readRecord(file, decodeEvaluation), evaluationId, file);
   }
 
   async listEvaluations(options: ListEvaluationsOptions = {}): Promise<Evaluation[]> {
@@ -417,7 +430,8 @@ export class RsiStore {
 
   async getApproval(id: string): Promise<Approval> {
     const approvalId = validateRsiId(id);
-    return readRecord(approvalFile(this.paths, approvalId), decodeApproval);
+    const file = approvalFile(this.paths, approvalId);
+    return assertRecordId(await readRecord(file, decodeApproval), approvalId, file);
   }
 
   async listApprovals(options: ListApprovalsOptions = {}): Promise<Approval[]> {
@@ -441,7 +455,8 @@ export class RsiStore {
 
   async getRollbackPoint(id: string): Promise<RollbackPoint> {
     const pointId = validateRsiId(id);
-    return readRecord(rollbackPointFile(this.paths, pointId), decodeRollbackPoint);
+    const file = rollbackPointFile(this.paths, pointId);
+    return assertRecordId(await readRecord(file, decodeRollbackPoint), pointId, file);
   }
 
   async listRollbackPoints(): Promise<RollbackPoint[]> {

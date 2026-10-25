@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>SAGE-Kit architecture current vs draft</title>
+<style>
+  :root{
+    --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --paper:#ffffff;
+    --green:#0f766e; --green-bg:#ecfdf5; --amber:#b45309; --amber-bg:#fffbeb;
+    --red:#b91c1c; --red-bg:#fef2f2; --blue:#1d4ed8; --violet:#6d28d9;
+    --navy:#0b1220; --navy2:#111c31; --navyline:#2b3b57;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;width:3200px;height:2320px;background:#eef2f7;color:var(--ink);
+    font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif;}
+  body{position:relative;overflow:hidden}
+  .topbar{position:absolute;left:60px;top:38px;width:8px;height:74px;background:linear-gradient(180deg,#0f766e,#1d4ed8);border-radius:4px}
+  .title{position:absolute;left:88px;top:30px;font-size:40px;font-weight:800;letter-spacing:-.4px}
+  .subtitle{position:absolute;left:90px;top:86px;font-size:18px;color:var(--muted)}
+  .legend{position:absolute;right:60px;top:42px;width:820px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:14px;color:#334155}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .dot.g{background:var(--green)} .dot.a{background:#d97706} .dot.r{background:var(--red)} .dot.n{background:#64748b}
+
+  .panel{position:absolute;top:150px;height:800px;background:rgba(255,255,255,.92);border:2px solid var(--line);border-radius:20px;
+    box-shadow:0 14px 34px rgba(15,23,42,.08)}
+  .panel.left{left:60px;width:1500px}
+  .panel.right{right:60px;width:1540px;border-style:dashed;border-color:#d97706;background:#fffdf7}
+  .panel-head{position:absolute;left:28px;top:18px;right:28px;height:56px;border-bottom:1px solid #e2e8f0}
+  .panel-title{font-size:27px;font-weight:800;letter-spacing:-.2px}
+  .badge{display:inline-block;margin-left:12px;padding:5px 10px;border-radius:8px;font-size:13px;font-weight:700;vertical-align:3px}
+  .badge.now{background:#ecfdf5;color:#0f766e;border:1px solid #a7f3d0}
+  .badge.draft{background:#fffbeb;color:#b45309;border:1px solid #fcd34d}
+
+  .card{position:absolute;left:28px;right:28px;background:var(--paper);border:1.5px solid #dbe3ee;border-radius:16px;padding:16px 18px;
+    box-shadow:0 2px 7px rgba(15,23,42,.04)}
+  .card .kicker{font-size:13px;font-weight:800;letter-spacing:.12em;color:#64748b;text-transform:uppercase}
+  .card .h{font-size:21px;font-weight:800;margin:5px 0 8px}
+  .card .one{font-size:16px;color:#334155;line-height:1.55}
+  .card ul{margin:6px 0 0 18px;padding:0}
+  .card li{font-size:15.5px;line-height:1.5;color:#334155;margin:4px 0}
+  .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12.5px;font-weight:700;margin-right:6px;vertical-align:1px}
+  .tag.ok{background:var(--green-bg);color:var(--green);border:1px solid #a7f3d0}
+  .tag.part{background:var(--amber-bg);color:var(--amber);border:1px solid #fcd34d}
+  .tag.no{background:var(--red-bg);color:var(--red);border:1px solid #fecaca}
+  .tag.info{background:#eff6ff;color:var(--blue);border:1px solid #bfdbfe}
+
+  .host{top:88px;height:122px}
+  .adapter{top:238px;height:382px}
+  .arrow-label{position:absolute;font-size:13px;color:#64748b;background:#eef2f7;padding:2px 6px;border-radius:5px}
+  .panel-note{position:absolute;left:28px;right:28px;top:650px;font-size:14.5px;color:#475569;line-height:1.55;
+    border-left:4px solid #cbd5e1;padding-left:12px}
+
+  .core{position:absolute;left:60px;top:1000px;width:3080px;height:620px;border-radius:22px;
+    background:linear-gradient(135deg,#0b1220 0%,#111c31 65%,#0f2430 100%);color:#e2e8f0;
+    box-shadow:0 18px 40px rgba(2,6,23,.22);border:1px solid #24344e}
+  .core-head{position:absolute;left:34px;top:22px;right:34px;height:64px}
+  .core-title{font-size:27px;font-weight:800;color:#f8fafc}
+  .core-sub{font-size:15px;color:#94a3b8;margin-top:5px}
+  .core-cards{position:absolute;left:34px;right:34px;top:100px;height:448px;display:flex;gap:18px}
+  .cc{flex:1;background:rgba(255,255,255,.055);border:1px solid var(--navyline);border-radius:16px;padding:16px 16px 12px}
+  .cc .n{font-size:12px;letter-spacing:.16em;color:#7dd3fc;font-weight:800;text-transform:uppercase}
+  .cc .t{font-size:20px;font-weight:800;color:#f8fafc;margin:5px 0 8px}
+  .cc .d{font-size:14.5px;line-height:1.55;color:#cbd5e1}
+  .cc ul{margin:7px 0 0 16px;padding:0}
+  .cc li{font-size:13.8px;line-height:1.5;color:#cbd5e1;margin:4px 0}
+  .mono{font-family:"Cascadia Code","Consolas",monospace;font-size:13.5px;color:#93c5fd}
+  .core-foot{position:absolute;left:34px;right:34px;bottom:18px;font-size:14px;color:#94a3b8;border-top:1px solid #263850;padding-top:12px}
+
+  .status{position:absolute;left:60px;top:1660px;width:3080px;height:590px;background:#ffffff;border:1.5px solid #dbe3ee;border-radius:20px;
+    box-shadow:0 10px 26px rgba(15,23,42,.06)}
+  .status-head{position:absolute;left:28px;top:18px;right:28px}
+  .status-title{font-size:24px;font-weight:800}
+  .status-sub{font-size:14px;color:#64748b;margin-top:4px}
+  .cols{position:absolute;left:28px;right:28px;top:82px;height:420px;display:flex;gap:18px}
+  .col{flex:1;border-radius:14px;padding:14px 16px;border:1.5px solid #e2e8f0;background:#fbfdff}
+  .col.ok{border-color:#a7f3d0;background:#f7fefb}
+  .col.part{border-color:#fcd34d;background:#fffdf5}
+  .col.no{border-color:#fecaca;background:#fff8f8}
+  .col h3{margin:0 0 9px;font-size:18px;font-weight:800}
+  .col.ok h3{color:var(--green)} .col.part h3{color:var(--amber)} .col.no h3{color:var(--red)}
+  .col ul{margin:0 0 0 17px;padding:0}
+  .col li{font-size:14.2px;line-height:1.5;color:#334155;margin:5px 0}
+  .footer{position:absolute;left:28px;right:28px;bottom:14px;font-size:12.8px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:10px}
+
+  svg.wires{position:absolute;left:0;top:0;width:3200px;height:2320px;z-index:1;pointer-events:none}
+  .boxz{z-index:2}
+</style>
+</head>
+<body>
+  <div class="topbar"></div>
+  <div class="title">SAGE-Kit 架构：当前版本 vs 宿主插件化草稿</div>
+  <div class="subtitle">当前 0.2.0-alpha.1（已实现 / 已验证） · 草稿 DRAFT（未实现） · 参照 ponytail 的宿主适配层，不复制其提示词内核</div>
+  <div class="legend">
+    <span class="pill"><span class="dot g"></span>已实现 / 已验证</span>
+    <span class="pill"><span class="dot a"></span>部分 / 未验证</span>
+    <span class="pill"><span class="dot r"></span>草案 / 未实现</span>
+    <span class="pill"><span class="dot n"></span>边界 / 非目标</span>
+  </div>
+
+  <svg class="wires" width="3200" height="2320" viewBox="0 0 3200 2320">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+      </marker>
+      <marker id="arrowD" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706"/>
+      </marker>
+    </defs>
+    <line x1="795" y1="390" x2="795" y2="425" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="2365" y1="390" x2="2365" y2="425" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="795" y1="805" x2="795" y2="995" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="2365" y1="805" x2="2365" y2="995" stroke="#d97706" stroke-width="3" stroke-dasharray="10 8" marker-end="url(#arrowD)"/>
+    <line x1="2365" y1="390" x2="2365" y2="425" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+  </svg>
+
+  <div class="panel left boxz">
+    <div class="panel-head">
+      <span class="panel-title">当前版本：单宿主深集成 + 文件适配</span><span class="badge now">0.2.0-alpha.1 · 已实现</span>
+    </div>
+
+    <div class="card host">
+      <div class="kicker">Host layer</div>
+      <div class="h">宿主 Agent</div>
+      <div class="one">DSH · Codex · Claude Code；DSH 是当前主开发环境，Codex/Claude 目前只有文件适配。</div>
+    </div>
+
+    <div class="card adapter">
+      <div class="kicker">Activation / adapter layer</div>
+      <div class="h">当前的三种接入路径</div>
+      <ul>
+        <li><span class="tag ok">已实现</span><b>DSH 原生插件</b> `sage-kit-dsh`：5 个原生任务工具 + `agent/pre-step` 自动 brief；真实 headless E2E 通过。</li>
+        <li><span class="tag part">文件适配</span><b>Codex / Claude Code</b>：安装 `.agents/skills` / `.claude/skills` + `AGENTS.md` / `CLAUDE.md`；原生插件/hook 未验证。</li>
+        <li><span class="tag part">手动</span><b>CLI hook</b>：`session.start` / `command.after` / `stop` 协议已实现，但只能由宿主显式调用。</li>
+        <li><span class="tag no">未实现</span>没有宿主 hook 自动安装；`init` 只装 Skill/说明块，不注入 hook。</li>
+        <li><span class="tag no">未实现</span>没有 `off / brief / strict` 模式；没有统一的宿主命令映射。</li>
+      </ul>
+    </div>
+
+    <div class="panel-note">
+      当前重点：把 <b>DSH 插件</b>做深、把 <b>CLI/Skill</b>做稳；不是多宿主分发。<br>
+      DSH 插件是<b>可选独立包</b>（0.2.0-alpha.1），不进入核心依赖；核心仍是一个包。<br>
+      权限边界：插件不复制状态，只调用 CLI/库；控制面可选、loopback、不双写。
+    </div>
+  </div>
+
+  <div class="panel right boxz">
+    <div class="panel-head">
+      <span class="panel-title">草稿：CLI 核心 + 多宿主薄适配器</span><span class="badge draft">DRAFT · 未实现</span>
+    </div>
+
+    <div class="card host">
+      <div class="kicker">Host layer</div>
+      <div class="h">宿主 Agent</div>
+      <div class="one">先做 DSH · Codex · Claude Code；其他宿主按真实需求增加，<b>不追 20 个</b>。</div>
+    </div>
+
+    <div class="card adapter">
+      <div class="kicker">Thin adapter layer (proposed)</div>
+      <div class="h">每宿主一个薄适配器</div>
+      <ul>
+        <li><span class="tag no">草案</span>安装 Skill / 受管说明块；幂等、owned 文件、不覆盖用户配置。</li>
+        <li><span class="tag no">草案</span>`SessionStart` / `agent/pre-step` 注入 brief；≤2 KB、≤2 s、无网络/模型。</li>
+        <li><span class="tag no">草案</span>命令/工具只映射 CLI：`sage-task` / `sage-brief` / `sage-doctor`。</li>
+        <li><span class="tag no">草案</span>模式 `off / brief / strict`；默认 brief，strict 只约束标记任务。</li>
+        <li><span class="tag no">草案</span>可选 RSI 门禁：只查 `rsiProposalId` 任务；turn 级、fail-closed。</li>
+        <li><span class="tag no">草案</span>适配器包边界待 ADR；核心仍是一个包、一个权威状态。</li>
+      </ul>
+    </div>
+
+    <div class="panel-note">
+      草稿的重点：<b>分发/激活</b>，不是重写核心；不自动批准、不自动执行、不做逐工具保证。<br>
+      参照 ponytail：单一 canonical 规则 + 多宿主薄包装；不复制其提示词/品牌/statusline。
+    </div>
+  </div>
+
+  <div class="core boxz">
+    <div class="core-head">
+      <div class="core-title">共同核心：当前与草稿都保留同一份 CLI + Skill + 状态</div>
+      <div class="core-sub">草稿不复制核心、不新增第二状态源；适配器只能调用 CLI/库。当前核心能力已实现，草稿只改“接入层”。</div>
+    </div>
+    <div class="core-cards">
+      <div class="cc">
+        <div class="n">01 · Canonical skill</div>
+        <div class="t">skills/sage-kit/SKILL.md</div>
+        <div class="d">唯一规则源：任务、验收、证据、停止条件。</div>
+        <ul>
+          <li>无状态、无数据库、无守护进程</li>
+          <li>Codex/Claude/DSH 共用同一份规则</li>
+          <li>`AGENTS.md` 仅作压缩 fallback</li>
+        </ul>
+      </div>
+      <div class="cc">
+        <div class="n">02 · CLI core</div>
+        <div class="t">sage-kit CLI</div>
+        <div class="d">确定性操作；所有宿主共用。</div>
+        <ul>
+          <li class="mono">init / doctor / task / worktree / run</li>
+          <li class="mono">brief / hook / feedback / control / rsi</li>
+          <li class="mono">uninstall / version · Node ≥22</li>
+        </ul>
+      </div>
+      <div class="cc">
+        <div class="n">03 · Authoritative state</div>
+        <div class="t">.sage-kit/</div>
+        <div class="d">文件模式默认；唯一的任务/证据写入源。</div>
+        <ul>
+          <li class="mono">tasks / runs / events / worktrees</li>
+          <li class="mono">brief / rsi / config</li>
+          <li>文件模式与控制面模式不双写</li>
+        </ul>
+      </div>
+      <div class="cc">
+        <div class="n">04 · Optional / governance</div>
+        <div class="t">控制面 + 反馈 + RSI</div>
+        <div class="d">可选本地控制面；人工批准，不自动发布。</div>
+        <ul>
+          <li>loopback HTTP/SSE/UI + SQLite WAL</li>
+          <li>GitHub/Gitea 只读反馈（M1）</li>
+          <li>RSI：create → evaluate → approve（M3）</li>
+          <li>扩展接口：TaskSource / FeedbackSource / EventSink / Bundle</li>
+        </ul>
+      </div>
+    </div>
+    <div class="core-foot">
+      共同边界：单用户 / 本地 / 单仓库；核心 CLI 零运行时依赖；不引入多租户、远程 API、通用插件市场、自动合并/发布。
+    </div>
+  </div>
+
+  <div class="status boxz">
+    <div class="status-head">
+      <div class="status-title">状态矩阵：把“已实现、部分验证、草稿”分开</div>
+      <div class="status-sub">颜色对应图例；未执行项按 D-018 保持 `NOT_EXECUTED` / `NOT_IMPLEMENTED`，不写成“支持”。</div>
+    </div>
+    <div class="cols">
+      <div class="col ok">
+        <h3>已实现 / 已验证</h3>
+        <ul>
+          <li>CLI + Skill + `.sage-kit/` 文件状态；`npm test` <b>206 项，205 通过、1 跳过</b>。</li>
+          <li>DSH 原生插件：5 个工具 + `agent/pre-step` brief；headless E2E <b>PASS</b>。</li>
+          <li>本地控制面：loopback HTTP/SSE/UI + SQLite WAL；无远程访问。</li>
+          <li>M1 反馈只读（GitHub/Gitea）；M3 RSI 手工评估 + 人工审批。</li>
+          <li>文件适配器：DSH / Codex / Claude Code 安装 Skill + 说明块。</li>
+        </ul>
+      </div>
+      <div class="col part">
+        <h3>部分 / 未验证</h3>
+        <ul>
+          <li>DSH Web GUI、配置分支、故障降级：<b>NOT_EXECUTED</b>。</li>
+          <li>Codex / Claude 原生插件与 hook：<b>NOT_VERIFIED</b>。</li>
+          <li>宿主 hook 自动安装：<b>NOT_IMPLEMENTED</b>；`init` 不装 hook。</li>
+          <li>Windows/macOS 上的 DSH 插件运行：<b>NOT_EXECUTED</b>。</li>
+          <li>RSI 自动批准/合并/发布：设计上不实现（L2 上限、人工批准）。</li>
+        </ul>
+      </div>
+      <div class="col no">
+        <h3>草稿 / 未实现</h3>
+        <ul>
+          <li>Codex / Claude Code 薄插件与 `SessionStart` 激活。</li>
+          <li>`off / brief / strict` 模式与宿主命令映射。</li>
+          <li><code>Task.rsiProposalId</code> + `checkRsiGate`：只约束标记任务。</li>
+          <li>RSI 门禁的 turn 级 reject；<b>没有</b> pre-tool 拦截。</li>
+          <li>适配器包边界、发布包装、安装矩阵：待 ADR / 待实现。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer">
+      绘图依据：`docs/architecture.md`、`docs/hooks-and-host-adapters.md`、`docs/host-plugin-upgrade.md`、`reports/plugin/*`。图中“草稿”部分未改代码、未发布；以仓库实际测试与证据为准。
+    </div>
+  </div>
+</body>
+</html>

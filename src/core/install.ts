@@ -1,5 +1,5 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { lstat, readdir, readFile, rmdir } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import {
   atomicWrite,
   copyDirectory,
@@ -124,6 +124,13 @@ async function installSkill(
   }
   if (await exists(target)) {
     if (!force) {
+      if (!(await exists(join(target, "SKILL.md")))) {
+        throw new SageError(
+          `Existing skill directory is missing SKILL.md: ${target}; move the preserved directory aside before running init again.`,
+          "E_SKILL_INCOMPLETE",
+          1,
+        );
+      }
       warnings.push(`Skill already exists at ${target}; kept it (use --force to replace).`);
       // Record the mode the installed copy actually has, not the requested one.
       return { files: [], mode: await actualSkillMode(target), owned: false };
@@ -264,6 +271,72 @@ export interface UninstallResult {
   warnings: string[];
 }
 
+/**
+ * Remove only the skill files recorded by the install, then prune empty
+ * directories. A user file added inside the installed skill directory must
+ * survive an ordinary uninstall; recursively deleting the whole skill root
+ * (the old behavior) silently lost that file.
+ */
+async function removeOwnedSkillTree(
+  skillRoot: string,
+  files: string[],
+  removed: string[],
+  kept: string[],
+  warnings: string[],
+): Promise<void> {
+  const rootInfo = await lstat(skillRoot).catch(() => null);
+  if (!rootInfo) return;
+  if (rootInfo.isSymbolicLink()) {
+    // A symlink-mode install has no user content beneath the link; removing the
+    // link itself must never follow into the canonical source directory.
+    await removePath(skillRoot);
+    removed.push(skillRoot);
+    return;
+  }
+  if (files.length === 0) {
+    warnings.push(`Skill ownership has no recorded files; left it untouched: ${skillRoot}`);
+    kept.push(skillRoot);
+    return;
+  }
+  const base = resolve(skillRoot);
+  const removedDirs = new Set<string>();
+  for (const file of [...files].reverse()) {
+    const target = resolve(base, file);
+    if (!isPathInside(base, target)) {
+      warnings.push(`Refusing to remove a recorded skill path outside the skill root: ${file}`);
+      continue;
+    }
+    const info = await lstat(target).catch(() => null);
+    if (!info) continue;
+    if (info.isDirectory()) {
+      warnings.push(`Skipped a directory recorded as a skill file: ${file}`);
+      continue;
+    }
+    await removePath(target);
+    removed.push(target);
+    removedDirs.add(dirname(target));
+  }
+  for (const dir of [...removedDirs].sort((left, right) => right.length - left.length)) {
+    let current = resolve(dir);
+    while (current !== base && isPathInside(base, current)) {
+      const entries = await readdir(current).catch(() => null);
+      if (!entries || entries.length > 0) break;
+      await rmdir(current);
+      current = dirname(current);
+    }
+  }
+  if (await exists(base)) {
+    const entries = await readdir(base).catch(() => null);
+    if (entries && entries.length === 0) {
+      await rmdir(base);
+      removed.push(base);
+    } else {
+      kept.push(base);
+      warnings.push(`Kept user files inside the installed skill directory: ${base}`);
+    }
+  }
+}
+
 export async function uninstallSageKit(options: {
   projectRoot?: string;
   purge?: boolean;
@@ -287,8 +360,7 @@ export async function uninstallSageKit(options: {
   if (expected && resolve(config.skill.path) === resolve(expected)) {
     if (await exists(expected)) {
       if (skillOwned) {
-        await removePath(expected);
-        removed.push(expected);
+        await removeOwnedSkillTree(expected, config.skill.files, removed, kept, warnings);
       } else {
         warnings.push(`Skill was not created by this install; left it untouched: ${config.skill.path}`);
         kept.push(config.skill.path);

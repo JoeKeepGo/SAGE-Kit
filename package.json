@@ -23,15 +23,18 @@
     "dist/",
     "skills/",
     "docs/",
+    "packages/host-codex/",
+    "packages/host-claude/",
     "README.md",
     "CHANGELOG.md",
+    "QUICKSTART.md",
     "SECURITY.md",
     "AGENTS.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
-    "test": "npm run build && node --test tests/cli.test.mjs tests/feedback.test.mjs tests/control.test.mjs tests/rsi.test.mjs tests/api.test.mjs tests/plugin.test.mjs",
+    "test": "npm run build && node --test tests/cli.test.mjs tests/feedback.test.mjs tests/control.test.mjs tests/rsi.test.mjs tests/rsi-gate.test.mjs tests/api.test.mjs tests/plugin.test.mjs tests/host-adapters.test.mjs tests/run-recovery.test.mjs tests/install-recovery.test.mjs tests/rsi-cleanup.test.mjs tests/quickstart.test.mjs",
     "pack:check": "npm pack --dry-run"
   },
   "devDependencies": {

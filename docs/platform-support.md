@@ -6,8 +6,8 @@ SAGE-Kit 的目标宿主是 **DSH 运行时**（Web/headless 与桌面应用共�
 
 | 平台 | 角色 | P0 状态 |
 |---|---|---|
-| Linux / WSL2 | 主测试环境、DSH Web/headless、CI 首选 | 已验证：**131 项自动化测试全部通过**（`npm test`，2026-10-25，WSL2 Ubuntu、Node v22.22.1；P0 历史证据见 `reports/p0/README.md`，全量结果以 README/本轮命令输出为准）；真实 DSH 0.2.1-rc.2 headless + **mock 模型**发现/加载项目 Skill；**真实 DeepSeek 模型 headless** 调用 `skill` → `bash` → SAGE-Kit 创建/列出任务；Linux DSH Web 启动与 token/SPA 检查通过。浏览器 GUI 交互、hook 自动注入 `NOT_EXECUTED` |
-| Windows 10/11 | 开发工作站、DSH 桌面/headless 宿主 | 必须可用；**不作为 CI 测试套件执行环境**，但本轮修复在工作站 Windows Node 24.22.0 实跑 131/131；`scripts/windows-smoke.ps1` 仍为发布前人工冒烟脚本 |
+| Linux / WSL2 | 主测试环境、DSH Web/headless、CI 首选 | 历史自动化与真实 DSH 证据见 `reports/p0/README.md`；本次修复未在 WSL2 重跑，不能把 Windows 副本测试结果推广到 Linux/WSL2 |
+| Windows 10/11 | 开发工作站、DSH 桌面/headless 宿主 | 本次工作树在 Windows Node 24.22.0 执行：206 项，205 通过、0 失败、1 跳过；CI 仍优先 Linux，`scripts/windows-smoke.ps1` 的人工宿主冒烟未重跑 |
 | macOS | CLI/Skill 理论可用 | `NOT_VERIFIED`，不作为 P0 承诺 |
 
 ## Node.js
@@ -37,7 +37,7 @@ SAGE-Kit 的目标宿主是 **DSH 运行时**（Web/headless 与桌面应用共�
 
 - Linux/WSL：主测试环境为 `/home/kayann/sage-kit-linux-dsh`（Linux 源码副本 + 测试项目 + 隔离 `DSH_HOME` + DSH npm 安装，机器特定路径）；其 `refresh-and-test.sh` 做同步/构建/测试/tgz 安装/DSH headless 验证。历史运行见 `reports/p0/wsl-test.md`、`reports/p0/dsh-linux-web.md`，最新自动化计数见 `reports/p0/README.md`。
 - 真实 DSH 证据：`reports/p0/dsh-real-host.md`（Windows 隔离环境，mock 模型，Skill 加载）、`reports/p0/dsh-e2e-model.md`（Linux/WSL，mock 模型，Skill → bash → SAGE-Kit CLI 创建任务，24/24 独立检查）、`reports/p0/dsh-real-model-e2e.md`（Linux/WSL，**真实 DeepSeek 模型** headless，Skill → bash → 创建/列出/文件校验）。前两者是 mock 模型证据；后者是真实模型 headless 证据，但不含 GUI/hook。
-- Windows：本轮修复已在 Windows 工作站 Node v24.22.0 上运行 `npm test`（131/131）与真实本地 Git worktree 测试；CI 仍不以 Windows 为执行环境，`scripts/windows-smoke.ps1` 的安装/宿主冒烟仍为人工发布前步骤，不计入自动化证据。
+- Windows：本次工作树运行 `npm test`（206 项，205 通过，1 跳过）及真实本地 Git worktree 测试；`scripts/windows-smoke.ps1` 的安装/宿主冒烟未执行，不计入自动化证据。
 - “支持 Windows”指 CLI 与 Skill 的文件/命令路径可用，不等于所有桌面交互或宿主 hook 自动安装可用。
 
 ## 为什么以 Linux 为主

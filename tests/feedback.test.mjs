@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { buildBrief } from "../dist/core/brief.js";
 import { statePaths } from "../dist/core/paths.js";
 import { createFeedbackAdapter } from "../dist/feedback/index.js";
+import { syncFeedback } from "../dist/feedback/sync.js";
 
 const DIST_COMMAND_URL = new URL("../dist/feedback/command.js", import.meta.url).href;
 const TEST_TMP_BASE =
@@ -211,6 +212,27 @@ async function startGitHubFixture() {
     return sendJson(response, 404, { message: "not found" });
   });
   return { ...server, state };
+}
+
+// Snapshot each response before mutating the collection for the next request.
+function issuePages(issues, afterPage = () => {}) {
+  return async (input) => {
+    const url = new URL(input);
+    if (!url.pathname.endsWith("/issues")) return new Response("[]");
+    const since = url.searchParams.get("since");
+    const page = Number(url.searchParams.get("page") ?? "1");
+    const size = Number(url.searchParams.get("per_page"));
+    const filtered = issues.filter((item) => !since || item.updated_at >= since)
+      .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+    const body = JSON.stringify(filtered.slice((page - 1) * size, page * size));
+    const headers = {};
+    if (page * size < filtered.length) {
+      url.searchParams.set("page", String(page + 1));
+      headers.link = `<${url}>; rel="next"`;
+    }
+    afterPage({ page, since });
+    return new Response(body, { headers });
+  };
 }
 
 function giteaIssue(number, updatedAt) {
@@ -546,6 +568,165 @@ describe("M1 feedback: GitHub adapter", () => {
     assert.deepEqual([...seen].sort(), ["1", "2", "3", "4", "5", "6"]);
     const finished = JSON.parse(cursor);
     assert.equal(finished.reviews, "2024-01-01T00:06:00.000Z");
+  });
+
+  it("R05: a page-shifting edit cannot permanently hide a review comment", async () => {
+    const comments = [
+      { id: 1, updated_at: "2024-01-01T00:00:00Z" },
+      { id: 2, updated_at: "2024-01-01T00:01:00Z" },
+      { id: 3, updated_at: "2024-01-01T00:02:00Z" },
+      { id: 4, updated_at: "2024-01-01T00:03:00Z" },
+    ];
+    let pageTwoServed = false;
+    const fixture = await startHttpServer(async (request, response) => {
+      const host = request.headers.host ?? "127.0.0.1";
+      const url = new URL(request.url ?? "/", `http://${host}`);
+      if (url.pathname === "/repos/acme/widgets/issues") return sendJson(response, 200, []);
+      if (url.pathname !== "/repos/acme/widgets/pulls/comments") {
+        return sendJson(response, 404, { message: "not found" });
+      }
+      const since = url.searchParams.get("since");
+      const filtered = comments
+        .filter((item) => !since || item.updated_at >= since)
+        .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+      const perPage = Number(url.searchParams.get("per_page") ?? "2");
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const items = filtered.slice((page - 1) * perPage, page * perPage).map((item) => ({
+        ...item,
+        body: `comment ${item.id}`,
+        path: "src/a.ts",
+        user: { login: "bob" },
+        html_url: `https://github.example/comment/${item.id}`,
+      }));
+      const headers = {};
+      if (page * perPage < filtered.length) {
+        const next = new URL(url);
+        next.searchParams.set("page", String(page + 1));
+        headers.link = `<http://${host}${next.pathname}${next.search}>; rel="next"`;
+      }
+      if (page === 1 && !pageTwoServed) {
+        pageTwoServed = true;
+        // Move comment 1 after the page boundary before the client requests
+        // page 2. Without a second full scan, comment 3 is skipped and the
+        // advanced watermark excludes it forever.
+        comments[0].updated_at = "2024-01-01T00:04:00Z";
+      }
+      return sendJson(response, 200, items, headers);
+    });
+    const adapter = createFeedbackAdapter("github", {
+      baseUrl: fixture.baseUrl,
+      env: { GITHUB_TOKEN: "test-token" },
+    });
+    const page = await adapter.list({ repo: "acme/widgets", pageSize: 2, maxPages: 1 });
+    assert.deepEqual(page.items.map((item) => item.externalId).sort(), ["1", "2", "3", "4"]);
+  });
+
+  it("N02: an issue page shift does not permanently hide the tail item", async () => {
+    const issues = Array.from({ length: 101 }, (_, index) => ({
+      id: index + 1,
+      updated_at: new Date(Date.UTC(2024, 0, 1, 0, index)).toISOString(),
+    }));
+    let shifted = false;
+    const fixture = await startHttpServer(async (request, response) => {
+      const host = request.headers.host ?? "127.0.0.1";
+      const url = new URL(request.url ?? "/", `http://${host}`);
+      if (url.pathname !== "/repos/acme/widgets/issues") {
+        return sendJson(response, 200, []);
+      }
+      const since = url.searchParams.get("since");
+      const filtered = issues
+        .filter((item) => !since || item.updated_at >= since)
+        .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+      const perPage = Number(url.searchParams.get("per_page") ?? "100");
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const items = filtered.slice((page - 1) * perPage, page * perPage).map((item) => ({
+        ...item,
+        number: item.id,
+        title: `issue ${item.id}`,
+        body: "",
+        user: { login: "bob" },
+        html_url: `https://github.example/issues/${item.id}`,
+        comments: 0,
+        labels: [],
+      }));
+      const headers = {};
+      if (page * perPage < filtered.length) {
+        const next = new URL(url);
+        next.searchParams.set("page", String(page + 1));
+        headers.link = `<http://${host}${next.pathname}${next.search}>; rel="next"`;
+      }
+      if (page === 1 && !shifted) {
+        shifted = true;
+        // Move the first issue after the page boundary before page 2 is read.
+        issues[0].updated_at = "2024-01-02T00:00:00Z";
+      }
+      return sendJson(response, 200, items, headers);
+    });
+    const adapter = createFeedbackAdapter("github", {
+      baseUrl: fixture.baseUrl,
+      env: { GITHUB_TOKEN: "test-token" },
+    });
+    const page = await adapter.list({ repo: "acme/widgets", pageSize: 100, maxPages: 10 });
+    assert.equal(page.items.length, 101);
+    assert.ok(page.items.some((item) => item.externalId === "101"));
+    const next = await adapter.list({ repo: "acme/widgets", cursor: page.nextCursor });
+    assert.equal(new Set([...page.items, ...next.items].map((item) => item.externalId)).size, 101);
+  });
+
+  it("N02: rejects shifts in both scans, then recovers the omitted issue with the old cursor", async () => {
+    const issues = Array.from({ length: 4 }, (_, i) => githubIssue(i + 1, `2024-01-0${i + 1}T00:00:00.000Z`));
+    const cursor = JSON.stringify({ issues: "2023-12-31T00:00:00.000Z" });
+    let shifts = 0;
+    const adapter = createFeedbackAdapter("github", {
+      fetchImpl: issuePages(issues, ({ page, since }) => {
+        if (shifts === 0 && since && page === 2) {
+          issues[0].updated_at = "2024-01-05T00:00:00.000Z";
+          shifts++;
+        } else if (shifts === 1 && !since && page === 1) {
+          issues[1].updated_at = "2024-01-06T00:00:00.000Z";
+          shifts++;
+        }
+      }),
+    });
+    await assert.rejects(adapter.list({ repo: "acme/widgets", cursor, pageSize: 1 }), { code: "E_FEEDBACK_PAGE_SHIFT" });
+    assert.equal(shifts, 2);
+    const stable = await adapter.list({ repo: "acme/widgets", cursor, pageSize: 1 });
+    assert.deepEqual(stable.items.map((item) => item.externalId).sort(), ["1", "2", "3", "4"]);
+  });
+
+  it("N02: a 1000-item history prefix cannot advance the cursor past the incremental tail", async () => {
+    const root = await tempDir();
+    const issues = Array.from({ length: 1101 }, (_, i) => githubIssue(i + 1, new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString()));
+    const cursor = JSON.stringify({ issues: new Date(Date.UTC(2024, 0, 1, 0, 999, 30)).toISOString() });
+    const cursorFile = join(root, ".sage-kit", "feedback", "cursors.json");
+    await mkdir(join(root, ".sage-kit", "feedback"), { recursive: true });
+    const saved = JSON.stringify({ schemaVersion: 1, cursors: { "github:acme/widgets": {
+      provider: "github", repo: "acme/widgets", cursor,
+      lastSyncAt: "2024-01-01T00:00:00.000Z", lastSuccessAt: "2024-01-01T00:00:00.000Z", lastFetched: 0,
+    } } });
+    await writeFile(cursorFile, saved);
+    let shifted = false;
+    const fetchImpl = issuePages(issues, ({ page, since }) => {
+      if (!shifted && since && page === 1) {
+        issues[1000].updated_at = "2024-01-03T00:00:00.000Z";
+        shifted = true;
+      }
+    });
+    await assert.rejects(syncFeedback({ source: "github", repo: "acme/widgets", projectRoot: root, fetchImpl }), { code: "E_FEEDBACK_PAGE_LIMIT" });
+    assert.equal(await readFile(cursorFile, "utf8"), saved, "failure preserves the exact persisted cursor");
+    const stable = await syncFeedback({ source: "github", repo: "acme/widgets", projectRoot: root, fetchImpl });
+    assert.equal(stable.unique, 101);
+    const items = await readJsonl(join(root, ".sage-kit", "feedback", "items.jsonl"));
+    assert.ok(items.some((item) => item.externalId === "1101"));
+  });
+
+  it("N02: incomplete scans reject a 1001-issue timestamp bucket instead of returning a watermark", async () => {
+    const issues = Array.from({ length: 1001 }, (_, i) => githubIssue(i + 1, "2024-01-01T00:00:00.000Z"));
+    const adapter = createFeedbackAdapter("github", { fetchImpl: issuePages(issues) });
+    const cursor = JSON.stringify({ issues: "2023-12-31T00:00:00.000Z" });
+    await assert.rejects(adapter.list({ repo: "acme/widgets", cursor }), { code: "E_FEEDBACK_PAGE_LIMIT" });
+    const complete = await adapter.list({ repo: "acme/widgets", cursor, maxPages: 11 });
+    assert.equal(complete.items.length, 1001);
   });
 
   it("F07b: scans a same-timestamp review-comment bucket to completion", async () => {

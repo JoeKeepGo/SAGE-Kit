@@ -5,9 +5,8 @@
  * is always spawned without a shell. Output is captured tail-first so a noisy
  * suite cannot exhaust memory; the caller truncates further before persisting.
  *
- * Timeout behaviour: SIGTERM first, SIGKILL after a short grace period. On
- * Windows this kills the spawned process only — process-tree kill is NOT
- * implemented (documented residual risk in docs/m3-rsi.md §10).
+ * Timeout behaviour: terminate the POSIX process group or Windows direct child,
+ * then bound the wait for inherited output pipes (docs/m3-rsi.md §12).
  */
 import { spawn } from "node:child_process";
 
@@ -54,11 +53,13 @@ export function runFixedCommand(
     let settled = false;
     let timer: NodeJS.Timeout | undefined;
     let killTimer: NodeJS.Timeout | undefined;
+    let closeTimer: NodeJS.Timeout | undefined;
 
     const child = spawn(command[0] as string, command.slice(1), {
       cwd,
       shell: false,
       windowsHide: true,
+      detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
       env: fixedCommandEnvironment(),
     });
@@ -68,6 +69,7 @@ export function runFixedCommand(
       settled = true;
       if (timer) clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
+      if (closeTimer) clearTimeout(closeTimer);
       resolvePromise({
         exitCode,
         signal,
@@ -81,21 +83,36 @@ export function runFixedCommand(
 
     timer = setTimeout(() => {
       timedOut = true;
-      try {
-        child.kill("SIGTERM");
-      } catch {
-        // The child may already be gone; `close` settles the promise.
+      if (child.pid) {
+        try {
+          if (process.platform === "win32") child.kill("SIGTERM");
+          else process.kill(-child.pid, "SIGTERM");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+            stderr = `${stderr}\nProcess-group termination failed: ${(error as Error).message}`.slice(-MAX_CAPTURE_CHARS);
+          }
+        }
       }
       killTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-          // Best effort only.
+        if (child.pid) {
+          try {
+            if (process.platform === "win32") child.kill("SIGKILL");
+            else process.kill(-child.pid, "SIGKILL");
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+              stderr = `${stderr}\nProcess-group kill failed: ${(error as Error).message}`.slice(-MAX_CAPTURE_CHARS);
+            }
+          }
         }
+        closeTimer = setTimeout(() => {
+          stderr = `${stderr}\nProcess cleanup deadline expired; descendants may still be running (unresolved inherited output pipes).`.slice(-MAX_CAPTURE_CHARS);
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          child.unref();
+          settle(child.exitCode, child.signalCode);
+        }, KILL_GRACE_MS);
       }, KILL_GRACE_MS);
-      killTimer.unref();
     }, options.timeoutMs);
-    timer.unref();
 
     child.stdout?.on("data", (chunk: Buffer) => {
       stdout = `${stdout}${chunk.toString("utf8")}`.slice(-MAX_CAPTURE_CHARS);

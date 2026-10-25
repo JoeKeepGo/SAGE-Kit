@@ -1,0 +1,20 @@
+{
+  "name": "sage-kit",
+  "description": "Thin Codex host plugin for SAGE-Kit: loads the canonical Skill and injects a bounded SessionStart brief.",
+  "author": { "name": "SAGE-Kit", "url": "https://github.com/JoeKeepGo/SAGE-Kit" },
+  "homepage": "https://github.com/JoeKeepGo/SAGE-Kit",
+  "repository": "https://github.com/JoeKeepGo/SAGE-Kit",
+  "license": "MIT",
+  "keywords": ["sage-kit", "agents", "tasks", "evidence"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "SAGE-Kit",
+    "shortDescription": "Task and evidence discipline for Codex sessions",
+    "longDescription": "Loads the canonical SAGE-Kit Skill and injects a bounded session brief. Task state stays in .sage-kit and is read through the sage-kit CLI.",
+    "developerName": "SAGE-Kit",
+    "category": "Productivity",
+    "capabilities": ["Task tracking", "Session brief"],
+    "defaultPrompt": ["Show the active SAGE-Kit task and the next step"]
+  }
+}

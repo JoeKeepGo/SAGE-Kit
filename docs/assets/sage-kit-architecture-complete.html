@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>SAGE-Kit complete architecture</title>
+<style>
+:root{
+  --ink:#0f172a; --muted:#475569; --soft:#64748b; --line:#cbd5e1; --paper:#ffffff;
+  --teal:#0f766e; --teal-bg:#ecfdf5; --blue:#1d4ed8; --blue-bg:#eff6ff;
+  --amber:#b45309; --amber-bg:#fffbeb; --violet:#6d28d9; --violet-bg:#f5f3ff;
+  --red:#b91c1c; --red-bg:#fef2f2; --navy:#0b1220; --navy2:#122033; --navyline:#2b3b57;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:3200px;height:2200px;background:#eef2f7;color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif;overflow:hidden}
+body{position:relative}
+.topbar{position:absolute;left:60px;top:34px;width:9px;height:82px;border-radius:5px;
+  background:linear-gradient(180deg,#0f766e,#1d4ed8 60%,#6d28d9)}
+.title{position:absolute;left:90px;top:24px;font-size:42px;font-weight:800;letter-spacing:-.6px}
+.subtitle{position:absolute;left:92px;top:82px;font-size:18px;color:var(--muted)}
+.meta{position:absolute;left:92px;top:112px;font-size:14px;color:var(--soft)}
+.legend{position:absolute;right:60px;top:38px;display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;width:970px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border-radius:999px;background:#fff;
+  border:1px solid var(--line);font-size:13px;color:#334155}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+.dot.g{background:var(--teal)} .dot.b{background:var(--blue)} .dot.a{background:#d97706}
+.dot.v{background:var(--violet)} .dot.r{background:var(--red)} .dot.n{background:#64748b}
+
+.panel{position:absolute;top:326px;height:1380px;background:rgba(255,255,255,.94);border:2px solid var(--line);
+  border-radius:22px;box-shadow:0 16px 38px rgba(15,23,42,.08)}
+.panel.left{left:60px;width:760px}
+.panel.center{left:850px;width:1500px}
+.panel.right{left:2380px;width:760px}
+.ph{position:absolute;left:26px;right:26px;top:18px;height:62px;border-bottom:1px solid #e2e8f0}
+.pt{font-size:26px;font-weight:800;letter-spacing:-.3px}
+.pb{display:inline-block;margin-left:10px;padding:5px 9px;border-radius:8px;font-size:12px;font-weight:700;vertical-align:3px}
+.pb.core{background:var(--teal-bg);color:var(--teal);border:1px solid #a7f3d0}
+.pb.host{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
+.pb.opt{background:var(--amber-bg);color:var(--amber);border:1px solid #fcd34d}
+.pb.rsi{background:var(--violet-bg);color:var(--violet);border:1px solid #ddd6fe}
+
+.card{position:absolute;left:26px;right:26px;background:var(--paper);border:1.5px solid #dbe3ee;border-radius:16px;
+  padding:15px 17px;box-shadow:0 3px 9px rgba(15,23,42,.045)}
+.card .kicker{font-size:11.5px;font-weight:800;letter-spacing:.14em;color:#64748b;text-transform:uppercase}
+.card .h{font-size:21px;font-weight:800;margin:4px 0 7px;line-height:1.25}
+.card .one{font-size:14.5px;color:#334155;line-height:1.5}
+.card ul{margin:6px 0 0 17px;padding:0}
+.card li{font-size:13.7px;line-height:1.47;color:#334155;margin:4px 0}
+.card li b{color:var(--ink)}
+.mono{font-family:"Cascadia Code","Consolas",monospace;font-size:12.8px;color:#1e3a8a}
+.small{font-size:12.8px;color:#64748b;line-height:1.45}
+.tag{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11.5px;font-weight:700;margin-right:5px;vertical-align:1px}
+.tag.ok{background:var(--teal-bg);color:var(--teal);border:1px solid #a7f3d0}
+.tag.opt{background:var(--amber-bg);color:var(--amber);border:1px solid #fcd34d}
+.tag.no{background:var(--red-bg);color:var(--red);border:1px solid #fecaca}
+.tag.info{background:var(--blue-bg);color:var(--blue);border:1px solid #bfdbfe}
+.tag.rsi{background:var(--violet-bg);color:var(--violet);border:1px solid #ddd6fe}
+
+.band{position:absolute;left:60px;top:134px;width:3080px;height:158px;background:#fff;border:1.5px solid #dbe3ee;
+  border-radius:18px;box-shadow:0 7px 18px rgba(15,23,42,.05)}
+.band .label{position:absolute;left:24px;top:18px;font-size:13px;font-weight:800;letter-spacing:.12em;color:#64748b}
+.band .cards{position:absolute;left:24px;right:24px;top:44px;height:95px;display:flex;gap:14px}
+.bc{flex:1;border:1px solid #e2e8f0;border-radius:12px;padding:10px 13px;background:#fbfdff}
+.bc .t{font-size:15px;font-weight:800}
+.bc .d{font-size:12.8px;color:#475569;line-height:1.45;margin-top:3px}
+
+.bottom{position:absolute;left:60px;top:1734px;width:3080px;height:420px;background:#fff;border:1.5px solid #dbe3ee;
+  border-radius:20px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+.bottom .head{position:absolute;left:24px;top:16px;font-size:23px;font-weight:800}
+.bottom .sub{position:absolute;left:24px;top:48px;font-size:13px;color:#64748b}
+.bottom .cols{position:absolute;left:24px;right:24px;top:78px;height:315px;display:flex;gap:14px}
+.bcol{flex:1;border-radius:13px;padding:13px 15px;border:1.5px solid #e2e8f0;background:#fbfdff}
+.bcol h3{margin:0 0 7px;font-size:16px;font-weight:800}
+.bcol ul{margin:0 0 0 15px;padding:0}
+.bcol li{font-size:12.9px;line-height:1.45;color:#334155;margin:4px 0}
+.bcol.red{border-color:#fecaca;background:#fff8f8}.bcol.red h3{color:var(--red)}
+.bcol.amber{border-color:#fcd34d;background:#fffdf5}.bcol.amber h3{color:var(--amber)}
+.bcol.blue{border-color:#bfdbfe;background:#f8fbff}.bcol.blue h3{color:var(--blue)}
+.bcol.green{border-color:#a7f3d0;background:#f7fefb}.bcol.green h3{color:var(--teal)}
+
+.footer{position:absolute;left:60px;right:60px;bottom:14px;font-size:12px;color:#64748b;border-top:1px solid #dbe3ee;padding-top:9px}
+svg.wires{position:absolute;left:0;top:0;width:3200px;height:2200px;z-index:1;pointer-events:none}
+.z{position:absolute;z-index:2}
+.arrow-label{position:absolute;z-index:3;font-size:11.5px;color:#475569;background:#eef2f7;padding:2px 6px;border-radius:5px;border:1px solid #e2e8f0}
+</style>
+</head>
+<body>
+  <div class="topbar"></div>
+  <div class="title">SAGE-Kit 完整架构</div>
+  <div class="subtitle">单用户 · 本地 · Skill + CLI · 可选控制面 · 只读反馈 · 受控 RSI</div>
+  <div class="meta">0.2.0-alpha.1 工作树 · 2026-10-26 · 设计基线与实际实现边界并列</div>
+  <div class="legend">
+    <span class="pill"><span class="dot g"></span>核心已实现</span>
+    <span class="pill"><span class="dot b"></span>宿主/安装</span>
+    <span class="pill"><span class="dot a"></span>可选能力</span>
+    <span class="pill"><span class="dot v"></span>RSI/门禁</span>
+    <span class="pill"><span class="dot r"></span>边界/非目标</span>
+    <span class="pill"><span class="dot n"></span>数据流</span>
+  </div>
+
+  <div class="band z">
+    <div class="label">分发与安装</div>
+    <div class="cards">
+      <div class="bc"><div class="t">npm 核心包 <span class="mono">sage-kit</span></div><div class="d">Node ≥22，核心零运行时依赖；CLI + Skill + 文件状态；可选控制面通过 lazy import 使用 better-sqlite3。</div></div>
+      <div class="bc"><div class="t">可选 DSH 原生插件 <span class="mono">sage-kit-dsh</span></div><div class="d">独立包，不进入核心依赖；原生任务工具 + <span class="mono">agent/pre-step</span> 自动 brief；真实 E2E 仅 DSH 0.2.1-rc.2 headless/Linux。</div></div>
+      <div class="bc"><div class="t">宿主包与 quickstart</div><div class="d"><span class="mono">host-codex</span> / <span class="mono">host-claude</span> marketplace 模板；<span class="mono">scripts/quickstart-dsh.sh</span> 在隔离 DSH profile 跑完整任务闭环。</div></div>
+    </div>
+  </div>
+
+  <svg class="wires" width="3200" height="2200" viewBox="0 0 3200 2200">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker>
+      <marker id="ab" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="#1d4ed8"/></marker>
+      <marker id="aa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="#b45309"/></marker>
+      <marker id="av" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="#6d28d9"/></marker>
+    </defs>
+    <!-- host -> CLI -->
+    <line x1="820" y1="474" x2="850" y2="474" stroke="#1d4ed8" stroke-width="3" marker-end="url(#ab)"/>
+    <!-- CLI -> core -->
+    <line x1="1600" y1="214" x2="1600" y2="236" stroke="#0f766e" stroke-width="3" marker-end="url(#a)"/>
+    <!-- core -> state -->
+    <line x1="1600" y1="640" x2="1600" y2="660" stroke="#0f766e" stroke-width="3" marker-end="url(#a)"/>
+    <!-- state -> execution -->
+    <line x1="1600" y1="1044" x2="1600" y2="1066" stroke="#0f766e" stroke-width="3" marker-end="url(#a)"/>
+    <!-- feedback -> state -->
+    <line x1="2380" y1="500" x2="2350" y2="500" stroke="#b45309" stroke-width="3" marker-end="url(#aa)"/>
+    <!-- RSI -> execution -->
+    <line x1="2380" y1="790" x2="2350" y2="790" stroke="#6d28d9" stroke-width="3" marker-end="url(#av)"/>
+    <!-- control -> core/state dashed -->
+    <line x1="2380" y1="1130" x2="2350" y2="1130" stroke="#b45309" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#aa)"/>
+    <!-- DSH plugin -> core library -->
+    <line x1="820" y1="830" x2="850" y2="830" stroke="#b45309" stroke-width="3" stroke-dasharray="9 7" marker-end="url(#aa)"/>
+    <!-- host packages / skill install -> CLI note -->
+    <line x1="820" y1="606" x2="850" y2="606" stroke="#64748b" stroke-width="2.5" stroke-dasharray="6 5" marker-end="url(#a)"/>
+  </svg>
+
+  <div class="panel left z">
+    <div class="ph"><span class="pt">宿主与接入层</span><span class="pb host">Skill / HostAdapter</span></div>
+    <div class="card" style="top:78px;height:300px">
+      <div class="kicker">HOSTS</div>
+      <div class="h">Agent 宿主：只加载 Skill 和指令，不共享状态</div>
+      <div class="one">DSH（headless / Web GUI）、Codex、Claude Code、OpenCode 通过文件安装或原生插件接入。</div>
+      <ul>
+        <li><b>Skill 无状态</b>：SKILL.md + references/templates；不持有数据库、不启动守护进程、不隐藏网络调用。</li>
+        <li><b>普通路径</b>：Agent 的 shell/工具调用进入 <span class="mono">sage-kit</span> CLI。</li>
+        <li><b>DSH 可选增强</b>：原生工具 + pre-step；非默认，不反向成为核心依赖。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:398px;height:300px">
+      <div class="kicker">INSTALL ADAPTERS</div>
+      <div class="h">安装适配器：把同一套 Skill 放到不同宿主</div>
+      <ul>
+        <li><b>DSH</b>：<span class="mono">.dsh/skills/sage-kit</span> + AGENTS.md 受管块。</li>
+        <li><b>Codex</b>：<span class="mono">.agents/skills/sage-kit</span>。</li>
+        <li><b>Claude Code</b>：<span class="mono">.claude/skills/sage-kit</span>。</li>
+        <li><b>HostAdapter</b>：检测、目标路径、安装/卸载、hook 映射；文件安装不自动装 hook。</li>
+        <li>安装只写自己的文件；<span class="mono">--force</span> 才覆盖已有 Skill。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:718px;height:310px">
+      <div class="kicker">OPTIONAL HOST ENHANCEMENTS</div>
+      <div class="h">可选增强：原生插件 / 宿主包</div>
+      <ul>
+        <li><b>sage-kit-dsh</b>：5 个原生任务工具；<span class="mono">agent/pre-step</span> 自动 brief；模式 <span class="mono">off</span> / <span class="mono">brief</span> / <span class="mono">strict</span>。</li>
+        <li><b>strict RSI 门禁</b>：只读检查 <span class="mono">rsiProposalId</span> 的 proposal、evaluation、approval；不写状态。</li>
+        <li><b>host-codex / host-claude</b>：marketplace + 薄插件 + Skill 副本；<span class="mono">host install|uninstall</span> 管归属。</li>
+        <li><span class="tag no">边界</span>真实 Web GUI、Windows/macOS、完整激活矩阵仍未执行。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:1048px;height:292px;background:#f8fbff;border-color:#bfdbfe">
+      <div class="kicker">HOST CONTRACT</div>
+      <div class="h">接入契约与失败方式</div>
+      <ul>
+        <li>Skill 只读指令；宿主失败不破坏核心状态。</li>
+        <li>hook 失败默认降级；<span class="mono">--strict</span> 才阻断。</li>
+        <li>DSH 不自动注入 <span class="mono">sage-kit hook</span>；可用 AGENTS 指令或可选插件。</li>
+        <li>核心不依赖任何宿主；卸载后文件状态仍可读。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="panel center z">
+    <div class="ph"><span class="pt">核心执行面</span><span class="pb core">Core CLI + 文件状态</span></div>
+    <div class="card" style="top:78px;height:146px">
+      <div class="kicker">ENTRYPOINT</div>
+      <div class="h">sage-kit CLI：确定性操作，不做模型与 UI</div>
+      <div class="one"><span class="mono">init · detect · doctor · task · worktree · run · brief · hook · feedback · control · rsi · host · uninstall · version</span></div>
+      <div class="small" style="margin-top:5px">Node ≥22；核心零运行时依赖；参数/JSON/human 输出；所有外部命令有超时与错误分类。</div>
+    </div>
+    <div class="card" style="top:240px;height:400px">
+      <div class="kicker">CORE LIBRARY</div>
+      <div class="h">src/core：任务、上下文、执行与恢复</div>
+      <ul>
+        <li><b>tasks</b>：状态机、id、验收、证据、RSI 标记；严格列表用于门禁。</li>
+        <li><b>brief</b>：2KB 上限、任务/反馈上下文、UTF-8 截断。</li>
+        <li><b>paths / config / install</b>：项目根、宿主路径、归属与卸载。</li>
+        <li><b>runs / worktree</b>：本地子进程、任务 worktree、PID/generation、stale 恢复。</li>
+        <li><b>events / doctor</b>：追加事件、诊断、实际恢复报告。</li>
+        <li><b>hooks / fs-utils</b>：stdin/stdout 适配、原子写、路径校验、幂等。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:660px;height:386px;background:#f7fefb;border-color:#a7f3d0">
+      <div class="kicker">FILE STATE</div>
+      <div class="h"><span class="mono">.sage-kit/</span> 单一权威文件状态</div>
+      <div class="one">文件模式与可选控制面不双写；任一时刻只有一个权威写入源。</div>
+      <ul>
+        <li><span class="mono">config.json</span>：宿主、scope、Skill 归属、brief 归属。</li>
+        <li><span class="mono">state/tasks/&lt;id&gt;.json</span>：任务、状态、验收、证据。</li>
+        <li><span class="mono">state/runs/&lt;run&gt;.json</span>：startup intent、PID、generation、终态。</li>
+        <li><span class="mono">state/events.jsonl</span>：追加事实；非权威派生态。</li>
+        <li><span class="mono">feedback/items.jsonl</span> + cursor：原始反馈与水位。</li>
+        <li><span class="mono">rsi/proposals|evaluations|approvals</span>：提案链证据。</li>
+        <li><span class="mono">SESSION_BRIEF.md</span>：派生快照，不是权威。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:1066px;height:286px">
+      <div class="kicker">EXECUTION</div>
+      <div class="h">本地执行：worktree + 子进程，无守护进程</div>
+      <ul>
+        <li>每个任务独立 git worktree/分支；创建和回收由 CLI/控制面负责。</li>
+        <li><span class="mono">run</span> 启动本地 Agent/命令；stdio 继承；记录 run id、PID、cwd、exit。</li>
+        <li>startup intent 先落盘，再 spawn；恢复区分中断/失败/审查；不自动重试。</li>
+        <li>无远程队列、无内置模型、无后台 loop；高风险动作人工确认。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="panel right z">
+    <div class="ph"><span class="pt">可选服务与改进闭环</span><span class="pb opt">Feedback / Control / RSI</span></div>
+    <div class="card" style="top:78px;height:330px;background:#fffdf5;border-color:#fcd34d">
+      <div class="kicker">FEEDBACK · READ ONLY</div>
+      <div class="h">只读反馈同步：把外部文本当数据</div>
+      <ul>
+        <li><span class="mono">feedback sync/list/show</span>；GitHub REST / Gitea；Issue 与 PR 评论。</li>
+        <li>normalize / dedupe / 来源 URL / cursor；latest item 可进 brief。</li>
+        <li>不写回 GitHub/Gitea；token 不落盘、不进日志/提示词。</li>
+        <li>分页完整性检查：不完整/页移动不推进 cursor；review-comment 全历史重读有成本上限。</li>
+        <li><span class="tag info">验证</span>真实 api.github.com 与 WSL2 Gitea 曾验证；巨量历史仍受限。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:428px;height:520px;background:#faf8ff;border-color:#ddd6fe">
+      <div class="kicker">RSI · L2 CONTROLLED</div>
+      <div class="h">受控自我改进：提案 → 隔离评估 → 人工批准</div>
+      <ul>
+        <li><b>1. proposal</b>：v2 JSON；只能改 Skill/代码/模板，不改模型权重。</li>
+        <li><b>2. candidate</b>：diff/文件预算、路径与 symlink 检查、受保护资产。</li>
+        <li><b>3. evaluate</b>：隔离 git worktree；baseline 与 candidate 跑固定测试；记录每次 run。</li>
+        <li><b>4. evidence</b>：评估通过/失败、基线差异、attempt 与锁。</li>
+        <li><b>5. approval</b>：一次性人工批准，绑定具体 evaluation。</li>
+        <li><b>gate</b>：<span class="mono">checkRsiGate</span> 只读校验 approved + passed + approval 匹配；DSH strict 插件调用它。</li>
+        <li><span class="tag no">不做</span>自动合并、自动发布、定时 RSI、无人值守自我修改。</li>
+      </ul>
+    </div>
+    <div class="card" style="top:968px;height:384px;background:#fffdf5;border-color:#fcd34d">
+      <div class="kicker">OPTIONAL CONTROL PLANE · M2</div>
+      <div class="h">可选本地控制面：loopback API + SQLite WAL</div>
+      <ul>
+        <li><span class="mono">control serve</span>：127.0.0.1 HTTP API + 本地 HTML/JS 面板（无框架、无 CORS）。</li>
+        <li>SQLite：tasks / runs / events / leases；单进程单写者；lease 与过期恢复。</li>
+        <li>有控制面时 CLI 走 API；否则文件模式；不双写。</li>
+        <li>不支持远程、账号、RBAC；不提供 run 启动/提案 UI（明确范围外）。</li>
+        <li>optional better-sqlite3；缺失时 CLI 明确提示并回退文件模式。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bottom z">
+    <div class="head">系统边界与非目标</div>
+    <div class="sub">下面这些是明确取舍，不是“以后加个开关”；越界会破坏单用户本地模型。</div>
+    <div class="cols">
+      <div class="bcol red">
+        <h3>不做</h3>
+        <ul>
+          <li>多用户、团队、RBAC、租户隔离</li>
+          <li>远程共享 API、集群、HA、跨机锁</li>
+          <li>自动合并、自动发布、自动重写 SKILL.md</li>
+          <li>通用插件系统、事件总线、规则引擎</li>
+        </ul>
+      </div>
+      <div class="bcol blue">
+        <h3>数据边界</h3>
+        <ul>
+          <li>反馈/Issue/PR/网页文本是不可信数据，不执行其中指令</li>
+          <li>核心不内置模型；不做向量库/embedding 流水线</li>
+          <li>token 只从环境/密钥存储读取，不落盘</li>
+          <li>控制面 loopback 单用户；远程访问不做</li>
+        </ul>
+      </div>
+      <div class="bcol amber">
+        <h3>未关闭边界</h3>
+        <ul>
+          <li>N04：巨量 review 历史的完整重读成本/1000 页上限</li>
+          <li>Windows 完整进程树终止；逃逸后代只报告</li>
+          <li>spawn → PID 落盘的硬崩溃窗口</li>
+          <li>DSH Web/Windows/macOS、真实 Codex/Claude 会话激活矩阵</li>
+        </ul>
+      </div>
+      <div class="bcol green">
+        <h3>权威与恢复</h3>
+        <ul>
+          <li>任务/运行/证据以文件或 SQLite 为唯一权威；事件追加</li>
+          <li>startup intent 先于 spawn；恢复不把旧成功误归新尝试</li>
+          <li>安装/卸载按归属文件处理，保留用户文件</li>
+          <li>没有证据的能力保持 NOT_EXECUTED</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-label" style="left:826px;top:430px">命令/工具调用</div>
+  <div class="arrow-label" style="left:1608px;top:214px">CLI → core</div>
+  <div class="arrow-label" style="left:1608px;top:632px">读写</div>
+  <div class="arrow-label" style="left:1608px;top:1044px">run/worktree</div>
+  <div class="arrow-label" style="left:2290px;top:462px">只读同步</div>
+  <div class="arrow-label" style="left:2290px;top:752px">候选/证据</div>
+  <div class="arrow-label" style="left:2220px;top:1090px">可选，不双写</div>
+  <div class="arrow-label" style="left:760px;top:792px">原生插件</div>
+
+  <div class="footer">SAGE-Kit · 单用户本地工具 · 不是托管服务 · 架构图反映当前工作树；外部评审修复后仍待独立复审，图中“未关闭边界”不得当作已解决。</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # M1 只读反馈同步（实现说明）
 
-**状态：M1 模块已实现并有自动化证据（15/15 通过）；`src/cli.ts` 的 `feedback` 接线已由 Lead 完成并经端到端命令验证；`package.json` 的 `test` 已包含本模块测试；已完成真实 GitHub（`api.github.com` 公开仓库）与 WSL2 隔离自建 Gitea 1.27.3 的只读真实同步验证（见 §8；证据在 `reports/m1/`）；未验证 Gitea 公共实例与 GitHub Enterprise，未发布。**
+**状态：M1 模块已实现并有自动化证据（20/20 通过）；`src/cli.ts` 的 `feedback` 接线已由 Lead 完成并经端到端命令验证；`package.json` 的 `test` 已包含本模块测试；已完成真实 GitHub（`api.github.com` 公开仓库）与 WSL2 隔离自建 Gitea 1.27.3 的只读真实同步验证（见 §8；证据在 `reports/m1/`）；未验证 Gitea 公共实例与 GitHub Enterprise，未发布。**
 本文件只描述本仓库实际交付的 M1 切片：只读同步、本地存储、`feedback sync|list|show`、brief 注入最新 1 条反馈摘要。分类、提案、评估、RSI、写回、定时同步均不在 M1 范围。
 
 ## 1. 不变量
@@ -120,8 +120,8 @@ sage-kit feedback show <id> [--json]
 - 端点（公开 REST API）：
   - `GET {base}/repos/{owner}/{repo}/issues?state=all&sort=updated&direction=asc&per_page=100[&since=<ISO>]`
   - `GET {base}/repos/{owner}/{repo}/pulls/comments?sort=updated&direction=asc&per_page=100[&since=<ISO>]`
-- 分页：跟随 `Link: rel="next"`，**只跟随与 base 同源的链接**；issues 默认最多 10 页（1000 条/次）；review comments 不做页号续点，必须扫描到 `next` 为空，避免同一时间戳超过页数上限后永久漏项；达到 1000 页保护上限且仍有 `next` 时以 `E_FEEDBACK_PAGE_LIMIT` 失败并保留旧 cursor，不返回部分成功。
-- 增量：issues 用服务端 `since=<cursor.issues>`（按 updated 升序）；PR review comments 用 `since=<cursor.reviews>` 时间水位，每次从第 1 页扫描到尾部，不使用可变的页号续点；同时间戳批量可全部读取，编辑/删除导致的页移动由时间水位 + fingerprint 去重覆盖，游标只在 list 完成后按已读条目的最大时间推进。
+- 分页：跟随 `Link: rel="next"`，**只跟随与 base 同源的链接**；issues 每轮默认最多 10 页（1000 条），记录是否读到末尾及是否跨页重复。初次扫描未完成或出现跨页重复时，从第 1 页无 `since` 对账；对账仍未完成则以 `E_FEEDBACK_PAGE_LIMIT` 失败，仍有跨页重复则以 `E_FEEDBACK_PAGE_SHIFT` 失败，整次 sync 不写入反馈或推进旧 cursor。超过容量（包括超过 1000 条的同时间戳桶）不会返回部分成功；无分页续点，需调整库调用的 `maxPages` 或缩小来源规模。
+- 增量：issues 用服务端 `since=<cursor.issues>`（按 updated 升序），仅完整且未观察到跨页重复的初次扫描，或完整且未位移的全量对账，允许返回新水位。PR review comments 每次先用 `since=<cursor.reviews>` 扫描，再**无条件全历史扫描**并按 id 合并；每轮最多 1000 页，超限以 `E_FEEDBACK_PAGE_LIMIT` 失败并保留旧 cursor。两类扫描均从第 1 页开始，不使用页号续点，也不减去时间重叠窗口。远端列表不是快照；未出现重复的删除/重排仍不受此检测保证，真实并发分页尚未验证。
 - `GET /issues` 也会返回 PR 本身：M1 统一记为 `kind: "issue"`，`metadata.isPullRequest=true`（契约没有单独的 pr 类型）。
 - PR review comments 记为 `kind: "pr_review"`，`title` 形如 `PR review comment on <path>`；`updatedAt` 缺失的评论也保留（fingerprint 用空串）。
 - 鉴权：`GITHUB_TOKEN` → `Authorization: Bearer <token>`；未设置时以匿名请求尝试（公开仓库可用，速率限制 60/h）。
@@ -174,13 +174,13 @@ url: <http(s) URL 或 "(no url)">
 
 ## 8. 验证证据
 
-命令与结果（本 agent 在 `D:/Projects/SAGE-Kit`，Node v24.22.0 执行；真实 Gitea 适配器在 WSL2 Node v22.22.1 执行）：
+本次修复命令在 `D:/Projects/SAGE-Kit`（Windows Node v24.22.0）执行；下方真实 GitHub/Gitea 证据属于历史运行，本次未重跑。
 
 | 命令 | 结果 |
 |---|---|
 | `npm run build` | 通过，无输出错误 |
-| `node --test tests/feedback.test.mjs` | **15/15 通过**（约 3.2s；含 Gitea 本地时区时间戳归一化与 F07 同时间戳分页回归） |
-| `npm test` | **131/131 通过**（2026-10-25，Windows Node v24.22.0；含本模块 15 项） |
+| `node --test tests/feedback.test.mjs`（本次与 RSI 清理测试一起执行） | **20/20 通过**；含双扫描均位移、1000 条历史 + 101 条增量、原始 101 条及超容量同时间戳桶回归 |
+| `npm test` | **206 项，205 通过，0 失败，1 跳过**（2026-10-26，Windows Node v24.22.0，可写修复副本；含反馈模块 20 项） |
 | `node --test --test-name-pattern='A7\|A2/A3\|A8/A9/A10' tests/cli.test.mjs` | 4/4 通过（既有 brief/hook 用例不回归） |
 | `git diff --check` | 干净 |
 

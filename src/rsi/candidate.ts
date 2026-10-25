@@ -6,7 +6,7 @@
  * protected evaluation assets (tests, hidden suites, package/release config,
  * CI config) can never be modified by a candidate (D-012).
  */
-import { lstat, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
+import { lstat, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { SageError } from "../core/errors.js";
 import { ensureDir, isPathInside, sha256 } from "../core/fs-utils.js";
@@ -168,7 +168,17 @@ export async function applyCandidateFiles(workspaceRoot: string, files: readonly
     }
     await assertNoSymlinkPath(root, file.path);
     if (file.content === null) {
-      await rm(target, { recursive: true, force: true });
+      const existing = await lstat(target).catch(() => null);
+      if (existing?.isDirectory()) {
+        // Deletion is a file operation. Recursively deleting a directory would
+        // both under-count the candidate and bypass protected descendants.
+        throw new SageError(
+          `Candidate deletion target is a directory, not a file: ${file.path}`,
+          "E_RSI_UNSAFE_PATH",
+          2,
+        );
+      }
+      if (existing) await rm(target, { force: true });
       continue;
     }
     await ensureDir(dirname(target));
@@ -189,8 +199,11 @@ async function collectManifest(
     throw error;
   }
   if (info.isSymbolicLink()) {
-    manifest.set(relativePath, `symlink:${await readlink(absolutePath)}`);
-    return;
+    throw new SageError(
+      `Protected evaluation asset is a symlink; refusing to evaluate: ${relativePath}`,
+      "E_RSI_PROTECTED_ASSET_SYMLINK",
+      2,
+    );
   }
   if (info.isDirectory()) {
     const entries = await readdir(absolutePath, { withFileTypes: true });

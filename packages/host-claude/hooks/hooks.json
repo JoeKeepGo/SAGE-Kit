@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT.split(String.fromCharCode(92)).join('/'),'hooks','session-start.cjs'))\"",
+            "timeout": 15,
+            "statusMessage": "Loading SAGE-Kit brief..."
+          }
+        ]
+      }
+    ]
+  }
+}

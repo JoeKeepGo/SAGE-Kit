@@ -11,6 +11,7 @@ export {
   findActiveTask,
   isTaskStatus,
   listTasks,
+  listTasksStrict,
   readTask,
   setTaskWorktree,
   updateTaskStatus,
@@ -25,6 +26,9 @@ export type {
 
 export { buildBrief } from "./core/brief.js";
 export type { BriefResult } from "./core/brief.js";
+
+export { checkRsiGate } from "./rsi/gate.js";
+export type { RsiGateResult } from "./rsi/gate.js";
 
 export {
   ensureStateDirs,

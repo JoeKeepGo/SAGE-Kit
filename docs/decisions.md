@@ -237,7 +237,7 @@
 
 - 核心 `npm install sage-kit` 不会安装或启用插件；插件安装/卸载走 DSH 插件管理器（`dsh plugin --profile <name> add|remove ...`），并遵循 DSH 的 `engines.dsh` 校验（插件声明 `>=0.2.1-rc.2 <0.3.0-0`；不匹配时 DSH 拒绝安装/启动，显式版本豁免除外，见 DSH 插件管理器文档）。
 - 插件只操作文件模式状态；不提供控制面（M2）、评估/发布（M3）、不自动合并/发布、不重写 Skill，也不复制任务/事件数据库。
-- 插件必须 fail-open：没有已初始化 `.sage-kit` 的项目不注入 brief；brief 生成/注入失败不阻断宿主 turn；自动 brief 按 session + 内容 sha256 去重，任务变化后重新注入。
+- 插件默认 fail-open：没有已初始化 `.sage-kit` 的项目不注入 brief；普通 brief 生成/注入失败不阻断宿主 turn；自动 brief 按 session + 内容 sha256 去重，任务变化后重新注入。显式 `mode: strict` 是 D-013 `--strict` 的宿主等价例外：带 `rsiProposalId` 的未终态任务未通过只读审批门禁、状态/项目元数据读取失败或 pre-step 的 2s deadline 到期时拒绝该轮；该例外不授权自动批准、合并或发布。
 - `sage-kit init` 不安装插件；插件不是 Skill，不能替代 Skill/CLI。
 - 证据要求：实现存在不等于已验证；打包安装 + `--dump-config` 组合冒烟已通过（`reports/plugin/packaging.md`）；真实 DSH 0.2.1-rc.2 headless E2E 也已通过——profile 安装、5 个原生工具、真实模型调用、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入、隔离 `DSH_HOME`（`reports/plugin/dsh-plugin-e2e.md`）。独立评审结论为有条件可安装（`reports/plugin/review.md`）；评审 F-1（非法 message form）与 F-2（`engines.dsh` 预发布上界）已修复，F-3 文档已对齐。Web GUI、Windows/macOS、配置分支、故障降级等未执行项标 `NOT_EXECUTED`，不得写成已验证。
 

@@ -8,6 +8,7 @@ import { detectHosts, formatDoctor, runDoctor } from "./core/doctor.js";
 import { SageError, toSageError } from "./core/errors.js";
 import { executeHookSafely, HOOK_TIMEOUT_EXIT_CODE, parseHookTimeout, type HookOptions, type HookOutput } from "./core/hooks.js";
 import { initSageKit, uninstallSageKit } from "./core/install.js";
+import { exists } from "./core/fs-utils.js";
 import { entryPackageRoot, findProjectRoot, homeDirectory, statePaths } from "./core/paths.js";
 import {
   createTask,
@@ -102,11 +103,11 @@ Usage:
   sage-kit init --host dsh [--scope project|global] [--mode copy|symlink] [--force] [--no-instructions]
   sage-kit doctor [--json]
   sage-kit detect [--json]
-  sage-kit task create --title <text> [--description <text>] [--acceptance <text>]... [--id <id>]
+  sage-kit task create --title <text> [--description <text>] [--acceptance <text>]... [--id <id>] [--rsi <proposal-id>]
   sage-kit task list [--status <status>] [--json]
   sage-kit task show <id> [--json]
   sage-kit task status <id> <status> [--evidence <text>]... [--note <text>] [--json]
-  sage-kit brief [--task <id>] [--max-bytes <n>] [--json]
+  sage-kit brief [--task <id>] [--max-bytes <n>] [--require-initialized] [--json]
   sage-kit worktree create --task <id>
   sage-kit worktree remove --task <id> [--force]
   sage-kit worktree list [--json]
@@ -117,6 +118,8 @@ Usage:
   sage-kit feedback sync --source local|github|gitea [--repo <owner/name>] [--file <path>] [--json]
   sage-kit feedback list [--json]
   sage-kit feedback show <id> [--json]
+  sage-kit host install --host codex|claude [--project-root <dir>] [--force] [--json]
+  sage-kit host uninstall --host codex|claude [--project-root <dir>] [--json]
   sage-kit rsi create --file <proposal.json>
   sage-kit rsi list [--status <status>] [--json]
   sage-kit rsi run-once --test-command <json-array> [--repeats <n>] [--export] [--out <path>] [--json]
@@ -234,9 +237,12 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (command === "brief") {
-    const parsed = parseArgs(argv.slice(1), { value: ["task", "max-bytes"], boolean: ["json"] });
+    const parsed = parseArgs(argv.slice(1), { value: ["task", "max-bytes"], boolean: ["json", "require-initialized"] });
     const root = await projectRootFrom(cwd);
     const paths = statePaths(root);
+    if (boolFlag(parsed.flags, "require-initialized") && !(await exists(paths.config))) {
+      throw new SageError(`SAGE-Kit is not initialized at ${root}`, "E_NOT_INITIALIZED", 1);
+    }
     const maxBytes = parsed.flags["max-bytes"] ? Number(parsed.flags["max-bytes"]) : 2048;
     if (!Number.isFinite(maxBytes) || maxBytes < 128) {
       throw new SageError("--max-bytes must be >=128", "E_USAGE", 2);
@@ -363,11 +369,78 @@ async function main(argv: string[]): Promise<number> {
     return await runFeedbackCommand(argv.slice(1), await projectRootFrom(cwd));
   }
 
+  if (command === "host") {
+    return await runHostCommand(argv.slice(1), cwd);
+  }
+
   if (command === "rsi") {
     return await runRsiCommand(argv.slice(1), await projectRootFrom(cwd));
   }
 
   throw new SageError(`Unknown command: ${command}`, "E_USAGE", 2);
+}
+
+async function runHostCommand(argv: string[], cwd: string): Promise<number> {
+  const sub = argv[0];
+  if (sub !== "install" && sub !== "uninstall") {
+    throw new SageError("host requires install or uninstall", "E_USAGE", 2);
+  }
+  const parsed = parseArgs(argv.slice(1), {
+    value: ["host", "project-root"],
+    boolean: ["force", "json"],
+  });
+  const host = requireString(parsed.flags, "host");
+  if (host !== "codex" && host !== "claude") {
+    throw new SageError("--host must be codex or claude", "E_USAGE", 2);
+  }
+  const root = typeof parsed.flags["project-root"] === "string"
+    ? resolve(parsed.flags["project-root"] as string)
+    : await projectRootFrom(cwd, true);
+  if (sub === "install" && !(await exists(join(root, ".sage-kit", "config.json")))) {
+    throw new SageError(
+      `SAGE-Kit is not initialized at ${root}; run \`sage-kit init\` first`,
+      "E_NOT_INITIALIZED",
+      1,
+    );
+  }
+
+  if (sub === "install") {
+    const options = { projectRoot: root, ...(boolFlag(parsed.flags, "force") ? { force: true } : {}) };
+    const result = host === "codex"
+      ? await (await import("./adapters/codex.js")).installCodexHostBundle(options)
+      : await (await import("./adapters/claude.js")).installClaudeHostBundle(options);
+    if (boolFlag(parsed.flags, "json")) json({ ok: true, action: sub, ...result });
+    else {
+      process.stdout.write(
+        [
+          `Staged ${host} host bundle (${result.version}).`,
+          `marketplace: ${result.marketplacePath}`,
+          `plugin:      ${result.pluginRoot}`,
+          ...result.warnings.map((warning) => `warning: ${warning}`),
+          host === "codex"
+            ? `Register it with: codex plugin marketplace add ${result.marketplacePath}`
+            : `Register it with: /plugin marketplace add ${result.marketplacePath}`,
+        ].join("\n") + "\n",
+      );
+    }
+    return 0;
+  }
+
+  const result = host === "codex"
+    ? await (await import("./adapters/codex.js")).uninstallCodexHostBundle({ projectRoot: root })
+    : await (await import("./adapters/claude.js")).uninstallClaudeHostBundle({ projectRoot: root });
+  if (boolFlag(parsed.flags, "json")) json({ ok: true, action: sub, ...result });
+  else {
+    process.stdout.write(
+      [
+        `Removed ${host} host bundle staging.`,
+        ...result.removed.map((path) => `removed: ${path}`),
+        ...result.kept.map((path) => `kept: ${path}`),
+        ...result.warnings.map((warning) => `warning: ${warning}`),
+      ].join("\n") + "\n",
+    );
+  }
+  return 0;
 }
 
 async function runRsiCommand(argv: string[], root: string): Promise<number> {
@@ -682,7 +755,7 @@ async function runTaskCommand(argv: string[], cwd: string): Promise<number> {
 
   if (sub === "create") {
     const parsed = parseArgs(argv.slice(1), {
-      value: ["title", "description", "id", "status"],
+      value: ["title", "description", "id", "status", "rsi"],
       multi: ["acceptance"],
       boolean: ["json"],
     });
@@ -693,6 +766,7 @@ async function runTaskCommand(argv: string[], cwd: string): Promise<number> {
       ...(typeof parsed.flags.status === "string"
         ? { status: parsed.flags.status as TaskStatus }
         : {}),
+      ...(typeof parsed.flags.rsi === "string" ? { rsiProposalId: parsed.flags.rsi } : {}),
       acceptance: parsed.multi.acceptance ?? [],
     });
     if (boolFlag(parsed.flags, "json")) json({ ok: true, task });

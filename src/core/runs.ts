@@ -72,35 +72,57 @@ function taskStatusForRun(run: RunRecord): TaskStatus {
   return "failed";
 }
 
-/**
- * Keep a task and its run record consistent after a crash or a failed terminal
- * write. A task in `running` with a terminal run is an orphaned start; a
- * recovered running run may have left its task in `running` or `review`.
- */
-async function reconcileTask(paths: StatePaths, run: RunRecord): Promise<void> {
+export interface RunRecoveryResult {
+  recovered: RunRecord[];
+  taskChanges: { taskId: string; from: TaskStatus; to: TaskStatus }[];
+  errors: string[];
+}
+
+/** Only a newly recovered attempt may reconcile a task still in its startup state. */
+async function reconcileTask(
+  paths: StatePaths,
+  run: RunRecord,
+  newlyRecovered: boolean,
+  result: RunRecoveryResult,
+): Promise<void> {
+  const task = await readTask(paths, run.taskId);
+  if (task.status !== "running" &&
+      !(newlyRecovered && ["ready", "review", "blocked", "failed"].includes(task.status))) return;
+  const next = taskStatusForRun(run);
+  const change = { taskId: task.id, from: task.status, to: next };
   try {
-    const task = await readTask(paths, run.taskId);
-    if (run.status === "running") {
-      if (task.status === "running" || task.status === "review") {
-        await updateTaskStatus(paths, run.taskId, "interrupted", { note: `stale run ${run.id}` });
-      }
-      return;
-    }
-    if (task.status === "running") {
-      await updateTaskStatus(paths, run.taskId, taskStatusForRun(run), {
-        note: `run ${run.id} reconciled after ${run.status}`,
-      });
-    } else if (run.status === "interrupted" && task.status === "review") {
-      // A crash can leave the task in `review` while the run record is still
-      // `running`; after recovery the run is interrupted but the task would
-      // otherwise claim a review that never completed.
-      await updateTaskStatus(paths, run.taskId, "interrupted", {
-        note: `stale run ${run.id}; review had no completed run record`,
-      });
-    }
-  } catch {
-    // A task may be missing after a manual reset; keep the run record.
+    await updateTaskStatus(paths, task.id, next, { note: `run ${run.id} reconciled after ${run.status}` });
+  } catch (error) {
+    // The task write may have succeeded before its event append failed. Report
+    // that actual change as well as the error; do not claim a failed write worked.
+    if ((await readTask(paths, task.id)).status === next) result.taskChanges.push(change);
+    throw error;
   }
+  result.taskChanges.push(change);
+}
+
+function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const exited = (): void => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      child.removeListener("exit", exited);
+      resolve(false);
+    }, timeoutMs);
+    child.once("exit", exited);
+  });
+}
+
+async function terminateSetupChild(child: ChildProcess): Promise<void> {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
+  child.kill("SIGTERM");
+  if (await waitForChildExit(child, 1_000)) return;
+  child.kill("SIGKILL");
+  if (await waitForChildExit(child, 1_000)) return;
+  throw new Error(`child PID ${child.pid} has not confirmed exit after SIGTERM and SIGKILL`);
 }
 
 /**
@@ -131,7 +153,7 @@ export async function startRun(
     throw new SageError("run requires a non-empty command after --", "E_USAGE", 2);
   }
   let task = await readTask(paths, taskId);
-  if (!["ready", "blocked", "review", "failed", "interrupted", "imported"].includes(task.status)) {
+  if (!["ready", "blocked", "review", "failed", "interrupted"].includes(task.status)) {
     throw new SageError(`Cannot run task in status ${task.status}`, "E_BAD_TRANSITION", 1);
   }
   if (options.worktree !== false && !task.worktree) {
@@ -149,6 +171,19 @@ export async function startRun(
     startedAt: nowIso(),
     generation,
   };
+
+  // Persist the startup intent before spawning. A child must never execute
+  // before a recoverable run record exists; a crash here leaves a stale running
+  // record that recovery can attribute to this task instead of an older run.
+  try {
+    await writeRun(paths, run);
+  } catch (error) {
+    throw new SageError(
+      `Cannot persist startup intent for run ${run.id}: ${errorText(error)}`,
+      "E_RUN_PERSIST",
+      1,
+    );
+  }
 
   let child: ChildProcess;
   try {
@@ -284,25 +319,51 @@ export async function startRun(
   });
 
   try {
-    await updateTaskStatus(paths, taskId, "running", { note: `run ${run.id}` });
+    // Persist the startup intent and the run record before moving the task to
+    // `running`. A crash after the task transition but before the first run
+    // record used to leave recovery looking at an older successful run and
+    // mis-attributing it to the interrupted attempt. With this order, a crash
+    // leaves either an older task status plus a stale `running` run (recovered
+    // as interrupted) or a complete running record; it never leaves a `running`
+    // task without its own run record.
     await writeRun(paths, run);
     await appendEvent(paths, "run.started", { runId: run.id, pid: run.pid, cwd }, taskId);
+    await updateTaskStatus(paths, taskId, "running", { note: `run ${run.id}` });
   } catch (error) {
-    // The run could not be registered. Stop the process rather than leave an
-    // untracked child; persist a failed run and fail the task if possible.
     settled = true;
     try {
-      child.kill();
-    } catch {
-      // ignore
+      await terminateSetupChild(child);
+    } catch (cleanupError) {
+      // Do not claim a terminal run while its child may still be executing.
+      // Preserve the existing PID field when the first PID write failed.
+      let persistenceError = "";
+      try {
+        await writeRun(paths, run);
+      } catch (writeError) {
+        persistenceError = `; PID could not be persisted: ${errorText(writeError)}`;
+      }
+      throw new SageError(
+        `Cannot start run ${run.id}: ${errorText(error)}; unresolved child PID ${run.pid}: ${errorText(cleanupError)}${persistenceError}`,
+        "E_RUN_CLEANUP",
+        1,
+      );
     }
     run.status = "failed";
     run.endedAt = nowIso();
-    await writeRun(paths, run).catch(() => undefined);
-    await updateTaskStatus(paths, taskId, "failed", { note: `run ${run.id}: setup failed: ${errorText(error)}` }).catch(
-      () => undefined,
-    );
-    throw new SageError(`Cannot start run ${run.id}: ${errorText(error)}`, "E_RUN_SETUP", 1);
+    const failures = [errorText(error)];
+    try {
+      await writeRun(paths, run);
+    } catch (writeError) {
+      failures.push(`failed record could not be persisted: ${errorText(writeError)}`);
+    }
+    try {
+      if ((await readTask(paths, taskId)).status !== "failed") {
+        await updateTaskStatus(paths, taskId, "failed", { note: `run ${run.id}: setup failed: ${errorText(error)}` });
+      }
+    } catch (taskError) {
+      failures.push(`task could not be marked failed: ${errorText(taskError)}`);
+    }
+    throw new SageError(`Cannot start run ${run.id}: ${failures.join("; ")}`, "E_RUN_SETUP", 1);
   }
   setupDone = true;
   maybeSettle();
@@ -351,8 +412,8 @@ export async function listRuns(paths: StatePaths): Promise<RunRecord[]> {
   return runs.sort(compareRunsDesc);
 }
 
-export async function recoverStaleRuns(paths: StatePaths): Promise<RunRecord[]> {
-  const recovered: RunRecord[] = [];
+export async function recoverStaleRuns(paths: StatePaths): Promise<RunRecoveryResult> {
+  const result: RunRecoveryResult = { recovered: [], taskChanges: [], errors: [] };
   const runs = await listRuns(paths);
   // A task can be re-run after an interrupted attempt. Only the newest run for
   // that task may reconcile the task; an older terminal/interrupted record must
@@ -389,16 +450,30 @@ export async function recoverStaleRuns(paths: StatePaths): Promise<RunRecord[]> 
   for (const run of runs) {
     const isCurrent = latestByTask.get(run.taskId) === run.id;
     if (run.status !== "running") {
-      if (isCurrent) await reconcileTask(paths, run);
+      if (isCurrent) {
+        try {
+          await reconcileTask(paths, run, false, result);
+        } catch (error) {
+          result.errors.push(`run ${run.id}, task ${run.taskId}: ${errorText(error)}`);
+        }
+      }
       continue;
     }
     if (run.pid && isAlive(run.pid)) continue;
     run.status = "interrupted";
     run.endedAt = nowIso();
     run.signal = null;
+    if (isCurrent) {
+      try {
+        await reconcileTask(paths, run, true, result);
+      } catch (error) {
+        result.errors.push(`run ${run.id}, task ${run.taskId}: ${errorText(error)}`);
+        // Keep the persisted run stale so task recovery can be retried.
+        continue;
+      }
+    }
     await writeRun(paths, run);
-    recovered.push(run);
-    if (isCurrent) await reconcileTask(paths, run);
+    result.recovered.push(run);
   }
-  return recovered;
+  return result;
 }

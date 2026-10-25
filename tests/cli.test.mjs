@@ -847,9 +847,15 @@ describe("P0 CLI", () => {
         15_000,
         "run record",
       );
-      const startedRun = JSON.parse(await readFile(runFile, "utf8"));
+      const startedRun = await waitFor(
+        async () => {
+          const parsed = JSON.parse(await readFile(runFile, "utf8"));
+          return Number.isInteger(parsed.pid) && parsed.pid > 0 ? parsed : null;
+        },
+        15_000,
+        "run pid",
+      );
       assert.equal(startedRun.status, "running");
-      assert.ok(Number.isInteger(startedRun.pid) && startedRun.pid > 0);
 
       assert.equal(child.kill("SIGKILL"), true);
       // `exit` (not `close`) fires once the CLI itself is gone; `close` also
@@ -939,6 +945,61 @@ describe("M1/M2/M3 CLI integration", () => {
     assert.deepEqual(payload.proposals, []);
   });
 
+  it("task create --rsi persists the proposal link through create/show/list", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const created = await runCli(cwd, [
+      "task",
+      "create",
+      "--title",
+      "Release approved RSI proposal",
+      "--rsi",
+      "prop-cli-0001",
+      "--json",
+    ]);
+    assert.equal(created.code, 0, created.stderr);
+    const payload = JSON.parse(created.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.task.rsiProposalId, "prop-cli-0001");
+    assert.equal(payload.task.schemaVersion, 1);
+    const id = payload.task.id;
+
+    const shown = await runCli(cwd, ["task", "show", id, "--json"]);
+    assert.equal(shown.code, 0, shown.stderr);
+    assert.equal(JSON.parse(shown.stdout).task.rsiProposalId, "prop-cli-0001");
+
+    const listed = await runCli(cwd, ["task", "list", "--json"]);
+    assert.equal(listed.code, 0, listed.stderr);
+    assert.equal(JSON.parse(listed.stdout).tasks[0].rsiProposalId, "prop-cli-0001");
+
+    const onDisk = JSON.parse(
+      await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"),
+    );
+    assert.equal(onDisk.rsiProposalId, "prop-cli-0001");
+  });
+
+  it("task create --rsi rejects an invalid proposal id and writes no task", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const bad = await runCli(cwd, [
+      "task",
+      "create",
+      "--title",
+      "Invalid link",
+      "--rsi",
+      "Bad Id",
+      "--json",
+    ]);
+    assert.equal(bad.code, 2);
+    const payload = JSON.parse(bad.stdout);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.error.code, "E_BAD_TASK");
+
+    const listed = await runCli(cwd, ["task", "list", "--json"]);
+    assert.equal(listed.code, 0, listed.stderr);
+    assert.deepEqual(JSON.parse(listed.stdout).tasks, []);
+  });
+
   it("F03: uninstall keeps pre-existing skill, brief and state directory", async () => {
     const cwd = await tempDir();
     const skillDir = join(cwd, ".fake", "skills", "sage-kit");
@@ -963,6 +1024,19 @@ describe("M1/M2/M3 CLI integration", () => {
     await assert.rejects(readFile(join(cwd, ".sage-kit", "config.json")));
   });
 
+  it("R03: uninstall keeps a user file added inside an owned skill directory", async () => {
+    const cwd = await tempDir();
+    const init = await runCli(cwd, ["init", "--host", "fake", "--scope", "project", "--no-instructions"]);
+    assert.equal(init.code, 0, init.stderr);
+    const skillDir = join(cwd, ".fake", "skills", "sage-kit");
+    await writeFile(join(skillDir, "user-notes.txt"), "keep me\n", "utf8");
+
+    const uninstall = await runCli(cwd, ["uninstall", "--purge"]);
+    assert.equal(uninstall.code, 0, uninstall.stderr);
+    assert.equal(await readFile(join(skillDir, "user-notes.txt"), "utf8"), "keep me\n");
+    await assert.rejects(readFile(join(skillDir, "SKILL.md")), "owned skill files must still be removed");
+  });
+
   it("F03b: a second init keeps ownership so uninstall removes its own skill", async () => {
     const cwd = await tempDir();
     const first = await runCli(cwd, ["init", "--host", "fake", "--scope", "project", "--no-instructions"]);
@@ -975,6 +1049,24 @@ describe("M1/M2/M3 CLI integration", () => {
     const uninstall = await runCli(cwd, ["uninstall", "--purge"]);
     assert.equal(uninstall.code, 0, uninstall.stderr);
     await assert.rejects(lstat(join(cwd, ".fake", "skills", "sage-kit")), "owned skill must be removed");
+  });
+
+  it("N01: an imported task is rejected before its command can run", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Imported task");
+    const taskFile = join(cwd, ".sage-kit", "state", "tasks", `${id}.json`);
+    const task = JSON.parse(await readFile(taskFile, "utf8"));
+    await writeFile(taskFile, `${JSON.stringify({ ...task, status: "imported" }, null, 2)}\n`, "utf8");
+    const marker = join(cwd, "should-not-exist.txt");
+    const result = await runCli(
+      cwd,
+      ["run", "--task", id, "--no-worktree", "--", process.execPath, "-e", `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`],
+    );
+    assert.notEqual(result.code, 0);
+    await assert.rejects(readFile(marker), "invalid transition must reject before spawn");
+    const afterRun = JSON.parse(await readFile(taskFile, "utf8"));
+    assert.equal(afterRun.status, "imported");
   });
 
   it("F04: an empty command is rejected before the task becomes running", async () => {

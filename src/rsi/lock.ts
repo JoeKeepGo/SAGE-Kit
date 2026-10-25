@@ -84,9 +84,25 @@ export async function acquireEvaluationLock(
   store: RsiStore,
   options: { now?: string } = {},
 ): Promise<EvaluationLock> {
-  return serializeLockAccess(() =>
-    withLockMutex(store.paths.lockPath, () => acquireEvaluationLockUnsafe(store, options)),
-  );
+  return serializeLockAccess(async () => {
+    let acquired: EvaluationLock | undefined;
+    try {
+      return await withLockMutex(store.paths.lockPath, async () => {
+        acquired = await acquireEvaluationLockUnsafe(store, options);
+        return acquired;
+      });
+    } catch (error) {
+      // The handle cannot escape if mutex cleanup rejects after acquisition.
+      if (acquired) {
+        try {
+          await acquired.release();
+        } catch (rollbackError) {
+          throw new AggregateError([error, rollbackError], "RSI mutex cleanup and evaluation lock rollback both failed");
+        }
+      }
+      throw error;
+    }
+  });
 }
 
 const MUTEX_STALE_MS = 30_000;

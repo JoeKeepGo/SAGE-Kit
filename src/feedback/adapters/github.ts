@@ -6,8 +6,8 @@
  *       + per_page, optional since, Link: rel="next" pagination
  *   GET /repos/{owner}/{repo}/pulls/comments?sort=updated&direction=asc
  *       + per_page, since, Link pagination. Review comments are re-read from
- *       page 1 on every sync, using a small time overlap and the updated-time
- *       watermark, rather than resuming a mutable page number. An edit or
+ *       page 1 on every sync, first using the updated-time watermark and then
+ *       reconciling the full history, rather than resuming a page number. An edit or
  *       delete can move an item between pages; a page cursor would skip it
  *       permanently.
  *
@@ -198,9 +198,8 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
       items: [...issues.items, ...reviews.items],
       nextCursor: encodeCursor({
         issues: maxIso(cursor.issues, issues.maxUpdated),
-        // A time watermark is safe across page shifts: the next scan starts
-        // from page 1 and re-reads a short overlapping window. Never resume a
-        // mutable page number.
+        // Every review sync also re-reads the full history. Never resume a
+        // mutable page number or assume a time overlap is being subtracted.
         reviews: maxIso(cursor.reviews, reviews.maxUpdated),
       }),
     };
@@ -232,6 +231,39 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
     pageSize: number,
     maxPages: number,
   ): Promise<{ items: ExternalFeedback[]; maxUpdated?: string }> {
+    // Like review comments, the issue list is mutable and updated-sorted. A
+    // watermark scan can skip an item when an edit moves it across a page
+    // boundary. A truncated or page-shifted scan cannot establish a watermark;
+    // require a complete, unshifted full reconciliation in that case.
+    const first = await this.scanIssues(baseUrl, token, owner, name, since, pageSize, maxPages);
+    if (first.complete && !first.pageShifted) {
+      return { items: first.items, ...(first.maxUpdated ? { maxUpdated: first.maxUpdated } : {}) };
+    }
+    const second = await this.scanIssues(baseUrl, token, owner, name, undefined, pageSize, maxPages);
+    if (!second.complete || second.pageShifted) {
+      throw new SageError(
+        !second.complete
+          ? `Issue reconciliation did not reach the end within ${maxPages} pages; refusing to advance the cursor`
+          : "Issue reconciliation observed a page shift; refusing to advance the cursor",
+        !second.complete ? "E_FEEDBACK_PAGE_LIMIT" : "E_FEEDBACK_PAGE_SHIFT",
+        1,
+      );
+    }
+    const byId = new Map<string, ExternalFeedback>();
+    for (const item of [...first.items, ...second.items]) byId.set(item.externalId, item);
+    const maxUpdated = maxIso(first.maxUpdated, second.maxUpdated);
+    return { items: [...byId.values()], ...(maxUpdated ? { maxUpdated } : {}) };
+  }
+
+  private async scanIssues(
+    baseUrl: string,
+    token: string | undefined,
+    owner: string,
+    name: string,
+    since: string | undefined,
+    pageSize: number,
+    maxPages: number,
+  ): Promise<{ items: ExternalFeedback[]; maxUpdated?: string; complete: boolean; pageShifted: boolean }> {
     const params = new URLSearchParams({
       state: "all",
       sort: "updated",
@@ -242,22 +274,30 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
     let url: string | null = `${baseUrl}/repos/${owner}/${name}/issues?${params.toString()}`;
     const items: ExternalFeedback[] = [];
     let maxUpdated = since;
+    const seen = new Set<string>();
+    let pageShifted = false;
+    let complete = false;
     for (let page = 0; page < maxPages && url; page += 1) {
       const response = await this.request(url, token);
       const array = expectArray(response.json, "issues", url);
+      const pageIds = new Set<string>();
       for (const raw of array) {
         try {
           const item = this.normalize(raw);
+          if (seen.has(item.externalId)) pageShifted = true;
+          pageIds.add(item.externalId);
           items.push(item);
           maxUpdated = maxIso(maxUpdated, item.updatedAt);
         } catch {
           // One malformed remote entry must not block the rest of the sync.
         }
       }
+      for (const id of pageIds) seen.add(id);
       const next = nextLink(response.headers);
+      complete = next === null;
       url = next && isSameOrigin(next, baseUrl) ? next : null;
     }
-    return { items, ...(maxUpdated ? { maxUpdated } : {}) };
+    return { items, ...(maxUpdated ? { maxUpdated } : {}), complete, pageShifted };
   }
 
   private async listReviewComments(
@@ -268,6 +308,29 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
     since: string | undefined,
     pageSize: number,
     _maxPages: number,
+  ): Promise<{ items: ExternalFeedback[]; maxUpdated?: string }> {
+    // Review comments are a mutable, updated-sorted collection. A single
+    // watermark scan can skip an item when an edit moves it between pages
+    // (`since` then excludes it permanently). Re-scan the full collection once
+    // without `since` and merge by external id; the cursor is only advanced
+    // after both passes complete. `maxPages` is intentionally not applied here:
+    // a bounded page cap must fail rather than claim a partial collection is
+    // complete.
+    const first = await this.scanReviewComments(baseUrl, token, owner, name, since, pageSize);
+    const second = await this.scanReviewComments(baseUrl, token, owner, name, undefined, pageSize);
+    const byId = new Map<string, ExternalFeedback>();
+    for (const item of [...first.items, ...second.items]) byId.set(item.externalId, item);
+    const maxUpdated = maxIso(first.maxUpdated, second.maxUpdated);
+    return { items: [...byId.values()], ...(maxUpdated ? { maxUpdated } : {}) };
+  }
+
+  private async scanReviewComments(
+    baseUrl: string,
+    token: string | undefined,
+    owner: string,
+    name: string,
+    since: string | undefined,
+    pageSize: number,
   ): Promise<{ items: ExternalFeedback[]; maxUpdated?: string }> {
     const params = new URLSearchParams({
       sort: "updated",
@@ -294,9 +357,6 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
       url = next && isSameOrigin(next, baseUrl) ? next : null;
     }
     if (url) {
-      // The safety cap was reached while the server still advertises another
-      // page. Returning a partial success would advance the cursor and make
-      // the remaining comments permanently unreachable, so fail explicitly.
       throw new SageError(
         `Review comment scan exceeded ${MAX_REVIEW_PAGES} pages; refusing to advance the cursor`,
         "E_FEEDBACK_PAGE_LIMIT",

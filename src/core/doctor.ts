@@ -113,13 +113,16 @@ export async function runDoctor(
   }
 
   try {
-    const recovered = await recoverStaleRuns(paths);
+    const { recovered, taskChanges, errors } = await recoverStaleRuns(paths);
+    const changed = taskChanges.map((change) => `${change.taskId}: ${change.from} -> ${change.to}`);
     checks.push({
       name: "runs",
-      status: recovered.length ? "warn" : "ok",
-      detail: recovered.length
-        ? `recovered ${recovered.length} stale run(s); tasks marked interrupted`
-        : "no stale runs",
+      status: recovered.length || taskChanges.length || errors.length ? "warn" : "ok",
+      detail: [
+        recovered.length ? `recovered ${recovered.length} stale run(s)` : "no stale runs",
+        `${taskChanges.length} task change(s)${changed.length ? ` (${changed.join(", ")})` : ""}`,
+        ...errors,
+      ].join("; "),
     });
   } catch (error) {
     checks.push({ name: "runs", status: "warn", detail: (error as Error).message });
