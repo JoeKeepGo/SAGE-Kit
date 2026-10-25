@@ -8,13 +8,13 @@
 ```text
 npm run build                     # tsc -p tsconfig.json，exit 0
 node --test tests/control.test.mjs
-# tests 38, pass 38, fail 0（含 HTTP 写端点与 UI 断言）
+# tests 39, pass 39, fail 0（含 HTTP 写端点与 UI 断言）
 node <temp>/sage-ui-write-e2e.mjs
 # headless Edge 27 项断言全过：自动加载、新建任务（校验/Esc）、状态转换（合法目标过滤/证据/409 错误回显）、
 # lease acquire/renew/release、recover stale、移动端单列、无 token、无页面 JS 异常
 ```
 
-`node:sqlite` 在本机可用（`DatabaseSync` 导入与建表/查询均已由测试覆盖），未新增任何依赖。全量 `npm test` 中本模块占 38 项；其他 slice 的测试由各自 owner 维护。
+`node:sqlite` 在本机可用（`DatabaseSync` 导入与建表/查询均已由测试覆盖），未新增任何依赖。全量 `npm test` 中本模块占 39 项；其他 slice 的测试由各自 owner 维护。
 
 ## 1. 范围与实现状态
 
@@ -30,7 +30,7 @@ node <temp>/sage-ui-write-e2e.mjs
 | lease acquire/renew/release/expire（30s/10s 可配置） | `IMPLEMENTED` | 同任务单 lease；过期不自动重跑 |
 | `recoverStale()` 恢复扫描 | `IMPLEMENTED` | 过期 lease + 无活 lease 的 active run → interrupted |
 | 单写者 `writer.lock`（死进程可接管） | `IMPLEMENTED` | 同进程第二次 open 拒绝；read-only open 不持锁 |
-| 本地 HTTP JSON API（9 条路由 / 10 个操作） | `IMPLEMENTED` | GET health/tasks/task-detail/events；POST tasks/task-status/lease-acquire·renew·release/recover；仅 127.0.0.1 + loopback Host 校验；本地单用户不要求 token |
+| 本地 HTTP JSON API（9 条路由 / 10 个操作） | `IMPLEMENTED` | GET health/tasks/task-detail/events；POST tasks/task-status/lease-acquire·renew·release/recover；仅 127.0.0.1 + loopback Host 校验，写请求再校验 Origin/Sec-Fetch-Site/JSON Content-Type；本地单用户不要求 token |
 | 写操作（任务创建、状态转换、lease、恢复） | `IMPLEMENTED` | 仅经 loopback UI/API；复用 `ControlStore` 方法与 P0 状态机；事件留痕；无自动重跑 |
 | CLI `control` 子命令 / `src/cli.ts` 接线 | `IMPLEMENTED`（Lead） | `serve/status/recover`，lazy import；P0 默认启动不加载 SQLite |
 | `config.json` 的 `mode = "control"` 与模式切换 | 非目标 | 绝不双写；本模块不碰 config |
@@ -219,6 +219,7 @@ server.close();  // 幂等
 - 只 `listen("127.0.0.1")`；listen 后再次校验 `server.address()` 是 loopback，否则关闭。
 - 每个连接校验 `socket.remoteAddress` ∈ {`127.0.0.1`,`::1`,`::ffff:127.0.0.1`}。
 - 校验 `Host` 头只接受 loopback/localhost（防 DNS rebinding）；异常 Host → 403。
+- 写请求（POST）额外校验：`Origin` 必须是同源 loopback 或缺失，`Sec-Fetch-Site` 不得为 cross-site，`Content-Type` 必须是 `application/json`；否则 403/415，且不调用 store。真实浏览器攻击与 socket 集成仍属未执行边界；本机程序调用不受影响。
 - **不设 Bearer token**：本地单用户工具的信任边界是 loopback + OS 账户；同一 OS 用户下的进程可以读取并写入控制面状态。这不是远程/多用户安全边界，也不把控制面暴露到非 loopback。
 - 请求体上限 64 KiB，事件 payload 上限 32 KiB；非法 JSON → 400；未知路由 → 404。
 - 无 CORS、无第三方静态资源、无 TLS（仅 loopback，本地进程间调用）。
@@ -324,7 +325,7 @@ done / cancelled → 终态
 - 面板不创建/监督 run（无 run 写端点），运行记录由外部 worker 调 store；UI 只读展示 runs/events——这是本地单用户控制面的边界，不是缺功能。
 - `node:sqlite`：Windows Node v24.22.0 直接可用；WSL Node v22.22.1 也可用但会打印 ExperimentalWarning。`package.json` engines 为 `>=22.20`（`node:sqlite` 下限）；核心 P0 路径不会因控制面 import 失败而崩溃（保持 lazy import）。
 - 已知边界：锁文件的 pid 可能被系统复用（极端情况下误判“存活”），可手动删除死锁文件；`STRICT` 表需要 SQLite ≥3.37（Node 22.22/24 内置版本已满足）；`recoverStale` 无 pid 校验，外部 runner 若不走 lease 需要传 `staleRunAfterMs`；无多进程读池/backup/artifacts。
-- 写操作信任边界：无 CSRF token、无 Origin 校验，信任 loopback + OS 账户（D-022）——同机同用户进程可写控制面状态；`POST /v1/tasks` 未强制幂等键，重试可能创建重复任务（UI 按钮忙态缓解）；`POST /v1/recover` 的 `staleRunAfterMs` 仅 API 参数，UI 固定使用默认值 0。
+- 写操作信任边界：无 CSRF token；对写请求校验 `Origin`（只接受同源 loopback 或缺失）、`Sec-Fetch-Site`（拒绝 cross-site）和 JSON `Content-Type`（非 JSON 返回 415），并只绑定 loopback + OS 账户（D-022）——同机同用户进程可写控制面状态；`POST /v1/tasks` 未强制幂等键，重试可能创建重复任务（UI 按钮忙态缓解）；`POST /v1/recover` 的 `staleRunAfterMs` 仅 API 参数，UI 固定使用默认值 0。
 
 ## 12. 文件清单（本 slice）
 
@@ -335,7 +336,7 @@ src/control/store.ts     # ControlStore/openControl：任务、run、事件、�
 src/control/lease.ts     # lease 规则（acquire/renew/release/expire）+ 过期副作用
 src/control/server.ts    # 127.0.0.1 JSON API（10 端点，读写）+ UI 路由
 src/control/ui.ts        # 自包含本地控制面板（无 token、单击详情、新建/状态转换/lease/恢复）
-tests/control.test.mjs   # 38 个测试（schema/任务/run/事件/lease/恢复/HTTP/UI）
+tests/control.test.mjs   # 39 个测试（schema/任务/run/事件/lease/恢复/HTTP/UI）
 docs/m2-control.md       # 本文
 docs/decisions.md        # D-022（本地可写面板修订）
 ```

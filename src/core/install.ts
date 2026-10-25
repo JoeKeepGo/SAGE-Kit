@@ -23,7 +23,7 @@ import {
   readPackageVersion,
   saveConfig,
 } from "./config.js";
-import { ensureStateDirs, packageRoot, skillSourceDir, statePaths, type StatePaths } from "./paths.js";
+import { ensureStateDirs, findProjectRoot, packageRoot, skillSourceDir, statePaths, writeProjectRegistry, type StatePaths } from "./paths.js";
 import { buildBrief } from "./brief.js";
 
 export interface InitOptions {
@@ -118,7 +118,7 @@ async function installSkill(
   mode: SkillMode,
   force: boolean,
   warnings: string[],
-): Promise<{ files: string[]; mode: SkillMode }> {
+): Promise<{ files: string[]; mode: SkillMode; owned: boolean }> {
   if (!(await exists(join(source, "SKILL.md")))) {
     throw new SageError(`Skill source is missing SKILL.md: ${source}`, "E_SKILL_SOURCE", 1);
   }
@@ -126,7 +126,7 @@ async function installSkill(
     if (!force) {
       warnings.push(`Skill already exists at ${target}; kept it (use --force to replace).`);
       // Record the mode the installed copy actually has, not the requested one.
-      return { files: [], mode: await actualSkillMode(target) };
+      return { files: [], mode: await actualSkillMode(target), owned: false };
     }
     await removePath(target);
   }
@@ -135,13 +135,13 @@ async function installSkill(
     try {
       const { symlink } = await import("node:fs/promises");
       await symlink(source, target, process.platform === "win32" ? "junction" : "dir");
-      return { files: ["SKILL.md"], mode: "symlink" };
+      return { files: ["SKILL.md"], mode: "symlink", owned: true };
     } catch {
       warnings.push("Directory symlink failed; copied the skill instead.");
     }
   }
   const files = await copyDirectory(source, target);
-  return { files, mode: "copy" };
+  return { files, mode: "copy", owned: true };
 }
 
 async function validateSkillSource(source: string): Promise<void> {
@@ -154,7 +154,13 @@ async function validateSkillSource(source: string): Promise<void> {
 export async function initSageKit(options: InitOptions = {}): Promise<InitResult> {
   const env = options.env ?? process.env;
   const home = options.home ?? env.HOME ?? env.USERPROFILE ?? ".";
-  const projectRoot = resolve(options.projectRoot ?? process.cwd());
+  const requestedRoot = resolve(options.projectRoot ?? process.cwd());
+  // `init` from a linked worktree must initialize the same project root that
+  // task/brief commands resolve, not a second state dir next to the linked
+  // checkout. An explicit --project-root is never rewritten; without one, a
+  // linked worktree with no trusted main path is rejected instead of silently
+  // creating a second state root.
+  const projectRoot = options.projectRoot ? requestedRoot : await findProjectRoot(requestedRoot, { strict: true });
   const scope: InstallScope = options.scope ?? "project";
   const mode: SkillMode = options.mode ?? "copy";
   const warnings: string[] = [];
@@ -176,6 +182,8 @@ export async function initSageKit(options: InitOptions = {}): Promise<InitResult
   const target = adapter.skillTarget(scope, projectRoot, env, home);
   if (!target) throw new SageError(`Host ${adapter.name} does not support skills`, "E_HOST_NO_SKILLS", 2);
   const paths = statePaths(projectRoot);
+  const stateDirExisted = await exists(paths.stateDir);
+  const briefExisted = await exists(paths.briefPath);
   const existing = await loadConfig(paths);
 
   if (existing && !options.force && (existing.host !== adapter.name || existing.scope !== scope)) {
@@ -187,15 +195,29 @@ export async function initSageKit(options: InitOptions = {}): Promise<InitResult
   }
 
   const installed = await installSkill(source, target, mode, Boolean(options.force), warnings);
+  const previousSkillOwned =
+    existing?.skill.path === target ? (existing.skill.owned ?? existing.skill.files.length > 0) : false;
+  // A normal re-init keeps an existing skill (`installed.files` is empty). Do
+  // not downgrade ownership recorded by the first install, or uninstall would
+  // leave a skill that SAGE-Kit itself created. `--force` replaces it and the
+  // installer owns the new copy again.
+  const skillOwned = installed.owned || (installed.files.length === 0 && previousSkillOwned);
   let instructions: InstructionsInstall | undefined = existing?.instructions;
   const instructionTarget = adapter.instructionsTarget(scope, projectRoot, env, home);
   const shouldWriteInstructions = options.instructions ?? (scope === "project");
   if (shouldWriteInstructions && instructionTarget) {
+    const instructionExisted = await exists(instructionTarget.path);
+    const created =
+      existing?.instructions?.path === instructionTarget.path
+        ? existing.instructions.created ?? !instructionExisted
+        : !instructionExisted;
     await writeInstructions(instructionTarget.path, instructionTarget.blockId, instructionBlock(instructionTarget.blockId));
-    instructions = { path: instructionTarget.path, blockId: instructionTarget.blockId };
+    instructions = { path: instructionTarget.path, blockId: instructionTarget.blockId, created };
   }
 
   const now = nowIso();
+  const briefCreated =
+    existing?.brief?.path === paths.briefPath ? existing.brief.created ?? !briefExisted : !briefExisted;
   const config: SageConfig = {
     schemaVersion: 1,
     packageVersion: await readPackageVersion(pkgRoot),
@@ -210,11 +232,15 @@ export async function initSageKit(options: InitOptions = {}): Promise<InitResult
       mode: installed.mode,
       files: installed.files.length ? installed.files : existing?.skill.files ?? [],
       installedAt: now,
+      owned: skillOwned,
     },
     ...(instructions ? { instructions } : {}),
+    brief: { path: paths.briefPath, created: briefCreated },
+    stateDirCreated: existing?.stateDirCreated ?? !stateDirExisted,
   };
   await ensureStateDirs(paths);
   await saveConfig(paths, config);
+  await writeProjectRegistry(projectRoot);
   const brief = await buildBrief(paths, undefined, 2048);
   await atomicWrite(paths.briefPath, `${brief.text}\n`);
   return {
@@ -255,27 +281,59 @@ export async function uninstallSageKit(options: {
   const removed: string[] = [];
   const kept: string[] = [];
   const warnings: string[] = [];
+  // Legacy configs predate ownership metadata; an empty files list means init
+  // kept a user-installed skill, so do not delete it on uninstall.
+  const skillOwned = config.skill.owned ?? (config.skill.files.length > 0);
   if (expected && resolve(config.skill.path) === resolve(expected)) {
     if (await exists(expected)) {
-      await removePath(expected);
-      removed.push(expected);
+      if (skillOwned) {
+        await removePath(expected);
+        removed.push(expected);
+      } else {
+        warnings.push(`Skill was not created by this install; left it untouched: ${config.skill.path}`);
+        kept.push(config.skill.path);
+      }
     }
   } else {
     warnings.push(`Skill path did not match the host adapter; left it untouched: ${config.skill.path}`);
     kept.push(config.skill.path);
   }
   if (config.instructions) {
-    if (await removeInstructions(config.instructions.path, config.instructions.blockId)) removed.push(config.instructions.path);
+    const hadInstructions = await exists(config.instructions.path);
+    const removedBlock = await removeInstructions(config.instructions.path, config.instructions.blockId);
+    if (removedBlock) {
+      const remaining = (await readText(config.instructions.path).catch(() => "")).trim();
+      if (hadInstructions && config.instructions.created === true && remaining.length === 0) {
+        await removePath(config.instructions.path);
+        removed.push(config.instructions.path);
+      }
+    }
   }
-  if (await exists(paths.briefPath)) {
-    await removePath(paths.briefPath);
-    removed.push(paths.briefPath);
+  if (config.brief?.path === paths.briefPath && (await exists(paths.briefPath))) {
+    if (config.brief.created === true) {
+      await removePath(paths.briefPath);
+      removed.push(paths.briefPath);
+    } else {
+      warnings.push(`Brief existed before this install; left it untouched: ${paths.briefPath}`);
+      kept.push(paths.briefPath);
+    }
   }
   await removePath(paths.config);
   removed.push(paths.config);
   if (options.purge) {
-    await removePath(paths.stateDir);
-    removed.push(paths.stateDir);
+    // A legacy config without stateDirCreated cannot prove that this install
+    // created the directory. Preserve it rather than risk deleting user state.
+    if (config.stateDirCreated !== true) {
+      warnings.push(
+        config.stateDirCreated === false
+          ? `State directory existed before this install; left it untouched: ${paths.stateDir}`
+          : `State directory ownership is unknown (legacy config); left it untouched: ${paths.stateDir}`,
+      );
+      kept.push(paths.stateDir);
+    } else {
+      await removePath(paths.stateDir);
+      removed.push(paths.stateDir);
+    }
   } else {
     kept.push(paths.stateDir);
   }

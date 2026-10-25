@@ -71,7 +71,7 @@ export interface InstructionTarget {
 
 - `[P0 已实现]` `detect` 必须给出证据；不能凭宿主名称猜测。
 - `[P0 已实现]` 安装路径来自适配器；DSH 路径按固定版本源码核对，Codex/Claude 路径按公开布局实现但真实宿主会话发现为 `NOT_VERIFIED`（见 `docs/platform-support.md`）。
-- `[P0 已实现]` 卸载只删除自己安装的 Skill 路径与受管说明块；不删除用户其他内容（`uninstall` 校验配置的 skill.path 与适配器期望一致）。
+- `[P0 已实现]` 卸载只删除自己安装的 Skill 路径与受管说明块；不删除用户其他内容（`uninstall` 校验配置的 skill.path 与适配器期望一致，并依据 `skill.owned` 判断是否由本安装创建；重复 init 不会降级所有权）。
 - `[TARGET]` `buildLaunchCommand` 式行为：只生成命令，不执行；当前 `launchCommand` 仅返回 argv，未被 runner 使用。
 - Hook 映射见 `docs/hooks-and-host-adapters.md`（P0 未实现宿主原生 hook 映射）。
 

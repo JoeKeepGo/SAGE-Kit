@@ -142,7 +142,13 @@ export function normalizeProtectedPaths(value: readonly string[] | undefined): s
 }
 
 export function isProtectedPath(path: string, protectedPaths: readonly string[]): boolean {
-  return protectedPaths.some((protectedPath) => path === protectedPath || path.startsWith(`${protectedPath}/`));
+  // Windows and default macOS filesystems are case-insensitive; comparing the
+  // literal path would let `Tests/...` bypass the protected-asset check.
+  const normalized = path.toLowerCase();
+  return protectedPaths.some((protectedPath) => {
+    const candidate = protectedPath.toLowerCase();
+    return normalized === candidate || normalized.startsWith(`${candidate}/`);
+  });
 }
 
 export function normalizeLimits(overrides: Partial<RsiLimits> | undefined): RsiLimits {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,11 +10,13 @@ import {
   DEFAULT_REPEATS,
   DEFAULT_RSI_LIMITS,
   RSI_SCHEMA_VERSION,
+  acquireEvaluationLock,
   approve,
   createRollbackPoint,
   evaluateCandidate,
   exportEvaluationSummary,
   openRsi,
+  recoverInterruptedEvaluations,
   recordEvaluationInControl,
   rejectProposal,
   requestApproval,
@@ -862,6 +864,227 @@ describe("M3 RSI safety invariants", () => {
     const approveSource = await readFile(join(REPO_ROOT, "src", "rsi", "approve.ts"), "utf8");
     assert.match(approveSource, /approvalToken/);
     assert.match(approveSource, /decidedBy/);
+  });
+
+  it("F08: recovers an evaluating proposal with no completed evidence", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    const created = await store.createProposal(
+      fixtureProposal({ id: "prop-interrupted-0001", baseCommit: repo.baseCommit }),
+    );
+    await store.saveProposal({
+      ...created,
+      status: "evaluating",
+      attempts: 1,
+      evaluationId: "eval-20260101000000-abc123",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    const result = await runOnce({ projectRoot: repo.dir, testCommand: TEST_COMMAND });
+    assert.equal(result.outcome, "idle");
+    const after = await store.getProposal("prop-interrupted-0001");
+    assert.equal(after.status, "failed");
+    const evaluation = await store.getEvaluation("eval-20260101000000-abc123");
+    assert.equal(evaluation.complete, true);
+    assert.equal(evaluation.reasonCode, "E_RSI_INTERRUPTED");
+    assert.equal(evaluation.runs.length, 0);
+  });
+
+  it("F08b: recovery cannot race an evaluator that holds the lock", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    const created = await store.createProposal(
+      fixtureProposal({ id: "prop-locked-0001", baseCommit: repo.baseCommit }),
+    );
+    await store.saveProposal({
+      ...created,
+      status: "evaluating",
+      attempts: 1,
+      evaluationId: "eval-20260101000000-locked",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const lock = await acquireEvaluationLock(store);
+    try {
+      // The recovery path must take the same lock, not merely inspect it, so a
+      // live evaluator's completed evidence cannot be overwritten.
+      assert.deepEqual(await recoverInterruptedEvaluations(store), []);
+      assert.equal((await store.getProposal("prop-locked-0001")).status, "evaluating");
+    } finally {
+      await lock.release();
+    }
+    // Once the evaluator is gone, the stale evaluating proposal is recoverable.
+    const recovered = await recoverInterruptedEvaluations(store);
+    assert.equal(recovered.length, 1);
+    assert.equal((await store.getProposal("prop-locked-0001")).status, "failed");
+  });
+
+  it("F08c: concurrent lock acquisition has exactly one owner", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    await mkdir(store.paths.lockPath.replace(/[\\/][^\\/]+$/, ""), { recursive: true });
+    await writeFile(
+      store.paths.lockPath,
+      JSON.stringify({ pid: 999999, owner: "stale-owner", startedAt: "2026-01-01T00:00:00.000Z" }),
+      "utf8",
+    );
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        acquireEvaluationLock(store).then(
+          (lock) => ({ ok: true, lock }),
+          (error) => ({ ok: false, code: error.code }),
+        ),
+      ),
+    );
+    const winners = results.filter((result) => result.ok);
+    assert.equal(winners.length, 1, "only one concurrent stale-lock takeover may succeed");
+    assert.equal(results.filter((result) => !result.ok).length, 7);
+    await winners[0].lock.release();
+  });
+
+  it("F08d: an old mutex owned by a live process is not stolen", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    const mutex = `${store.paths.lockPath}.mutex`;
+    await mkdir(dirname(mutex), { recursive: true });
+    await mkdir(mutex, { recursive: true });
+    await writeFile(join(mutex, "owner"), JSON.stringify({ pid: process.pid }), "utf8");
+    const old = new Date(Date.now() - 60_000);
+    await utimes(mutex, old, old);
+    await assert.rejects(
+      () => acquireEvaluationLock(store),
+      (error) => error.code === "E_RSI_LOCK_FAILED",
+      "a live owner must never be evicted by mutex age alone",
+    );
+    await rm(mutex, { recursive: true, force: true });
+  });
+
+  it("F08e: a stale mutex fails closed instead of being moved", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    const mutex = `${store.paths.lockPath}.mutex`;
+    await mkdir(dirname(mutex), { recursive: true });
+    await mkdir(mutex, { recursive: true });
+    await writeFile(join(mutex, "owner"), JSON.stringify({ pid: 999999, owner: "stale-owner" }), "utf8");
+    const before = await access(mutex).then(
+      () => true,
+      () => false,
+    );
+    assert.equal(before, true);
+    await assert.rejects(
+      () => acquireEvaluationLock(store),
+      (error) => error.code === "E_RSI_LOCK_STALE",
+      "an identity-ambiguous mutex must not be moved automatically",
+    );
+    assert.equal(
+      await access(mutex).then(
+        () => true,
+        () => false,
+      ),
+      true,
+      "the stale mutex must remain for explicit cleanup",
+    );
+    await rm(mutex, { recursive: true, force: true });
+    const lock = await acquireEvaluationLock(store);
+    await lock.release();
+  });
+
+  it("F08f: release does not starve under in-process acquire churn", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    const cycles = 25;
+    const results = await Promise.all(
+      Array.from({ length: 8 }, async () => {
+        let completed = 0;
+        while (completed < cycles) {
+          let lock;
+          try {
+            lock = await acquireEvaluationLock(store);
+          } catch (error) {
+            if (error.code === "E_RSI_EVALUATION_LOCKED") {
+              await new Promise((resolvePromise) => setTimeout(resolvePromise, 1));
+              continue;
+            }
+            throw error;
+          }
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, 1));
+          await lock.release();
+          completed += 1;
+        }
+        return completed;
+      }),
+    );
+    assert.deepEqual(results, Array(8).fill(cycles));
+    assert.equal(
+      await access(store.paths.lockPath).then(
+        () => true,
+        () => false,
+      ),
+      false,
+      "no evaluation lock may remain after all cycles",
+    );
+    assert.equal(
+      await access(`${store.paths.lockPath}.mutex`).then(
+        () => true,
+        () => false,
+      ),
+      false,
+      "no mutex may remain after all cycles",
+    );
+  });
+
+  it("F02: rejects a candidate that writes through a repository symlink", async () => {
+    if (process.platform === "win32") return;
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const target = join(repo.dir, "tests", "check.test.mjs");
+    const before = await readFile(target, "utf8");
+    await symlink(target, join(repo.dir, "escape-link"), "file");
+    git(repo.dir, ["add", "-A"]);
+    git(repo.dir, ["commit", "-q", "-m", "add escape symlink"]);
+    const baseCommit = git(repo.dir, ["rev-parse", "HEAD"]);
+    const store = openRsi(repo.dir);
+    await store.createProposal(
+      fixtureProposal({
+        id: "prop-symlink-0001",
+        baseCommit,
+        candidate: {
+          builder: "fixture-builder",
+          summary: "must not follow the symlink",
+          files: [{ path: "escape-link", content: "pwned\n" }],
+        },
+      }),
+    );
+    const evaluation = await evaluateCandidate({
+      projectRoot: repo.dir,
+      proposalId: "prop-symlink-0001",
+      testCommand: TEST_COMMAND,
+    });
+    assert.equal(evaluation.outcome, "failed");
+    assert.equal(await readFile(target, "utf8"), before);
+    const after = await store.getProposal("prop-symlink-0001");
+    assert.equal(after.status, "failed");
+  });
+
+  it("F02: treats protected paths case-insensitively", async () => {
+    const repo = await writeFixtureRepo({ baselinePasses: true });
+    const store = openRsi(repo.dir);
+    await store.createProposal(
+      fixtureProposal({
+        id: "prop-case-0001",
+        baseCommit: repo.baseCommit,
+        candidate: {
+          builder: "fixture-builder",
+          summary: "case bypass attempt",
+          files: [{ path: "TESTS/check.test.mjs", content: "ignored\n" }],
+        },
+      }),
+    );
+    const evaluation = await evaluateCandidate({
+      projectRoot: repo.dir,
+      proposalId: "prop-case-0001",
+      testCommand: TEST_COMMAND,
+    });
+    assert.equal(evaluation.outcome, "failed");
+    assert.equal(evaluation.reasonCode, "E_RSI_PROTECTED_ASSET");
   });
 
   it("documents that evaluation requires local git and never fetches", async () => {

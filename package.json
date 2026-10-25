@@ -1,6 +1,6 @@
 {
   "name": "sage-kit",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "description": "A local, single-user Skill + command-line harness for evidence-backed tasks and bounded self-improvement.",
   "type": "module",
   "license": "MIT",
@@ -24,6 +24,7 @@
     "skills/",
     "docs/",
     "README.md",
+    "CHANGELOG.md",
     "SECURITY.md",
     "AGENTS.md"
   ],

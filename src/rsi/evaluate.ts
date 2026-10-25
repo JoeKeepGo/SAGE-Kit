@@ -298,15 +298,60 @@ async function runOne(
   }
 }
 
-async function markEvaluating(store: RsiStore, proposal: Proposal): Promise<Proposal> {
+async function markEvaluating(store: RsiStore, proposal: Proposal, evaluationId: string): Promise<Proposal> {
   const next: Proposal = {
     ...proposal,
     status: "evaluating",
     attempts: proposal.attempts + 1,
+    evaluationId,
     updatedAt: store.nowIso(),
   };
   await store.saveProposal(next);
   return next;
+}
+
+/**
+ * Persist a draft evaluation before running commands. If the process crashes,
+ * the draft (and the proposal's `evaluationId`) is the recovery anchor instead
+ * of an indistinguishable `evaluating` proposal with no evidence.
+ */
+function draftEvaluation(input: {
+  evaluationId: string;
+  proposal: Proposal;
+  attempt: number;
+  startedAt: string;
+  baseCommit: string;
+  repeats: number;
+  command: string[];
+  diff: Evaluation["diff"];
+  protectedPaths: readonly string[];
+}): Evaluation {
+  return {
+    schemaVersion: RSI_SCHEMA_VERSION,
+    id: input.evaluationId,
+    proposalId: input.proposal.id,
+    attempt: input.attempt,
+    complete: false,
+    startedAt: input.startedAt,
+    finishedAt: input.startedAt,
+    baseCommit: input.baseCommit,
+    repeats: input.repeats,
+    command: input.command,
+    outcome: "failed",
+    reasonCode: "E_RSI_INTERRUPTED",
+    reasonMessage: "Evaluation did not finish; re-run only after inspecting this record.",
+    ranTests: false,
+    exitCode: null,
+    signal: null,
+    timedOut: false,
+    durationMs: 0,
+    diff: input.diff,
+    protectedAssets: { paths: [...input.protectedPaths], ok: true, changed: [] },
+    log: EMPTY_LOG,
+    runs: [],
+    baseline: { runs: [], passedRuns: 0, failedRuns: 0, outcome: "not_run" },
+    comparison: emptyComparison(),
+  };
 }
 
 function emptyComparison(): EvaluationComparison {
@@ -350,6 +395,7 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
   const repeats = normalizeRepeats(options.repeats, limits);
 
   const lock = await acquireEvaluationLock(store);
+  let primary: unknown;
   try {
     const proposal = await store.getProposal(proposalId);
     if (proposal.status !== "proposed") {
@@ -388,13 +434,14 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
 
     if (!assessment.ok) {
       // Rejected before any run: no baseline/candidate evidence exists.
-      const evaluating = await markEvaluating(store, proposal);
+      const evaluating = await markEvaluating(store, proposal, evaluationId);
       const finishedAt = store.nowIso();
       const evaluation: Evaluation = {
         schemaVersion: RSI_SCHEMA_VERSION,
         id: evaluationId,
         proposalId,
         attempt: evaluating.attempts,
+        complete: true,
         startedAt,
         finishedAt,
         baseCommit,
@@ -424,7 +471,19 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
       return evaluation;
     }
 
-    const evaluating = await markEvaluating(store, proposal);
+    const evaluating = await markEvaluating(store, proposal, evaluationId);
+    const draft = draftEvaluation({
+      evaluationId,
+      proposal,
+      attempt: evaluating.attempts,
+      startedAt,
+      baseCommit,
+      repeats,
+      command: testCommand,
+      diff,
+      protectedPaths,
+    });
+    await store.saveEvaluation(draft);
     const runOptions: RunOptions = {
       repoRoot,
       baseCommit,
@@ -437,10 +496,29 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
     const baselineRuns: EvaluationRun[] = [];
     for (let index = 1; index <= repeats; index += 1) {
       baselineRuns.push(await runOne(runOptions, "baseline", index, []));
+      await store.saveEvaluation({
+        ...draft,
+        baseline: {
+          runs: [...baselineRuns],
+          passedRuns: baselineRuns.filter((run) => run.outcome === "passed").length,
+          failedRuns: baselineRuns.filter((run) => run.outcome !== "passed").length,
+          outcome: baselineRuns.some((run) => run.outcome === "failed") ? "failed" : "not_run",
+        },
+      });
     }
     const candidateRuns: EvaluationRun[] = [];
     for (let index = 1; index <= repeats; index += 1) {
       candidateRuns.push(await runOne(runOptions, "candidate", index, assessment.files));
+      await store.saveEvaluation({
+        ...draft,
+        runs: [...candidateRuns],
+        baseline: {
+          runs: [...baselineRuns],
+          passedRuns: baselineRuns.filter((run) => run.outcome === "passed").length,
+          failedRuns: baselineRuns.filter((run) => run.outcome !== "passed").length,
+          outcome: baselineRuns.some((run) => run.outcome === "failed") ? "failed" : "passed",
+        },
+      });
     }
 
     const candidatePassedRuns = candidateRuns.filter((run) => run.outcome === "passed").length;
@@ -466,6 +544,7 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
       id: evaluationId,
       proposalId,
       attempt: evaluating.attempts,
+      complete: true,
       startedAt,
       finishedAt,
       baseCommit,
@@ -504,7 +583,20 @@ export async function evaluateCandidate(options: EvaluateCandidateOptions): Prom
       updatedAt: finishedAt,
     });
     return evaluation;
+  } catch (error) {
+    primary = error;
+    throw error;
   } finally {
-    await lock.release();
+    try {
+      await lock.release();
+    } catch (releaseError) {
+      if (primary !== undefined) {
+        throw new AggregateError(
+          [primary as Error, releaseError as Error],
+          "RSI evaluation failed and its lock could not be released",
+        );
+      }
+      throw releaseError;
+    }
   }
 }

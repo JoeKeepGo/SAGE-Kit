@@ -3,7 +3,7 @@
 **状态：P0 文件模式已实现；A13 已在真实 DSH 0.2.1-rc.2 + 真实模型上通过 headless、Web GUI、真实 stop、卸载/重装；DSH 不提供 hook 自动注入，记录为宿主边界。**
 P0 是第一个实现里程碑。它只验证“本地、无控制面”的最小闭环；未通过前不开始控制面 UI、反馈自动同步或 RSI。
 
-当前自动化覆盖（`npm test`，19 项）：A1 help/version（版本号从 package.json 读取，非硬编码）+ `npm pack` 后离线安装到临时项目（`npm install --offline --ignore-scripts`，隔离空 npm cache）并运行已安装 CLI 的 `version`/`doctor --json`/`init`；A2/A3 init/幂等/uninstall；A2b Codex/Claude 文件适配器；A2c 重复 init 记录实际 skill.mode（copy/symlink）；A4 正常/损坏配置/缺 Skill；A4c 全局 scope 的 HOME 解析（fake/codex/claude，未传 HOME 时不再误报 skill-path）；A4d Node `>=22` 下限单元测试；A5 生命周期/证据；A6 worktree；A7 brief；A7b 非 ASCII brief 截断（按 code point 切割、无 U+FFFD、严格 ≤ 字节预算）；A8/A9/A10 hook 契约/非法 JSON/未知事件/脱敏/strict；A8b/A8c hook `--timeout` 强制（stdin 保持打开 → 预算到期输出合法 HookOutput JSON 并以 124 退出；非法值 exit 2）；A11 模拟 stale run + 真实 SIGKILL 启动进程后 doctor 恢复；A12 路径穿越、参数不经 shell。未覆盖：缺 Node 的 doctor **集成**场景（需 <22 的 Node 二进制；CLI 在入口即退出，该分支由 A4d 单元测试覆盖）、bundle 导入导出（P0 无该命令，见 A12）。A13 已用真实 DSH + 真实模型完成 headless、GUI、真实 stop、卸载/重装；hook 自动注入因宿主不提供该能力而记为 `NOT_AVAILABLE`，不是未执行。
+当前自动化覆盖（`npm test`，30 项 P0 测试：P0 CLI 24 项 + 库 API 6 项）：A1 help/version（版本号从 package.json 读取，非硬编码）+ `npm pack` 后离线安装到临时项目（`npm install --offline --ignore-scripts`，隔离空 npm cache）并运行已安装 CLI 的 `version`/`doctor --json`/`init`；A2/A3 init/幂等/uninstall；A2b Codex/Claude 文件适配器；A2c 重复 init 记录实际 skill.mode（copy/symlink）；A4 正常/损坏配置/缺 Skill；A4c 全局 scope 的 HOME 解析（fake/codex/claude，未传 HOME 时不再误报 skill-path）；A4d Node `>=22` 下限单元测试；A5 生命周期/证据；A6 worktree；A7 brief；A7b 非 ASCII brief 截断（按 code point 切割、无 U+FFFD、严格 ≤ 字节预算）；A8/A9/A10 hook 契约/非法 JSON/未知事件/脱敏/strict；A8b/A8c hook `--timeout` 强制（stdin 保持打开 → 预算到期输出合法 HookOutput JSON 并以 124 退出；非法值 exit 2）；A11 模拟 stale run + 真实 SIGKILL 启动进程后 doctor 恢复；A12 路径穿越、参数不经 shell。未覆盖：缺 Node 的 doctor **集成**场景（需 <22 的 Node 二进制；CLI 在入口即退出，该分支由 A4d 单元测试覆盖）、bundle 导入导出（P0 无该命令，见 A12）。A13 已用真实 DSH + 真实模型完成 headless、GUI、真实 stop、卸载/重装；hook 自动注入因宿主不提供该能力而记为 `NOT_AVAILABLE`，不是未执行。
 
 ## 1. P0 范围
 
@@ -172,7 +172,7 @@ P0 当前把证据保存在 `reports/p0/` 的 Markdown 报告、原始日志和 
 
 ```bash
 npm ci
-npm test              # 构建 + 19 项 P0 测试（无网络）
+npm test              # 构建 + 131 项全量测试（其中 30 项 P0 = P0 CLI 24 + 库 API 6；无网络）
 ```
 
 `test:p0` / `test:security` 是后续拆分目标，当前不存在；不要按不存在的命令写验收记录。

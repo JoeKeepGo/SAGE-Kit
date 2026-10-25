@@ -10,14 +10,14 @@
 # 类型检查
 npm run build                     # tsc -p tsconfig.json，通过
 
-# 本模块测试（19 项，含真实 git 仓库 E2E）
+# 本模块测试（27 项，含真实 git 仓库 E2E）
 node --test tests/rsi.test.mjs
-# tests 19, suites 5, pass 19, fail 0, cancelled 0, skipped 0
-# duration_ms ≈ 19.7s（每个评估用例创建/清理真实 git worktree 并 spawn node --test）
+# tests 27, suites 5, pass 27, fail 0, cancelled 0, skipped 0
+# duration_ms ≈ 31s（每个评估用例创建/清理真实 git worktree 并 spawn node --test）
 
-# 全仓测试（M3b 后）
+# 全仓测试（F01–F08 定向修复后）
 npm test
-# tests 93, suites 17, pass 93, fail 0, cancelled 0, skipped 0
+# tests 131, suites 18, pass 131, fail 0, cancelled 0, skipped 0
 ```
 
 测试覆盖：提案存储/重载/损坏检测；非 git 仓库与未知 `baseCommit` 不消耗尝试次数；失败候选被阻断且不自动重试；通过候选有基线证据、仍必须显式人工批准（token、`decidedBy`、回滚点、一次性）；未提交改动不被评估、主工作树不被触碰；`repeats=3` 逐次记录；超界 repeats、受保护测试、diff 预算超限在跑测试前失败；超时被杀并清理 worktree；`runOnce` 一次一个候选；拒绝不写代码；证据 JSON 导出；可选控制面记录幂等（task/run/event）；静态检查无网络/模型 SDK/默认定时器。
@@ -37,7 +37,7 @@ npm test
 | 显式人工决定（`decidedBy`）与拒绝记录 | `IMPLEMENTED` | 匿名批准被拒绝；拒绝同样落 `approvals/` |
 | 回滚点记录 | `IMPLEMENTED` | 记录 `git checkout <baseCommit>` 指引；**不执行**回滚 |
 | 手动 `runOnce`，一次一个候选 | `IMPLEMENTED` | 无默认定时器；可到 `awaiting_approval`，不会自动批准 |
-| 单候选评估锁（PID stale 接管） | `IMPLEMENTED` | 同机同 project root；崩溃留下的死锁可接管 |
+| 单候选评估锁（PID stale 接管） | `IMPLEMENTED` | 同机同 project root；`evaluation.lock` 的 PID 锁由 `.mutex` 串行化接管；`.mutex` 自身不自动回收，死 PID/无 owner 时 fail closed（`E_RSI_LOCK_STALE`），需人工确认无评估进程后删除 |
 | 证据 JSON 导出 | `IMPLEMENTED` | `.sage-kit/rsi/exports/<evaluation-id>.json`；也可指定项目内路径 |
 | 可选控制面记录（task/run/event） | `IMPLEMENTED`（显式调用） | `recordEvaluationInControl()`；不自动、不双写；见 §10 |
 | CLI 接线（List/Create/Run-once/Approval/Reject/Export/Record-control） | `IMPLEMENTED`（Lead） | `run-once` 支持 `--repeats`、`--export [--out]`；独立 `rsi export` 与 `rsi record-control` |
@@ -261,7 +261,8 @@ comparison: { candidateRuns, baselineRuns, candidatePassedRuns,
 ## 8. 调度与并发
 
 - **只有调用才运行**：没有定时器、守护进程、队列、默认调度（§9）。`runOnce()` 每次只取最早 `proposed` 的提案，评估一个候选后结束；它可以到达 `awaiting_approval`，但永远不会批准。
-- 单候选：`evaluation.lock`（PID 锁文件）。同一 project root 同时只有一个评估；活跃 pid 持锁时抛 `E_RSI_EVALUATION_LOCKED`。锁内容损坏或 pid 已死视为崩溃残留，删除后接管；`release()` 校验 owner，避免误删别人的锁。
+- 单候选：`evaluation.lock`（PID 锁文件）。同一 project root 同时只有一个评估；活跃 pid 持锁时抛 `E_RSI_EVALUATION_LOCKED`。锁内容损坏或 pid 已死视为崩溃残留；`evaluation.lock` 的接管用原子 `rename`，若移动到的锁已被新 owner 替换则放回并失败，避免两个进程同时认为拿到锁。**读取锁文件失败（EPERM/EBUSY/EACCES 有界重试后仍失败）不能当作“损坏/空闲”而执行接管**：必须明确报 `E_RSI_LOCK_FAILED`，否则会抢走活 owner 的锁。`release()` 校验 owner 后直接 `unlink`，**不经过 `.mutex`**：它已经拥有该锁文件，只需删除；若让 release 与持续到来的 acquire 争同一把 mutex，正常同进程并发会出现 release 饥饿（5s 超时并留下 evaluation.lock）。同一 handle 的并发/重复 `release()` 共享同一次释放操作（不是各自独立 unlink），避免两个迟到的 unlink 误删后继 owner；完成后幂等。并发 acquire 看到活锁会拒绝，看到路径已删则可创建新锁，两者都安全。`.mutex` 只负责把 acquire 的“检查和发布”串行化；它**不会**自动移动或回收，因为移走公共路径会产生第三方进入的窗口。死 PID 或无 owner 的 `.mutex` 以 `E_RSI_LOCK_STALE` 失败，需确认没有评估进程运行后手工删除该目录；这牺牲自动崩溃恢复，换取跨进程互斥不被破坏。acquire 释放自己的 `.mutex` 时先删除 `owner` 再 `rmdir`，不 rename 公共路径；Windows 上 `EPERM/EBUSY` 会短重试，仍失败则抛 `E_RSI_LOCK_FAILED`，不再静默吞掉清理失败；owner JSON schema 损坏（空 owner/类型错误/数组）也明确报错，不与“另一个有效 owner”混淆。
+- 恢复同一互斥：`recoverInterruptedEvaluations()` 也获取同一把锁，在锁内重新读取 proposal/evaluation 再写入；不能在“检查锁空闲”之后无锁写回，否则会覆盖另一个评估刚完成的成功证据。读取 evaluation 时只有 `E_RSI_NOT_FOUND` 才合成中断证据；权限/I/O/JSON 损坏错误直接向上抛出，绝不把已成功的证据改写成 failed。
 - 有界重复：一次调用最多 `limits.maxRepeats`（默认 5）轮基线 + 同轮候选；没有“再跑一次直到通过”的逻辑。
 - 失败/超时不自动重试；`attempts` 保持 1，等待人工处理。
 
@@ -326,7 +327,7 @@ control.close();
 - **评估深度**：只有一条固定命令；没有 holdout/隐藏套件、依赖安装、构建缓存；基线对照与重复只能减少误判，不能证明正确性。`p0`/`regression`/`security` 的组合与阈值校准仍是 wiring 责任。
 - **候选大小**：`maxChangedLines`/`maxCandidateFiles` 限制 diff，但 `candidate.files[].content` 的字节大小没有上限；超大候选会在写 worktree 时占用磁盘/内存，需在 Builder/CLI 侧限制。
 - **批准真人性**：`decidedBy` 只是审计字符串，模块无法验证“真人”；必须由 CLI/UI 保证只在人工动作后调用。
-- **锁**：PID 可能被系统复用（极端情况下误判存活）；仅覆盖同机同 project root，跨机器/多进程并发不在范围。
+- **锁**：PID 可能被系统复用（极端情况下误判存活）；同机同 project root 的跨进程 acquire/takeover 由 `.mutex` 目录串行化，但仅覆盖本机文件系统；跨机器/网络文件系统不在范围。
 - **日志脱敏**：正则启发式，裸 base64 密钥、非键值形式的凭据可能漏脱敏；日志只应视为“尽力而为”。
 - **基线语义**：`candidatePassedRuns >= baselinePassedRuns` 是“不更弱”，不是“更好”；基线与候选都失败时同样判失败，人类需看证据与 diff。
 - **schema v2 无迁移**：skeleton 的 v1 记录会被当作损坏记录（`E_RSI_STORE_CORRUPT`）；`.sage-kit/` 被 gitignore，只有本地残留需要清理。
@@ -351,7 +352,7 @@ src/rsi/paths.ts         # .sage-kit/rsi/ 布局（含 exports/）、id 生成
 src/rsi/validate.ts      # 提案/候选/命令/limits/protectedPaths/repeats 校验
 src/rsi/candidate.ts     # diff 统计、受保护 manifest、候选应用
 src/rsi/store.ts         # 文件模式 store（原子写、损坏检测）
-src/rsi/lock.ts          # 单候选评估锁（PID stale 接管）
+src/rsi/lock.ts          # 单候选评估锁（evaluation.lock 接管；.mutex stale 时 fail closed）
 src/rsi/worktree.ts      # 真实 git worktree 创建/解析/清理（替代旧 workspace.ts）
 src/rsi/process.ts       # 固定命令执行（超时、日志捕获、环境剥离）
 src/rsi/evaluate.ts      # Evaluator 主流程：基线 + 候选 + 对照 + 失败分类
@@ -359,7 +360,7 @@ src/rsi/run.ts           # 手动 runOnce（一次一个候选）
 src/rsi/approve.ts       # 一次性人工批准、拒绝、回滚点
 src/rsi/export.ts        # 评估证据 JSON 导出
 src/rsi/control-record.ts# 可选 M2 控制面记录适配器
-tests/rsi.test.mjs       # 19 个测试（store/git worktree E2E/基线/重复/审批/预算/隔离/导出/控制面/静态边界）
+tests/rsi.test.mjs       # 27 个测试（store/git worktree E2E/基线/重复/审批/预算/隔离/导出/控制面/恢复锁/释放公平性/静态边界）
 docs/m3-rsi.md           # 本文
 ```
 

@@ -592,6 +592,229 @@ describe("P0 CLI", () => {
     assert.equal(run.status, "interrupted");
   });
 
+  it("F04b: recovers a stale run even when the task is already in review", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Review with stale run");
+    await runCli(cwd, ["task", "status", id, "running"]);
+    await runCli(cwd, ["task", "status", id, "review"]);
+    const runsDir = join(cwd, ".sage-kit", "state", "runs");
+    await mkdir(runsDir, { recursive: true });
+    await writeFile(
+      join(runsDir, "run-stale-review.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-stale-review",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "running",
+        pid: 999999,
+        startedAt: new Date(0).toISOString(),
+      }),
+      "utf8",
+    );
+    const doctor = await runCli(cwd, ["doctor", "--json"]);
+    assert.equal(doctor.code, 0, doctor.stderr);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "interrupted", "review cannot claim a run that never completed");
+    const run = JSON.parse(await readFile(join(runsDir, "run-stale-review.json"), "utf8"));
+    assert.equal(run.status, "interrupted");
+  });
+
+  it("F04d: recovering an old running record does not leapfrog a newer successful run", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Old running regression");
+    await runCli(cwd, ["task", "status", id, "running"]);
+    await runCli(cwd, ["task", "status", id, "review"]);
+    const runsDir = join(cwd, ".sage-kit", "state", "runs");
+    await mkdir(runsDir, { recursive: true });
+    const startedAt = "2020-01-02T00:00:00.000Z";
+    await writeFile(
+      join(runsDir, "run-a-old-running.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-a-old-running",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "running",
+        pid: 999999,
+        startedAt,
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(runsDir, "run-z-new-success.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-z-new-success",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "exited",
+        exitCode: 0,
+        signal: null,
+        startedAt,
+        endedAt: "2020-01-02T00:00:01.000Z",
+      }),
+      "utf8",
+    );
+    const first = await runCli(cwd, ["doctor", "--json"]);
+    assert.equal(JSON.parse(first.stdout).checks.find((check) => check.name === "runs").status, "warn");
+    assert.equal(
+      JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8")).status,
+      "review",
+    );
+    const second = await runCli(cwd, ["doctor", "--json"]);
+    assert.equal(JSON.parse(second.stdout).checks.find((check) => check.name === "runs").status, "ok");
+    assert.equal(
+      JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8")).status,
+      "review",
+    );
+  });
+
+  it("F04e: a dead newest run is not replaced by an older success with the same start", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Same-start dying run");
+    await runCli(cwd, ["task", "status", id, "running"]);
+    const runsDir = join(cwd, ".sage-kit", "state", "runs");
+    await mkdir(runsDir, { recursive: true });
+    const startedAt = "2020-01-02T00:00:00.000Z";
+    await writeFile(
+      join(runsDir, "run-a-old-success.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-a-old-success",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "exited",
+        exitCode: 0,
+        signal: null,
+        startedAt,
+        endedAt: "2020-01-02T00:00:01.000Z",
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(runsDir, "run-z-new-running.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-z-new-running",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "running",
+        pid: 999999,
+        startedAt,
+      }),
+      "utf8",
+    );
+    const doctor = await runCli(cwd, ["doctor", "--json"]);
+    assert.equal(doctor.code, 0, doctor.stderr);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "interrupted", "the newest attempt died before it could complete");
+    const newest = JSON.parse(await readFile(join(runsDir, "run-z-new-running.json"), "utf8"));
+    assert.equal(newest.status, "interrupted");
+  });
+
+  it("F04f: generation selects the newest run even when ids sort the other way", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Generation task");
+    await runCli(cwd, ["task", "status", id, "running"]);
+    const runsDir = join(cwd, ".sage-kit", "state", "runs");
+    await mkdir(runsDir, { recursive: true });
+    const startedAt = "2020-01-02T00:00:00.000Z";
+    await writeFile(
+      join(runsDir, "run-z-old-success.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-z-old-success",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "exited",
+        exitCode: 0,
+        signal: null,
+        startedAt,
+        endedAt: "2020-01-02T00:00:01.000Z",
+        generation: 1,
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(runsDir, "run-a-new-running.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-a-new-running",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "running",
+        pid: 999999,
+        startedAt,
+        generation: 2,
+      }),
+      "utf8",
+    );
+    const doctor = await runCli(cwd, ["doctor", "--json"]);
+    assert.equal(doctor.code, 0, doctor.stderr);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "interrupted");
+    const newest = JSON.parse(await readFile(join(runsDir, "run-a-new-running.json"), "utf8"));
+    assert.equal(newest.status, "interrupted");
+  });
+
+  it("F04c: an old interrupted run cannot overwrite a newer successful run", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Old run regression");
+    await runCli(cwd, ["task", "status", id, "running"]);
+    await runCli(cwd, ["task", "status", id, "review"]);
+    const runsDir = join(cwd, ".sage-kit", "state", "runs");
+    await mkdir(runsDir, { recursive: true });
+    await writeFile(
+      join(runsDir, "run-old-interrupted.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-old-interrupted",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "interrupted",
+        exitCode: null,
+        signal: "SIGKILL",
+        startedAt: "2020-01-02T00:00:00.000Z",
+        endedAt: "2020-01-02T00:00:01.000Z",
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(runsDir, "run-new-success.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: "run-new-success",
+        taskId: id,
+        command: ["fake"],
+        cwd,
+        status: "exited",
+        exitCode: 0,
+        signal: null,
+        startedAt: "2020-01-02T00:00:00.000Z",
+        endedAt: "2020-01-02T00:00:01.000Z",
+      }),
+      "utf8",
+    );
+    const doctor = await runCli(cwd, ["doctor", "--json"]);
+    assert.equal(doctor.code, 0, doctor.stderr);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "review", "an older interrupted run must not clobber the newer successful run");
+  });
+
   it("A11b: recovers a task and run after a real SIGKILL of the launching CLI", async () => {
     const cwd = await tempDir();
     await initFake(cwd);
@@ -714,6 +937,84 @@ describe("M1/M2/M3 CLI integration", () => {
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.ok, true);
     assert.deepEqual(payload.proposals, []);
+  });
+
+  it("F03: uninstall keeps pre-existing skill, brief and state directory", async () => {
+    const cwd = await tempDir();
+    const skillDir = join(cwd, ".fake", "skills", "sage-kit");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(join(skillDir, "SKILL.md"), "# user skill\n", "utf8");
+    await writeFile(join(cwd, "SESSION_BRIEF.md"), "# user brief\n", "utf8");
+    await mkdir(join(cwd, ".sage-kit", "state"), { recursive: true });
+    await writeFile(join(cwd, ".sage-kit", "state", "user-note.txt"), "keep me\n", "utf8");
+
+    const init = await runCli(cwd, ["init", "--host", "fake", "--scope", "project", "--no-instructions"]);
+    assert.equal(init.code, 0, init.stderr);
+    const config = JSON.parse(await readFile(join(cwd, ".sage-kit", "config.json"), "utf8"));
+    assert.equal(config.skill.owned, false);
+    assert.equal(config.brief.created, false);
+    assert.equal(config.stateDirCreated, false);
+
+    const uninstall = await runCli(cwd, ["uninstall", "--purge"]);
+    assert.equal(uninstall.code, 0, uninstall.stderr);
+    assert.equal(await readFile(join(skillDir, "SKILL.md"), "utf8"), "# user skill\n");
+    assert.match(await readFile(join(cwd, "SESSION_BRIEF.md"), "utf8"), /SAGE-Kit/);
+    assert.equal(await readFile(join(cwd, ".sage-kit", "state", "user-note.txt"), "utf8"), "keep me\n");
+    await assert.rejects(readFile(join(cwd, ".sage-kit", "config.json")));
+  });
+
+  it("F03b: a second init keeps ownership so uninstall removes its own skill", async () => {
+    const cwd = await tempDir();
+    const first = await runCli(cwd, ["init", "--host", "fake", "--scope", "project", "--no-instructions"]);
+    assert.equal(first.code, 0, first.stderr);
+    const second = await runCli(cwd, ["init", "--host", "fake", "--scope", "project", "--no-instructions"]);
+    assert.equal(second.code, 0, second.stderr);
+    const config = JSON.parse(await readFile(join(cwd, ".sage-kit", "config.json"), "utf8"));
+    assert.equal(config.skill.owned, true, "re-init must not downgrade ownership");
+
+    const uninstall = await runCli(cwd, ["uninstall", "--purge"]);
+    assert.equal(uninstall.code, 0, uninstall.stderr);
+    await assert.rejects(lstat(join(cwd, ".fake", "skills", "sage-kit")), "owned skill must be removed");
+  });
+
+  it("F04: an empty command is rejected before the task becomes running", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Empty command");
+    const result = await runCli(cwd, ["run", "--task", id, "--no-worktree", "--", ""]);
+    assert.notEqual(result.code, 0);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "ready", "invalid command must not change task status");
+  });
+
+  it("F04: a missing command still finalizes the run and task", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Missing command");
+    const result = await runCli(cwd, [
+      "run",
+      "--task",
+      id,
+      "--no-worktree",
+      "--",
+      "sage-kit-command-that-does-not-exist-xyz",
+    ]);
+    assert.equal(result.code, 1);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.run.status, "failed");
+    assert.ok(payload.run.endedAt);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "failed");
+  });
+
+  it("F05: an invalid note does not commit the status change", async () => {
+    const cwd = await tempDir();
+    await initFake(cwd);
+    const id = await createTask(cwd, "Note validation");
+    const result = await runCli(cwd, ["task", "status", id, "blocked", "--note", "x".repeat(2_100)]);
+    assert.notEqual(result.code, 0);
+    const task = JSON.parse(await readFile(join(cwd, ".sage-kit", "state", "tasks", `${id}.json`), "utf8"));
+    assert.equal(task.status, "ready", "status must not change when note validation fails");
   });
 
   it("control serve binds loopback and serves UI/API without a token", async () => {

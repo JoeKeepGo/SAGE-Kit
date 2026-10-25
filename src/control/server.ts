@@ -8,6 +8,7 @@ import { renderControlUiHtml } from "./ui.js";
 const LOOPBACK_HOST = "127.0.0.1";
 const LOOPBACK_CLIENTS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOST_HEADERS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const LOOPBACK_ORIGIN_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
 export interface ControlServerOptions {
   store: ControlStore;
@@ -43,6 +44,47 @@ function requireLoopbackHost(req: IncomingMessage): void {
   const normalized = (hostnamePart ?? "").toLowerCase();
   if (!LOOPBACK_HOST_HEADERS.has(normalized)) {
     throw new SageError("Control API only accepts loopback Host headers", "E_NON_LOOPBACK", 1);
+  }
+}
+
+/**
+ * Local, token-free control plane hardening. A remote web page can still send
+ * a blind cross-site request to 127.0.0.1, so mutations require a loopback
+ * Origin (when the browser supplies one), reject explicit cross-site fetches,
+ * and require JSON for bodies. This is not authentication; it is the CSRF
+ * boundary appropriate for a loopback-only local tool.
+ */
+function requireSafeMutation(req: IncomingMessage, method: string, pathname: string): void {
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return;
+  if (!pathname.startsWith("/v1/")) return;
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin.length > 0) {
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new SageError("Malformed Origin header", "E_CROSS_SITE_REQUEST", 1);
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== "http:" || !LOOPBACK_ORIGIN_HOSTS.has(hostname)) {
+      throw new SageError("Control mutations require a loopback Origin", "E_CROSS_SITE_REQUEST", 1);
+    }
+    // A page from another local port is still a different origin.
+    if ((req.headers.host ?? "").toLowerCase() !== parsed.host.toLowerCase()) {
+      throw new SageError("Control mutation Origin does not match Host", "E_CROSS_SITE_REQUEST", 1);
+    }
+  }
+  if (req.headers["sec-fetch-site"] === "cross-site") {
+    throw new SageError("Cross-site control mutation rejected", "E_CROSS_SITE_REQUEST", 1);
+  }
+  const contentLength = req.headers["content-length"];
+  const hasBody =
+    (typeof contentLength === "string" && Number(contentLength) > 0) || req.headers["transfer-encoding"] !== undefined;
+  if (hasBody) {
+    const contentType = req.headers["content-type"];
+    if (typeof contentType !== "string" || !/^application\/json(?:\s*;|$)/i.test(contentType.trim())) {
+      throw new SageError("Control mutation bodies must be application/json", "E_UNSUPPORTED_MEDIA_TYPE", 1);
+    }
   }
 }
 
@@ -82,12 +124,13 @@ function sendNoContent(res: ServerResponse, status: number): void {
 }
 
 function statusForError(code: string): number {
-  if (code === "E_NON_LOOPBACK" || code === "E_FORBIDDEN") return 403;
+  if (code === "E_NON_LOOPBACK" || code === "E_FORBIDDEN" || code === "E_CROSS_SITE_REQUEST") return 403;
   if (code === "E_NOT_FOUND" || code === "E_TASK_NOT_FOUND" || code === "E_RUN_NOT_FOUND" || code === "E_LEASE_NOT_HELD") {
     return 404;
   }
   if (code === "E_METHOD_NOT_ALLOWED") return 405;
   if (code === "E_BODY_TOO_LARGE") return 413;
+  if (code === "E_UNSUPPORTED_MEDIA_TYPE") return 415;
   if (
     [
       "E_LEASE_HELD",
@@ -274,6 +317,7 @@ async function route(req: IncomingMessage, res: ServerResponse, store: ControlSt
     }
     const pathname = url.pathname;
     const method = (req.method ?? "GET").toUpperCase();
+    requireSafeMutation(req, method, pathname);
 
     // The shell is public HTML with no embedded data. Every /v1/* route is
     // reachable only from the loopback socket + loopback Host header (no token).

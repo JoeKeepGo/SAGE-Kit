@@ -1092,6 +1092,42 @@ describe("M2 control HTTP API", () => {
     });
   });
 
+  it("F01: rejects cross-site and non-JSON control mutations", async () => {
+    await withControlServer(async ({ server }) => {
+      const plain = await api(server, "/v1/tasks", {
+        method: "POST",
+        rawBody: JSON.stringify({ title: "plain" }),
+        headers: { "content-type": "text/plain" },
+      });
+      assert.equal(plain.status, 415);
+      assert.equal(plain.json.error.code, "E_UNSUPPORTED_MEDIA_TYPE");
+
+      const crossSite = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: { title: "evil" },
+        headers: { origin: "https://evil.example" },
+      });
+      assert.equal(crossSite.status, 403);
+      assert.equal(crossSite.json.error.code, "E_CROSS_SITE_REQUEST");
+
+      const wrongPort = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: { title: "other local page" },
+        headers: { origin: "http://127.0.0.1:1" },
+      });
+      assert.equal(wrongPort.status, 403);
+      assert.equal(wrongPort.json.error.code, "E_CROSS_SITE_REQUEST");
+
+      const sameOrigin = await api(server, "/v1/tasks", {
+        method: "POST",
+        body: { title: "local UI" },
+        headers: { origin: `http://127.0.0.1:${server.port}` },
+      });
+      assert.equal(sameOrigin.status, 200);
+      assert.equal(sameOrigin.json.task.title, "local UI");
+    });
+  });
+
   it("rejects malformed JSON, missing bodies and non-loopback Host headers", async () => {
     await withControlServer(async ({ store, server }) => {
       const task = store.createTask({ title: "bad body" });

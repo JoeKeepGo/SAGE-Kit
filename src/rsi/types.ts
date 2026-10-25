@@ -241,6 +241,11 @@ export interface Evaluation {
   id: string;
   proposalId: string;
   attempt: number;
+  /**
+   * False while the evaluator is still writing run evidence. Missing means a
+   * complete (legacy or final) record; recovery treats `false` as interrupted.
+   */
+  complete?: boolean;
   startedAt: string;
   finishedAt: string;
   /** Fully resolved git commit the worktrees were checked out from. */

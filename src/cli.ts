@@ -81,8 +81,8 @@ function output(value: unknown, asJson: boolean): void {
   else if (typeof value === "string") process.stdout.write(`${value}\n`);
 }
 
-async function projectRootFrom(cwd: string): Promise<string> {
-  return findProjectRoot(cwd);
+async function projectRootFrom(cwd: string, strict = false): Promise<string> {
+  return findProjectRoot(cwd, { strict });
 }
 
 function requireString(flags: Record<string, string | boolean>, name: string): string {
@@ -184,9 +184,10 @@ async function main(argv: string[]): Promise<number> {
     if (mode !== undefined && mode !== "copy" && mode !== "symlink") {
       throw new SageError("--mode must be copy or symlink", "E_USAGE", 2);
     }
-    const projectRoot = await projectRootFrom(
-      typeof parsed.flags["project-root"] === "string" ? parsed.flags["project-root"] : cwd,
-    );
+    const explicitRoot = typeof parsed.flags["project-root"] === "string";
+    const projectRoot = explicitRoot
+      ? resolve(parsed.flags["project-root"] as string)
+      : await projectRootFrom(cwd, true);
     const result = await initSageKit({
       ...(typeof parsed.flags.host === "string" ? { host: parsed.flags.host } : {}),
       ...(scope ? { scope } : {}),
@@ -334,9 +335,9 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "uninstall") {
     const parsed = parseArgs(argv.slice(1), { boolean: ["purge"], value: ["project-root"] });
-    const root = await projectRootFrom(
-      typeof parsed.flags["project-root"] === "string" ? parsed.flags["project-root"] : cwd,
-    );
+    const root = typeof parsed.flags["project-root"] === "string"
+      ? resolve(parsed.flags["project-root"] as string)
+      : await projectRootFrom(cwd);
     const result = await uninstallSageKit({ projectRoot: root, purge: boolFlag(parsed.flags, "purge") });
     process.stdout.write(
       [
@@ -377,6 +378,7 @@ async function runRsiCommand(argv: string[], root: string): Promise<number> {
 
   if (sub === "list") {
     const parsed = parseArgs(argv.slice(1), { value: ["status"], boolean: ["json"] });
+    if (parsed.flags.status === undefined) await rsi.recoverInterruptedEvaluations(store);
     const proposals = await store.listProposals(
       typeof parsed.flags.status === "string" ? { status: parsed.flags.status as never } : {},
     );

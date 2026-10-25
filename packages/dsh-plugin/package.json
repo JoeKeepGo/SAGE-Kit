@@ -1,6 +1,6 @@
 {
   "name": "sage-kit-dsh",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "description": "DeepSeek Harness plugin: SAGE-Kit file-mode tasks and automatic brief injection",
   "type": "module",
   "main": "index.js",
@@ -26,7 +26,7 @@
     "@deepseek-ai/dsh-llm": "*",
     "@deepseek-ai/dsh-tools": "*",
     "@deepseek-ai/schemastery": "*",
-    "sage-kit": "^0.1.0"
+    "sage-kit": "^0.2.0-alpha.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": { "optional": true },

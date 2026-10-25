@@ -1,6 +1,6 @@
 # sage-kit-dsh（可选 DSH 原生插件）
 
-**状态：实现已落地（0.1.0，未发布到 npm registry）；真实 DSH 0.2.1-rc.2 headless E2E 已通过（[`reports/plugin/dsh-plugin-e2e.md`](../../reports/plugin/dsh-plugin-e2e.md)：profile 安装、5 个原生工具、真实模型调用、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入、隔离 `DSH_HOME`）。独立评审结论为**有条件可安装**（Linux/WSL2 + DSH 0.2.1-rc.2 + pnpm >=10；见 [`reports/plugin/review.md`](../../reports/plugin/review.md)）；F-1/F-2 已修复，F-3 文档已对齐。Web GUI、Windows/macOS、配置分支与故障降级等边界仍未执行（见 §8），不要据此对外称全平台“已验证可用”。**
+**状态：实现已落地（0.2.0-alpha.1，未发布到 npm registry）；真实 DSH 0.2.1-rc.2 headless E2E 已通过（[`reports/plugin/dsh-plugin-e2e.md`](../../reports/plugin/dsh-plugin-e2e.md)：profile 安装、5 个原生工具、真实模型调用、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入、隔离 `DSH_HOME`）。独立评审结论为**有条件可安装**（Linux/WSL2 + DSH 0.2.1-rc.2 + pnpm >=10；见 [`reports/plugin/review.md`](../../reports/plugin/review.md)）；F-1/F-2 已修复，F-3 文档已对齐。Web GUI、Windows/macOS、配置分支与故障降级等边界仍未执行（见 §8），不要据此对外称全平台“已验证可用”。**
 
 这是 SAGE-Kit 的 **DSH 宿主适配包**，不是核心产品面，也不是 CLI/Skill 的替代品：
 
@@ -16,7 +16,7 @@
 | DSH | `>=0.2.1-rc.2 <0.3.0-0`（`package.json` 的 `engines.dsh`，由 DSH 插件管理器校验） |
 | pnpm | **>=10**（DSH profile 用 `pnpm-workspace.yaml` 配置 `nodeLinker: hoisted`、`autoInstallPeers: false`；pnpm 9 会报错或错误地尝试安装宿主 peer） |
 | Node.js | >=22（核心 `sage-kit` 的要求；DSH 运行时自身版本另行满足） |
-| SAGE-Kit 核心 | `sage-kit@^0.1.0`（peer dependency，需安装到同一个 DSH profile） |
+| SAGE-Kit 核心 | `sage-kit@^0.2.0-alpha.1`（peer dependency，需安装到同一个 DSH profile） |
 | 项目状态 | 项目中已执行 `sage-kit init --host dsh --scope project`（存在 `.sage-kit/config.json`） |
 | 平台 | 证据目标为 Linux/WSL2；Windows/macOS 上的 DSH 插件运行未验证（`NOT_EXECUTED`） |
 
@@ -29,15 +29,15 @@
 ```bash
 # 0) 在 SAGE-Kit 仓库构建并打包两个包
 npm run build
-npm pack                                  # 产出 sage-kit-0.1.0.tgz
-(cd packages/dsh-plugin && npm pack)      # 产出 packages/dsh-plugin/sage-kit-dsh-0.1.0.tgz
+npm pack                                  # 产出 sage-kit-0.2.0-alpha.1.tgz
+(cd packages/dsh-plugin && npm pack)      # 产出 packages/dsh-plugin/sage-kit-dsh-0.2.0-alpha.1.tgz
 
 # 1) 准备 profile：从模板物化专用 profile（E2E 用 headless 模板验证；不要动 Desktop 保留 profile）
 dsh --profile sage-kit --from-default-profile headless --dump-config >/dev/null
 # 或 web 模板：--from-default-profile web（该路径的插件加载尚未执行，见 §8）
 
 # 2) 先安装核心包，再安装插件包（同一 profile；-w 显式表示 workspace root）
-dsh plugin --profile sage-kit add -w ./sage-kit-0.1.0.tgz ./packages/dsh-plugin/sage-kit-dsh-0.1.0.tgz
+dsh plugin --profile sage-kit add -w ./sage-kit-0.2.0-alpha.1.tgz ./packages/dsh-plugin/sage-kit-dsh-0.2.0-alpha.1.tgz
 
 # 3) 检查 profile 组合结果：输出应包含 "# == sage-kit-dsh" 与 id/name: sage-kit-dsh，
 #    且退出码为 0
@@ -119,7 +119,7 @@ dsh --profile sage-kit --json "<prompt>"
 
 ## 7. 版本与发布
 
-- 插件版本 `0.1.0`，独立于核心；peer 依赖 `sage-kit@^0.1.0` 与 `engines.dsh: >=0.2.1-rc.2 <0.3.0-0`。
+- 插件版本 `0.2.0-alpha.1`，独立于核心；peer 依赖 `sage-kit@^0.2.0-alpha.1` 与 `engines.dsh: >=0.2.1-rc.2 <0.3.0-0`。
 - MIT License；**未发布**到 npm registry / 未创建 release。安装使用仓库内 `npm pack` 的 tarball。
 - 安装/管理 profile 需要 pnpm >=10（DSH profile 的 `pnpm-workspace.yaml` 设置需要 pnpm 10；pnpm 9 会报错或错误安装 peer）。
 - DSH 版本升级超出 `engines.dsh` 范围时，安装/启动会被 DSH 插件管理器拒绝，需要更新插件版本或使用 DSH 的显式精确版本豁免（`dsh plugin ... version-exemptions` / `allow-version`；属 DSH 机制，风险自担）。
@@ -144,7 +144,7 @@ dsh --profile sage-kit --json "<prompt>"
 | 故障降级：损坏 `config.json`、brief 构建抛错时的 `logger.warn` 路径 | `NOT_EXECUTED`（E2E 报告 §已知边界 3） |
 | 工具边界：无 evidence 标记 done、非法 id、schema 边界 | 部分（仅验证 status enum 一例）；其余 `NOT_EXECUTED` |
 | 多会话并发去重 | `NOT_EXECUTED`（仅单 session 验证） |
-| 插件逻辑的仓库内自动化测试（lib/clamp/discoverRoot/manifest） | 已新增 `tests/plugin.test.mjs`（4 项）；工具/注入行为仍由 fake-ctx 与 E2E 覆盖，未做完整 fake-ctx 单测（评审 F-9 部分） |
+| 插件逻辑的仓库内自动化测试（lib/clamp/discoverRoot/manifest） | 已新增 `tests/plugin.test.mjs`（11 项，含 standard/separate-git-dir/submodule linked worktree 与过期注册表）；工具/注入行为仍由 fake-ctx 与 E2E 覆盖，未做完整 fake-ctx 单测（评审 F-9 部分） |
 | 注入消息 `source.form` 的 DSH 契约合法性 | 已修复（F-1）：省略 `form`，只保留 `source.kind`，符合 DSH 的未声明上下文默认态 |
 | 长会话 compaction 后 brief 重注入 | 未覆盖；当前按 session+内容指纹去重，compaction 丢上下文后同样内容可能不再注入（评审 F-13） |
 | 插件 README 相对链接（`../../docs`、`../../reports`） | 仅在仓库内有效；npm tarball 内这些链接失效（评审 F-14，Info） |

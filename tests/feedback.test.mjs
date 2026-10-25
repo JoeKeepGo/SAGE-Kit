@@ -8,6 +8,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildBrief } from "../dist/core/brief.js";
 import { statePaths } from "../dist/core/paths.js";
+import { createFeedbackAdapter } from "../dist/feedback/index.js";
 
 const DIST_COMMAND_URL = new URL("../dist/feedback/command.js", import.meta.url).href;
 const TEST_TMP_BASE =
@@ -477,6 +478,116 @@ describe("M1 feedback: GitHub adapter", () => {
       .filter(Boolean);
     assert.ok(sinceRequests.includes(cursor.issues), "second issues request carries since=<cursor>");
     assert.equal(fixture.state.requests.at(-1)?.authorization, "Bearer test-token");
+  });
+
+  it("F07: review-comment watermark advances past maxPages without losing a moved page", async () => {
+    const comments = [
+      { id: 1, updated_at: "2024-01-01T00:00:00Z" },
+      { id: 2, updated_at: "2024-01-01T00:01:00Z" },
+      { id: 3, updated_at: "2024-01-01T00:02:00Z" },
+      { id: 4, updated_at: "2024-01-01T00:03:00Z" },
+      { id: 5, updated_at: "2024-01-01T00:04:00Z" },
+      { id: 6, updated_at: "2024-01-01T00:05:00Z" },
+    ];
+    const fixture = await startHttpServer(async (request, response) => {
+      const host = request.headers.host ?? "127.0.0.1";
+      const url = new URL(request.url ?? "/", `http://${host}`);
+      if (url.pathname === "/repos/acme/widgets/issues") return sendJson(response, 200, []);
+      if (url.pathname !== "/repos/acme/widgets/pulls/comments") {
+        return sendJson(response, 404, { message: "not found" });
+      }
+      const since = url.searchParams.get("since");
+      const filtered = comments
+        .filter((item) => !since || item.updated_at >= since)
+        .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+      const perPage = Number(url.searchParams.get("per_page") ?? "2");
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const items = filtered.slice((page - 1) * perPage, page * perPage).map((item) => ({
+        ...item,
+        body: `comment ${item.id}`,
+        path: "src/a.ts",
+        user: { login: "bob" },
+        html_url: `https://github.example/comment/${item.id}`,
+      }));
+      const headers = {};
+      if (page * perPage < filtered.length) {
+        const next = new URL(url);
+        next.searchParams.set("page", String(page + 1));
+        headers.link = `<http://${host}${next.pathname}${next.search}>; rel="next"`;
+      }
+      return sendJson(response, 200, items, headers);
+    });
+    const adapter = createFeedbackAdapter("github", {
+      baseUrl: fixture.baseUrl,
+      env: { GITHUB_TOKEN: "test-token" },
+    });
+    const seen = new Set();
+    let cursor;
+    // maxPages=1 with pageSize=2: each sync advances the watermark by one page.
+    // Page numbers are not resumed, so an edit/delete that shifts a page cannot
+    // make the sync skip the item permanently.
+    for (let round = 0; round < 7; round += 1) {
+      const page = await adapter.list({
+        repo: "acme/widgets",
+        pageSize: 2,
+        maxPages: 1,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      for (const item of page.items) seen.add(item.externalId);
+      cursor = page.nextCursor;
+      const decoded = JSON.parse(cursor);
+      assert.equal(decoded.reviewsPage, null, "review pagination must not persist a mutable page number");
+      if (round === 0) {
+        // Simulate an edit moving comment 3 to the front of the mutable result
+        // set after the first page was consumed.
+        comments[2].updated_at = "2024-01-01T00:06:00Z";
+      }
+    }
+    assert.deepEqual([...seen].sort(), ["1", "2", "3", "4", "5", "6"]);
+    const finished = JSON.parse(cursor);
+    assert.equal(finished.reviews, "2024-01-01T00:06:00.000Z");
+  });
+
+  it("F07b: scans a same-timestamp review-comment bucket to completion", async () => {
+    const comments = Array.from({ length: 1002 }, (_, index) => ({
+      id: index + 1,
+      updated_at: "2024-01-01T00:00:00Z",
+    }));
+    const fixture = await startHttpServer(async (request, response) => {
+      const host = request.headers.host ?? "127.0.0.1";
+      const url = new URL(request.url ?? "/", `http://${host}`);
+      if (url.pathname === "/repos/acme/widgets/issues") return sendJson(response, 200, []);
+      if (url.pathname !== "/repos/acme/widgets/pulls/comments") {
+        return sendJson(response, 404, { message: "not found" });
+      }
+      const since = url.searchParams.get("since");
+      const filtered = comments.filter((item) => !since || item.updated_at >= since);
+      const perPage = Number(url.searchParams.get("per_page") ?? "100");
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const items = filtered.slice((page - 1) * perPage, page * perPage).map((item) => ({
+        ...item,
+        body: `comment ${item.id}`,
+        path: "src/a.ts",
+        user: { login: "bob" },
+        html_url: `https://github.example/comment/${item.id}`,
+      }));
+      const headers = {};
+      if (page * perPage < filtered.length) {
+        const next = new URL(url);
+        next.searchParams.set("page", String(page + 1));
+        headers.link = `<http://${host}${next.pathname}${next.search}>; rel="next"`;
+      }
+      return sendJson(response, 200, items, headers);
+    });
+    const adapter = createFeedbackAdapter("github", {
+      baseUrl: fixture.baseUrl,
+      env: { GITHUB_TOKEN: "test-token" },
+    });
+    const page = await adapter.list({ repo: "acme/widgets", pageSize: 100, maxPages: 1 });
+    assert.equal(page.items.length, 1002, "same-timestamp items must not stop at a page cap");
+    const decoded = JSON.parse(page.nextCursor);
+    assert.equal(decoded.reviewsPage, null);
+    assert.equal(decoded.reviews, "2024-01-01T00:00:00.000Z");
   });
 
   it("keeps the previous cursor and items when a sync fails", async () => {

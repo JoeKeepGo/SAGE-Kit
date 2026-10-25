@@ -509,10 +509,12 @@ export class ControlStore {
         throw new SageError(`Cannot move task ${taskId} from ${task.status} to ${next}`, "E_BAD_TRANSITION", 1);
       }
       const now = options.now === undefined ? this.nowIso() : resolveNowIso(options.now, this.nowIso());
+      const note = options.note === undefined ? undefined : cleanText(options.note, "note", 2_000);
+      const source = options.source === undefined ? undefined : cleanText(options.source, "source", 200);
       const newEvidence = (options.evidence ?? []).map((item) => ({
         at: now,
         note: cleanText(item, "evidence", 1_000),
-        ...(options.source ? { source: options.source.slice(0, 200) } : {}),
+        ...(source ? { source } : {}),
       }));
       const allEvidence = [...task.evidence, ...newEvidence];
       if (next === "done" && allEvidence.length === 0) {
@@ -527,7 +529,7 @@ export class ControlStore {
       this.appendEvent({
         type: "task.status_changed",
         taskId,
-        data: { from: task.status, to: next, version: task.version + 1, ...(options.note ? { note: options.note } : {}) },
+        data: { from: task.status, to: next, version: task.version + 1, ...(note === undefined ? {} : { note }) },
         createdAt: now,
       });
       return this.getTask(taskId);

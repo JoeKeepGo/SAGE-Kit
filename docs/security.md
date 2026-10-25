@@ -27,7 +27,7 @@
 4. **路径** `[P0]`：任务 id 白名单 `[a-z0-9][a-z0-9-]{0,63}` 阻止穿越；worktree 路径用 `resolve()` 前缀检查限制在 `.sage-kit/worktrees` 下；`uninstall` 只删与适配器期望路径一致的 skill。**没有 realpath/符号链接解析**——symlink 逃逸不是 P0 已验证的防护面，配置/说明块路径按本地可信配置处理。
 5. **命令执行** `[P0]`：`run` 用 `spawn(shell:false)` + 参数数组，不经过 shell；stdout/stderr `inherit` 直接给用户。**已知限制**：`run` 继承完整环境变量（可能含密钥），没有超时/取消；`git` 子进程有 60s 超时并设置 `GIT_TERMINAL_PROMPT=0`（`src/core/process.ts`）。
 6. **Hook** `[P0]`：stdin 上限 64 KB，输入必须是 JSON 对象，事件限定 `session.start`/`command.after`/`stop`，`--event` 与输入不一致会被拒绝；默认 fail-open，`stop --strict` 才 block。`--timeout` 在 50–2000ms 内被校验并应用于整个 hook 路径（含等待 stdin），超时输出合法 `warn` JSON 并以退出码 124 结束（见 `docs/hooks-and-host-adapters.md` 的线协议/超时小节与 `src/core/hooks.ts`；超时自动化覆盖见 P0-A8）。hook 失败**不会**写失败事件（成功调用才追加事件），失败可观测性有限。
-7. **安装/卸载** `[P0]`：`init` 只写适配器指定路径和受管说明块，保留用户已有内容（A2/A3 有测试）；`init` 不安装任何宿主/ git hook。`uninstall` 只删自己的 skill、受管块、`SESSION_BRIEF.md`、`config.json`；`--purge` 才删整个 `.sage-kit/`。
+7. **安装/卸载** `[P0]`：`init` 只写适配器指定路径和受管说明块，保留用户已有内容（A2/A3 有测试）；`init` 不安装任何宿主/ git hook。`config.json` 记录 `skill.owned`、`brief.created`、`stateDirCreated` 等所有权；`uninstall` 只删自己安装的 skill、受管块、自己创建的 `SESSION_BRIEF.md`/`config.json`；`--purge` 只在 `stateDirCreated === true` 时删除整个 `.sage-kit/`，旧配置缺字段时保守保留。
 8. **Git 边界** `[P0]`：没有自动 push/merge/publish 命令；`worktree remove` 默认拒绝脏 worktree；不安装 git hook。
 
 ## 3. 信任边界

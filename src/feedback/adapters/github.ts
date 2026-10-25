@@ -5,8 +5,11 @@
  *   GET /repos/{owner}/{repo}/issues?state=all&sort=updated&direction=asc
  *       + per_page, optional since, Link: rel="next" pagination
  *   GET /repos/{owner}/{repo}/pulls/comments?sort=updated&direction=asc
- *       + per_page, Link pagination; no server-side `since`, so older results
- *       are filtered locally against the stored cursor.
+ *       + per_page, since, Link pagination. Review comments are re-read from
+ *       page 1 on every sync, using a small time overlap and the updated-time
+ *       watermark, rather than resuming a mutable page number. An edit or
+ *       delete can move an item between pages; a page cursor would skip it
+ *       permanently.
  *
  * Auth: `GITHUB_TOKEN` (Bearer). Base URL: `GITHUB_API_URL` (default
  * https://api.github.com; useful for GitHub Enterprise Server or the local
@@ -39,10 +42,16 @@ import type {
 const DEFAULT_BASE_URL = "https://api.github.com";
 const DEFAULT_PAGE_SIZE = 100;
 const DEFAULT_MAX_PAGES = 10;
+// Review comments are scanned until GitHub stops returning a next link. A
+// fixed page resume point is unsafe because edits/deletes move items between
+// pages; the hard cap only prevents a malformed Link header loop.
+const MAX_REVIEW_PAGES = 1_000;
 
 interface GitHubCursor {
   issues?: string;
   reviews?: string;
+  /** Legacy page cursor from before the watermark-only review scan. Kept so old state decodes. */
+  reviewsPage?: number;
 }
 
 function maxIso(a: string | undefined, b: string | undefined): string | undefined {
@@ -59,8 +68,12 @@ function decodeCursor(cursor: string | undefined): GitHubCursor {
     const result: GitHubCursor = {};
     const issues = sanitizeTimestamp(record.issues);
     const reviews = sanitizeTimestamp(record.reviews);
+    const reviewsPage = record.reviewsPage;
     if (issues) result.issues = issues;
     if (reviews) result.reviews = reviews;
+    if (typeof reviewsPage === "number" && Number.isSafeInteger(reviewsPage) && reviewsPage > 0) {
+      result.reviewsPage = reviewsPage;
+    }
     return result;
   } catch {
     return {};
@@ -68,7 +81,11 @@ function decodeCursor(cursor: string | undefined): GitHubCursor {
 }
 
 function encodeCursor(cursor: GitHubCursor): string {
-  return JSON.stringify({ issues: cursor.issues ?? null, reviews: cursor.reviews ?? null });
+  return JSON.stringify({
+    issues: cursor.issues ?? null,
+    reviews: cursor.reviews ?? null,
+    reviewsPage: cursor.reviewsPage ?? null,
+  });
 }
 
 export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
@@ -181,6 +198,9 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
       items: [...issues.items, ...reviews.items],
       nextCursor: encodeCursor({
         issues: maxIso(cursor.issues, issues.maxUpdated),
+        // A time watermark is safe across page shifts: the next scan starts
+        // from page 1 and re-reads a short overlapping window. Never resume a
+        // mutable page number.
         reviews: maxIso(cursor.reviews, reviews.maxUpdated),
       }),
     };
@@ -247,25 +267,24 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
     name: string,
     since: string | undefined,
     pageSize: number,
-    maxPages: number,
+    _maxPages: number,
   ): Promise<{ items: ExternalFeedback[]; maxUpdated?: string }> {
-    // This endpoint has no `since`; fetch pages and filter against the cursor.
     const params = new URLSearchParams({
       sort: "updated",
       direction: "asc",
       per_page: String(pageSize),
     });
+    if (since) params.set("since", since);
     let url: string | null = `${baseUrl}/repos/${owner}/${name}/pulls/comments?${params.toString()}`;
     const items: ExternalFeedback[] = [];
     let maxUpdated = since;
-    for (let page = 0; page < maxPages && url; page += 1) {
+    for (let fetched = 0; fetched < MAX_REVIEW_PAGES && url; fetched += 1) {
       const response = await this.request(url, token);
       const array = expectArray(response.json, "pull comments", url);
       for (const raw of array) {
         try {
           const item = this.normalizeReviewComment(raw);
           maxUpdated = maxIso(maxUpdated, item.updatedAt);
-          if (since && item.updatedAt && item.updatedAt < since) continue;
           items.push(item);
         } catch {
           // Skip malformed remote entries.
@@ -273,6 +292,16 @@ export class GitHubFeedbackAdapter implements FeedbackSourceAdapter {
       }
       const next = nextLink(response.headers);
       url = next && isSameOrigin(next, baseUrl) ? next : null;
+    }
+    if (url) {
+      // The safety cap was reached while the server still advertises another
+      // page. Returning a partial success would advance the cursor and make
+      // the remaining comments permanently unreachable, so fail explicitly.
+      throw new SageError(
+        `Review comment scan exceeded ${MAX_REVIEW_PAGES} pages; refusing to advance the cursor`,
+        "E_FEEDBACK_PAGE_LIMIT",
+        1,
+      );
     }
     return { items, ...(maxUpdated ? { maxUpdated } : {}) };
   }
@@ -285,3 +314,4 @@ function splitRepo(repo: string): [string, string] {
   }
   return [encodeURIComponent(match[1] as string), encodeURIComponent(match[2] as string)];
 }
+

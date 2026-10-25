@@ -135,6 +135,29 @@ export async function assessCandidate(
   return base;
 }
 
+/**
+ * Reject symlinks anywhere on a candidate's path. A candidate must not be able
+ * to write through a repository symlink into a protected test file or outside
+ * the evaluation worktree.
+ */
+async function assertNoSymlinkPath(root: string, relativePath: string): Promise<void> {
+  const parts = relativePath.split("/");
+  let current = root;
+  for (const part of parts) {
+    current = join(current, part);
+    let info;
+    try {
+      info = await lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (info.isSymbolicLink()) {
+      throw new SageError(`Candidate path traverses a symlink: ${relativePath}`, "E_RSI_UNSAFE_PATH", 2);
+    }
+  }
+}
+
 /** Apply candidate files inside an isolated workspace copy. */
 export async function applyCandidateFiles(workspaceRoot: string, files: readonly CandidateFile[]): Promise<void> {
   const root = resolve(workspaceRoot);
@@ -143,6 +166,7 @@ export async function applyCandidateFiles(workspaceRoot: string, files: readonly
     if (!isPathInside(root, target)) {
       throw new SageError(`Candidate path escapes the evaluation workspace: ${file.path}`, "E_RSI_UNSAFE_PATH", 2);
     }
+    await assertNoSymlinkPath(root, file.path);
     if (file.content === null) {
       await rm(target, { recursive: true, force: true });
       continue;

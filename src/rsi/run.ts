@@ -8,6 +8,7 @@
  * `SKILL.md`; a human must decide.
  */
 import { evaluateCandidate } from "./evaluate.js";
+import { recoverInterruptedEvaluations } from "./recover.js";
 import { resolveRsiStore, type RsiStore } from "./store.js";
 import type { RsiLimits, RunOnceResult } from "./types.js";
 
@@ -25,6 +26,9 @@ export interface RunOnceOptions {
 
 export async function runOnce(options: RunOnceOptions): Promise<RunOnceResult> {
   const store = resolveRsiStore(options);
+  // A crashed evaluation is marked interrupted before another candidate starts;
+  // it is never retried automatically.
+  await recoverInterruptedEvaluations(store);
   const proposed = await store.listProposals({ status: "proposed" });
   const first = proposed[0];
   if (first === undefined) {

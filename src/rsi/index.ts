@@ -70,8 +70,10 @@ export type {
   ListProposalsOptions,
 } from "./store.js";
 
-export { acquireEvaluationLock } from "./lock.js";
-export type { EvaluationLock } from "./lock.js";
+export { acquireEvaluationLock, inspectEvaluationLock } from "./lock.js";
+export type { EvaluationLock, EvaluationLockStatus } from "./lock.js";
+
+export { recoverInterruptedEvaluations } from "./recover.js";
 
 export { evaluateCandidate } from "./evaluate.js";
 export type { EvaluateCandidateOptions } from "./evaluate.js";

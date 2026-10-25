@@ -35,7 +35,7 @@
   SESSION_BRIEF.md               # init 生成的会话摘要快照（项目根；派生视图）
 ```
 
-`<project-root>` 的解析：从当前目录向上找最近一个包含 `.git` 的目录；找不到则使用当前工作目录（`src/core/paths.ts` 的 `findProjectRoot()`）。
+`<project-root>` 的解析（`src/core/paths.ts` 的 `findProjectRoot()`）：从当前目录向上，最近一个包含 `.sage-kit/config.json` 的目录优先；否则首个 `.git` 目录即仓库根。`.git` 是文件时：带 `commondir` 的 linked worktree 优先读取共享 Git 目录中的 `sage-kit-project.json` 注册表（`init` 写入，只存绝对项目根，不存密钥/业务数据）；读取端会校验注册目标必须存在且与当前 worktree 共享同一个 Git common directory，过期/跨仓库条目直接忽略。没有注册表时，`main/.git` 布局回退到主工作树。submodule 与 `git init --separate-git-dir` 的主工作树同样写该注册表，linked worktree 据此解析到主工作树；未知布局或注册表失效时回退到当前工作树，绝不把 Git metadata 父目录或另一仓库当作项目根。DSH 插件的 `discoverRoot()` 按同一规则镜像。
 
 宿主原生插件（可选，当前为 DSH 的 `sage-kit-dsh`）不新增任何状态文件：它通过 `src/index.ts` 导出的库 API 读写同一份 `.sage-kit/` 文件状态，与 CLI 共用权威源；插件不启动控制面，也不双写（D-023）。
 
@@ -58,7 +58,7 @@ P0 文件模式不包含、不要写进布局的东西：
 - `[P0 已实现]` 任务/运行/配置文件：写入 `<path>.<pid>.<random>.tmp` → 写入 → `fsync` → `rename` 覆盖（`src/core/fs-utils.ts` 的 `atomicWrite`/`writeJsonAtomic`）。这是单文件原子性，不是多文件事务。
 - `[P0 已实现]` 事件：每行一个 JSON 追加到 `state/events/events.jsonl`（`appendLine` 以追加模式打开、`fsync`；无文件锁）。
 - `[P0 已实现]` 任务 JSON 字段（`src/core/tasks.ts` 的 `Task`）：`schemaVersion: 1`、`id`、`title`、`description`、`status`、`acceptance: string[]`、`evidence: { at, note, source? }[]`、可选 `branch`/`worktree`、`createdAt`、`updatedAt`。
-- `[P0 已实现]` 运行 JSON 字段（`src/core/runs.ts` 的 `RunRecord`）：`schemaVersion: 1`、`id`、`taskId`、`command: string[]`、`cwd`、`status: running | exited | failed | interrupted`、可选 `pid`/`exitCode`/`signal`、`startedAt`、可选 `endedAt`。
+- `[P0 已实现]` 运行 JSON 字段（`src/core/runs.ts` 的 `RunRecord`）：`schemaVersion: 1`、`id`、`taskId`、`command: string[]`、`cwd`、`status: running | exited | failed | interrupted`、可选 `pid`/`exitCode`/`signal`、`startedAt`、可选 `endedAt`、可选 `generation`（任务内单调递增，首次由 `startRun` 分配；旧记录按 0 处理）。
 - `[P0 已实现]` 事件行字段（`src/core/events.ts` 的 `SageEvent`）：`ts`（UTC ISO 8601）、`type`、可选 `taskId`、可选 `data`。**没有** `id`、`seq`、`at`、`runId` 顶层字段；runId 只出现在 `data.runId` 里。`data` 会经过 `redactRecord` 尽力脱敏（见 `docs/security.md` §2）。
 - `[P0 已实现]` 已产生的事件类型：`task.created`、`task.status_changed`、`task.worktree_attached`、`task.worktree_removed`、`worktree.created`、`worktree.removed`、`run.started`、`run.finished`、`hook.session.start`、`hook.command.after`、`hook.stop`。
 
@@ -116,7 +116,7 @@ cancelled   → （终态）
 - 非法转换被拒绝并返回 `E_BAD_TRANSITION`（可读错误）。
 - `done` 要求任务累计至少一条 evidence，否则 `E_DONE_WITHOUT_EVIDENCE`；`done` 只能从 `review` 进入（`running → done` 会被拒绝）。
 - `failed` 保留记录但 P0 不强制“失败原因+可重试标志”字段；重试会创建新 run，不覆盖旧 run 记录。
-- `interrupted` 是“状态未知但可恢复”的中间态：P0 由 `doctor` 的 stale-run 恢复写入；恢复后用户决定重跑/取消（无自动 resume 命令）。
+- `interrupted` 是“状态未知但可恢复”的中间态：P0 由 `doctor` 的 stale-run 恢复写入；恢复后用户决定重跑/取消（无自动 resume 命令）。同一任务重跑后，只有最新 `generation` 的 run 可 reconcile 任务状态（实现在 `src/core/runs.ts`）；`generation` 在 `startRun` 时分配且永不改写，因此同一毫秒启动的 run、PID 状态变化和恢复重写 `endedAt` 都不会改变“谁是最新”。旧记录没有 `generation` 时按 `startedAt`、运行顺序值（状态/PID 只作旧记录兜底）和 id 排序，并保留兜底规则：若旧记录同毫秒启动且新 run 是已死 `running`，成功记录不得覆盖它。旧记录排序不是完全不可变；这不影响有 generation 的新记录。旧的 interrupted/exited 记录不会覆盖新 run 的成功状态。
 
 `[TARGET]`（未实现）：
 
@@ -132,7 +132,7 @@ cancelled   → （终态）
 
 | 场景 | P0 现状 | 目标 |
 |---|---|---|
-| 进程被 kill / 宿主超时 | `[P0 已实现]` `doctor` 扫描 `state/runs/*.json` 中 `running` 且 pid 不存活的记录，把 run 标 `interrupted`，并把仍为 `running` 的任务标 `interrupted`（`recoverStaleRuns`） | 控制面启动时扫描；用户选择 resume/重跑/取消 |
+| 进程被 kill / 宿主超时 | `[P0 已实现]` `doctor` 扫描 `state/runs/*.json` 中 `running` 且 pid 不存活的记录，把 run 标 `interrupted`；任务状态只由该任务最新 `generation` 的 run 决定——最新 run 才是死的才把仍为 `running` 的任务标 `interrupted`（`recoverStaleRuns`） | 控制面启动时扫描；用户选择 resume/重跑/取消 |
 | lease 过期 | `[TARGET]` P0 无 lease | 不自动重跑；标中断 |
 | SQLite 被锁/损坏 | `[TARGET]` P0 无 SQLite | 单写者 + `busy_timeout`；`PRAGMA integrity_check` + 备份恢复 |
 | worktree 脏/冲突 | `[P0 已实现]` `worktree remove` 默认拒绝脏 worktree（`E_WORKTREE_DIRTY`），`--force` 才删除；不自动覆盖 | 保留现场/恢复分支 |
@@ -239,7 +239,7 @@ leases(
 
 ## 7. 备份、导出与保留（`TARGET`）
 
-- P0 **没有** `export`/`backup`/`import` 命令；`uninstall` 会删 skill、受管说明块、`SESSION_BRIEF.md` 和 `config.json`，`--purge` 还会删除整个 `.sage-kit/`（这是唯一接近“清理”的 P0 行为，且不是备份）。
+- P0 **没有** `export`/`backup`/`import` 命令；`uninstall` 只删除自己拥有的 skill、受管说明块、自己创建的 `SESSION_BRIEF.md` 和 `config.json`；`--purge` 仅在 `stateDirCreated === true` 时删除整个 `.sage-kit/`，旧配置缺字段时保留（不是备份）。
 - 计划（`TARGET`）：
   - `sage-kit export --format bundle`：生成可移植 bundle（manifest + tasks + feedback + artifacts 索引）。
   - `sage-kit backup`：控制面模式用 SQLite backup API 或 `VACUUM INTO`；文件模式直接打包。
@@ -255,7 +255,7 @@ leases(
 2. 任务文件原子替换；事件追加不覆盖。
 3. 非法状态转换被拒绝；无 evidence 不能 `done`（A5）。
 4. stale run 可被 `doctor` 恢复为 `interrupted`，不会误标 `done`（A11/A11b）。
-5. run 结束一定写回 run 记录（`run.finished` + run 文件状态；A12 覆盖正常路径）。
+5. run 结束一定写回 run 记录（`run.finished` + run 文件状态；A12 覆盖正常路径）。空命令在改 task 前拒绝；同步 spawn 异常会落一条 failed run；终态 run 写入失败时调用者收到错误、task 置 failed，恢复会修正仍为 `running` 的 run/task 不一致。
 6. 路径穿越的任务 id 被拒绝；命令参数不经 shell（A12）。
 7. 删除脏 worktree 默认被拒绝（A6）。
 8. `uninstall` 不删除用户自己的说明内容；只删受管块/自己的 skill（A2/A3）。

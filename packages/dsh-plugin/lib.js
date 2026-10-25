@@ -2,8 +2,10 @@
  * Pure helpers shared by the DSH plugin. Kept free of DSH imports so they can
  * be unit-tested without installing the host runtime.
  */
-import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+
+const PROJECT_REGISTRY = "sage-kit-project.json";
 
 export const DEFAULT_BRIEF_BYTES = 2048;
 export const MIN_BRIEF_BYTES = 256;
@@ -31,10 +33,101 @@ export function configuredRoot(value, cwd = process.cwd()) {
   return root;
 }
 
+/**
+ * Mirror the CLI's root semantics. A linked worktree (identified by the
+ * `commondir` file in its gitdir) owns the main worktree's state; the project
+ * registry written by `init` bridges separate-git-dir and submodule layouts
+ * where Git does not record the main worktree path. A submodule or separate
+ * git-dir without a registry is its own working tree.
+ */
+function commonGitDir(gitDir) {
+  const commonFile = join(gitDir, "commondir");
+  if (existsSync(commonFile)) {
+    return resolve(gitDir, readFileSync(commonFile, "utf8").trim());
+  }
+  return gitDir;
+}
+
+function commonDirForRoot(root) {
+  try {
+    const gitPath = join(root, ".git");
+    const info = lstatSync(gitPath);
+    if (info.isDirectory()) return gitPath;
+    if (!info.isFile()) return undefined;
+    const match = /^gitdir:\s*(.+)$/im.exec(readFileSync(gitPath, "utf8").trim());
+    if (!match) return undefined;
+    return commonGitDir(resolve(root, match[1].trim()));
+  } catch {
+    return undefined;
+  }
+}
+
+function samePath(a, b) {
+  try {
+    const left = realpathSync(a);
+    const right = realpathSync(b);
+    return process.platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
+  } catch {
+    return false;
+  }
+}
+
+function readProjectRegistry(common) {
+  try {
+    const value = JSON.parse(readFileSync(join(common, PROJECT_REGISTRY), "utf8"));
+    if (typeof value.projectRoot !== "string" || !isAbsolute(value.projectRoot)) return undefined;
+    const candidate = resolve(value.projectRoot);
+    if (!existsSync(join(candidate, ".sage-kit", "config.json"))) return undefined;
+    const candidateCommon = commonDirForRoot(candidate);
+    if (!candidateCommon || !samePath(common, candidateCommon)) return undefined;
+    return candidate;
+  } catch {
+    return undefined;
+  }
+}
+
+function gitProjectRoot(current) {
+  try {
+    const gitPath = join(current, ".git");
+    if (!lstatSync(gitPath).isFile()) return current;
+    const match = /^gitdir:\s*(.+)$/im.exec(readFileSync(gitPath, "utf8").trim());
+    if (!match) return current;
+    const gitDir = resolve(current, match[1].trim());
+    const common = commonGitDir(gitDir);
+    const registered = readProjectRegistry(common);
+    if (registered) return registered;
+    if (basename(common).toLowerCase() === ".git") {
+      // A normal linked worktree's common dir is the main worktree's `.git`.
+      // A separate git dir can also be named `.git`; only accept its parent
+      // when the parent owns the same common dir.
+      const candidate = dirname(common);
+      const candidateCommon = commonDirForRoot(candidate);
+      if (
+        candidateCommon &&
+        existsSync(join(candidate, ".sage-kit", "config.json")) &&
+        samePath(common, candidateCommon)
+      ) {
+        return candidate;
+      }
+    }
+    const worktree = /^(.*)[/\\]\.git[/\\]worktrees[/\\][^/\\]+$/i.exec(gitDir);
+    if (worktree && existsSync(join(worktree[1], ".sage-kit", "config.json"))) return worktree[1];
+    return current;
+  } catch {
+    return current;
+  }
+}
+
+/**
+ * Mirror the CLI's root semantics so the plugin and `sage-kit` never operate on
+ * different task stores: nearest initialized project wins; otherwise a git
+ * root (including a linked worktree) owns the state.
+ */
 export function discoverRoot(start) {
   let current = resolve(start);
   for (;;) {
     if (existsSync(join(current, ".sage-kit", "config.json"))) return current;
+    if (existsSync(join(current, ".git"))) return gitProjectRoot(current);
     const parent = dirname(current);
     if (parent === current) return undefined;
     current = parent;
