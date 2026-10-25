@@ -1,8 +1,8 @@
 {
   "name": "@sage-kit/dsh-plugin",
-  "version": "0.0.0-rebuild-r4",
+  "version": "0.0.0-rebuild-r5",
   "private": true,
-  "description": "Optional DSH, Codex and Claude governance adapters",
+  "description": "Optional governance, controlled RSI and explicit forge evidence adapters",
   "type": "module",
   "main": "dsh.mjs",
   "exports": {
@@ -13,7 +13,8 @@
     "./rsi": "./rsi.mjs",
     "./agent-host": "./agent-host.mjs",
     "./mcp": "./mcp.mjs",
-    "./hook": "./hook.mjs"
+    "./hook": "./hook.mjs",
+    "./forge": "./forge.mjs"
   },
   "files": [
     "dsh.mjs",
@@ -25,7 +26,8 @@
     "hook.mjs",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "forge.mjs"
   ],
   "engines": {
     "node": ">=22",

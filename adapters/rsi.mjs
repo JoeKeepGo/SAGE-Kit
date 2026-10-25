@@ -109,7 +109,7 @@ export async function openRSI({ root, planPath, statePath, protectedPaths = asyn
   async function protections(paths, signal) {
     const protectedList = await protectedPaths({ signal });
     require(Array.isArray(protectedList) && protectedList.length <= 128 && protectedList.every(pathName), 'Invalid host protection set');
-    require(paths.every(path => !protectedList.includes(path)), 'RSI cannot change current host governance or control records', 'E_RSI_PROTECTED');
+    require(paths.every(path => !protectedList.some(p => path === p || path.startsWith(p + '/'))), 'RSI cannot change current host governance or control records', 'E_RSI_PROTECTED');
     return [...new Set(protectedList)].sort();
   }
   async function save(state) { await safe(base, statePath); await atomic(stateFile, Buffer.from(JSON.stringify(state, null, 2) + '\n')); }

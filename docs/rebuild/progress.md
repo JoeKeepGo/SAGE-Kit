@@ -2,7 +2,7 @@
 
 ## 当前范围
 
-2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R4 本地实现与检查完成；
+2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R5 本地实现与检查完成；
 持续开发、治理 hook 和 RSI 是核心目标。规范见 [SPEC](SPEC.md)，权威见
 [决策](../decisions.md)。本记录只协调进度，不取代规范、Git 或测试结果。
 
@@ -364,3 +364,83 @@ R4 本地实现与上述限定证据完成，整体仍待用户验收。下一�
 和 CPU/IO；Claude 压缩/恢复及两宿主真人 RSI 批准应单列验证。它不自动授予付费
 调用、Taluvia 产品开发、默认配置改写、策略采用、生产运行、合并或发布权限。
 当前没有配置后台调度，不宣称此会话结束后仍自主工作。
+
+## R5：GitHub / Gitea 实际证据来源（2026-10-26）
+
+依据用户提供的既有 WSL 隔离 Gitea、已登录 GitHub 及 R-007 准入，新增可选
+`adapters/forge.mjs` 和三宿主显式 `sage_forge_capture` 工具。协议见
+[平台证据](forge-evidence.md)，配置见[包 README](../../adapters/README.md)。
+只读平台事实，保存新的本地快照供原 continuation 与 RSI 引用；没有恢复旧反馈
+数据库、CLI、后台扫描或高频 hook 网络访问。原治理核心仍与 v2026.8.13.1 无差异。
+
+### 实际平台与证明范围
+
+最终安装包通过已有登录读取 GitHub，Gitea 使用原隔离实例。六次抓取分别报告：
+
+| 来源 | 真实对象 | 结论及范围 |
+|---|---|---|
+| GitHub `JoeKeepGo/SAGE-Kit` | Issue #26 | FEEDBACK，保留来源、身份与更新时刻；不读取评论，不授予权限 |
+| 同仓库 | run 40199159609 / attempt 1，提交 `69db3da7e8752c7edbedcaac4adceeace527a905` | PASS，`linux`、`plugin-smoke` 均成功；历史归档版本，不能证明当前重建分支 |
+| 同仓库 | run 40198952069 / attempt 1，提交 `8b53890f30a11bbd86014a0fa5f1fe10e3d4c580` | FAIL；`linux` 成功而 `plugin-smoke` 失败，未因局部绿而通过 |
+| Gitea 1.27.3 原测试仓库 | `m1test/m1-feedback-test` Issue #1 | FEEDBACK；原仓库与 57 条 Issue 未改 |
+| Gitea 新隔离测试仓库 | `m1test/sage-r5-local-ci-1792945160528` run 1 / attempt 1 | PASS；本轮真实 runner 执行成功 |
+| 同测试仓库 | run 2 / attempt 1 | FAIL；本轮真实执行预设失败命令 |
+
+Gitea 两次运行使用相同提交 `8a9ab22a01a93b2c7f3de59b92eeed6d3447b4f2`，实际
+`path` 为 `local-check.yml@refs/heads/main`，没有 `workflow_id`，job 明确包含
+`run_attempt:1`。保留原值，不推断成 GitHub 路径。官方 Gitea runner 2.3.0 下载后
+核对官方 SHA-256，仅注册新私有测试仓库；单 job 只执行本地 bash 输出/检查，
+不使用远程 action/checkout/download，单工作流限时 1 分钟。
+
+原 Gitea 初始已停止且没有 runner，本轮核验 loopback 配置后启动。最终已删除
+专属 runner 注册、清理凭据并停止两个自有进程，端口 3000 关闭；测试仓库、运行与
+既有数据保留，恢复原停机状态。未向 GitHub 写入、评论、触发或重跑工作流。
+身份、API 原始观察、下载核验与清理见 `local/rebuild-r5/gitea/` 和 `github/`。
+
+### 安装、宿主与资源证据
+
+- 最终包 `local/rebuild-r5/sage-kit-dsh-plugin-0.0.0-rebuild-r5.tgz`，SHA-256
+  `f800bf5bba956b5659eb26a65c4e23418e13775766e4458e5b41eec73b9f9731`。
+  `artifact-verification.json` 核对源码、tgz、`installed-verified/` 的 12 文件全部
+  字节相同；离线安装禁用脚本，不改默认宿主配置。
+- 受影响最终安装包测试 **46/46 PASS**：15 个读取边界场景，31 个宿主场景，包括
+  4 个真实 DSH 组件、1 个原生 Codex、1 个原生 Claude 新工具检查。实际发现工具、
+  经 MCP/DSH 抓取本地 HTTP fixture、落盘核对摘要；continuation 绑定/识别篡改，
+  RSI 接收反馈但不自动采用。宿主版本与 R4 相同，模型答复仍是确定性替身。
+  平台实际读取与宿主 fixture 接线为两组明确证据，不称为真实模型自主开发。
+- 汇总 **211 项：210 PASS / 1 Windows 专属 SKIP**。初始全量 208 项为 206 pass、
+  1 fail、1 skip；失败的原 RSI 输出限额测试和超时测试共用 200ms，容易与并发启动
+  竞争。仅输出场景改用 2000ms，1024 字节上限/超量断言/禁止采用保留，专用超时
+  场景仍 200ms。两项定向复验通过。最终路径类型修正另增 3 项，46 项相关测试在
+  最终包上全部复跑；其它未变输入通过证据复用。`test-evidence-summary.json`
+  按测试名和原日志摘要汇总，保留最初失败，不冒充一次全绿运行。
+- 静态完整性、portable references（10 resources / 24 package files）及原 Claude
+  advisory 14/14 通过。CI 已接入新测试，包括 DSH job 的安装包测试；远程 CI 尚未
+  对本分支执行。原治理基线差异为空；Windows/macOS 原生平台采集未验证。
+- 单次抓取上限：30 秒、16 请求、4MiB 总响应、1MiB 单响应/快照、500 jobs。
+  配置关闭或只触发 hook/inspect/finish 时 HTTP 请求为零。每个显式抓取创建新
+  观察，空闲没有轮询；RSI 与同步治理 deadline 仍分开。
+  最终本机样本：GitHub Issue 2 请求/9,661 bytes，约 1.11 秒；两次 run 各 4 请求、
+  约 35–36KB、1.66–1.76 秒。Gitea Issue 3 请求/4,031 bytes，约 84ms；run 各
+  5 请求/11,969 bytes，约 103–113ms。具体父进程 CPU 在
+  `live-results-installed.json`。这包括网络等待，不是物理 IO 或长期负载保证。
+
+### 独立审查与 RSI 自用
+
+审查发现并关闭凭据含引号/反斜线时绕过反射检查、RSI 计划符号链接越界读取及
+非普通文件阻塞、安装包测试误用源码、CI 漏跑 DSH 新用例等问题；修正后定向
+复核通过，无剩余阻断。回执碰撞核验也按实际字节限长。审查原始记录在 `review.txt`。
+
+本轮真实凭据反射缺陷进入现有 RSI：固定检查与同一候选比较，基线仅定向重建
+观察到的错误条件，不冒充完整旧提交。基线退出 1、修复候选退出 0，双侧保护
+通过，19 文件次/134,151 bytes。结果为 `human_approval`，未请求采用或回滚，
+隔离源快照未改。见 `rsi-self/summary.json`；它证明该缺陷修复，不推导普遍收益。
+
+最终验证从检查开始使用 continuation 的 `validation-plan.json` 记录 intent，
+不倒填实现过程。修正规范中隔离 Gitea 写入例外措辞时，第一份 state 实际报告
+`authority_changed`，原样保留；新 `validation-final-state.json` 绑定修正后的规范。
+实际测试、平台观察、工件、审查与 RSI 证据完成后仍是待人工验收。
+
+后续重点仍为真实项目/模型长期试运行、治理保持与 CPU/IO；若接入 PR 评审、
+工件校验、部署探针或全分支必需检查汇总，应分别定义其来源与结论，不能从当前
+单次 run PASS 推导。未配置后台持续工作，未授权生产、发布或策略自动采用。

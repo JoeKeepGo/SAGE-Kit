@@ -165,7 +165,9 @@ test('evaluation count budget stops additional commands without adding a record'
 for (const resource of ['output', 'timeout']) {
   test(`${resource} failure is not an acceptable failing baseline`, options, async t => {
     const source = resource === 'output' ? "process.stdout.write('x'.repeat(4096));setInterval(()=>{},1000)" : 'setInterval(()=>{},1000)';
-    const f = await fixture(t, { evaluator: source, plan: { timeoutMs: 200, maxOutputBytes: 1024 } });
+    // The output case must reach its byte limit even when concurrent native
+    // host tests delay process startup. The separate timeout case stays short.
+    const f = await fixture(t, { evaluator: source, plan: { timeoutMs: resource === 'output' ? 2000 : 200, maxOutputBytes: 1024 } });
     const evaluated = await f.evaluate();
     assert.equal(evaluated.evaluation.eligible, false);
     assert.equal(evaluated.evaluation.runs.length, 1);

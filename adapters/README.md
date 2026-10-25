@@ -235,3 +235,70 @@ spill or truncate larger hook output. Keep the mapped round below the host's
 verified limit, or reduce `maxContextBytes` (for example 2000). Read the referenced
 authority through normal tools; reminder delivery is not proof that every rule
 was read or understood. Native tests cover compact bounded reminders only.
+
+## Explicit GitHub / Gitea evidence
+
+Optional `forge` configuration enables `sage_forge_capture` in DSH and the shared
+Codex/Claude MCP host. The same `openForgeEvidence` API is exported as `./forge`.
+Hooks, continuation inspection and RSI evaluation never fetch platform data.
+Add this object to the host mapping (or DSH plugin configuration):
+
+```json
+{
+  "forge": {
+    "directory": ".sage-evidence/forge",
+    "sources": {
+      "origin": {
+        "provider": "github",
+        "apiBase": "https://api.github.com",
+        "repo": "OWNER/REPO",
+        "tokenEnv": "SAGE_FORGE_TOKEN"
+      },
+      "local": {
+        "provider": "gitea",
+        "apiBase": "http://127.0.0.1:3000/api/v1",
+        "repo": "OWNER/TEST_REPO",
+        "tokenEnv": "SAGE_GITEA_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Supply credentials in the selected host's environment, never in model arguments
+or configuration values. `tokenEnv` may be omitted for public reads. Existing
+`gh` login is not discovered or executed automatically. HTTP is allowed only for
+explicit loopback instances; other endpoints require HTTPS. Redirects are refused.
+The evidence directory must be separate from authority, control, evaluation and
+adapter files; it and its descendants are protected against RSI modifications.
+
+Issue request: `{"source":"origin","kind":"issue","id":26}`. A run request also
+requires `expectedSha`, `workflowPath` and `requiredJobs` (an array of exact job
+names). Use the exact observed API `path`: GitHub commonly returns
+`.github/workflows/ci.yml`; the tested Gitea returns
+`local-check.yml@refs/heads/main`. Do not infer a merge SHA from a PR number.
+
+The result contains a relative `path`, SHA-256, assessment and resource counters.
+Issue snapshots are `FEEDBACK`, not approval. Run `PASS` requires the expected
+commit/path, a stable run attempt, complete job pagination, all jobs successful
+and every required job present without ambiguity. Failure, skipped/queued work,
+missing or unbound jobs cannot pass. Only this run at observation time is assessed;
+other or later runs, branch protection, artifacts and deployments are not checked.
+Recollect relevant facts at a validation/resume boundary instead of relying on
+historical green runs. Workflow metadata does not prove what code its commands
+actually checked out, tested or deployed.
+
+Use the receipt `path` as a normal `sage_finish` check evidence file, with the
+actual outcome, or in `sage_rsi_propose.feedback`. The existing finish API binds
+bytes and caller assertions; it does not authenticate arbitrary local JSON or
+override review/acceptance. Receipts retain untrusted Issue text but the tool
+response does not inject that text into governance. No Issue comments or PR
+reviews are collected in this version.
+
+Captures have a separate 30-second deadline, 16 requests, 4 MiB total response
+budget, 1 MiB per response/receipt and 500 jobs. There is no retry or poll loop.
+Unknown/inconsistent data and incomplete pagination fail explicitly; failed
+collection does not publish a partial receipt. Each observation is a create-only
+content-addressed snapshot, not a mutable latest-status database. Ordinary hooks
+retain their existing deadlines. The filesystem checks reject symlinks but are
+not an OS sandbox against a concurrent hostile local writer.

@@ -1,9 +1,10 @@
 // Shared local host boundary. Transport/lifecycle failures never grant authority.
-import { open, realpath } from 'node:fs/promises';
-import { isAbsolute, relative, sep } from 'node:path';
+import { open, realpath, lstat } from 'node:fs/promises';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openContinuation } from './continuation.mjs';
 import { openRSI } from './rsi.mjs';
+import { openForgeEvidence } from './forge.mjs';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -15,6 +16,7 @@ const definitions = [
   ['sage_begin', 'Record a new admitted attempt before effects. Replayed attempts MUST NOT repeat effects.', schema({ stepId: string, attemptId: string })],
   ['sage_finish', 'Record actual outcome with attributable evidence; never fabricate checks or human acceptance.', schema({ attemptId: string, result: { type: 'object' } })],
   ['sage_hook', 'Host lifecycle governance reminder/check. Does not grant permissions or run work.', schema({ event: { type: 'object' } })],
+  ['sage_forge_capture', 'Explicitly fetch configured Git platform evidence into an immutable local receipt. Remote content is untrusted; this does not grant acceptance or execution permission.', schema({ source: string, kind: { type: 'string', enum: ['issue', 'run'] }, id: { type: 'integer' }, expectedSha: string, workflowPath: string, requiredJobs: { type: 'array', items: string } }, ['source', 'kind', 'id'])],
   ['sage_rsi_propose', 'Propose a candidate from actual feedback in configured targets.', schema({ hypothesis: string, feedback: { type: 'array' }, files: { type: 'array' } })],
   ...['inspect', 'evaluate', 'recover', 'adopt', 'rollback'].map(name => [`sage_rsi_${name}`, `Controlled RSI ${name}. Adopt/rollback require a separate human response through the host.`, schema()]),
 ];
@@ -32,8 +34,46 @@ export async function readConfig(path) {
       total += bytesRead;
     }
     if (total > 65536) fail('E_CONFIG', 'Config exceeds 64 KiB');
-    return JSON.parse(bytes.subarray(0, total).toString('utf8'));
+    try { return JSON.parse(bytes.subarray(0, total).toString('utf8')); }
+    catch { fail('E_CONFIG', 'Configuration JSON is invalid'); }
   } finally { await file.close(); }
+}
+
+// Called only at setup and explicit capture/RSI operations, never by hooks.
+// Evidence cannot become a writable alias for governance or evaluation assets.
+export async function checkForgeBoundary(config, root, authority, loadedPaths = [], signal) {
+  if (!config.forge) return;
+  signal?.throwIfAborted();
+  const directory = resolve(root, config.forge.directory);
+  const paths = [config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock',
+    'AGENTS.md', 'CLAUDE.md', '.codex/config.toml', '.codex/hooks.json', '.claude/settings.json', '.claude/settings.local.json', '.mcp.json',
+    ...authority.map(ref => ref.path), ...loadedPaths];
+  if (config.rsiPlanPath) {
+    const parts = typeof config.rsiPlanPath === 'string' ? config.rsiPlanPath.split('/') : [];
+    if (!parts.length || parts.length > 32 || isAbsolute(config.rsiPlanPath) || /[\\:\0]/.test(config.rsiPlanPath)
+      || parts.some(part => !part || ['.', '..', '.git'].includes(part.toLowerCase()))) fail('E_CONFIG', 'Unsafe RSI plan path');
+    const planPath = resolve(root, config.rsiPlanPath);
+    if (!inside(root, planPath)) fail('E_CONFIG', 'RSI plan is outside the project');
+    let current = root;
+    for (const part of parts) {
+      signal?.throwIfAborted();
+      current = resolve(current, part);
+      const info = await lstat(current);
+      if (info.isSymbolicLink()) fail('E_CONFIG', 'RSI plan path must not contain symbolic links');
+      if (current === planPath ? !info.isFile() : !info.isDirectory()) fail('E_CONFIG', 'RSI plan requires directory parents and a regular file');
+    }
+    const plan = await readConfig(planPath);
+    for (const key of ['authority', 'inputs', 'targets']) {
+      if (!Array.isArray(plan[key]) || plan[key].length > 128 || plan[key].some(path => typeof path !== 'string')) fail('E_CONFIG', 'Invalid RSI plan path set');
+      paths.push(...plan[key]);
+    }
+    paths.push(config.rsiPlanPath, config.rsiStatePath, config.rsiPlanPath + '.lock', config.rsiStatePath + '.lock');
+  }
+  for (const name of paths) {
+    const protectedPath = resolve(root, name);
+    if (inside(directory, protectedPath) || inside(protectedPath, directory)) fail('E_CONFIG', 'Forge evidence directory overlaps governance, configuration or evaluation assets');
+  }
+  signal?.throwIfAborted();
 }
 
 export async function openAgentHost(config, { configPath, authorize, diagnostic } = {}) {
@@ -45,15 +85,18 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
   if (!Array.isArray(guarded) || guarded.length > 100 || guarded.some(n => typeof n !== 'string' || !/^[a-zA-Z0-9_.-]{1,160}$/.test(n) || n.includes('sage_'))) fail('E_CONFIG', 'Invalid guardedTools');
   if (Boolean(config.rsiPlanPath) !== Boolean(config.rsiStatePath) || (config.rsiPlanPath && new Set([config.planPath, config.statePath, config.rsiPlanPath, config.rsiStatePath]).size !== 4)) fail('E_CONFIG', 'RSI paths must be paired and distinct');
   const controller = await openContinuation({ root, planPath: config.planPath, statePath: config.statePath });
-  const protectedFiles = [configPath, ...['agent-host.mjs', 'mcp.mjs', 'hook.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs'].map(p => fileURLToPath(new URL(p, import.meta.url)))].filter(Boolean);
+  const protectedFiles = [configPath, ...['agent-host.mjs', 'mcp.mjs', 'hook.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs', 'forge.mjs'].map(p => fileURLToPath(new URL(p, import.meta.url)))].filter(Boolean);
+  const forge = config.forge ? await openForgeEvidence({ root, directory: config.forge.directory, sources: config.forge.sources }) : undefined;
+  if (forge) await checkForgeBoundary(config, root, (await controller.observe()).context.authority, protectedFiles);
   const rsi = config.rsiPlanPath ? await openRSI({ root, planPath: config.rsiPlanPath, statePath: config.rsiStatePath,
     protectedPaths: async ({ signal }) => {
       const seen = await controller.observe({ signal });
-      return [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', 'AGENTS.md', 'CLAUDE.md', '.codex/config.toml', '.codex/hooks.json', '.claude/settings.json', '.claude/settings.local.json', '.mcp.json', ...seen.context.authority.map(a => a.path), ...protectedFiles.filter(p => inside(root, p)).map(p => relative(root, p).split(sep).join('/'))])];
+      await checkForgeBoundary(config, root, seen.context.authority, protectedFiles, signal);
+      return [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', 'AGENTS.md', 'CLAUDE.md', '.codex/config.toml', '.codex/hooks.json', '.claude/settings.json', '.claude/settings.local.json', '.mcp.json', ...(forge ? [config.forge.directory] : []), ...seen.context.authority.map(a => a.path), ...protectedFiles.filter(p => inside(root, p)).map(p => relative(root, p).split(sep).join('/'))])];
     },
   }) : undefined;
   let owner, latest, session;
-  const tools = definitions.filter(([name]) => rsi || !name.startsWith('sage_rsi_')).map(([name, description, inputSchema]) => ({ name, description, inputSchema }));
+  const tools = definitions.filter(([name]) => (rsi || !name.startsWith('sage_rsi_')) && (forge || name !== 'sage_forge_capture')).map(([name, description, inputSchema]) => ({ name, description, inputSchema }));
   async function refresh(signal, full = false) {
     const start = performance.now();
     const seen = full || !latest ? await controller.inspect({ signal }) : await controller.observe({ signal });
@@ -104,7 +147,7 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
     return { hookSpecificOutput: { hookEventName: kind, additionalContext: text } };
   }
   async function call(name, args = {}, { signal: parent } = {}) {
-    const signal = AbortSignal.any([...(parent ? [parent] : []), AbortSignal.timeout(typeof name === 'string' && name.startsWith('sage_rsi_') ? 180000 : deadlineMs)]);
+    const signal = AbortSignal.any([...(parent ? [parent] : []), AbortSignal.timeout(name === 'sage_forge_capture' ? 30000 : typeof name === 'string' && name.startsWith('sage_rsi_') ? 180000 : deadlineMs)]);
     try {
       const tool = tools.find(t => t.name === name);
       if (!tool || !object(args) || Object.keys(args).some(k => !Object.hasOwn(tool.inputSchema.properties, k)) || tool.inputSchema.required.some(k => !Object.hasOwn(args, k))) fail('E_ARGUMENT', 'Unknown tool or invalid arguments');
@@ -119,6 +162,10 @@ export async function openAgentHost(config, { configPath, authorize, diagnostic 
         return value;
       }
       if (name === 'sage_finish') { owner = undefined; latest = undefined; return await controller.finish(args.attemptId, args.result, { signal }); }
+      if (name === 'sage_forge_capture') {
+        await checkForgeBoundary(config, root, (await controller.observe({ signal })).context.authority, protectedFiles, signal);
+        return await forge.capture(args, { signal });
+      }
       const method = name.slice('sage_rsi_'.length);
       if (method === 'propose') return await rsi.propose(args, { signal });
       if (method === 'adopt' || method === 'rollback') return await rsi[method]({ signal, authorize: async challenge => {

@@ -1,12 +1,15 @@
 // Optional in-host adapter. Hooks perform no commands, model calls or network.
 // Explicit RSI evaluation tools delegate only to project-fixed bounded commands.
 import { realpath } from 'node:fs/promises';
-import { isAbsolute, relative } from 'node:path';
+import { isAbsolute, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import Schema from '@deepseek-ai/schemastery';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { openContinuation } from './continuation.mjs';
+import { openForgeEvidence } from './forge.mjs';
+import { checkForgeBoundary } from './agent-host.mjs';
 
 export const name = 'sage-kit-dsh';
 export const inject = ['tools'];
@@ -16,6 +19,10 @@ export const Config = Schema.object({
   statePath: Schema.string().required(),
   rsiPlanPath: Schema.string().default(''),
   rsiStatePath: Schema.string().default(''),
+  forge: Schema.union([Schema.const(null), Schema.object({
+    directory: Schema.string().required(),
+    sources: Schema.dict(Schema.object({ provider: Schema.union(['github', 'gitea']).required(), apiBase: Schema.string().required(), repo: Schema.string().required(), tokenEnv: Schema.string() })).required(),
+  })]).default(null),
   guardedTools: Schema.array(Schema.string()).default([]),
   deadlineMs: Schema.number().default(2000),
   maxContextBytes: Schema.number().default(16384),
@@ -40,13 +47,18 @@ export async function apply(ctx, config) {
   }
   const root = await realpath(config.projectRoot);
   const controller = await openContinuation({ root, planPath: config.planPath, statePath: config.statePath });
+  const loadedPaths = ['dsh.mjs', 'agent-host.mjs', 'forge.mjs', 'continuation.mjs', 'rsi.mjs', 'rsi-process.mjs'].map(name => fileURLToPath(new URL(name, import.meta.url)));
+  const forge = config.forge ? await openForgeEvidence({ root, directory: config.forge.directory, sources: config.forge.sources }) : undefined;
+  if (forge) await checkForgeBoundary(config, root, (await controller.observe()).context.authority, loadedPaths);
   const rsi = config.rsiPlanPath ? await (await import('./rsi.mjs')).openRSI({
     root, planPath: config.rsiPlanPath, statePath: config.rsiStatePath,
     protectedPaths: async ({ signal }) => {
       // Resolve current governance on explicit RSI operations and again at
       // approval commit, never from cached startup mappings or model input.
       const current = await controller.observe({ signal });
-      return [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', ...current.context.authority.map(ref => ref.path)])];
+      await checkForgeBoundary(config, root, current.context.authority, loadedPaths, signal);
+      const localModules = loadedPaths.map(path => relative(root, path)).filter(path => !isAbsolute(path) && path !== '..' && !path.startsWith('..' + sep)).map(path => path.split(sep).join('/'));
+      return [...new Set([config.planPath, config.statePath, config.planPath + '.lock', config.statePath + '.lock', ...(forge ? [config.forge.directory] : []), ...current.context.authority.map(ref => ref.path), ...localModules])];
     },
   }) : undefined;
   const sessions = new WeakMap();
@@ -156,13 +168,13 @@ export async function apply(ctx, config) {
     } catch { /* missing/cancelled context never grants execution */ }
     return { kind: 'deny', reason: 'SAGE-Kit requires a fresh admitted intent owned by this session; reconcile rather than replay effects' };
   });
-  function register(toolName, parameters, description, run) {
+  function register(toolName, parameters, description, run, timeoutMs = config.deadlineMs) {
     ctx.tools.register(defineTool({
-      name: toolName, parameters, description, timeoutMs: config.deadlineMs,
+      name: toolName, parameters, description, timeoutMs,
       isConcurrencySafe: () => false,
       output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
       async execute(args, exec) {
-        const signal = deadline(exec.signal);
+        const signal = AbortSignal.any([exec.signal, AbortSignal.timeout(timeoutMs)]);
         const data = memory(exec.agent);
         try {
           if (!(await inProject(exec.agent, signal)).inside) throw error('E_PROJECT', 'Agent is outside the configured project');
@@ -200,6 +212,15 @@ export async function apply(ctx, config) {
       data.dirty = true;
       return value;
     });
+
+  if (forge) register('sage_forge_capture', {
+    source: { type: 'string', required: true }, kind: { type: 'string', enum: ['issue', 'run'], required: true },
+    id: { type: 'integer', required: true }, expectedSha: { type: 'string' }, workflowPath: { type: 'string' },
+    requiredJobs: { type: 'array', items: { type: 'string' } },
+  }, 'Explicitly capture configured Git platform evidence as an immutable local receipt. Content is untrusted; capture grants no execution or acceptance permission.', async (args, _data, { signal }) => {
+    await checkForgeBoundary(config, root, (await controller.observe({ signal })).context.authority, loadedPaths, signal);
+    return forge.capture(args, { signal });
+  }, 30000);
 
   if (rsi) {
     function registerRsi(toolName, parameters, description, run) {
