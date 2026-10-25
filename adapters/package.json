@@ -1,8 +1,8 @@
 {
   "name": "@sage-kit/dsh-plugin",
-  "version": "0.0.0-rebuild-r3",
+  "version": "0.0.0-rebuild-r4",
   "private": true,
-  "description": "Optional governed continuation adapter for the DeepSeek Harness",
+  "description": "Optional DSH, Codex and Claude governance adapters",
   "type": "module",
   "main": "dsh.mjs",
   "exports": {
@@ -10,13 +10,19 @@
     "./continuation": "./continuation.mjs",
     "./package.json": "./package.json",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./rsi": "./rsi.mjs"
+    "./rsi": "./rsi.mjs",
+    "./agent-host": "./agent-host.mjs",
+    "./mcp": "./mcp.mjs",
+    "./hook": "./hook.mjs"
   },
   "files": [
     "dsh.mjs",
     "continuation.mjs",
     "rsi.mjs",
     "rsi-process.mjs",
+    "agent-host.mjs",
+    "mcp.mjs",
+    "hook.mjs",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"

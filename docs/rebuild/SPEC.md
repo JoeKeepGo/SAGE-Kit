@@ -1,9 +1,10 @@
 # SAGE-Kit 治理、持续执行与 RSI 重建 SPEC
 
-状态：R1 持续执行、R2 DSH 原生接入与 R3 受控 RSI 已通过本地检查，协议见
-[持续执行约定](continuation.md)、[DSH 接入](dsh.md)和 [RSI](rsi.md)。宿主验证使用
-真实组件、确定性模型替身及测试审批答复器；真实模型长期收益、真人策略采用与
-Codex/Claude 执行接入仍未验证。实际结果和限制见[进度](progress.md)。
+状态：R1 持续执行、R2 DSH 原生接入、R3 受控 RSI 与 R4 Codex/Claude 接入已实现。
+协议见[持续执行](continuation.md)、[DSH](dsh.md)、[RSI](rsi.md)、
+[其他宿主](agent-hosts.md)及[项目映射](project-mapping.md)。验证使用真实宿主、
+确定性模型替身及测试审批答复器；不等于真实模型长期收益、真人策略采用或最终
+人工验收。实际安装包检查、各宿主支持程度和剩余验收见[进度](progress.md)。
 权威：[当前决策](../decisions.md)。验收 owner：提出本次重建要求的用户。
 
 ## 目标与不变量

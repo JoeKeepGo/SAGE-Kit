@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "kind": "read-only-mapping-capture",
+  "capturedOn": "2026-10-26",
+  "sourceDirectory": "Taluvia_Space_Docset_v1.12.0",
+  "sourceVersion": "1.12.0",
+  "executionStatus": "PLANNED_NOT_STARTED",
+  "productAcceptance": "NOT_EXECUTED",
+  "coverage": "One selected P0 task; not a full-docset validation or execution authorization.",
+  "sources": [
+    {
+      "path": "RELEASE.json",
+      "sha256": "5089b8a98235c54256d348c6b6b58b07f65cbc361fc13719cecd2dc7973fc904",
+      "bytes": 5037,
+      "selectors": [
+        "docsetVersion",
+        "currentDecisions",
+        "productIntegration"
+      ]
+    },
+    {
+      "path": "README.md",
+      "sha256": "e335d4788cff102e5865cb8841363d4cd724d9bf5eba26b8d9603386ef4353d1",
+      "bytes": 5988,
+      "selectors": [
+        "文档状态"
+      ]
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "c2d1169cda75166b617f6322e9c3eadf1615c0ae889b36a6c99b4f087a76d46b",
+      "bytes": 8985,
+      "selectors": [
+        "变更与证据"
+      ]
+    },
+    {
+      "path": "governance/decisions-1.12.md",
+      "sha256": "0516f9568b8e01608777b0b574e86964acaabda8b24853263047ebc8ca458588",
+      "bytes": 3661,
+      "selectors": [
+        "D-12-01",
+        "D-12-02",
+        "D-12-04"
+      ]
+    },
+    {
+      "path": "governance/status.md",
+      "sha256": "3226748bdae7ed3cfb23c2b1d6fce452cc0cb55322c335b87dbe70b4cb70a6d1",
+      "bytes": 3426,
+      "selectors": [
+        "证据状态"
+      ]
+    },
+    {
+      "path": "specs/SPEC-00/SPEC.md",
+      "sha256": "03d5bc2b9198314b82948c501bd8d07941d093b82dcf43b4bdeef01137c20cb1",
+      "bytes": 26399,
+      "selectors": [
+        "1.12 Cordis 模块组合与生命周期（设计决定；NOT_EXECUTED）"
+      ]
+    },
+    {
+      "path": "specs/SPEC-00/requirements.md",
+      "sha256": "fe577b832273b43638a89a5f68ec00ad31b67bdf86b35d748cb76d6f79864daf",
+      "bytes": 31465,
+      "selectors": [
+        "TV112-REQ-00-01",
+        "TV112-REQ-00-02"
+      ]
+    },
+    {
+      "path": "specs/SPEC-01/SPEC.md",
+      "sha256": "f4a79141d4d8a31f9525ef0dc478db73983d6a8120a992968b0b4e2751f8ecd3",
+      "bytes": 20247,
+      "selectors": [
+        "SPEC-01"
+      ]
+    },
+    {
+      "path": "implementation/plan.md",
+      "sha256": "905e42ceef08c8ae041baf39bc6788886030ca2aab183aba97560877ffbf38e4",
+      "bytes": 10226,
+      "selectors": [
+        "P0：用最小实现跑通关键路径"
+      ]
+    },
+    {
+      "path": "implementation/dsh-runtime-spike.md",
+      "sha256": "3b031515a2a01cbb7dbf59c6a689817a51b11676ac638d33c0eff0a2e7f9f109",
+      "bytes": 14605,
+      "selectors": [
+        "S16",
+        "6. 证据状态"
+      ]
+    },
+    {
+      "path": "data/requirements-1.12.json",
+      "sha256": "6569ad1b5cce226ce5e6bccb0c54e835327197494a603dba68e38ea9309068d3",
+      "bytes": 9547,
+      "selectors": [
+        "TV112-REQ-00-01",
+        "TV112-REQ-00-02"
+      ]
+    },
+    {
+      "path": "data/tasks.json",
+      "sha256": "23e67fd8c8dbe25187fdac790bffc0d6caf9500d1aca916de1f6882d0b868b1d",
+      "bytes": 194276,
+      "selectors": [
+        "TV112-TASK-00-01"
+      ]
+    },
+    {
+      "path": "data/acceptance.json",
+      "sha256": "7ecc475b271926649f06e81d2c53f39fe9bfd0704c1a29aa9ba863f2c45da432",
+      "bytes": 133018,
+      "selectors": [
+        "TV112-ACC-00-01",
+        "TV112-ACC-00-02"
+      ]
+    },
+    {
+      "path": "data/stages.json",
+      "sha256": "13f16248bf0a40c118d22520325fa33bc9f6262b6414d0f6849c53fb4f63ce94",
+      "bytes": 8440,
+      "selectors": [
+        "P0"
+      ]
+    }
+  ],
+  "mapping": {
+    "taskId": "TV112-TASK-00-01",
+    "specId": "SPEC-00",
+    "phase": "P0",
+    "requirementIds": [
+      "TV112-REQ-00-01",
+      "TV112-REQ-00-02"
+    ],
+    "acceptanceIds": [
+      "TV112-ACC-00-01",
+      "TV112-ACC-00-02"
+    ],
+    "probeId": "S16",
+    "requirementStatus": "ADOPTED_1_12_DESIGN_NOT_IMPLEMENTED",
+    "requirementVerification": "NOT_EXECUTED",
+    "normativeClauses": [
+      "specs/SPEC-00/requirements.md#tv112-req-00-01",
+      "specs/SPEC-00/requirements.md#tv112-req-00-02"
+    ],
+    "interfacePrerequisites": [
+      "SPEC-00",
+      "SPEC-01"
+    ],
+    "plannedPath": "services/access/src/composition/ + services/platform-api/src/composition/ + services/worker/src/composition/ + services/jobs/src/composition/ + modules/server/*/plugin.ts + tests/conformance/cordis/"
+  },
+  "observedVersionDifference": {
+    "path": "data/stages.json",
+    "docsetVersion": "1.11.0",
+    "revision": "1.11.0",
+    "currentReleaseVersion": "1.12.0",
+    "resolution": "Recorded, not repaired or used to infer execution admission."
+  }
+}

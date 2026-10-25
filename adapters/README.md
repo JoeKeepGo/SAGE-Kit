@@ -1,10 +1,12 @@
-# Optional SAGE-Kit DSH adapter
+# Optional SAGE-Kit host adapters
 
-This package adds native governance reminders and continuation tools to DSH
-0.2.1-rc.2, with separately configured controlled RSI. The original governance
-Skill works without this package. No CLI, daemon, model call, install script,
-or task database is added. Explicit RSI tools can run fixed evaluation commands;
-governance hooks never run those commands.
+This package adds governance reminders and continuation tools to DSH, Codex and
+Claude Code, with separately configured controlled RSI. The original governance
+Skill works without this package. There is no task CLI, polling daemon, model
+call, install script, or task database. DSH runs in its existing host; Codex and
+Claude own one optional stdio MCP process per connection, plus a startup-only
+reminder helper. Explicit RSI tools can run fixed evaluation commands; governance
+hooks never run those commands. The package keeps its original DSH package name.
 
 The package is private while reconstruction and acceptance are in progress.
 Pack it locally with `npm pack ./adapters --ignore-scripts --pack-destination <directory>`
@@ -113,3 +115,123 @@ logs and command duration are bounded separately. RSI tools have a 180-second
 host budget, separate from the short governance hook deadline. Windows evaluation
 is explicitly unavailable until process-tree termination is verified. Full protocol
 and evidence boundaries are in `docs/rebuild/rsi.md` in the source repository.
+
+## Codex and Claude Code
+
+The tested Linux versions and actual evidence are recorded in the repository's
+`docs/rebuild/progress.md`. Configure an isolated profile first. Do not copy these
+example paths literally or merge settings into a user's default profile without
+their instruction. Node 22+ runs the installed files without DSH peer imports.
+Install the local tgz with `--ignore-scripts --legacy-peer-deps` when using only
+the MCP adapters. No provider credentials are needed by these adapters.
+
+Create an explicit JSON mapping (absolute filename passed to the adapter):
+
+```json
+{
+  "host": "codex",
+  "projectRoot": "/absolute/project",
+  "planPath": "governance/continuation.json",
+  "statePath": "local/continuation.json",
+  "guardedTools": ["Bash", "exec_command", "Write", "Edit", "apply_patch"],
+  "deadlineMs": 2000,
+  "maxContextBytes": 12000
+}
+```
+
+Use `"host":"claude"` for Claude. Optional `rsiPlanPath` and `rsiStatePath` have
+the same meaning as DSH. Keep project instructions, active authority and any
+custom hook/configuration files in the selected authority set. Standard root
+AGENTS/CLAUDE instructions, Codex/Claude settings, the MCP mapping and the loaded
+adapter modules are protected RSI targets automatically when inside the project.
+One connection has one execution owner; do not share it across concurrent writers
+or assume a parent's execution marker grants authority to subagents.
+
+Codex MCP configuration:
+
+```toml
+[mcp_servers.sage]
+command = "/absolute/node"
+args = ["/absolute/installed-package/mcp.mjs", "/absolute/mapping.json"]
+startup_timeout_sec = 10
+tool_timeout_sec = 180
+```
+
+Claude MCP configuration:
+
+```json
+{"mcpServers":{"sage":{"command":"/absolute/node","args":["/absolute/installed-package/mcp.mjs","/absolute/mapping.json"]}}}
+```
+
+Merge these hooks into the selected host's hook settings, following its current
+trust/configuration workflow. The startup helper is intentionally absent from
+per-tool hooks. MCP hooks reuse the connected process; no new CLI is started.
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"matcher":"^(startup|resume|clear|fork)$","hooks":[{
+      "type":"command",
+      "command":"'/absolute/node' '/absolute/installed-package/hook.mjs' '/absolute/mapping.json'",
+      "timeout":5
+    }]},{"matcher":"^compact$","hooks":[{
+      "type":"mcp_tool","server":"sage","tool":"sage_hook","timeout":5,
+      "input":{"event":{"hook_event_name":"SessionStart","source":"${source}","session_id":"${session_id}","cwd":"${cwd}"}}
+    }]}],
+    "UserPromptSubmit": [{"hooks":[{
+      "type":"mcp_tool","server":"sage","tool":"sage_hook","timeout":5,
+      "input":{"event":{"hook_event_name":"UserPromptSubmit","session_id":"${session_id}","cwd":"${cwd}"}}
+    }]}],
+    "PreToolUse": [{"matcher":"Bash|exec_command|Write|Edit|apply_patch","hooks":[{
+      "type":"mcp_tool","server":"sage","tool":"sage_hook","timeout":5,
+      "input":{"event":{"hook_event_name":"PreToolUse","session_id":"${session_id}","cwd":"${cwd}","tool_name":"${tool_name}"}}
+    }]}],
+    "Stop": [{"hooks":[{
+      "type":"mcp_tool","server":"sage","tool":"sage_hook","timeout":5,
+      "input":{"event":{"hook_event_name":"Stop","session_id":"${session_id}","cwd":"${cwd}","stop_hook_active":"${stop_hook_active}"}}
+    }]}]
+  }
+}
+```
+
+These are local POSIX examples, not Windows command quoting. Native hook schemas
+and versions must be verified: [Codex](https://learn.chatgpt.com/docs/hooks),
+[Claude](https://code.claude.com/docs/en/hooks). Startup can precede MCP readiness,
+so a bounded command helper provides the initial reminder. UserPromptSubmit
+refreshes it through MCP; a compact event uses the existing MCP connection to
+retain its execution marker. Actual compaction/recovery support is reported per
+host separately from synthetic event tests. A command helper cannot retain an
+execution marker.
+
+MCP `sage_finish.result`, RSI `feedback` and `files` are JSON objects/arrays (DSH
+uses JSON strings). Missing required evidence fails. Fresh begins acquire only
+an in-memory marker; replay, connection restart and errors invalidate it. Hook
+success returns no permission override. Stop may request one continuation for
+admitted or unreconciled work; a repeated Stop returns a handoff message. The
+state remains pending until evidence and human acceptance actually exist.
+
+Native tools outside the exact guarded list, missing/disabled hooks, connection
+failures and host hook errors can bypass this mechanical check. These hooks are
+not isolation. Internal hook failures return a normal denial where the event
+supports it; native permissions and project authority still apply. Keep the
+governance Skill/project instructions and use `sage_inspect` if reminders fail.
+
+RSI adoption/rollback request a form elicitation from the connected host. Only
+its explicit `accept` plus boolean `approve:true` can approve the bound challenge;
+missing capabilities, cancellation, protocol errors and rejection cannot. The
+host must route this question to a human, never an automatic answerer. Unit
+protocol answerers prove wiring only; native human approval is a separate check.
+
+Input lines are capped at 1 MiB, pending requests at 16, output/backpressure at
+2 MiB, mapping input at 64 KiB. Operations are serialized; cancellation and
+elicitation responses are processed while an operation waits. Per continuation
+read phase: 8 MiB/128 files; a changed ordinary hook may do an observe then inspect
+phase (at most 16 MiB/256 reads). Lifecycle reads use one phase. Idle does no work,
+no-change reads do not write state, and RSI has its separate 180-second budget.
+Host timeouts should exceed adapter deadlines. A blocked kernel IO call cannot be
+interrupted by the cooperative deadline. EOF cancels work and closes the process.
+The byte cap belongs to this adapter; hosts have their own context limits and may
+spill or truncate larger hook output. Keep the mapped round below the host's
+verified limit, or reduce `maxContextBytes` (for example 2000). Read the referenced
+authority through normal tools; reminder delivery is not proof that every rule
+was read or understood. Native tests cover compact bounded reminders only.

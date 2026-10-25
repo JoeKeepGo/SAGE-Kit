@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22
       - name: Check optional continuation and RSI adapters
-        run: node --test tests/continuation.test.mjs tests/rsi*.test.mjs
+        run: node --test tests/continuation.test.mjs tests/rsi*.test.mjs tests/agent-host.test.mjs tests/project-mapping.test.mjs
 
   dsh:
     runs-on: ubuntu-latest

@@ -26,7 +26,7 @@ foreach ($path in $required) {
 
 $tracked = @(git ls-files)
 # R-003 permits this exact optional host package, never a core Skill dependency.
-$unexpectedAdapters = @($tracked | Where-Object { $_ -like 'adapters/*' -and $_ -notin @('adapters/continuation.mjs', 'adapters/dsh.mjs', 'adapters/rsi.mjs', 'adapters/rsi-process.mjs', 'adapters/package.json', 'adapters/cordis.patch.yml', 'adapters/README.md', 'adapters/LICENSE') })
+$unexpectedAdapters = @($tracked | Where-Object { $_ -like 'adapters/*' -and $_ -notin @('adapters/continuation.mjs', 'adapters/dsh.mjs', 'adapters/rsi.mjs', 'adapters/rsi-process.mjs', 'adapters/agent-host.mjs', 'adapters/mcp.mjs', 'adapters/hook.mjs', 'adapters/package.json', 'adapters/cordis.patch.yml', 'adapters/README.md', 'adapters/LICENSE') })
 if ($unexpectedAdapters.Count -ne 0) { throw "unreviewed optional adapter: $($unexpectedAdapters -join ', ')" }
 $packageManifest = '(^|/)(pyproject\.toml|setup\.py|setup\.cfg|requirements[^/]*\.txt|tox\.ini|noxfile\.py|Pipfile|poetry\.lock|uv\.lock|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|deno\.json|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|Gemfile|Gemfile\.lock|composer\.json|composer\.lock|mix\.exs|rebar\.config|pubspec\.yaml|Package\.swift|[^/]+\.(csproj|fsproj|vbproj))$'
 $forbidden = @($tracked | Where-Object {

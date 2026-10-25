@@ -2,7 +2,7 @@
 
 ## 当前范围
 
-2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R3 本地实现与检查完成；
+2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R4 本地实现与检查完成；
 持续开发、治理 hook 和 RSI 是核心目标。规范见 [SPEC](SPEC.md)，权威见
 [决策](../decisions.md)。本记录只协调进度，不取代规范、Git 或测试结果。
 
@@ -282,3 +282,85 @@ SIGKILL 后都清理同组命令及后代，无后台轮询。
 下一项是 **R4：Codex/Claude 适配及跨项目验证**。按真实宿主能力记录支持矩阵，
 验证不同文档结构项目仍保持同一治理语义。真实模型长期收益与真人策略采用仍需
 单列验证；R3 本地实现完成不代表整体用户验收、生产采用或发布完成。
+
+## R4：Codex / Claude 接入与跨项目验证（2026-10-26）
+
+用户要求继续下一项，按既定 R4 范围实现。保留原治理资源、R1 执行约定和 R3
+RSI；新增 `agent-host.mjs`、宿主连接持有的 stdio `mcp.mjs` 和仅启动时使用的
+`hook.mjs`。协议与安装说明见[其他宿主](agent-hosts.md)及
+[可选包 README](../../adapters/README.md)，映射见[项目映射](project-mapping.md)。
+不是新的任务 CLI、模型循环、自动调度器或产品状态权威。
+
+### 版本与实际支持
+
+以下为本机 Linux/WSL2，Node 22.22.1 的真实组件/原生进程证据；所有模型请求均由
+本地确定性替身提供。测试审批答复器只证明协议，不证明真人判断或真实模型收益。
+
+| 能力 | DSH 0.2.1-rc.2 | Codex CLI 0.163.0-alpha.11.2 | Claude Code 2.1.310 |
+|---|---|---|---|
+| 启动提醒/工具发现 | R2/R3 原生插件；新包 profile 复验通过 | 原生启动命令 + 已连接 MCP UserPromptSubmit，通过 | 原生启动命令 + 已连接 MCP UserPromptSubmit，通过；启动阶段 MCP 尚不可用 |
+| 真实有界执行与证据关口 | 原生 begin/工作/finish、无证据/未准入拒绝 | 原生 MCP→shell→证据；缺证据/未准入拒绝 | 原生 MCP→Bash→检查→finish 三步；提前 Write/缺证据/未准入拒绝 |
+| 新会话/中断恢复 | R2 实际 SIGKILL 及核对 | 真实 CLI 退出再 resume；replayed begin 不获执行标记，核对既有副作用后 finish | 共享模块重连规则有 fixture；原生 resume/崩溃恢复尚未执行 |
+| 压缩后治理 | R2 真实 surface replacement | 原生自动压缩已执行；旧工具历史移除后重新注入目标/规范/working attempt，同一 MCP 进程继续真实工作 | 原生压缩尚未执行，不能由共用模块测试推定 |
+| 完成/下一阶段 | 原生检查；人工验收分离 | 实际 Stop 提醒后有界交接，不无限续跑 | 实际 Stop；布尔替换为字符串已规范处理；一次提醒后交接 |
+| RSI | 真实 DSH 组件及 profile 内 propose/evaluate/adopt/rollback，审批为测试答复器 | MCP 协议及隔离评估通过；原生真人 elicitation/采用未执行 | 同左，未声称真人策略采用 |
+| 失联/失败边界 | 插件内部失败拒绝；非选定工具仍可能旁路 | 内部 hook 失败返回正常拒绝；宿主省略/断连/报错可能放行原生工具 | 正常 deny 阻止 Write；`isError:true` 的失败放行已真实复现；内部错误用正常拒绝 |
+
+Codex 自动压缩由真实宿主根据返回 usage 触发，本地替身只提供摘要；随后真实模型
+请求中的旧工具历史已被替换，摘要后出现新治理提醒。不是伪造一个 compact 事件。
+手动 `/compact`、GUI、真实模型摘要质量、Windows/macOS 原生均未执行。
+
+hook 只是当前已连宿主上的指定事件检查，不等于路径沙箱或全面强制门禁。内部
+begin/finish/RSI 检查依旧失败关闭；宿主失联不能宣称授予了许可。宿主还可能对较大
+提醒另行截断/落盘，字节预算并不替代其上下文限制；本轮原生验证为短小有界提醒。
+项目指令与显式读取规范继续必要，不声称模型理解了全部治理语义。
+
+### 运行、资源与审查证据
+
+- 本地工件：`local/rebuild-r4/sage-kit-dsh-plugin-0.0.0-rebuild-r4.tgz`；SHA-256
+  `9dfee03041692178c0bd41b34fc829eee7e38b65e4b7149afa5de45ff8b61c8d`。
+  `artifact-verification-final.json` 核对源码、tgz、`installed-final/` 全部 11 文件
+  逐字节一致；离线安装禁用脚本。Claude 官方包只在隔离目录安装并直接使用 native
+  binary；未运行其安装脚本，未修改默认 profile、读取凭据或调用付费 provider。
+- 汇总 **165 个测试，164 通过、1 个 Windows 专属项跳过**。初次全量
+  `final-tests.log` 为 162 pass / 1 fail / 1 skip；唯一失败是 Claude 拒绝后直接
+  停止、未再发模型请求，测试仍错误地只找下一请求的 tool_result。改为读取实际
+  hook 事件后通过，文件未产生副作用，attempt 仍 running。新增 Codex 原生压缩后，
+  最终安装包 `final-native-tests.log` 覆盖全部 7 Codex、8 Claude 及 1 DSH profile。
+  其余输入未改变的通过证据复用；不把失败日志抹去或声称来自一次全绿运行。
+- 静态仓库完整性 PASS；portable Skill 10 resources / 24 package files 及闭包 PASS；
+  原 Claude advisory 14/14。核心资源对 `v2026.8.13.1` 差异为空。10 份相关文档的
+  34 个本地链接与空白检查通过；远程 CI、Windows/macOS 原生未执行。
+- `agent-host` 的 100 次受检查 hook：每次 3 个小文件，共 72,700 字节、300 次读取，
+  状态重写 0；并发全量样本约 424ms、父进程 CPU 251ms user / 126ms system。
+  未选定工具不读盘，空闲无轮询。单次读取阶段限 8MiB/128 文件，变化时 observe+
+  inspect 两阶段最多 16MiB/256 次；协议行/排队/输出也有上限，RSI 独立预算。
+- 原生 Codex 压力样本：48 次连续 inspect、50 次本地模型请求；各检查点 MCP PID
+  及启动时间相同。短时空闲 100ms 的 CPU/IO 增量为 0，活动期间 storage write_bytes
+  为 0、未建状态文件。具体耗时与 Linux CPU ticks 在最终原生日志，不将 pipe 字节
+  当作磁盘写入，也不把约数秒的样本当作真实长期项目的性能保证。
+- 独立审查发现并关闭 P1 非法 JSON-RPC 同时 result/error 被当作批准，以及 P2
+  畸形 hook 输入未返回正常拒绝。定向复现和 3 项回归确认：协议错误拒绝批准，
+  未知/缺失工具输入清除 owner，真实取消通知后的迟到 accept 不采用。
+  `review.txt` 记录核心、原生 fixture 与证据边界审查，未代替最终测试角色。
+
+### RSI 自用与跨项目
+
+`local/rebuild-r4/rsi-self/` 使用本轮真实审查反馈，对上述 P1 做固定对照：基线仅
+定向重建已观察到的旧错误分支，不冒充完整历史提交；候选为当前 `mcp.mjs`。
+同一不可修改的回归测试，基线退出 1、候选退出 0，双侧保护通过；49 次读取、
+502,490 字节。状态停在 `human_approval`，未请求批准或采用候选；原源码、固定
+测试与隔离基线均未改变。普通已授权修复与 RSI 策略自动采用继续区分。
+
+Taluvia Docset 1.12.0 只读选取 14 文件/475,320 字节，保留原始任务、需求、验收
+ID 与摘要；另有扁平 CSV 项目映射。两项显式本地检查通过，Taluvia 原源未改，
+产品任务 `PLANNED_NOT_STARTED`、产品验收 `NOT_EXECUTED`。发现 stages 元数据
+仍指向 1.11.0，已保留并说明，不默改或据此授权产品开发。
+
+### 剩余交付边界
+
+R4 本地实现与上述限定证据完成，整体仍待用户验收。下一步是选定真实项目和宿主，
+开展有明确范围、预算、停止条件的长期试运行，观察真实模型的治理保持、任务收益
+和 CPU/IO；Claude 压缩/恢复及两宿主真人 RSI 批准应单列验证。它不自动授予付费
+调用、Taluvia 产品开发、默认配置改写、策略采用、生产运行、合并或发布权限。
+当前没有配置后台调度，不宣称此会话结束后仍自主工作。
