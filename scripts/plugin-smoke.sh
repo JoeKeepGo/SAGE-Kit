@@ -238,13 +238,20 @@ plugin_tarball="$work/pack/${plugin_name}-${plugin_version}.tgz"
 [ -f "$plugin_tarball" ] || die "expected tarball not found: $plugin_tarball"
 
 tar -tzf "$root_tarball" | sed 's:^package/::' | sort >"$logs/root-tarball-files.txt"
-for required in package.json dist/cli.js dist/index.js "skills/sage-kit/SKILL.md"; do
+for required in \
+  package.json dist/cli.js dist/index.js "skills/sage-kit/SKILL.md" \
+  "packages/host-codex/.codex-plugin/plugin.json" \
+  "packages/host-claude/.claude-plugin/plugin.json"; do
   grep -qxF "$required" "$logs/root-tarball-files.txt" \
     || die "root tarball is missing $required"
 done
-forbidden_root='^(tests|reports|work|src|node_modules|scripts|\.github|\.git|\.sage-kit|packages)/'
-if grep -qE "$forbidden_root" "$logs/root-tarball-files.txt"; then
-  grep -E "$forbidden_root" "$logs/root-tarball-files.txt" >&2
+# Host adapter templates are intentionally shipped under packages/ because
+# `sage-kit host install` stages them into the user's Codex/Claude config.
+forbidden_root='^(tests|reports|work|src|node_modules|scripts|\.github|\.git|\.sage-kit)/|^packages/'
+unexpected_root="$(grep -E "$forbidden_root" "$logs/root-tarball-files.txt" \
+  | grep -vE '^packages/(host-codex|host-claude)/' || true)"
+if [ -n "$unexpected_root" ]; then
+  printf '%s\n' "$unexpected_root" >&2
   die "root tarball contains non-shipped paths (see list above)"
 fi
 
