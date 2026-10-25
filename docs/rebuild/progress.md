@@ -43,7 +43,8 @@ bash scripts/check-repository.sh
 另外两条命令使用相同环境前缀。未修改系统安装，未新增项目运行依赖，未改动
 原版 hook 来掩盖缺失工具。原版核验只能证明其声明范围。
 
-Windows/macOS、真实 DSH/Codex/Claude、新执行循环与 RSI：`NOT_EXECUTED`。
+R0 检查时，Windows/macOS、真实 DSH/Codex/Claude、新执行循环与 RSI 均未执行；
+后续 R1 证据见下文，不能从 R0 检查推导。
 
 ## R1：用现有治理与受控改进流程推进（2026-10-26）
 
@@ -81,6 +82,39 @@ Windows/macOS、真实 DSH/Codex/Claude、新执行循环与 RSI：`NOT_EXECUTED
 这是模型执行的受控观察—修正—验证—独立复核流程，不是宣称 R3 自动 RSI 程序
 已完成，亦未衡量普遍开发收益。长期策略候选（如将证据一致性检查推广到其它适配器）
 需在对应范围独立评估，不自动修改原 Skill 或所有项目规则。
+
+## R1 资源约束修正（2026-10-26）
+
+依据用户反馈与决策 R-006，按事件调用的可选模块增加每次总读取 8 MiB/128 文件、
+路径深度 32 的边界；同次引用去重，跨次仍按内容核验；幂等 begin/finish 不重写
+state。状态写入超过 4 MiB 在替换文件前拒绝，避免成功写入后无法恢复。无 CLI、
+轮询、全仓扫描、计数日志或额外依赖；RSI 不放入同步 hook。
+
+- 当前环境允许标准测试隔离：`node --test tests/continuation.test.mjs` **44 PASS /
+  0 FAIL / 0 SKIP**，包括原 35 项及新增读取/写入预算、去重、变更识别、幂等与测量。
+  关闭了上述 R1 记录中“标准隔离模式未验证”的局部缺口，Windows/macOS 原生仍未测。
+- 独立针对性静态审查及写入边界复核无阻断发现；测试由控制者执行。
+- 原 Skill、契约、治理文档/模板对 v2026.8.13.1 仍无差异；`git diff --check` 通过。
+  其输入未变，沿用 R1 的静态完整性/引用/原 hook 证据，未重复跑无关检查。
+- 证据：`local/rebuild-resource/{continuation-tests,mounted-measurement,baseline,diff}.log`、
+  `review.txt`。使用新的本地 plan/state 记录本轮 intent/结果；旧 R1 plan 所引用决策与
+  协议已改变，其 fingerprint 不再代表当前轮，保留旧记录而不改写历史。
+
+测量环境：WSL2 6.18.33.2、Node v22.22.1、x64；20 个已完成步骤共享一个 1 MiB
+证据文件。准备工作及一次预热不计入；以下均为 **10 次 inspect 的总量**：
+
+| fixture 位置 | wall | 进程 CPU（user + system） | 每次逻辑内容读取 |
+|---|---|---|---|
+| Linux `/tmp` | 32.734 ms | 29.383 + 6.916 ms | 4 文件 / 1,064,689 bytes |
+| 本仓库 `local/rebuild-resource/tmp`（`/mnt/d`） | 282.254 ms | 37.489 + 23.572 ms | 4 文件 / 1,064,689 bytes |
+
+D 盘位置使用同一测试的名称筛选单独运行，1 PASS。以上是单次本机样本，不设易波动
+时延阈值，不是物理磁盘 IO、旧 CLI 对照或真实长会话收益。A14 组件边界已验证；
+DSH 实际事件频率、同步 hook 超时、长会话和 RSI 预算仍须在接入阶段测量。
+
+受控改进记录：读取预算测试通过后，审查持久化路径发现写入/读取上限不对称；
+先补“超限 finish 保留原记录且仍 reconcile”反例，再补写前检查，复测及针对性
+复核通过。这是已授权实现修正，未自动改变任何项目目标、验收或已发布 Skill。
 
 ## R2 准备与下一步
 

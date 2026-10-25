@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, symlink, stat, utimes } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, platform, release, arch } from 'node:os';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
@@ -330,3 +330,203 @@ for (const damage of ['missing digest', 'extra digest', 'missing required check'
     assert.equal(await readFile(join(f.root, f.config.statePath), 'utf8'), corrupted);
   });
 }
+
+test('resource accounting reads a shared proof only once across passed steps and review references', async (t) => {
+  const f = await fixture(t, { plan: { steps: [
+    step('first', { requiresReview: true }),
+    step('second', { dependsOn: ['first'], requiresReview: true }),
+    step('third', { dependsOn: ['second'], requiresReview: true }),
+  ] } });
+  const proof = await f.put('output/shared-proof.txt', 'Shared fixture check and review evidence.\n');
+  const result = { outcome: 'passed', checks: [{ id: 'test', passed: true, evidence: proof }], review: proof };
+  for (const id of ['first', 'second', 'third']) {
+    await f.controller.begin(id, `resource-${id}`);
+    await f.controller.finish(`resource-${id}`, result);
+    const inspected = await f.controller.inspect();
+    const uniqueInputs = [f.config.planPath, f.layout.authority, f.config.statePath, proof];
+    const sizes = await Promise.all(uniqueInputs.map(path => stat(join(f.root, path))));
+    assert.deepEqual(inspected.io, { filesRead: 4, bytesRead: sizes.reduce((sum, item) => sum + item.size, 0) });
+  }
+  assert.equal((await f.controller.inspect()).action, 'complete_pending_acceptance');
+});
+
+test('resource budget rejects aggregate authority bytes even when every individual file is legal', async (t) => {
+  const authority = Array.from({ length: 9 }, (_, index) => `authority/rule-${index}.txt`);
+  const f = await fixture(t, { plan: { authority } });
+  const legalSizeContent = 'x'.repeat(1024 * 1024);
+  for (const path of authority) await f.put(path, legalSizeContent);
+  await assert.rejects(f.controller.inspect(), { code: 'E_READ_BUDGET' });
+  await assert.rejects(f.controller.begin('first', 'too-many-bytes'), { code: 'E_READ_BUDGET' });
+  await assert.rejects(stat(join(f.root, f.config.statePath)), { code: 'ENOENT' });
+});
+
+test('resource budget accepts 128 distinct inputs but rejects the 129th evidence file', async (t) => {
+  const authority = Array.from({ length: 100 }, (_, index) => `authority/rule-${index}.txt`);
+  const checkNames = Array.from({ length: 26 }, (_, index) => `check-${index}`);
+  const f = await fixture(t, { plan: { authority, steps: [
+    step('first', { checks: checkNames }), step('second', { dependsOn: ['first'] }),
+    step('third', { dependsOn: ['second'] }),
+  ] } });
+  for (const path of authority) await f.put(path, 'Approved project rule.\n');
+  const checks = [];
+  for (const id of checkNames) checks.push({ id, passed: true, evidence: await f.put(`output/${id}.txt`, 'pass\n') });
+  await f.controller.begin('first', 'many-inputs-first');
+  await f.controller.finish('many-inputs-first', { outcome: 'passed', checks });
+  // plan + state + 100 authorities + 26 proofs = 128 distinct content reads.
+  const boundary = await f.controller.inspect();
+  assert.equal(boundary.action, 'continue');
+  assert.equal(boundary.io.filesRead, 128);
+  await f.controller.begin('second', 'many-inputs-second');
+  await f.controller.finish('many-inputs-second', await f.pass('one-more-proof'));
+  await assert.rejects(f.controller.inspect(), { code: 'E_READ_BUDGET' });
+  await assert.rejects(f.controller.begin('third', 'over-file-budget'), { code: 'E_READ_BUDGET' });
+});
+
+for (const kind of ['authority', 'evidence']) {
+  test(`resource optimization never trusts unchanged size and mtime for ${kind}`, async (t) => {
+    const f = await fixture(t, { plan: { steps: [step('first'), step('second', { dependsOn: ['first'] })] } });
+    const evidence = await f.put('output/fixed-size-proof.txt', 'proof-A');
+    if (kind === 'authority') await f.put(f.layout.authority, 'rule--A');
+    const target = join(f.root, kind === 'authority' ? f.layout.authority : evidence);
+    const fixedTime = new Date('2000-01-01T00:00:00.000Z');
+    await utimes(target, fixedTime, fixedTime);
+    await f.controller.begin('first', `same-metadata-${kind}`);
+    await f.controller.finish(`same-metadata-${kind}`, { outcome: 'passed', checks: [{ id: 'test', passed: true, evidence }] });
+    assert.equal((await f.controller.inspect()).action, 'continue');
+    const before = await stat(target);
+    await writeFile(target, kind === 'authority' ? 'rule--B' : 'proof-B');
+    await utimes(target, fixedTime, fixedTime);
+    const after = await stat(target);
+    assert.equal(after.size, before.size);
+    assert.equal(after.mtimeMs, before.mtimeMs);
+    assert.equal((await f.controller.inspect()).action, kind === 'authority' ? 'authority_changed' : 'evidence_changed');
+    await assert.rejects(f.controller.begin('second', 'changed-content'));
+  });
+}
+
+test('resource conservation keeps state bytes and mtime unchanged on begin and finish replay', async (t) => {
+  const f = await fixture(t);
+  const stateFile = join(f.root, f.config.statePath);
+  await f.controller.begin('first', 'no-rewrite');
+  const fixedTime = new Date('2000-01-01T00:00:00.000Z');
+  await utimes(stateFile, fixedTime, fixedTime);
+  const runningBytes = await readFile(stateFile, 'utf8');
+  const runningMtime = (await stat(stateFile)).mtimeMs;
+  assert.equal((await f.controller.begin('first', 'no-rewrite')).replayed, true);
+  assert.equal(await readFile(stateFile, 'utf8'), runningBytes);
+  assert.equal((await stat(stateFile)).mtimeMs, runningMtime);
+  const result = await f.pass('replayed-proof');
+  const finished = await f.controller.finish('no-rewrite', result);
+  await utimes(stateFile, fixedTime, fixedTime);
+  const finishedBytes = await readFile(stateFile, 'utf8');
+  const finishedMtime = (await stat(stateFile)).mtimeMs;
+  assert.deepEqual(await f.controller.finish('no-rewrite', result), finished);
+  assert.equal(await readFile(stateFile, 'utf8'), finishedBytes);
+  assert.equal((await stat(stateFile)).mtimeMs, finishedMtime);
+});
+
+test('resource path-depth limit accepts 32 segments and rejects 33', async (t) => {
+  const atLimit = Array(32).fill('part').join('/');
+  const beyondLimit = `${atLimit}/extra`;
+  const f = await fixture(t, { plan: { steps: [step('first', { scope: [atLimit] })] } });
+  assert.equal((await f.controller.inspect()).action, 'continue');
+  await assert.rejects(async () => {
+    const c = await openContinuation({ ...f.config, statePath: beyondLimit });
+    await c.inspect();
+  });
+  await f.put(f.config.planPath, JSON.stringify({ ...f.plan, steps: [step('first', { scope: [beyondLimit] })] }));
+  await assert.rejects(f.controller.inspect());
+});
+
+test('representative inspect workload reports wall, CPU and logical reads without timing thresholds', async (t) => {
+  const steps = Array.from({ length: 20 }, (_, index) => step(`measured-${index}`, {
+    dependsOn: index === 0 ? [] : [`measured-${index - 1}`],
+  }));
+  const f = await fixture(t, { plan: { maxAttempts: 20, steps } });
+  const proofBytes = 1024 * 1024;
+  const evidence = await f.put('output/shared-measurement-proof.txt', 'p'.repeat(proofBytes));
+  const result = { outcome: 'passed', checks: [{ id: 'test', passed: true, evidence }] };
+  for (const s of steps) {
+    await f.controller.begin(s.id, `attempt-${s.id}`);
+    await f.controller.finish(`attempt-${s.id}`, result);
+  }
+  const inputSizes = await Promise.all([f.config.planPath, f.layout.authority, f.config.statePath, evidence]
+    .map(path => stat(join(f.root, path))));
+  const expectedIo = { filesRead: 4, bytesRead: inputSizes.reduce((sum, info) => sum + info.size, 0) };
+  const warm = await f.controller.inspect();
+  assert.equal(warm.action, 'complete_pending_acceptance');
+  assert.deepEqual(warm.io, expectedIo);
+
+  // Fixture creation, warm-up and size checks are outside the measurement.
+  // Retain samples and validate afterwards to minimize assertion overhead.
+  const cpuBefore = process.cpuUsage();
+  const wallBefore = process.hrtime.bigint();
+  const samples = [];
+  for (let index = 0; index < 10; index++) samples.push(await f.controller.inspect());
+  const wallMs = Number(process.hrtime.bigint() - wallBefore) / 1e6;
+  const cpu = process.cpuUsage(cpuBefore);
+  for (const sample of samples) {
+    assert.equal(sample.action, 'complete_pending_acceptance');
+    assert.deepEqual(sample.io, expectedIo);
+  }
+  t.diagnostic(JSON.stringify({
+    measurement: 'local component fixture; logical reads, not physical disk IO or production savings',
+    environment: { node: process.version, os: platform(), release: release(), architecture: arch() },
+    input: { passedSteps: steps.length, distinctEvidenceFiles: 1, evidenceBytes: proofBytes, distinctInputFiles: 4 },
+    warmupInspections: 1,
+    measuredInspections: samples.length,
+    wallMs: Number(wallMs.toFixed(3)),
+    cpuMs: { user: cpu.user / 1000, system: cpu.system / 1000 },
+    logicalReadsPerInspection: samples.map(sample => sample.io),
+  }));
+});
+
+test('state write budget rejects oversized finish without destroying the recoverable intent', async (t) => {
+  const f = await fixture(t, { plan: { maxAttempts: 1000 } });
+  const evidence = await f.put('output/historical-check.txt', 'Check was not executed.\n');
+  const makeChecks = (count, suffixLength) => Array.from({ length: count }, (_, index) => ({
+    id: `check-${String(index).padStart(3, '0')}-${'x'.repeat(suffixLength)}`,
+    passed: false, evidence,
+  }));
+  const started = await f.controller.begin('first', 'template-attempt');
+  const template = await f.controller.finish('template-attempt', {
+    outcome: 'not_executed', checks: makeChecks(50, 40),
+  });
+  const stateFile = join(f.root, f.config.statePath);
+  const originalState = JSON.parse(await readFile(stateFile, 'utf8'));
+  const budget = 4 * 1024 * 1024;
+  const pendingId = 'history-0999';
+  const pending = { ...started.attempt, id: pendingId };
+  const history = (count) => Array.from({ length: count }, (_, index) => ({
+    ...template, id: `history-${String(index).padStart(4, '0')}`,
+  }));
+  const stateWith = attempts => ({ ...originalState, attempts });
+  const encoded = state => `${JSON.stringify(state, null, 2)}\n`;
+  const encodedSize = state => Buffer.byteLength(encoded(state));
+  // Binary search bounds setup work: do not repeatedly serialize every growing
+  // history prefix. Every historical entry is copied from a real valid finish.
+  let low = 0, high = 998;
+  while (low < high) {
+    const count = Math.ceil((low + high) / 2);
+    if (encodedSize(stateWith([...history(count), pending])) <= budget) low = count;
+    else high = count - 1;
+  }
+  assert.ok(low >= 100 && low < 998, 'fixture must contain hundreds of valid historical attempts');
+  const historicalAttempts = history(low);
+  const largeResult = { outcome: 'not_executed', checks: makeChecks(100, 60) };
+  const oversizedFinished = {
+    ...pending, outcome: largeResult.outcome, result: largeResult,
+    resultKey: createHash('sha256').update(JSON.stringify(largeResult)).digest('hex'),
+    evidence: template.evidence,
+  };
+  assert.ok(encodedSize(stateWith([...historicalAttempts, pending])) <= budget);
+  assert.ok(encodedSize(stateWith([...historicalAttempts, oversizedFinished])) > budget);
+  await f.put(f.config.statePath, encoded(stateWith(historicalAttempts)));
+  assert.equal((await f.controller.inspect()).action, 'continue');
+  await f.controller.begin('first', pendingId);
+  const before = await readFile(stateFile);
+  assert.ok(before.length <= budget);
+  await assert.rejects(f.controller.finish(pendingId, largeResult), { code: 'E_STATE_BUDGET' });
+  assert.deepEqual(await readFile(stateFile), before);
+  assert.equal((await f.controller.inspect()).action, 'reconcile');
+});

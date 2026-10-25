@@ -1,5 +1,5 @@
 // Optional host support. No model calls, command runner, network or daemon.
-import { open, readFile, lstat, realpath, mkdir, rename, unlink } from 'node:fs/promises';
+import { open, lstat, realpath, mkdir, rename, unlink } from 'node:fs/promises';
 import { resolve, dirname, isAbsolute } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -11,7 +11,12 @@ const id = x => typeof x === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test
 const strings = (xs, test = text) => Array.isArray(xs) && xs.length <= 100 && xs.every(test);
 const unique = xs => new Set(xs).size === xs.length;
 const relativePath = x => text(x) && !isAbsolute(x) && !x.includes('\\') &&
-  !x.includes(':') && !x.includes('\0') && x.split('/').every(p => p && p !== '.' && p !== '..');
+  !x.includes(':') && !x.includes('\0') && x.split('/').length <= 32 &&
+  x.split('/').every(p => p && p !== '.' && p !== '..');
+const MAX_READ_BYTES = 8 * 1024 * 1024;
+const MAX_READ_FILES = 128;
+const MAX_STATE_BYTES = 4 * 1024 * 1024;
+const readBudgetError = () => Object.assign(new Error('Continuation read budget exceeded; narrow the admitted round before retrying'), { code: 'E_READ_BUDGET' });
 
 function normalizeResult(result, step) {
   if (!object(result) || !['passed', 'failed', 'not_executed'].includes(result.outcome) ||
@@ -76,21 +81,57 @@ export async function openContinuation({ root, planPath, statePath }) {
     }
     return current;
   }
-  async function bytes(name, limit = 1024 * 1024) {
-    const path = await safePath(name);
-    const stat = await lstat(path);
-    if (!stat.isFile() || stat.size > limit) fail('Expected bounded regular file');
-    const value = await readFile(path);
-    if (value.length > limit) fail('File exceeds size limit');
-    return value;
+  function reader() {
+    // Cache only within one operation; every later admission rechecks actual content.
+    const contents = new Map(), digests = new Map();
+    const io = { filesRead: 0, bytesRead: 0 };
+    async function bytes(name, limit = 1024 * 1024) {
+      const cached = contents.get(name);
+      if (cached) {
+        if (cached.length > limit) fail('File exceeds size limit');
+        return cached;
+      }
+      if (io.filesRead >= MAX_READ_FILES || io.bytesRead >= MAX_READ_BYTES) throw readBudgetError();
+      const path = await safePath(name);
+      const info = await lstat(path);
+      if (!info.isFile() || info.size > limit) fail('Expected bounded regular file');
+      if (info.size > MAX_READ_BYTES - io.bytesRead) throw readBudgetError();
+      const handle = await open(path, 'r');
+      try {
+        const stat = await handle.stat();
+        if (!stat.isFile() || stat.size > limit) fail('Expected bounded regular file');
+        if (stat.size > MAX_READ_BYTES - io.bytesRead) throw readBudgetError();
+        // One sentinel byte detects concurrent growth without unbounded readFile allocation.
+        const buffer = Buffer.alloc(stat.size + 1);
+        io.filesRead++;
+        let length = 0;
+        while (length < buffer.length) {
+          if (io.bytesRead === MAX_READ_BYTES) {
+            if (length !== stat.size || (await handle.stat()).size !== stat.size) throw readBudgetError();
+            break;
+          }
+          const result = await handle.read(buffer, length, Math.min(buffer.length - length, MAX_READ_BYTES - io.bytesRead), null);
+          if (result.bytesRead === 0) break;
+          length += result.bytesRead;
+          io.bytesRead += result.bytesRead;
+          if (length > stat.size) fail('File grew during bounded read');
+        }
+        const value = buffer.subarray(0, length);
+        contents.set(name, value);
+        return value;
+      } finally { await handle.close(); }
+    }
+    return { bytes, io, async digest(name) {
+      if (!digests.has(name)) digests.set(name, { path: name, sha256: hash(await bytes(name)) });
+      return digests.get(name);
+    } };
   }
-  async function digest(name) { return { path: name, sha256: hash(await bytes(name)) }; }
-  async function snapshot() {
-    const p = JSON.parse((await bytes(planPath, 65536)).toString('utf8'));
+  async function snapshot(read) {
+    const p = JSON.parse((await read.bytes(planPath, 65536)).toString('utf8'));
     validatePlan(p);
     if (p.authority.includes(statePath) || p.authority.includes(planPath)) fail('Authority must be separate from plan/state');
     const authority = [];
-    for (const path of p.authority) authority.push(await digest(path));
+    for (const path of p.authority) authority.push(await read.digest(path));
     const fingerprint = hash(JSON.stringify({ plan: p, authority }));
     return { plan: p, authority, fingerprint };
   }
@@ -122,9 +163,9 @@ export async function openContinuation({ root, planPath, statePath }) {
     }
     if (active > 1) fail('Multiple unresolved attempts');
   }
-  async function readState(snap) {
+  async function readState(snap, read) {
     let raw;
-    try { raw = await bytes(statePath, 4 * 1024 * 1024); }
+    try { raw = await read.bytes(statePath, MAX_STATE_BYTES); }
     catch (error) {
       if (error.code === 'ENOENT') return { version: 1, fingerprint: snap.fingerprint, attempts: [] };
       throw error;
@@ -133,7 +174,7 @@ export async function openContinuation({ root, planPath, statePath }) {
     validateState(state, snap);
     return state;
   }
-  async function decision(snap, state) {
+  async function decision(snap, state, read) {
     const p = snap.plan;
     const context = { goal: p.goal, constraints: p.constraints, authority: snap.authority,
       maxAttempts: p.maxAttempts, expiresAt: p.expiresAt };
@@ -145,8 +186,11 @@ export async function openContinuation({ root, planPath, statePath }) {
     if (state.fingerprint !== snap.fingerprint) return reply('authority_changed');
     for (const a of state.attempts.filter(a => a.outcome === 'passed')) {
       for (const e of a.evidence) {
-        try { if ((await digest(e.path)).sha256 !== e.sha256) return reply('evidence_changed'); }
-        catch { return reply('evidence_changed'); }
+        try { if ((await read.digest(e.path)).sha256 !== e.sha256) return reply('evidence_changed'); }
+        catch (error) {
+          if (error.code === 'E_READ_BUDGET') throw error;
+          return reply('evidence_changed');
+        }
       }
     }
     const active = state.attempts.find(a => a.outcome === 'running');
@@ -166,10 +210,14 @@ export async function openContinuation({ root, planPath, statePath }) {
     return gate ? reply('human_gate', gate) : reassess ? reply('reassess', reassess) : reply('blocked');
   }
   async function persist(state, file) {
+    const content = JSON.stringify(state, null, 2) + '\n';
+    if (Buffer.byteLength(content) > MAX_STATE_BYTES) {
+      throw Object.assign(new Error('Continuation state budget exceeded; reconcile and archive this round before continuing'), { code: 'E_STATE_BUDGET' });
+    }
     const temp = `${file}.${randomUUID()}.tmp`;
     try {
       const h = await open(temp, 'wx', 0o600);
-      try { await h.writeFile(JSON.stringify(state, null, 2) + '\n'); await h.sync(); }
+      try { await h.writeFile(content); await h.sync(); }
       finally { await h.close(); }
       await rename(temp, file);
     } finally { await unlink(temp).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
@@ -184,26 +232,30 @@ export async function openContinuation({ root, planPath, statePath }) {
     });
     try {
       await lock.writeFile(JSON.stringify({ pid: process.pid }));
-      const snap = await snapshot(), state = await readState(snap);
-      const result = await fn(snap, state);
-      await persist(state, file);
+      const read = reader();
+      const snap = await snapshot(read), state = await readState(snap, read);
+      const before = JSON.stringify(state);
+      const result = await fn(snap, state, read);
+      if (JSON.stringify(state) !== before) await persist(state, file);
       return result;
     } finally { await lock.close(); await unlink(file + '.lock'); }
   }
   return {
     async inspect() {
-      const snap = await snapshot();
-      return decision(snap, await readState(snap));
+      const read = reader();
+      const snap = await snapshot(read);
+      const result = await decision(snap, await readState(snap, read), read);
+      return { ...result, io: { ...read.io } };
     },
     async begin(stepId, attemptId) {
       if (!id(attemptId)) fail('Invalid attempt id');
-      return mutate(async (snap, state) => {
+      return mutate(async (snap, state, read) => {
         const existing = state.attempts.find(a => a.id === attemptId);
         if (existing) {
           if (existing.stepId !== stepId) fail('Attempt id belongs to another step');
           return { replayed: true, attempt: existing, step: snap.plan.steps.find(s => s.id === stepId) };
         }
-        const next = await decision(snap, state);
+        const next = await decision(snap, state, read);
         if (next.action !== 'continue' || next.step.id !== stepId) fail(`Cannot begin: ${next.action}`);
         const attempt = { id: attemptId, stepId, outcome: 'running' };
         state.attempts.push(attempt);
@@ -211,7 +263,7 @@ export async function openContinuation({ root, planPath, statePath }) {
       });
     },
     async finish(attemptId, result) {
-      return mutate(async (snap, state) => {
+      return mutate(async (snap, state, read) => {
         if (state.fingerprint !== snap.fingerprint) fail('Authority changed; reconcile before recording');
         const a = state.attempts.find(a => a.id === attemptId);
         if (!a) fail('Unknown attempt');
@@ -225,7 +277,7 @@ export async function openContinuation({ root, planPath, statePath }) {
         const paths = evidencePaths(normalized);
         if (paths.some(p => [statePath, planPath, statePath + '.lock'].includes(p))) fail('Evidence must be separate from coordination files');
         const evidence = [];
-        for (const p of new Set(paths)) evidence.push(await digest(p));
+        for (const p of new Set(paths)) evidence.push(await read.digest(p));
         Object.assign(a, { outcome: normalized.outcome, result: normalized, resultKey: key, evidence });
         return a;
       });
