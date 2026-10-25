@@ -7,6 +7,11 @@
 > The model-native description below describes the restored baseline; optional
 > host execution support will be added without making a runtime mandatory for governance.
 
+The first optional [continuation adapter](adapters/continuation.mjs) now has local
+component tests for scoped admission, evidence, and interruption/reconciliation.
+Its [protocol and limits](docs/rebuild/continuation.md) are explicit: this is not
+yet a delivered DSH/Codex/Claude integration or an autonomous development acceptance.
+
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)

@@ -6,6 +6,10 @@
 > [进度记录](docs/rebuild/progress.md)为准。下文描述恢复的治理基线；后续可选
 > 宿主执行支持不应让治理使用者被迫安装运行时。
 
+首个可选[持续执行适配器](adapters/continuation.mjs)已通过本地组件检查，覆盖准入、
+证据与中断核对；[协议与限制](docs/rebuild/continuation.md)见文档。
+这不等于 DSH/Codex/Claude 已接通或长期自主开发已验收。
+
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)

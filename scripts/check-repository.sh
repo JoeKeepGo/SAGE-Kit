@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+# R-003 permits this optional host module, not an executable dependency of the Skill.
+unexpected_adapters=$(git ls-files adapters/ | grep -vFx 'adapters/continuation.mjs' || true)
+test -z "$unexpected_adapters" || { printf 'unreviewed optional adapter: %s\n' "$unexpected_adapters" >&2; exit 1; }
+
 for path in AGENTS.md README.md docs/SAGE_CORE.md docs/agent/AGENT_HARNESS.md \
   docs/agent/CLAIM_EVIDENCE_TRUST.md docs/agent/GOVERNANCE_LEVELS.md \
   docs/templates/AGENTS_SAGE_BOOTSTRAP_TEMPLATE.md \

@@ -25,6 +25,9 @@ foreach ($path in $required) {
 }
 
 $tracked = @(git ls-files)
+# R-003 permits this optional host module, not an executable dependency of the Skill.
+$unexpectedAdapters = @($tracked | Where-Object { $_ -like 'adapters/*' -and $_ -ne 'adapters/continuation.mjs' })
+if ($unexpectedAdapters.Count -ne 0) { throw "unreviewed optional adapter: $($unexpectedAdapters -join ', ')" }
 $packageManifest = '(^|/)(pyproject\.toml|setup\.py|setup\.cfg|requirements[^/]*\.txt|tox\.ini|noxfile\.py|Pipfile|poetry\.lock|uv\.lock|package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?|deno\.json|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|Gemfile|Gemfile\.lock|composer\.json|composer\.lock|mix\.exs|rebar\.config|pubspec\.yaml|Package\.swift|[^/]+\.(csproj|fsproj|vbproj))$'
 $forbidden = @($tracked | Where-Object {
     $_ -match '(^|/)(bin|src)/(sagekit|sage-kit)(/|$)' -or

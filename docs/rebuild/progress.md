@@ -45,8 +45,52 @@ bash scripts/check-repository.sh
 
 Windows/macOS、真实 DSH/Codex/Claude、新执行循环与 RSI：`NOT_EXECUTED`。
 
-## 下一步
+## R1：用现有治理与受控改进流程推进（2026-10-26）
 
-进入 R1：选择最小项目 fixture，先定义授权、任务依赖、
-上下文刷新和恢复记录的具体例子及反例，再实现最小适配支持。涉及可选代码交付时
-同步收窄原版绝对“无运行时”检查，保留无强制依赖的治理包；不能先移植整个旧 CLI。
+用户进一步授权借现有 SAGE-Kit 与 RSI 模式持续完成重建。普通实现/验证/修复继续，
+治理策略自我修改仍只产候选，需人批准；不自动改已发布 Skill、合并或发布。
+按 [R1 约定](continuation.md) 先写接口与反例，再实现 `adapters/continuation.mjs`。
+它是宿主可选模块，无模型/命令执行器、数据库、网络、根 package 或额外依赖。
+原 Skill、契约、治理核心与模板对基线仍无差异；静态检查仅明确允许这一可选适配器，
+保留禁止核心强制依赖与可执行入口的规则，CI 增加独立 Node 22 测试 job。
+
+### 当前证据
+
+- WSL2 Node 22.22.1：`node --test --experimental-test-isolation=none tests/continuation.test.mjs`
+  **35 PASS / 0 FAIL / 0 SKIP**。覆盖两种文件布局、真实三步命令、失败修复、两失败
+  复核、真实 SIGKILL 后结果核对、准入/人工关口/预算/规范变化/证据变化及损坏记录。
+- 原静态完整性、portable references、Claude advisory hook 检查全部通过（hook 14/14）。
+- 独立审查发现 1 个 P1 并已修复、针对性静态复核通过；最终测试由控制者在当前
+  受限环境执行。没有把旧运行时 206 项结果复用作新版本证明。
+- 本机证据：`local/rebuild-r1/{continuation-test,baseline}.log`、`review.txt`。
+  自用 `plan.json/state.json` 实际记录 R1 验证 intent → 带检查/评审证据 finish →
+  自动选择已授权的 R2 只读探针；它们不是项目规范的第二权威，且不随包提交。
+- 当前受限环境对子进程管道输出有限制：最初 `node --test` 仅有文件级失败；直接
+  执行可定位到等待 stdout 就绪超时。改用真实副作用文件判断就绪，仍真实 SIGKILL，
+  本地采用无测试文件进程隔离运行；CI 保留标准 `node --test`。本次未在此环境验证
+  标准隔离运行模式、Windows/macOS 或真实宿主自动开发。
+
+### RSI 观察与本轮修正
+
+| 观察 | 假设/处理 | 证据与采用边界 |
+|---|---|---|
+| 初版 context 未带当前步骤的 scope/checks，两个布局测试失败 | 只恢复总目标不足以抵御范围遗忘；把 step 约束加入上下文 | 保留测试后修复通过；属于已授权实现修正，无治理策略自改 |
+| 评审发现 passed 记录的 digest 列表被清空后可漏检证据 | 恢复不能只验证字段类型，要复核结果与证据集合 | 共用结果检查；补缺失/额外digest、缺check/review四个回归；复核关闭 P1 |
+| sandbox 子进程 stdout 不可观察 | 用持久副作用确认执行后再杀进程，减少测试对管道的依赖 | 不降低中断验收，不skip；当前环境35项通过 |
+
+这是模型执行的受控观察—修正—验证—独立复核流程，不是宣称 R3 自动 RSI 程序
+已完成，亦未衡量普遍开发收益。长期策略候选（如将证据一致性检查推广到其它适配器）
+需在对应范围独立评估，不自动修改原 Skill 或所有项目规则。
+
+## R2 准备与下一步
+
+只读探针已确认本机已有 DSH 0.2.1-rc.2：
+`/home/kayann/sage-kit-linux-dsh/node_modules/@deepseek-ai/dsh/lib/bin.js --version`
+返回 `0.2.1-rc.2`，执行使用仓库内隔离 `DSH_HOME`。读取已安装源码确认
+`dsh-agent/lib/types/runtime-types.d.ts` 有 `agent/pre-step`，
+`dsh-compaction/lib/types/types.d.ts` 有压缩 session events；类型声明不是接线证明。
+尚未启动用户 profile、调用模型或注册新插件。
+
+下一项：在隔离目录把 R1 语义接入真实 DSH 插件，验证治理上下文注入、实际工具及
+异常降级/门禁；先完成本地组件装配，再跑固定模型 fixture 与可用的真实会话。
+Codex/Claude 对应接入与 R3 仍待实现，不把 R1 本地支持扩大成整体完成。
