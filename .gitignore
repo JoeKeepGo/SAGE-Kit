@@ -5,3 +5,8 @@ docs/DOC_ROUTING.md
 docs/M[0-9]*/
 docs/runs/
 docs/task-records/
+
+# Local artifacts retained from the archived runtime experiment.
+node_modules/
+work/
+*.log

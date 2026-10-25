@@ -1,5 +1,9 @@
 # SAGE-Kit Project Bootstrap
 
+Current rebuild authority: [decisions](docs/decisions.md), then
+[active SPEC](docs/rebuild/SPEC.md) and [acceptance](docs/rebuild/acceptance.md).
+Read [progress](docs/rebuild/progress.md) for evidence and the next admitted work.
+
 This repository adopts SAGE-Kit. Apply only this lightweight kernel to project
 work:
 

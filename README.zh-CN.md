@@ -1,5 +1,11 @@
 # SAGE-Kit
 
+> 当前处于重建阶段：已恢复 **v2026.8.13.1** 治理基线。
+> 持续执行、治理 hook 和受控 RSI 均为核心建设目标，尚未交付。
+> 以[当前决策](docs/decisions.md)、[重建 SPEC](docs/rebuild/SPEC.md)和
+> [进度记录](docs/rebuild/progress.md)为准。下文描述恢复的治理基线；后续可选
+> 宿主执行支持不应让治理使用者被迫安装运行时。
+
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)

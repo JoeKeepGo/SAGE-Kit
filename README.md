@@ -1,5 +1,12 @@
 # SAGE-Kit
 
+> Reconstruction in progress: governance is restored from **v2026.8.13.1**.
+> Governed continuation, lifecycle hooks, and controlled RSI are core development
+> goals, not delivered capabilities. See the [current decisions](docs/decisions.md),
+> [rebuild SPEC](docs/rebuild/SPEC.md), and [progress](docs/rebuild/progress.md).
+> The model-native description below describes the restored baseline; optional
+> host execution support will be added without making a runtime mandatory for governance.
+
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![Repository integrity](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml/badge.svg)](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml)
