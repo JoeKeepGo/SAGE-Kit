@@ -1,0 +1,14 @@
+{
+  "finalUrl": "http://127.0.0.1:18766/",
+  "workspaceProjectVisible": true,
+  "sessionEntryVisible": true,
+  "sessionTitlePresent": true,
+  "taskIdPresentInConversation": true,
+  "createdTaskTitlePresent": true,
+  "skillsApiStatus": 200,
+  "skillsApiMentionsSageKit": true,
+  "skillsApiExcerpt": "{\"type\":\"server-response\",\"rpcId\":\"16fd1c92-380e-4b1e-81e0-f508f9ced58d\",\"result\":{\"ok\":true,\"value\":{\"skills\":[{\"name\":\"sage-kit\",\"path\":\"/home/kayann/sage-kit-linux-dsh/project/.dsh/skills/sage-kit/SKILL.md\",\"description\":\"Lightweight local task tracking for coding agents. Use when a repository is initialized with SAGE-Kit (`.sage-kit/config.json`) and the user wants a tracked task, durable evidence, a scoped task brief, or a completion gate. Do not use for uninitialized repos or non-development writing.\",\"modelInvocable\":true}]}}}",
+  "sessionsApiStatus": 200,
+  "sessionsApiExcerpt": "{\"type\":\"server-response\",\"rpcId\":\"4897f596-309f-443a-bf50-328497b6769a\",\"result\":{\"ok\":true,\"value\":{\"items\":[{\"sessionId\":\"session-75b1e7dd-46c7-4f40-88a9-827c37eb35ac\",\"updatedAt\":1792780720312,\"agentAvailable\":false,\"formatStatus\":\"current\",\"running\":false,\"blank\":true,\"cwd\":\"/home/kayann/sage-kit-linux-dsh/project\",\"projections\":{\"kind\":\"cached\",\"asOfSeq\":2,\"values\":{\"title\":null,\"goal\":null,\"tokenUsage\":{\"uncachedInputTokens\":0,\"outputTokens\":0,\"cacheReadTokens\":0,\"cacheWriteTokens\":0},\"contextPressure\":{},\"contextBreakdown\":{\"systemTokens\":0,\"toolsTokens\":0,\"messageTokens\":0},\"inbox\":{\"next-turn\":[],\"next-step\":[]},\"sessionStats\":{\"turns\":0,\"steps\":0,\"llmMs\":0,\"toolMs\":0,\"ttftMs\":0,\"ttftSteps\":0,\"decodeMs\":0,\"decodeTokens\":0},\"turnOutline\":[],\"agentPreset\":\"standard\",\"userQuestions\"",
+  "consoleNote": "no browser console capture in this script"
+}

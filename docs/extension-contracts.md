@@ -1,6 +1,6 @@
 # 扩展契约
 
-**实现状态：`HostAdapter` 已实现（文件安装/检测契约，见 §2，以 `src/adapters/types.ts` 为准）；`TaskSourceAdapter`、`FeedbackSourceAdapter`、`EventSink`、Bundle 仍是 `TARGET`（P0 未实现，无对应代码/命令）。**
+**实现状态：`HostAdapter` 与 `FeedbackSourceAdapter` 已实现（宿主文件安装/检测；本地/GitHub/Gitea 只读反馈）；`TaskSourceAdapter`、`EventSink`、Bundle 仍是 `TARGET`。**
 SAGE-Kit 只保留四个对外扩展接口。它们用于把“宿主、外部任务/反馈、外部事件、备份迁移”接到核心，不用于构建通用插件生态。接口默认可选；核心在没有扩展时仍可运行。
 
 > 阅读约定：标 `[P0 已实现]` 的以代码为准；标 `[TARGET]` 的是设计目标，P0 不实现，不应在验收/发布说明中写成已支持。
@@ -71,7 +71,7 @@ export interface InstructionTarget {
 
 - `[P0 已实现]` `detect` 必须给出证据；不能凭宿主名称猜测。
 - `[P0 已实现]` 安装路径来自适配器；DSH 路径按固定版本源码核对，Codex/Claude 路径按公开布局实现但真实宿主会话发现为 `NOT_VERIFIED`（见 `docs/platform-support.md`）。
-- `[P0 已实现]` 卸载只删除自己安装的 Skill 路径与受管说明块；不删除用户其他内容（`uninstall` 校验配置的 skill.path 与适配器期望一致）。
+- `[P0 已实现]` 卸载只删除自己安装的 Skill 路径与受管说明块；不删除用户其他内容（`uninstall` 校验配置的 skill.path 与适配器期望一致，并依据 `skill.owned` 判断是否由本安装创建；重复 init 不会降级所有权）。
 - `[TARGET]` `buildLaunchCommand` 式行为：只生成命令，不执行；当前 `launchCommand` 仅返回 argv，未被 runner 使用。
 - Hook 映射见 `docs/hooks-and-host-adapters.md`（P0 未实现宿主原生 hook 映射）。
 
@@ -122,7 +122,7 @@ export interface TaskSourceCapabilities {
 
 ## 4. FeedbackSourceAdapter（反馈来源）`[TARGET]`
 
-职责：只读同步 GitHub/Gitea 的 Issue、PR 评论、CI/check 结果等反馈。默认只读；写回评论/标签需要单独批准。P0 没有 `feedback` 命令，未实现该接口。
+职责：只读同步 GitHub/Gitea 的 Issue、PR 评论、CI/check 结果等反馈。默认只读；写回评论/标签需要单独批准。M1 已实现本地 JSONL、GitHub、Gitea 三种只读来源（`src/feedback/**`，CLI `feedback sync/list/show`），接口稳定；写回仍不实现。
 
 设计接口（`TARGET`）：
 

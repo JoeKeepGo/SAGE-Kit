@@ -1,0 +1,11 @@
+scenario=D isolated DSH_HOME outside the DSH installation ancestor
+dsh_home=/tmp/dsh-iso-home-1792812850
+profile=sage-kit-plugin (base+headless bundles materialized from shipped template)
+profile_node_modules=sage-kit, sage-kit-dsh only (no @deepseek-ai/* peers installed by pnpm)
+ancestor_node_modules_with_dsh=no (/tmp has no node_modules)
+main_request_tools=30
+main_request_sage_tools=sage_brief,sage_task_create,sage_task_list,sage_task_show,sage_task_status
+dsh_exit=0
+stderr_bytes=0
+injection_count=0 (run in a non-initialized directory)
+conclusion=plugin bundle loaded and tools registered; DSH resolves host @deepseek-ai/* packages itself, so missing pnpm peers are not a load blocker on 0.2.1-rc.2

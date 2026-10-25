@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "untrustedData": true,
+  "item": {
+    "schemaVersion": 1,
+    "id": "github:JoeKeepGo/SAGE-Kit:issue:26",
+    "provider": "github",
+    "repo": "JoeKeepGo/SAGE-Kit",
+    "kind": "issue",
+    "externalId": "26",
+    "fingerprint": "sha256:bdc63e0bf629069b06b4b0c8d586256613075f62ccdefef3080a8b787bfb6714",
+    "title": "[SAGE-Kit M1 real-API test] feedback sync smoke 20261023T180208Z",
+    "bodyPreview": "Automated M1 real-API verification issue created by teammate m1-feedback for SAGE-Kit. Purpose: prove that `sage-kit feedback sync --source github --repo JoeKeepGo/SAGE-Kit` fetches a real GitHub issue (not a fixture) and stores it in `.sage-kit/feedback/items.jsonl`. The issue body is handled as untrusted data and is never executed. This issue is closed by the same verification run. Evidence: reports/m1/github-real.md. No action needed.",
+    "labels": [],
+    "syncedAt": "2026-10-23T18:02:16.119Z",
+    "author": "JoeKeepGo",
+    "state": "open",
+    "url": "https://github.com/JoeKeepGo/SAGE-Kit/issues/26",
+    "createdAt": "2026-10-23T18:02:12.000Z",
+    "updatedAt": "2026-10-23T18:02:12.000Z",
+    "metadata": {
+      "number": 26,
+      "comments": 0,
+      "isPullRequest": false
+    }
+  }
+}

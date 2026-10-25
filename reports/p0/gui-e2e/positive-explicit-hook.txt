@@ -1,0 +1,45 @@
+=== explicit SAGE-Kit hook invocations (manual/scriptable path) ===
+date_utc=2026-10-23T18:49:19Z
+cwd=/home/kayann/sage-kit-linux-dsh/project
+
+--- 1) session.start (explicit --event) ---
+{
+  "contractVersion": "1",
+  "action": "inject_context",
+  "context": "# SAGE-Kit brief\n\nTask: task-20261023183753-3bd706\nTitle: DSH GUI E2E task\nStatus: ready\n\nAcceptance:\n- Task JSON exists and task list shows it\n\nEvidence: none yet\n\nRules:\n- Read before editing; keep changes inside the task scope.\n- Run the task's checks and record exact evidence.\n- Do not claim done without evidence; stop if blocked."
+}
+exit_code=0
+
+--- 2) command.after ---
+{
+  "contractVersion": "1",
+  "action": "noop"
+}
+exit_code=0
+
+--- 3) stop (default, no evidence yet) ---
+{
+  "contractVersion": "1",
+  "action": "warn",
+  "message": "Task task-20261023183753-3bd706 is missing evidence; record evidence before claiming done.",
+  "code": "E_INCOMPLETE_TASK"
+}
+exit_code=0
+
+--- 4) stop --strict (should block when acceptance evidence missing) ---
+{
+  "contractVersion": "1",
+  "action": "block",
+  "message": "Task task-20261023183753-3bd706 is missing evidence; record evidence before claiming done.",
+  "code": "E_INCOMPLETE_TASK"
+}
+exit_code=1
+
+--- 5) invalid event name (contract error) ---
+{
+  "contractVersion": "1",
+  "action": "warn",
+  "message": "Hook event must be session.start, command.after or stop",
+  "code": "E_HOOK_BAD_EVENT"
+}
+exit_code=2

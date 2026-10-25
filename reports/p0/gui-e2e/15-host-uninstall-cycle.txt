@@ -1,0 +1,115 @@
+=== A13 host project uninstall -> reinstall cycle (REAL /home/kayann/sage-kit-linux-dsh/project) ===
+date_utc=2026-10-23T18:55:03Z
+--- pre-cycle top-level ---
+total 36
+drwxr-xr-x  5 kayann kayann 4096 Oct 24 07:54 .
+drwxr-xr-x 12 kayann kayann 4096 Oct 24 07:52 ..
+drwxr-xr-x  3 kayann kayann 4096 Oct 24 03:40 .dsh
+drwxr-xr-x  4 kayann kayann 4096 Oct 24 07:54 .sage-kit
+-rw-r--r--  1 kayann kayann  465 Oct 24 07:54 AGENTS.md
+-rw-r--r--  1 kayann kayann  337 Oct 24 07:54 SESSION_BRIEF.md
+drwxr-xr-x  4 kayann kayann 4096 Oct 24 07:16 node_modules
+-rw-r--r--  1 kayann kayann  653 Oct 24 07:16 package-lock.json
+-rw-r--r--  1 kayann kayann  295 Oct 24 03:47 package.json
+--- pre-cycle hashes ---
+20345ee69914c0234e087f57a9b066e7e38e94912184136b7c56dabf45e69bea  .dsh/skills/sage-kit/SKILL.md
+fcf31fcfe3123fb07ce2139c2bf144a84951f5f22786645721a0e610346b6373  AGENTS.md
+e22861cf8aaa5fe0e3d0b6287af5c632d6e9cc4edaabb69116c003182e49a4be  SESSION_BRIEF.md
+680c325e22306af3163047a26a6560361cc1759136e15245b43751ef503b05b0  .sage-kit/config.json
+fa3693ef6a24a5af18d538f07732ae1bbc16510eeb0fc8d696721f3123f098e2  .sage-kit/state/tasks/task-20261023160745-26c829.json
+a0baf51b50f19b0d775b442a70814a4677571355fb19debeddd19eb59c900484  .sage-kit/state/tasks/task-20261023183753-3bd706.json
+--- pre-cycle doctor ok? ---
+{
+  "ok": true,
+  "checks": [
+    {
+--- pre-cycle tasks ---
+ID                           STATUS    TITLE
+task-20261023183753-3bd706   ready     DSH GUI E2E task
+task-20261023160745-26c829   ready     Real model DSH E2E
+
+=== STEP 1: uninstall (plain; CLI usage: sage-kit uninstall [--purge]) ===
+Uninstalled SAGE-Kit.
+removed: /home/kayann/sage-kit-linux-dsh/project/.dsh/skills/sage-kit
+removed: /home/kayann/sage-kit-linux-dsh/project/AGENTS.md
+removed: /home/kayann/sage-kit-linux-dsh/project/SESSION_BRIEF.md
+removed: /home/kayann/sage-kit-linux-dsh/project/.sage-kit/config.json
+kept: /home/kayann/sage-kit-linux-dsh/project/.sage-kit
+exit_code=0
+
+--- post-uninstall state ---
+ls: cannot access '.dsh/skills/sage-kit': No such file or directory
+agents_md_exists=yes agents_md_bytes=0
+config_exists=no
+brief_exists=no
+state_dir_files:
+.sage-kit/state/events/events.jsonl
+.sage-kit/state/tasks/task-20261023160745-26c829.json
+.sage-kit/state/tasks/task-20261023183753-3bd706.json
+tasks_preserved=2
+--- doctor after uninstall ---
+SAGE-Kit doctor: FAILED
+project: /home/kayann/sage-kit-linux-dsh/project
+config: /home/kayann/sage-kit-linux-dsh/project/.sage-kit/config.json
+[ok] node: Node 22.22.1
+[error] config: not initialized (/home/kayann/sage-kit-linux-dsh/project/.sage-kit/config.json missing)
+doctor_exit=0
+--- task list after uninstall ---
+ID                           STATUS    TITLE
+task-20261023183753-3bd706   ready     DSH GUI E2E task
+task-20261023160745-26c829   ready     Real model DSH E2E
+task_list_exit=0
+
+=== STEP 2: re-init --host dsh --scope project ===
+Initialized SAGE-Kit (dsh, project).
+config: /home/kayann/sage-kit-linux-dsh/project/.sage-kit/config.json
+skill:  /home/kayann/sage-kit-linux-dsh/project/.dsh/skills/sage-kit
+instructions: /home/kayann/sage-kit-linux-dsh/project/AGENTS.md
+exit_code=0
+
+--- post-reinit hashes ---
+20345ee69914c0234e087f57a9b066e7e38e94912184136b7c56dabf45e69bea  .dsh/skills/sage-kit/SKILL.md
+9bcab43cf9cce17acf66d7d333e138c2e52ca84fad5e30fcbf106cc8120d30f3  AGENTS.md
+e22861cf8aaa5fe0e3d0b6287af5c632d6e9cc4edaabb69116c003182e49a4be  SESSION_BRIEF.md
+d6696b4eaeb2d3759251787986cf56b0df01844064aa08bdef85c22b7c26a4ae  .sage-kit/config.json
+fa3693ef6a24a5af18d538f07732ae1bbc16510eeb0fc8d696721f3123f098e2  .sage-kit/state/tasks/task-20261023160745-26c829.json
+a0baf51b50f19b0d775b442a70814a4677571355fb19debeddd19eb59c900484  .sage-kit/state/tasks/task-20261023183753-3bd706.json
+--- doctor after reinit ---
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "node",
+      "status": "ok",
+      "detail": "Node 22.22.1"
+    },
+    {
+      "name": "config",
+      "status": "ok",
+      "detail": "dsh/project at /home/kayann/sage-kit-linux-dsh/project/.sage-kit/config.json"
+    },
+    {
+      "name": "skill",
+      "status": "ok",
+      "detail": "/home/kayann/sage-kit-linux-dsh/project/.dsh/skills/sage-kit (1 entries)"
+    },
+    {
+      "name": "skill-duplicates",
+doctor_exit=0
+--- task list after reinit ---
+ID                           STATUS    TITLE
+task-20261023183753-3bd706   ready     DSH GUI E2E task
+task-20261023160745-26c829   ready     Real model DSH E2E
+
+=== STEP 3: restore byte-exact original AGENTS.md (from the pre-existing project copy) ===
+fcf31fcfe3123fb07ce2139c2bf144a84951f5f22786645721a0e610346b6373  AGENTS.md
+expected=fcf31fcfe3123fb07ce2139c2bf144a84951f5f22786645721a0e610346b6373
+--- final doctor ---
+{
+  "ok": true,
+  "checks": [
+    {
+--- final task list ---
+ID                           STATUS    TITLE
+task-20261023183753-3bd706   ready     DSH GUI E2E task
+task-20261023160745-26c829   ready     Real model DSH E2E

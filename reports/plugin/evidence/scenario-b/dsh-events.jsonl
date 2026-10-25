@@ -1,0 +1,7 @@
+{"type":"session","sessionId":"session-977dd32d-200e-4be3-bb6f-8fb94be65d44","cwd":"/home/kayann/sage-kit-linux-dsh/plugin-e2e/noninit"}
+{"type":"status","phase":"turn_start","turn":1}
+{"type":"status","phase":"step_start","turn":1,"step":1}
+{"type":"text","text":"mock: no plugin tool available (or text mode)"}
+{"type":"status","phase":"step_end","turn":1,"step":1,"usage":{"inputTokens":10,"outputTokens":1,"totalTokens":11}}
+{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"completed"}}
+{"type":"final","text":"mock: no plugin tool available (or text mode)"}

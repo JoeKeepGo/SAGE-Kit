@@ -1,0 +1,11 @@
+    task: !!js ctx.headlessStartup.task
+    sessionId: !!js ctx.headlessStartup.sessionId
+    json: !!js ctx.headlessStartup.json
+# == sage-kit-dsh
+- id: sage-kit-dsh
+  name: sage-kit-dsh
+  config:
+    autoBrief: true
+    maxBriefBytes: 2048
+bundle list:
+["@deepseek-ai/dsh-base","@deepseek-ai/dsh-headless","sage-kit-dsh"]

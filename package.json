@@ -1,11 +1,20 @@
 {
   "name": "sage-kit",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "description": "A local, single-user Skill + command-line harness for evidence-backed tasks and bounded self-improvement.",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=22"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "sage-kit": "dist/cli.js"
@@ -15,13 +24,14 @@
     "skills/",
     "docs/",
     "README.md",
+    "CHANGELOG.md",
     "SECURITY.md",
     "AGENTS.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepack": "npm run build",
-    "test": "npm run build && node --test tests/cli.test.mjs",
+    "test": "npm run build && node --test tests/cli.test.mjs tests/feedback.test.mjs tests/control.test.mjs tests/rsi.test.mjs tests/api.test.mjs tests/plugin.test.mjs",
     "pack:check": "npm pack --dry-run"
   },
   "devDependencies": {

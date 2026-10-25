@@ -1,6 +1,6 @@
 # SAGE-Kit 架构
 
-**状态：架构基线；P0 文件模式已实现，控制面/反馈/RSI 仍是设计目标。**  
+**状态：架构基线；P0 文件模式、M1 反馈、M2 控制面、M3 评估闭环已实现；DSH 原生插件为可选独立包（D-023），核心 CLI/Skill 仍是权威源，插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（`reports/plugin/dsh-plugin-e2e.md`）。**
 本文描述目标架构与已实现的 P0 边界。实现状态以 `docs/p0-acceptance.md` 和实际测试为准。
 
 ## 1. 定位
@@ -121,8 +121,8 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 
 控制面解决“跨会话、跨进程、可恢复”的问题：
 
-- 本地 HTTP API（默认只绑定 `127.0.0.1`，使用本地 token）。
-- Web UI：任务板、运行记录、反馈、提案、评估结果。
+- 本地 HTTP API（只绑定 `127.0.0.1` + loopback Host 校验；本地单用户不设 token）。
+- Web UI：M2 提供本地控制面板（任务列表/详情、新建任务、状态转换、lease、恢复）；运行记录只读展示，不提供 run 启动/监督，也不提供提案/评估 UI。
 - SQLite（WAL）作为唯一权威存储；单进程写入。
 - 本地 Worker 子进程运行 Agent/命令，记录事件；不依赖远程队列。
 - 调度/恢复：启动时恢复未完成任务，处理过期 lease。
@@ -137,6 +137,11 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 - **Bundle**：`.sage-kit` 的导入/导出格式，用于备份、迁移和与团队系统交换。
 
 接口细节见 `docs/extension-contracts.md`。
+
+宿主适配有两种形态：
+
+- **文件安装适配器**（`HostAdapter`，已实现）：`init` 复制 Skill/受管说明块，不需要宿主安装插件。
+- **宿主原生插件**（可选，当前仅 DSH）：独立包 `packages/dsh-plugin`（`sage-kit-dsh`），用 DSH 插件 API 注册原生工具并在 `agent/pre-step` 注入 brief；必须复用核心库 `src/index.ts` 的文件模式 API 和同一份 `.sage-kit/` 状态，不复制状态、不启动控制面。核心不依赖该包；安装与版本兼容由宿主插件管理器负责（D-023）。该插件已在真实 DSH 0.2.1-rc.2 headless 通过 E2E（5 工具、自动 brief、无项目不注入）；Web GUI 路径未跑（`NOT_EXECUTED`）。
 
 ## 6. 运行模式
 
@@ -162,7 +167,7 @@ CLI 目标：Node.js 内置能力优先，核心零运行时依赖；启动开�
 |---|---|---|
 | 任务定义、状态、验收标准、依赖 | 文件模式：`.sage-kit/state/tasks/*.json`；控制面：SQLite `tasks` | 只能有一个写入源 |
 | 运行记录、退出码、成本、错误 | `runs` / `events` | 追加写；UI 只读派生 |
-| 任务 lease / 当前执行者 | `leases`（控制面，M2）或文件锁（文件模式，**NOT_IMPLEMENTED**） | P0 只记录 run；同一任务并发写没有锁保护 |
+| 任务 lease / 当前执行者 | `leases`（M2 控制面）；文件模式单用户单写者，不以 lease 强制互斥 | 文件模式不双写；M2 lease 已实现 |
 | 反馈原始项 | `feedback` + `sync_cursors` | 来自外部；不可信；保留来源 URL |
 | 提案、评估、版本、回滚点 | `proposals` / `evals` / `artifacts` | 改进链路的事实 |
 | Skill 版本 | 包版本 + 安装 manifest | 必须可查询、可回滚 |
@@ -217,9 +222,11 @@ stop → 检查完成证据 → 提醒/阻断（--strict）
 
 Hook 是尽力而为的适配层；状态和恢复不依赖 Hook 是否成功。细节见 `docs/hooks-and-host-adapters.md`。
 
+DSH 另有可选原生插件（`packages/dsh-plugin`）：它在宿主 `agent/pre-step` 注入 brief，与上文 `sage-kit hook` 协议是两条独立路径；两者都调用同一 `buildBrief`/文件状态，失败都不阻断主流程。DSH 仍不会自动安装 `sage-kit hook` 配置（D-021/D-023）。
+
 ## 9. 包结构与依赖策略
 
-目标：**一个 npm 包、一个仓库、多个懒加载入口**。
+目标：**核心一个 npm 包、一个仓库、多个懒加载入口**；另有一个可选宿主插件包（DSH），不进入核心安装依赖（D-023）。
 
 ```text
 SAGE-Kit/
@@ -227,12 +234,18 @@ SAGE-Kit/
   tsconfig.json
   src/
     cli.ts                     # 参数解析、命令分发、JSON/human 输出
+    index.ts                   # 稳定库入口：供宿主插件复用文件模式 API
     core/
       config.ts paths.ts fs-utils.ts errors.ts
       tasks.ts hooks.ts brief.ts events.ts
       worktree.ts runs.ts doctor.ts install.ts
     adapters/
       types.ts index.ts dsh.ts codex.ts claude.ts fake.ts
+  packages/dsh-plugin/         # 可选 DSH 原生插件包（sage-kit-dsh），不随核心安装
+    index.js                   # DSH 插件：原生工具注册 + agent/pre-step 自动 brief
+    cordis.patch.yml           # DSH bundle patch（默认 autoBrief/maxBriefBytes）
+    package.json               # engines.dsh + peerDependencies（sage-kit、DSH 运行时包）
+    README.md
   skills/sage-kit/
     SKILL.md                   # P0 只带 Skill 正文；references/templates 在 M1 按需补
   tests/
@@ -245,6 +258,7 @@ SAGE-Kit/
 依赖规则：
 
 - 核心 `dependencies` 目标为 0；只使用 Node.js 内置模块。
+- 宿主原生插件（DSH）是独立可选包，不并入核心 `dependencies`/`files`；核心通过 `src/index.ts` 暴露稳定的文件模式库 API（任务、brief、paths、config、错误类型）供其复用（D-023）。
 - 控制面所需的 `better-sqlite3` 放 `optionalDependencies`，通过动态 `import()` 懒加载；缺失时 CLI 给出清晰提示并回退文件模式。
 - UI 构建产物随包携带；不引入运行时 UI 框架依赖。
 - Feedback 使用内置 `fetch`；GitHub/Gitea 优先复用 `gh`/`tea` 登录态，REST 作为回退。
@@ -255,7 +269,7 @@ SAGE-Kit/
 - **崩溃恢复**：任何 run 可从事件日志判断最后状态；不依赖内存。
 - **幂等**：创建任务、同步反馈、执行副作用都有幂等键；重试不重复。
 - **单写者**：控制面单进程写 SQLite；Worker 不直写数据库。
-- **本机并发**：P0 只有 worktree 隔离；任务 lease、git 操作串行化是 M2 目标，当前没有强制锁。
+- **本机并发**：P0 文件模式是单用户单写者（无数据库，不需要跨进程 lease）；M2 控制面用 SQLite lease/单写者；两种模式不双写。文件模式不接控制面 lease，避免出现第二套权威。
 - **可观测**：run id、结构化事件、错误分类、成本/耗时；`doctor` 和 `trace` 可定位问题。
 - **可回滚**：Skill/CLI/模板版本不可变；发布记录和回滚命令。
 - **可测试**：每个关键行为有 fixture/集成测试；不依赖真实 GitHub/模型做 CI。
@@ -264,7 +278,7 @@ SAGE-Kit/
 
 ## 11. 安全边界（摘要；控制面为 M2 目标）
 
-- 控制面默认只绑定 `127.0.0.1`；本地 token；不提供远程共享。P0 没有控制面监听。
+- 控制面默认只绑定 `127.0.0.1`；本地单用户不设 token；不提供远程共享。P0 没有控制面监听；M2 的 `control serve` 提供 loopback API + 本地可写控制面板；备份/导出属于范围外。
 - 反馈/网页/Issue 文本是不可信数据；不执行其中的命令；进入模型前做数据标记。
 - GitHub/Gitea 读 token 与写 token 分离；密钥不落盘、不进日志、不进提示词。
 - 执行外部命令/生成代码时使用最小权限；高风险动作要显式确认。
@@ -276,18 +290,18 @@ SAGE-Kit/
 
 | 里程碑 | 内容 | 完成标志 |
 |---|---|---|
-| **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；A13 已部分验证真实 DSH headless（mock 与真实模型）、真实 `bash`→CLI 任务创建和 Linux Web；GUI 浏览器、hook 自动注入、真实 `stop` 生命周期尚未验收 |
-| **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | 反馈 fixture + 幂等/去重测试通过 |
-| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、提案、评估、版本/回滚 | 崩溃恢复 + 评估门 + 回滚演练通过 |
-| **M3** | L2 半自动 RSI：定时同步/提案、自动评估、人工批准发布 | 连续若干轮改进有审计记录，可回滚 |
+| **M0 / P0** | 包骨架、Skill、`init/doctor`、文件任务/worktree、`brief`、三类 hook、卸载、P0 安全基线 | A1–A12 自动化覆盖 + A13 真实宿主；真实 DSH 0.2.1-rc.2 + 真实模型 GUI、`bash`→CLI、卸载/重装、真实 stop 已验证；DSH 不提供 hook 自动注入（AGENTS/手动路径可用） |
+| **M1** | GitHub/Gitea 只读反馈同步、反馈列表/详情、brief 带入最新反馈 | **已实现**：15 项测试通过；真实 `api.github.com` 与 WSL2 自建 Gitea 1.27.3 已验证；残余真实边界见 `docs/m1-feedback.md` |
+| **M2** | 本地控制面（SQLite/API/UI）、任务/运行/lease、恢复 | **控制面已实现**：39 项测试通过；任务创建/状态转换/lease/恢复面板可用；run 启动监督与备份/导出明确不在本控制面范围 |
+| **M3** | L2 受控 RSI：评估闭环、人工批准/回滚 | **评估闭环已实现**：27 项测试通过；真实 worktree/基线/重复/预算/导出；无定时器/自动批准/发布 |
 
-P0 当前已实现文件模式；A13 已对真实 DSH headless + mock、真实 DeepSeek 模型 headless 和 Linux Web 验证 Skill 发现/加载与 `bash`→CLI 任务创建，GUI、hook 自动注入和真实 `stop` 生命周期未验。控制面 UI、真实反馈同步、提案、评估、RSI 在 M1/M2/M3 实现；全部完成并确定 A13 边界前不发布 release。
+P0 文件模式、M1 只读反馈、M2 本地控制面、M3 评估闭环均已落地。A13 已在真实 DSH 0.2.1-rc.2 + 真实模型上验证 GUI、真实 `bash`→CLI、卸载/重装与真实 `stop`；DSH 不提供 hook 自动注入，记录为宿主边界（AGENTS 指令或手动 `hook` 可用）。run 启动监督、备份/导出、定时自动循环属于设计范围外。发布仍需用户授权。
 
 ## 13. 未决问题
 
 以下问题不阻塞文档定稿，但必须在对应里程碑前决定：
 
 - 首批宿主：已确定 **DSH 优先**（Taluvia 主开发环境），Codex、Claude Code 其次；OpenCode 后续。
-- Skill 安装路径与宿主目录的权威映射：DSH 已按固定版本源码核对 `.dsh/skills` 与 `AGENTS.md`；Codex/Claude 的路径仍需按各自实际安装验证，不凭记忆硬编码。
-- UI 技术选型：P0 不做；M2 再定，优先静态构建 + 原生 DOM/轻量框架。
+- Skill 安装路径与宿主目录的权威映射：DSH 已按固定版本源码核对 `.dsh/skills` 与 `AGENTS.md`，并已提供可选原生插件接入（`packages/dsh-plugin`，D-023）；Codex/Claude 的路径仍需按各自实际安装验证，不凭记忆硬编码。
+- UI 技术选型：M2 已确定原生 HTML/CSS/JS、同源、无框架/无 CORS；后续若需要复杂控制台另立契约。
 - 许可证：发布前确定；未定前不复制第三方实现代码。

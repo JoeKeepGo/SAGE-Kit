@@ -13,11 +13,25 @@ export interface SkillInstall {
   mode: SkillMode;
   files: string[];
   installedAt: string;
+  /**
+   * True only when this installer created/replaced the skill directory. A
+   * pre-existing user skill that was kept on init must survive uninstall.
+   * Optional for configs written before ownership tracking.
+   */
+  owned?: boolean;
 }
 
 export interface InstructionsInstall {
   path: string;
   blockId: string;
+  /** True when uninstall may remove a file created solely by this install. */
+  created?: boolean;
+}
+
+export interface BriefInstall {
+  path: string;
+  /** True when uninstall may delete the brief because this installer created it. */
+  created?: boolean;
 }
 
 export interface SageConfig {
@@ -31,6 +45,9 @@ export interface SageConfig {
   updatedAt: string;
   skill: SkillInstall;
   instructions?: InstructionsInstall;
+  brief?: BriefInstall;
+  /** False when `.sage-kit/` already existed and must not be purged wholesale. */
+  stateDirCreated?: boolean;
 }
 
 export async function configExists(paths: StatePaths): Promise<boolean> {

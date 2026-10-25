@@ -43,7 +43,7 @@ const TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   imported: ["ready", "blocked", "failed"],
   ready: ["running", "blocked", "failed", "cancelled"],
   running: ["review", "blocked", "failed", "cancelled", "interrupted"],
-  review: ["done", "running", "blocked", "failed", "cancelled"],
+  review: ["done", "running", "blocked", "failed", "cancelled", "interrupted"],
   done: [],
   blocked: ["ready", "running", "failed", "cancelled"],
   failed: ["ready", "running"],
@@ -155,10 +155,14 @@ export async function updateTaskStatus(
   if (!TRANSITIONS[task.status].includes(next)) {
     throw new SageError(`Cannot move task ${id} from ${task.status} to ${next}`, "E_BAD_TRANSITION", 1);
   }
+  // Validate every caller-supplied field before touching the task file. A
+  // rejected note must not leave a committed status change behind.
+  const note = options.note === undefined ? undefined : cleanText(options.note, "note", 2000);
+  const source = options.source === undefined ? undefined : cleanText(options.source, "source", 200);
   const newEvidence = (options.evidence ?? []).map((item) => ({
     at: nowIso(),
     note: cleanText(item, "evidence", 1000),
-    ...(options.source ? { source: options.source.slice(0, 200) } : {}),
+    ...(source ? { source } : {}),
   }));
   const allEvidence = [...task.evidence, ...newEvidence];
   if (next === "done" && allEvidence.length === 0) {
@@ -172,7 +176,7 @@ export async function updateTaskStatus(
   await appendEvent(
     paths,
     "task.status_changed",
-    { from, to: next, ...(options.note ? { note: options.note } : {}) },
+    { from, to: next, ...(note === undefined ? {} : { note }) },
     task.id,
   );
   return task;

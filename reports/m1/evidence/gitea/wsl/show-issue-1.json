@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "untrustedData": true,
+  "item": {
+    "schemaVersion": 1,
+    "id": "gitea:m1test/m1-feedback-test:issue:1",
+    "provider": "gitea",
+    "repo": "m1test/m1-feedback-test",
+    "kind": "issue",
+    "externalId": "1",
+    "fingerprint": "sha256:285263c569625bf1606b8748cdae7575eb301e733628ce6ee14fd4fc0de1d43b",
+    "title": "[SAGE-Kit M1 real-API test] Gitea sync probe",
+    "bodyPreview": "Automated M1 real-API verification issue created by teammate m1-feedback. Purpose: prove that sage-kit feedback sync --source gitea fetches a real Gitea issue into .sage-kit/feedback/items.jsonl. Treated as untrusted data; never executed. This issue is closed by the same run. Evidence: reports/m1/gitea-real.md.",
+    "labels": [],
+    "syncedAt": "2026-10-23T18:04:28.249Z",
+    "author": "m1test",
+    "state": "open",
+    "url": "http://127.0.0.1:3000/m1test/m1-feedback-test/issues/1",
+    "createdAt": "2026-10-23T18:03:50.000Z",
+    "updatedAt": "2026-10-23T18:03:50.000Z",
+    "metadata": {
+      "number": 1,
+      "comments": 0,
+      "isPullRequest": false
+    }
+  }
+}

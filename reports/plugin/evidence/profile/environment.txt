@@ -1,0 +1,19 @@
+date_utc=2026-10-24T03:36:46Z
+node=v22.22.1
+npm=9.2.0
+pnpm=12.15.0
+dsh=0.2.1-rc.2
+sage_kit_build=0.1.0
+dsh_home=/home/kayann/sage-kit-linux-dsh/plugin-e2e/home
+profile=sage-kit-plugin
+root_tgz=/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg/sage-kit-0.1.0.tgz sha256=312fe82ca00807cc918dd467485ba5cc76198edd7833b6c1501db50a482008a1
+plugin_tgz=/home/kayann/sage-kit-linux-dsh/plugin-e2e/pkg/sage-kit-dsh-0.1.0.tgz sha256=9a99b8e2d02bd3eda2f88461dde11a270da533a48e5530b74a66df53b4004fc0
+root_tgz_files:
+package/dist/cli.js
+package/dist/index.js
+package/package.json
+package/skills/sage-kit/SKILL.md
+plugin_tgz_files:
+package/index.js
+package/package.json
+package/cordis.patch.yml

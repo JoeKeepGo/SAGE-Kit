@@ -1,0 +1,14 @@
+{
+  "sessionId": "session-e8cd2053-3470-40bb-b45b-db5385c6c6b1",
+  "injections": [],
+  "injectionCount": 0,
+  "toolCalls": [],
+  "toolResults": [],
+  "final": "mock: no plugin tool available (or text mode)",
+  "turnEnd": {
+    "turn": 1,
+    "reason": {
+      "kind": "completed"
+    }
+  }
+}

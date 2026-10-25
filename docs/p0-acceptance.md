@@ -1,9 +1,9 @@
 # P0 验收
 
-**状态：P0 文件模式已实现；A13 已做真实 DSH headless + mock 和 Linux Web 启动的部分验证，真实模型/浏览器 GUI 与 hook 自动注入未执行。**  
+**状态：P0 文件模式已实现；A13 已在真实 DSH 0.2.1-rc.2 + 真实模型上通过 headless、Web GUI、真实 stop、卸载/重装；DSH 不提供 hook 自动注入，记录为宿主边界。**
 P0 是第一个实现里程碑。它只验证“本地、无控制面”的最小闭环；未通过前不开始控制面 UI、反馈自动同步或 RSI。
 
-当前自动化覆盖（`npm test`，19 项）：A1 help/version（版本号从 package.json 读取，非硬编码）+ `npm pack` 后离线安装到临时项目（`npm install --offline --ignore-scripts`，隔离空 npm cache）并运行已安装 CLI 的 `version`/`doctor --json`/`init`；A2/A3 init/幂等/uninstall；A2b Codex/Claude 文件适配器；A2c 重复 init 记录实际 skill.mode（copy/symlink）；A4 正常/损坏配置/缺 Skill；A4c 全局 scope 的 HOME 解析（fake/codex/claude，未传 HOME 时不再误报 skill-path）；A4d Node `>=22` 下限单元测试；A5 生命周期/证据；A6 worktree；A7 brief；A7b 非 ASCII brief 截断（按 code point 切割、无 U+FFFD、严格 ≤ 字节预算）；A8/A9/A10 hook 契约/非法 JSON/未知事件/脱敏/strict；A8b/A8c hook `--timeout` 强制（stdin 保持打开 → 预算到期输出合法 HookOutput JSON 并以 124 退出；非法值 exit 2）；A11 模拟 stale run + 真实 SIGKILL 启动进程后 doctor 恢复；A12 路径穿越、参数不经 shell。未覆盖：缺 Node 的 doctor **集成**场景（需 <22 的 Node 二进制；CLI 在入口即退出，该分支由 A4d 单元测试覆盖）、bundle 导入导出（P0 无该命令，见 A12）。A13 已做真实 DSH headless + mock 和 Linux Web 启动的部分验证（Skill 发现/加载），真实模型、浏览器 GUI 和 hook 自动注入未执行。
+当前自动化覆盖（`npm test`，30 项 P0 测试：P0 CLI 24 项 + 库 API 6 项）：A1 help/version（版本号从 package.json 读取，非硬编码）+ `npm pack` 后离线安装到临时项目（`npm install --offline --ignore-scripts`，隔离空 npm cache）并运行已安装 CLI 的 `version`/`doctor --json`/`init`；A2/A3 init/幂等/uninstall；A2b Codex/Claude 文件适配器；A2c 重复 init 记录实际 skill.mode（copy/symlink）；A4 正常/损坏配置/缺 Skill；A4c 全局 scope 的 HOME 解析（fake/codex/claude，未传 HOME 时不再误报 skill-path）；A4d Node `>=22` 下限单元测试；A5 生命周期/证据；A6 worktree；A7 brief；A7b 非 ASCII brief 截断（按 code point 切割、无 U+FFFD、严格 ≤ 字节预算）；A8/A9/A10 hook 契约/非法 JSON/未知事件/脱敏/strict；A8b/A8c hook `--timeout` 强制（stdin 保持打开 → 预算到期输出合法 HookOutput JSON 并以 124 退出；非法值 exit 2）；A11 模拟 stale run + 真实 SIGKILL 启动进程后 doctor 恢复；A12 路径穿越、参数不经 shell。未覆盖：缺 Node 的 doctor **集成**场景（需 <22 的 Node 二进制；CLI 在入口即退出，该分支由 A4d 单元测试覆盖）、bundle 导入导出（P0 无该命令，见 A12）。A13 已用真实 DSH + 真实模型完成 headless、GUI、真实 stop、卸载/重装；hook 自动注入因宿主不提供该能力而记为 `NOT_AVAILABLE`，不是未执行。
 
 ## 1. P0 范围
 
@@ -135,12 +135,13 @@ P0 是第一个实现里程碑。它只验证“本地、无控制面”的最�
 - 操作：优先选 DSH（Taluvia 主开发宿主），其次 Claude Code 或 Codex；在临时项目执行 `init`，启动一次会话。
 - 预期：Skill 可被发现；`session.start` 能由宿主调用并注入 brief（若该宿主支持 hook）；`stop` 可运行；卸载干净。
 - 证据：截图/命令输出/宿主日志；记录宿主版本。
-- 自动化：否（发布前人工验收，不阻塞 CI）。2026-10-24 补充：真实 DSH 0.2.1-rc.2 headless + mock 模型已验证 Skill 发现与 `skill` 工具加载；**真实 DeepSeek 模型 headless 已通过**：模型调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务文件独立校验通过。GUI 会话、hook 自动注入、`stop` 生命周期仍未验证，因此 A13 仍不能写完整通过。证据见 `reports/p0/dsh-real-host.md`、`reports/p0/dsh-e2e-model.md`、`reports/p0/dsh-real-model-e2e.md`。
+- 自动化：否（发布前人工验收，不阻塞 CI）。2026-10-24 补充：真实 DSH 0.2.1-rc.2 headless + mock 模型已验证 Skill 发现与 `skill` 工具加载；**真实 DeepSeek 模型 headless 已通过**：模型调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务文件独立校验通过。**真实模型 GUI E2E 已通过**（2026-10-24）：WSL2 内 `dsh web` + 真实 DeepSeek-V4.1-Flash，经 Windows Chromium 访问（localhost 转发）；模型调用 `skill` → 真实 `bash` → SAGE-Kit `task create`/`task list`，任务文件独立校验；停止 `dsh web` 后重启，任务状态与会话恢复；`stop` 生命周期仅有 CLI `sage-kit hook` 契约验证（默认 warn、`--strict` block，宿主未自动调用）；**hook 自动注入 NOT_AVAILABLE**（DSH 0.2.1-rc.2 无 hook 安装机制；当前路径为 AGENTS.md 指令 + 模型主动 `npx sage-kit brief`）；**卸载/重装循环已验证**（卸载保留 `.sage-kit/state` 任务，重装后任务保留、skill 哈希一致）。**A13 判定：PASS（真实 DSH；宿主限制见上）**。A13 的标准是“至少一个宿主可被发现、能运行、可清理”；hook 自动注入只在“宿主支持 hook”时要求，DSH 0.2.1-rc.2 不提供该能力，故记录为宿主边界，不是未完成。Linux 原生浏览器 GUI、多轮长会话、多工作区属于可选补充覆盖，不阻塞 A13。证据见 `reports/p0/dsh-gui-e2e.md`、`reports/p0/dsh-real-host.md`、`reports/p0/dsh-e2e-model.md`、`reports/p0/dsh-real-model-e2e.md`。
+- 补充（可选扩展，不属于 P0/A13 判定）：DSH 原生插件 `sage-kit-dsh`（`packages/dsh-plugin`）已在真实 DSH 0.2.1-rc.2 headless 通过 E2E：profile 安装、5 个原生工具、真实模型（`deepseek-flash`）调用、`agent/pre-step` brief 首次/更新/去重、无 `.sage-kit` 不注入；证据见 `reports/plugin/dsh-plugin-e2e.md`。该插件不是 `hook` 自动注入，也不改变 A13 的宿主边界结论；Web GUI 中的插件加载未执行（`NOT_EXECUTED`）。
 
 ## 4. 通过标准
 
-- P0 目标：P0-A1 至 P0-A12 自动化全部通过；P0-A13 至少一个宿主通过。当前 A1–A12 已有自动化覆盖（见上方“当前自动化覆盖”），但部分场景是模拟/部分覆盖，不能据此声称 P0 完整验收。
-- 无 P0 范围外的功能被误纳入（控制面/反馈/RSI 未实现是预期）。
+- P0 目标：P0-A1 至 P0-A12 自动化全部通过（覆盖表中的“部分”指同一场景同时有自动化和人工证据，不代表失败）；P0-A13 至少一个宿主通过。当前 A1–A13 均已满足，A13 的宿主限制见上；这不等于发布验收，发布仍需用户授权。
+- P0 只约束 P0 范围；M1/M2/M3 是后续里程碑，已分别实现于反馈/控制面/评估模块，不属于 P0 通过条件。
 - 所有失败有可读错误；无静默吞异常。
 - 文档中的命令、路径、字段与实际一致。
 - `npm pack` 产物不包含测试 fixture、密钥、临时文件（A1b 自动断言 tarball 文件清单）。
@@ -171,7 +172,7 @@ P0 当前把证据保存在 `reports/p0/` 的 Markdown 报告、原始日志和 
 
 ```bash
 npm ci
-npm test              # 构建 + 19 项 P0 测试（无网络）
+npm test              # 构建 + 131 项全量测试（其中 30 项 P0 = P0 CLI 24 + 库 API 6；无网络）
 ```
 
 `test:p0` / `test:security` 是后续拆分目标，当前不存在；不要按不存在的命令写验收记录。

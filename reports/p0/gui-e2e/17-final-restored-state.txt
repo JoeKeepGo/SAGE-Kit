@@ -1,0 +1,60 @@
+=== FINAL RESTORED STATE (real host project, after A13 uninstall->reinstall cycle) ===
+date_utc=2026-10-23T18:57:02Z
+--- top-level ---
+total 36
+drwxr-xr-x  5 kayann kayann 4096 Oct 24 07:55 .
+drwxr-xr-x 11 kayann kayann 4096 Oct 24 07:56 ..
+drwxr-xr-x  3 kayann kayann 4096 Oct 24 03:40 .dsh
+drwxr-xr-x  4 kayann kayann 4096 Oct 24 07:55 .sage-kit
+-rw-r--r--  1 kayann kayann  465 Oct 24 07:55 AGENTS.md
+-rw-r--r--  1 kayann kayann  337 Oct 24 07:55 SESSION_BRIEF.md
+drwxr-xr-x  4 kayann kayann 4096 Oct 24 07:16 node_modules
+-rw-r--r--  1 kayann kayann  653 Oct 24 07:16 package-lock.json
+-rw-r--r--  1 kayann kayann  295 Oct 24 03:47 package.json
+--- hashes (pre-stop snapshot expected skill=20345ee6..., agents=fcf31fcf..., task files fa3693ef.../a0baf51b...) ---
+20345ee69914c0234e087f57a9b066e7e38e94912184136b7c56dabf45e69bea  .dsh/skills/sage-kit/SKILL.md
+fcf31fcfe3123fb07ce2139c2bf144a84951f5f22786645721a0e610346b6373  AGENTS.md
+e22861cf8aaa5fe0e3d0b6287af5c632d6e9cc4edaabb69116c003182e49a4be  SESSION_BRIEF.md
+d6696b4eaeb2d3759251787986cf56b0df01844064aa08bdef85c22b7c26a4ae  .sage-kit/config.json
+fa3693ef6a24a5af18d538f07732ae1bbc16510eeb0fc8d696721f3123f098e2  .sage-kit/state/tasks/task-20261023160745-26c829.json
+a0baf51b50f19b0d775b442a70814a4677571355fb19debeddd19eb59c900484  .sage-kit/state/tasks/task-20261023183753-3bd706.json
+--- doctor ---
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "node",
+      "status": "ok",
+      "detail": "Node 22.22.1"
+    },
+    {
+      "name": "config",
+      "status": "ok",
+      "detail": "dsh/project at /home/kayann/sage-kit-linux-dsh/project/.sage-kit/config.json"
+    },
+    {
+      "name": "skill",
+      "status": "ok",
+      "detail": "/home/kayann/sage-kit-linux-dsh/project/.dsh/skills/sage-kit (1 entries)"
+    },
+    {
+      "name": "skill-duplicates",
+      "status": "ok",
+      "detail": "/home/kayann/sage-kit-linux-dsh/project/.dsh/skills/sage-kit"
+    },
+    {
+      "name": "host",
+      "status": "ok",
+      "detail": "dsh found (/mnt/c/Users/KayAnn/.dsh)"
+    },
+    {
+      "name": "host-note",
+--- task list ---
+ID                           STATUS    TITLE
+task-20261023183753-3bd706   ready     DSH GUI E2E task
+task-20261023160745-26c829   ready     Real model DSH E2E
+--- session dirs count ---
+14
+--- web server check (must be none) ---
+no dsh web process
+port 18766 not listening
