@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, stat, cp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
@@ -101,8 +101,8 @@ test('malformed hook arguments and missing tool identity return normal deny, nev
   denied(await h.call('sage_hook', { event: f.event('PreToolUse', { tool_name: 'Write' }) }));
 });
 
-async function client(t, f, capabilities = {}) {
-  const child = spawn(process.execPath, [new URL('../adapters/mcp.mjs', import.meta.url).pathname, f.configPath], { stdio: ['pipe', 'pipe', 'pipe'] });
+async function client(t, f, capabilities = {}, entry = new URL('../adapters/mcp.mjs', import.meta.url).pathname) {
+  const child = spawn(process.execPath, [entry, f.configPath], { stdio: ['pipe', 'pipe', 'pipe'] });
   const exited = once(child, 'exit');
   t.after(async () => { child.stdin.end(); if (child.exitCode === null) child.kill(); await exited; });
   let id = 0; const pending = new Map(), elicited = [];
@@ -113,10 +113,21 @@ async function client(t, f, capabilities = {}) {
     const key = ++id; const timer = setTimeout(() => reject(new Error('MCP test response timeout')), 10000);
     pending.set(key, data => { clearTimeout(timer); pending.delete(key); resolve(data); }); send({ id: key, method, params });
   });
-  assert.equal((await request('initialize', { protocolVersion: '2025-06-18', capabilities, clientInfo: { name: 'fixture', version: '1' } })).result.serverInfo.name, 'sage-kit-local');
+  const { serverInfo } = (await request('initialize', { protocolVersion: '2025-06-18', capabilities, clientInfo: { name: 'fixture', version: '1' } })).result;
+  assert.equal(serverInfo.name, 'sage-kit-local');
   const call = async (name, args = {}) => (await request('tools/call', { name, arguments: args })).result;
-  return { child, exited, call, request, send, elicited, get lastId() { return id; } };
+  return { child, exited, call, request, send, elicited, serverInfo, get lastId() { return id; } };
 }
+
+test('stdio identity uses metadata beside the loaded module, independent of cwd and source version', async t => {
+  const f = await fixture(t), directory = join(f.root, 'adapter');
+  await cp(new URL('../adapters/', import.meta.url), directory, { recursive: true });
+  const metadata = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'));
+  metadata.version = '0.0.0-identity-regression';
+  await writeFile(join(directory, 'package.json'), JSON.stringify(metadata));
+  const c = await client(t, f, {}, join(directory, 'mcp.mjs'));
+  assert.equal(c.serverInfo.version, metadata.version);
+});
 
 test('real stdio transport initializes, calls tools, rejects unknown args and closes on EOF', async t => {
   const f = await fixture(t), c = await client(t, f);

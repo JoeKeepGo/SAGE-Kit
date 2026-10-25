@@ -9,6 +9,13 @@ reminder helper. Explicit RSI tools can run fixed evaluation commands; governanc
 hooks never run those commands. The package keeps its original DSH package name.
 
 The package is private while reconstruction and acceptance are in progress.
+For a first local project, the source checkout includes
+`examples/rebuild/minimal/README.md`: a specification, expiring bounded plan,
+host mapping, actual file check and evidence-to-human-gate walkthrough. Copy it
+to a disposable project and select an explicit authorization and expiry. It uses
+the existing MCP tools; it does not install a host or alter default settings.
+The examples live in the source repository and are not shipped in this package.
+
 Pack it locally with `npm pack ./adapters --ignore-scripts --pack-destination <directory>`
 from the repository, then install that artifact into an isolated DSH environment
 with the declared host peers. Do not change a user's default profile merely to

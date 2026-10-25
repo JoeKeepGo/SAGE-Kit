@@ -1,6 +1,10 @@
 // Bounded JSON-RPC stdio transport, owned by one host connection. No polling.
 import { pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { openAgentHost, readConfig } from './agent-host.mjs';
+
+// Resolve identity from this loaded package once, outside tool/hook calls.
+const { version: packageVersion } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export async function serve(configPath, input = process.stdin, output = process.stdout) {
   const config = await readConfig(configPath);
@@ -45,7 +49,7 @@ export async function serve(configPath, input = process.stdin, output = process.
       if (message.method === 'initialize' && !initialized) {
         protocol = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'].includes(message.params?.protocolVersion) ? message.params.protocolVersion : '2025-06-18';
         capabilities = message.params?.capabilities ?? {}; initialized = true;
-        result = { protocolVersion: protocol, capabilities: { tools: {} }, serverInfo: { name: 'sage-kit-local', version: '0.0.0-rebuild-r4' }, instructions: 'Project authority governs all work. Read sage_inspect before effects; replayed attempts require reconciliation. This connection belongs to one execution owner.' };
+        result = { protocolVersion: protocol, capabilities: { tools: {} }, serverInfo: { name: 'sage-kit-local', version: packageVersion }, instructions: 'Project authority governs all work. Read sage_inspect before effects; replayed attempts require reconciliation. This connection belongs to one execution owner.' };
       } else if (!initialized) throw new Error('Initialize exactly once before requests');
       else if (message.method === 'ping') result = {};
       else if (message.method === 'tools/list') result = { tools: host.tools };

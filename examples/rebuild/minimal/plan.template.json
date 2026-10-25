@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "goal": "Deliver MIN-REQ-01 with MIN-ACC-01 evidence, then await MIN-GATE-01",
+  "authority": ["SPEC.md", "check.mjs", "host.json"],
+  "constraints": [
+    "Disposable local example only; preserve SPEC.md, check.mjs and templates",
+    "No network, dependencies, credentials, external writes, release or RSI adoption",
+    "Three attempts maximum; stop at expiry or human_acceptance"
+  ],
+  "maxAttempts": 3,
+  "expiresAt": "<EXPLICIT_ROUND_EXPIRY>",
+  "revoked": false,
+  "steps": [
+    {
+      "id": "greeting",
+      "objective": "Implement SPEC.md MIN-REQ-01; verify MIN-ACC-01 with node check.mjs",
+      "dependsOn": [],
+      "scope": ["output/greeting.txt", "evidence"],
+      "checks": ["greeting"],
+      "requiresReview": false,
+      "admitted": true,
+      "humanGate": false
+    },
+    {
+      "id": "human_acceptance",
+      "objective": "MIN-GATE-01: project owner reviews output and evidence",
+      "dependsOn": ["greeting"],
+      "scope": ["output/greeting.txt", "evidence"],
+      "checks": [],
+      "requiresReview": false,
+      "admitted": true,
+      "humanGate": true
+    }
+  ]
+}

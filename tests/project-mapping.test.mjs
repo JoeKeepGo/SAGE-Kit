@@ -1,10 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, writeFile, rm, lstat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, lstat, cp, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { openContinuation } from '../adapters/continuation.mjs';
+import { openAgentHost } from '../adapters/agent-host.mjs';
+
+const execute = promisify(execFile);
 
 const capture = JSON.parse(await readFile(new URL('../examples/rebuild/taluvia-mapping.json', import.meta.url), 'utf8'));
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -31,6 +36,67 @@ function plan(authority, steps) {
 function step(id, objective, checks, extra = {}) {
   return { id, objective, dependsOn: [], scope: ['receipts'], checks, requiresReview: false, admitted: true, humanGate: false, ...extra };
 }
+
+test('minimal adoption example executes its actual check and stops at human acceptance', async t => {
+  const f = await fixture(t);
+  await cp(new URL('../examples/rebuild/minimal/', import.meta.url), f.root, { recursive: true });
+  const expiresAt = new Date(Date.now() + 60000).toISOString();
+  await execute(process.execPath, ['prepare.mjs', expiresAt], { cwd: f.root, timeout: 5000 });
+  const configPath = join(f.root, 'host.json');
+  const config = parse(await readFile(configPath));
+  const host = await openAgentHost(config, { configPath });
+  const before = await host.call('sage_inspect');
+  assert.equal(before.action, 'continue'); assert.equal(before.step.id, 'greeting');
+  assert.equal(before.context.expiresAt, expiresAt);
+  for (const id of ['MIN-REQ-01', 'MIN-ACC-01']) assert.ok(before.step.objective.includes(id));
+  const event = { hook_event_name: 'PreToolUse', cwd: f.root, session_id: 'minimal-example', tool_name: 'apply_patch' };
+  assert.equal((await host.call('sage_hook', { event })).hookSpecificOutput.permissionDecision, 'deny');
+  const begun = await host.call('sage_begin', { stepId: 'greeting', attemptId: 'greeting-1' });
+  assert.equal(begun.replayed, false);
+  assert.deepEqual(await host.call('sage_hook', { event }), {});
+  await f.put('output/greeting.txt', 'Hello, SAGE-Kit!\n');
+  const { stdout, stderr } = await execute(process.execPath, ['check.mjs'], { cwd: f.root, timeout: 5000, maxBuffer: 16384 });
+  assert.match(stdout, /MIN-ACC-01 PASS/);
+  const evidence = 'evidence/greeting-1.log';
+  await mkdir(join(f.root, 'evidence'));
+  await writeFile(join(f.root, evidence), `command: node check.mjs\nexit: 0\n${stdout}${stderr}`, { flag: 'wx' });
+  await host.call('sage_finish', { attemptId: 'greeting-1', result: {
+    outcome: 'passed', checks: [{ id: 'greeting', passed: true, evidence }],
+  } });
+  const after = await host.call('sage_inspect');
+  assert.equal(after.action, 'human_gate'); assert.equal(after.step.id, 'human_acceptance');
+  await assert.rejects(host.call('sage_begin', { stepId: 'human_acceptance', attemptId: 'must-not-accept' }), /human_gate/);
+  assert.equal((await host.call('sage_inspect')).action, 'human_gate');
+  for (const name of ['SPEC.md', 'check.mjs', 'prepare.mjs', 'plan.template.json', 'host.template.json']) {
+    assert.deepEqual(await readFile(join(f.root, name)), await readFile(new URL(`../examples/rebuild/minimal/${name}`, import.meta.url)));
+  }
+  t.diagnostic(JSON.stringify({ command: 'node check.mjs', exitCode: 0, stdout, finalAction: after.action,
+    step: after.step.id, evidenceSha256: sha256(await readFile(join(f.root, evidence))), boundary: 'temporary example via shared host API; not native host or human acceptance' }));
+});
+
+test('minimal example setup rejects missing, expired and unbounded expiry before writing a round', async t => {
+  const f = await fixture(t);
+  await cp(new URL('../examples/rebuild/minimal/', import.meta.url), f.root, { recursive: true });
+  for (const args of [[], [new Date(Date.now() - 60000).toISOString()], [new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()]]) {
+    await assert.rejects(execute(process.execPath, ['prepare.mjs', ...args], { cwd: f.root, timeout: 5000 }), /Supply an explicit ISO expiry in the next hour/);
+    for (const name of ['plan.json', 'host.json']) await assert.rejects(access(join(f.root, name)), { code: 'ENOENT' });
+  }
+});
+
+test('minimal example local documentation links resolve', async t => {
+  const documents = [new URL('../adapters/README.md', import.meta.url),
+    new URL('../examples/rebuild/minimal/README.md', import.meta.url), new URL('../examples/rebuild/minimal/SPEC.md', import.meta.url)];
+  let checked = 0;
+  for (const document of documents) {
+    const markdown = await readFile(document, 'utf8');
+    for (const [, target] of markdown.matchAll(/\[[^\]]*\]\(([^\s)]+)\)/g)) {
+      if (/^[a-z]+:/i.test(target) || target.startsWith('#')) continue;
+      await access(new URL(target.split('#')[0], document)); checked++;
+    }
+  }
+  assert.ok(checked >= 6);
+  t.diagnostic(`${checked} local links resolved across ${documents.length} affected documents`);
+});
 
 async function recordMappingCheck(f, controller, id, check) {
   assert.equal((await controller.inspect()).step.id, id);

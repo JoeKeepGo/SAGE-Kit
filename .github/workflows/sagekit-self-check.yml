@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22
       - name: Check optional continuation and RSI adapters
-        run: node --test tests/continuation.test.mjs tests/rsi*.test.mjs tests/agent-host.test.mjs tests/project-mapping.test.mjs tests/forge*.test.mjs
+        run: node --test tests/continuation.test.mjs tests/rsi*.test.mjs tests/agent-host.test.mjs tests/package-identity.test.mjs tests/project-mapping.test.mjs tests/forge*.test.mjs
 
   dsh:
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
           SAGE_DSH_NODE_MODULES: ${{ runner.temp }}/sage-dsh-host/node_modules
           SAGE_DSH_PLUGIN_PATH: ${{ runner.temp }}/sage-dsh-installed/node_modules/@sage-kit/dsh-plugin/dsh.mjs
           SAGE_AGENT_ADAPTER_DIR: ${{ runner.temp }}/sage-dsh-installed/node_modules/@sage-kit/dsh-plugin
-        run: node --test tests/dsh*.test.mjs tests/forge-host.test.mjs
+        run: node --test tests/dsh*.test.mjs tests/forge-host.test.mjs tests/package-identity.test.mjs
 
   posix:
     runs-on: ubuntu-latest
