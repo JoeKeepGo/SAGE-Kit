@@ -1,18 +1,39 @@
 {
   "name": "@sage-kit/dsh-plugin",
-  "version": "0.0.0-rebuild-r2",
+  "version": "0.0.0-rebuild-r3",
   "private": true,
   "description": "Optional governed continuation adapter for the DeepSeek Harness",
   "type": "module",
   "main": "dsh.mjs",
-  "exports": { ".": "./dsh.mjs", "./continuation": "./continuation.mjs", "./package.json": "./package.json", "./cordis.patch.yml": "./cordis.patch.yml" },
-  "files": ["dsh.mjs", "continuation.mjs", "cordis.patch.yml", "README.md", "LICENSE"],
-  "engines": { "node": ">=22", "dsh": "0.2.1-rc.2" },
+  "exports": {
+    ".": "./dsh.mjs",
+    "./continuation": "./continuation.mjs",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./rsi": "./rsi.mjs"
+  },
+  "files": [
+    "dsh.mjs",
+    "continuation.mjs",
+    "rsi.mjs",
+    "rsi-process.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22",
+    "dsh": "0.2.1-rc.2"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
     "@deepseek-ai/schemastery": "3.18.5"
   },
   "license": "MIT",
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
 }

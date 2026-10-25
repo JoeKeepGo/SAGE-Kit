@@ -2,7 +2,7 @@
 
 ## 当前范围
 
-2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R2 本地实现与检查完成；
+2026-10-26：用户授权恢复 v2026.8.13.1 基线并开始重建。R0–R3 本地实现与检查完成；
 持续开发、治理 hook 和 RSI 是核心目标。规范见 [SPEC](SPEC.md)，权威见
 [决策](../decisions.md)。本记录只协调进度，不取代规范、Git 或测试结果。
 
@@ -201,3 +201,84 @@ agents/session/projections/llm/system-prompt/tools/loop 服务，使用本地确
 评估资产，双侧检查保护边界，批准绑定候选/评估，采用前有人工关口并可回滚。
 真实模型长任务质量、更多压缩插件、Windows/macOS 原生和 Codex/Claude 接入
 仍未验证；本地 R2 完成不代表整体用户验收、远程 CI 或发布完成。
+
+## R3：受控 RSI 与真实缺陷自用评估（2026-10-26）
+
+用户明确授权进入 R3。先按 [RSI 约定](rsi.md)划定 builder、evaluator 与采用权限，
+从归档提取固定命令、隔离、路径和一次性批准思路；未搬回旧任务管理器。
+新增可选 `rsi.mjs` 与 `rsi-process.mjs`，DSH 显式配置后提供六个原生工具。
+失败/评审/返工引用形成不可变候选，基线和候选运行同一固定检查；两侧保护都须
+通过。采用和回滚各自请求一次原生批准，绑定候选、评估、实际文件、规范和计划；
+等待期间变化或过期拒绝，回滚不覆盖第三方改动。
+
+原 Skill、契约、核心治理及模板仍与基线无差异。DSH 当前规范引用和开发 plan/state
+另列为 RSI 禁写集合，不能因误配 targets 或批准而修改。RSI 不在同步 hook 内运行。
+每次完整 API 操作共享 8 MiB/128 文件次读取预算；每候选最多三次评估，不自动重试。
+短命 guardian 用 EOF/IPC 事件处理控制者退出，正常完成、超时、取消和控制者
+SIGKILL 后都清理同组命令及后代，无后台轮询。
+
+### 最终候选证据
+
+- WSL2 6.18.33.2、Node v22.22.1、DSH **0.2.1-rc.2**；精确安装包入口执行：
+  `node --test tests/continuation.test.mjs tests/dsh*.test.mjs tests/rsi*.test.mjs`。
+  **125 项：124 PASS / 0 FAIL / 1 SKIP**；唯一 skip 是 Windows 专属拒绝路径测试，
+  当前为 Linux。RSI 组件 29、进程生命周期 13 PASS/1 SKIP、DSH RSI 14，其余 R1/R2
+  及扩展 profile 68。Windows 评估代码明确拒绝，未宣称平台验证通过。
+- 实际 DSH CLI/profile loader 从最终 tgz 启用插件，9 次模型替身请求、7 个成功
+  工具结果，先完成开发任务，再完成 RSI 比较、两次独立 allowed-once、实际采用和
+  回滚还原；schema 完整。使用真实 approval 服务和测试 answerer，无真人同意声明。
+- 覆盖双侧资产篡改、固定评估入口误列 target、治理文件误配、内容/规范/评估篡改、
+  批准等待变化与过期、第三方回滚冲突、实际文件写入后取消恢复、只读不写盘、
+  跨阶段总读取超限、输出/次数/时间预算及后代进程清理。
+- 工件 `local/rebuild-rsi/sage-kit-dsh-plugin-0.0.0-rebuild-r3.tgz`，SHA-256：
+  `a58ab41761cf430260ee4ffda8506448d70769216203a5009462fc4fb628a6aa`。
+  源码、tgz、`installed-final/` 的 8 个包文件逐字节一致；本地离线安装且禁用脚本，
+  未修改默认 profile、读取凭据、调用 provider、发布或 push。
+- 静态完整性 PASS；portable references 10 resources / 24 package files 与闭包 PASS；
+  原 Claude advisory fixture 14/14；核心基线差异为空。受影响文档链接与空白检查通过。
+  Windows/macOS 原生、远程 CI 及真实模型长期开发质量未验证。
+- 独立审查共发现 2 个 P1、2 个 P2：跨层治理禁写集合缺失、锁内批准过期复查遗漏、
+  预算分阶段重置，以及 guardian 正常退出清理空窗。均经针对性修复/回归与独立
+  静态复核关闭，无剩余阻断。独立审查和最终测试由不同角色提供，未互相冒充。
+
+### RSI 自用：修复本轮真正发现的问题
+
+独立审查真实复现：暂停控制者 → 评估命令正常退出 → 杀控制者，同组孙进程仍能写出
+`orphan effect`。保留缺陷源码及受保护的固定复现脚本，再用本轮 `openRSI` 建立候选
+并比较修复（guardian 在报告结果后自行终止进程组，不把清理留给控制者）。
+
+| 同一固定检查 | 退出码 | 保护检查 | 命令 wall |
+|---|---|---|---|
+| 真实缺陷基线 | 1，出现 orphan effect | 通过 | 1640.049 ms |
+| 修复候选 | 0，无遗留副作用 | 通过 | 1637.758 ms |
+
+该次完整 RSI 比较累计读取 **19 文件次 / 94,903 bytes**，结果为 human_approval。
+无批准 adopt 实际被拒绝，隔离源快照仍保持缺陷版。工程 bug 修复按本轮已授权的
+实现/纠错流程完成；没有把 RSI 的候选通过偷换为自动采用治理策略。
+这证明对该实际故障的改进与门禁，不证明 RSI 对所有任务都有收益。
+
+### 资源测量与恢复边界
+
+另一个固定小 fixture（3 个评估输入、1 个规范、1 个候选目标）的一次基线/候选比较，
+不含 fixture 准备；以下 CPU **仅为父测试进程**，不含评估子进程 CPU：
+
+| fixture 位置 | wall | 父进程 CPU（user + system） | 全操作逻辑读取 |
+|---|---|---|---|
+| Linux `/tmp` | 361.198 ms | 12.575 + 14.826 ms | 25 文件次 / 3,336 bytes |
+| 项目磁盘 `local/rebuild-rsi/tmp`（`/mnt/d`） | 588.545 ms | 72.838 + 23.236 ms | 25 文件次 / 3,320 bytes |
+
+读取量含状态/失败日志中的运行元数据，两个样本大小略有不同。它不是物理 IO、
+子进程 CPU 上限或旧 CLI 对照。RSI 的命令有独立时间/输出预算；临时目录不是
+操作系统沙箱，主动逃离进程组的代码不在清理保证内。硬中断后可能留下锁和临时
+目录，须确认写入者停止并清理明确归属资源，再记录中断，不自动偷锁或重跑。
+
+原始证据位于 `local/rebuild-rsi/`：`final-tests.log`、`mounted-measurement.log`、
+`self-evaluation.{json,log}`、`guardian-project/`、`review.txt`、`history-review.txt`、
+`package-pack.json`、`package-install.log`、`artifact-check.log`、
+`{repository-integrity,portable-references,claude-advisory,baseline,diff,doc-links}.log`。
+最终验证另用 `validation-plan.json/validation-state.json` 记录 intent、检查和评审；
+从验证开始记账，不倒填此前实现，不随产品包提交。
+
+下一项是 **R4：Codex/Claude 适配及跨项目验证**。按真实宿主能力记录支持矩阵，
+验证不同文档结构项目仍保持同一治理语义。真实模型长期收益与真人策略采用仍需
+单列验证；R3 本地实现完成不代表整体用户验收、生产采用或发布完成。

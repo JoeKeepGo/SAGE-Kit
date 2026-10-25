@@ -2,7 +2,7 @@
 set -eu
 
 # R-003 permits this exact optional host package, never a core Skill dependency.
-unexpected_adapters=$(git ls-files adapters/ | grep -Ev '^adapters/(continuation\.mjs|dsh\.mjs|package\.json|cordis\.patch\.yml|README\.md|LICENSE)$' || true)
+unexpected_adapters=$(git ls-files adapters/ | grep -Ev '^adapters/(continuation\.mjs|dsh\.mjs|rsi\.mjs|rsi-process\.mjs|package\.json|cordis\.patch\.yml|README\.md|LICENSE)$' || true)
 test -z "$unexpected_adapters" || { printf 'unreviewed optional adapter: %s\n' "$unexpected_adapters" >&2; exit 1; }
 
 for path in AGENTS.md README.md docs/SAGE_CORE.md docs/agent/AGENT_HARNESS.md \

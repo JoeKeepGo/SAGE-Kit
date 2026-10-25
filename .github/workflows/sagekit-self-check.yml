@@ -21,8 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Check optional continuation adapter
-        run: node --test tests/continuation.test.mjs
+      - name: Check optional continuation and RSI adapters
+        run: node --test tests/continuation.test.mjs tests/rsi*.test.mjs
 
   dsh:
     runs-on: ubuntu-latest

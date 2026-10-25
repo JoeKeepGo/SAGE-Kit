@@ -1,7 +1,7 @@
 # SAGE-Kit
 
 > 当前处于重建阶段：已恢复 **v2026.8.13.1** 治理基线。
-> 持续执行与 DSH 原生治理 hook 已通过本地集成检查；受控 RSI 与其它宿主接入仍在建设。
+> 持续执行、DSH 原生治理 hook 与受控 RSI 已通过本地集成检查；其它宿主接入仍在建设。
 > 以[当前决策](docs/decisions.md)、[重建 SPEC](docs/rebuild/SPEC.md)和
 > [进度记录](docs/rebuild/progress.md)为准。下文描述恢复的治理基线；可选
 > 宿主执行支持不要求治理使用者安装运行时。
@@ -9,6 +9,10 @@
 可选 [DSH 适配器](adapters/README.md)已接入 DSH 0.2.1-rc.2，完成安装包、原生
 profile 加载、真实工具、中断恢复及资源边界的本地检查。测试使用确定性模型替身；
 真实模型开发质量和 Codex/Claude 执行接入尚未验证，详见[协议与限制](docs/rebuild/dsh.md)。
+
+可选[受控 RSI](docs/rebuild/rsi.md)已连接失败证据、基线/候选隔离评估、绑定具体差异的
+人工批准、本地采用与回滚。固定评估命令受累计读取预算与进程清理约束。本次开发发现
+的真实缺陷已走过该比较流程，RSI 记录仍停在待批准；测试答复器不代表真人同意。
 
 [English](README.md) | [中文](README.zh-CN.md)
 

@@ -1,8 +1,8 @@
 # SAGE-Kit
 
 > Reconstruction in progress: governance is restored from **v2026.8.13.1**.
-> Governed continuation and native DSH hooks have passed local integration checks;
-> controlled RSI and further host integrations remain in development. See the [current decisions](docs/decisions.md),
+> Governed continuation, native DSH hooks, and controlled RSI have passed local
+> integration checks; further host integrations remain in development. See the [current decisions](docs/decisions.md),
 > [rebuild SPEC](docs/rebuild/SPEC.md), and [progress](docs/rebuild/progress.md).
 > The model-native description below describes the restored baseline; optional
 > host execution support does not make a runtime mandatory for governance.
@@ -12,6 +12,12 @@ DSH 0.2.1-rc.2. Local checks cover the installed package, native profile loader,
 real tools, interruption/recovery, and bounded resource use. They use a deterministic
 model double: real-model development quality and Codex/Claude execution integration
 remain unverified. See the [protocol and limits](docs/rebuild/dsh.md).
+
+Optional [controlled RSI](docs/rebuild/rsi.md) now connects failure evidence to
+isolated baseline/candidate evaluation, exact-change human approval, local adoption
+and rollback. Evaluation uses fixed commands with shared read budgets and process
+cleanup. A real defect found during this rebuild was compared through this path;
+its RSI record remains pending approval. Test answerers do not count as human consent.
 
 [English](README.md) | [中文](README.zh-CN.md)
 

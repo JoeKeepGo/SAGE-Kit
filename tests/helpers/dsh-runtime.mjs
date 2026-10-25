@@ -9,10 +9,11 @@ import { pathToFileURL } from 'node:url';
 export const dshAvailable = Boolean(process.env.SAGE_DSH_NODE_MODULES);
 export const dshSkipReason = 'Set SAGE_DSH_NODE_MODULES to the existing DSH 0.2.1-rc.2 node_modules; no host installation is performed by this test.';
 
-export async function createDshRuntime(t, config) {
+export async function createDshRuntime(t, config, { approvalPolicy } = {}) {
   assert.ok(dshAvailable, dshSkipReason);
   const modules = resolve(process.env.SAGE_DSH_NODE_MODULES);
   const serviceNames = ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop'];
+  if (approvalPolicy !== undefined) serviceNames.push('dsh-user-approval');
   for (const name of serviceNames) {
     const pkg = JSON.parse(await readFile(join(modules, '@deepseek-ai', name, 'package.json'), 'utf8'));
     assert.equal(pkg.version, '0.2.1-rc.2', `${name}: this evidence is version-specific`);
@@ -43,7 +44,8 @@ export async function createDshRuntime(t, config) {
     const { default: Service } = await load(name);
     const options = name === 'dsh-system-prompt' ? { includeHarnessIdentity: false, includeRuntimeContext: false }
       : name === 'dsh-tools' ? { mode: 'native' }
-      : name === 'dsh-agent-loop' ? { agents: [], maxParallelToolCalls: 1 } : undefined;
+      : name === 'dsh-agent-loop' ? { agents: [], maxParallelToolCalls: 1 }
+      : name === 'dsh-user-approval' ? { policy: approvalPolicy } : undefined;
     await ctx.plugin(Service, options);
   }
   const requests = [], events = [], errors = [], diagnostics = [];
