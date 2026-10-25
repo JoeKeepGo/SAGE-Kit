@@ -13,14 +13,13 @@ refresh governance context, while RSI evaluates improvements to the development
 method through human approval or preauthorized project-branch adoption and rollback.
 
 **The current source is a rebuild preview.** It preserves the governance core from
-**v2026.8.13.1** and adds optional execution support. A first real-model Codex trial
-completed three document-defined tasks and resumed at a completed-task boundary.
-It also exposed a tool-hook coverage gap: long-term semi-autonomous reliability
-has not been accepted. See [verification and limits](#verification-and-limits).
-R7 also used a real model to build a dependency-analysis library, CLI, tests and
-documentation from a docset with no implementation. Independent fixed checks and
-54 product tests passed. One finish-tool schema correction and session resume
-were needed; this proves the small-project path, not unattended large-project delivery.
+**v2026.8.13.1** and adds optional execution support. Real-model Codex trials have
+covered both continuing an existing project and building a small project from
+documents with no implementation. The latter delivered a dependency-analysis
+library, CLI, tests and documentation; independent fixed checks and 54 product
+tests passed after one tool-schema correction and session resume. Complete hook
+coverage and long-term semi-autonomous reliability remain unverified. See
+[verification and limits](#verification-and-limits).
 
 ## How it fits together
 
@@ -117,7 +116,9 @@ These are recorded test versions and scopes, not a promise about every host vers
 | Surface | Evidence available | Remaining boundary |
 |---|---|---|
 | DSH 0.2.1-rc.2 | Native plugin/profile, installed package, tools, interruption and RSI protocol checks with deterministic model responses | Real-model long-task quality and human strategy adoption remain unverified |
-| Codex CLI 0.163.0-alpha.11.2 | Native regression checks and a real `gpt-6.1-sol` trial: version fix, package verification, minimal example, same-session boundary resume and human-gate stop | The trial needed two startup corrections and one controller rescue; natural real-model compaction and complete hook coverage remain unverified |
+| Codex CLI 0.163.0-alpha.11.2 — existing project (R6) | Native regression checks and real `gpt-6.1-sol` development: version fix, package verification, minimal example, same-session boundary resume and human-gate stop | Two startup corrections and one controller rescue; natural real-model compaction and complete hook coverage remain unverified |
+| Codex CLI 0.163.0-alpha.11.2 — from documents (R7) | Real `gpt-6.1-sol` built Task Lens from no implementation; independent fixed checks and 54 product tests passed; stopped at human acceptance | Six invalid finish calls preceded one controller tool-schema correction and same-session resume; small offline project, not unattended large-project delivery |
+| Automatic RSI (R7) | Fixed-command comparisons, actual adoption/postchecks/rollback, policy and authority rejection cases, bounded rounds and DSH/MCP integration tests | Separate from the real-model development trial; no real-model automatic RSI or long-term improvement claim |
 | Claude Code 2.1.310 | Native process, MCP tools and hooks with deterministic model responses | No real-model development trial or native compaction/resume acceptance |
 | GitHub / Gitea | Actual Issue and successful/failed Actions observations; source/run/job bindings | No general claim about deployment state, PR review or artifact contents |
 | OpenCode / Kimi | Packaged governance guidance | No execution-adapter validation in this rebuild |
@@ -128,11 +129,15 @@ not resolved from the captured logs. Hooks therefore cannot yet be described as
 covering every command or providing OS isolation. Resource samples apply only to
 that tested configuration, not to fully covered governance under sustained load.
 
-The [main integration CI](https://github.com/JoeKeepGo/SAGE-Kit/actions/runs/40214668141)
-passed all five jobs at `093a137`: continuation/RSI, DSH, and static/package
-reference checks on Linux, Windows and macOS. This does not establish native
-agent support on all three operating systems. See the [progress record](docs/rebuild/progress.md)
-for exact checks, failures, interventions and remaining acceptance work.
+The [main branch CI](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml?query=branch%3Amain)
+runs on every main push: continuation/RSI, DSH, and static/package reference checks
+on Linux, Windows and macOS. Check the run for the commit you use; these jobs do
+not establish native agent support on all three operating systems. R7's initial
+local suite recorded 264 passes and one Windows-only skip; after the tool-schema
+correction, all 48 affected checks passed against the final installed package.
+Unchanged evidence was reused; these overlapping counts are not a single final
+full-suite run. See the [progress record](docs/rebuild/progress.md) for exact checks,
+failures, interventions and remaining acceptance work.
 Nothing continues after a host stops unless a separate scheduling mechanism is
 explicitly authorized and running.
 

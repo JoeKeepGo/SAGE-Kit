@@ -535,7 +535,9 @@ MCP CPU 为 0.83 秒。这些是可见进程采样下界，短命 hook/工具可
 依据 R-009，新增[从文档开发路径](from-docset.md)及
 [空实现样例](../../examples/rebuild/from-docset/README.md)，沿用原 continuation 与宿主，
 没有增加模型执行器、后台循环或项目生成 CLI。Taluvia 原 docset 继续只读，未启动
-其产品任务。工作分支为 `workflow/automatic-rsi`；本轮未 push、合并主线或发布。
+其产品任务。开发工作分支为 `workflow/automatic-rsi`；以下记录截止本地实现提交，
+当时未 push、合并主线或发布。用户随后授权将本轮成果纳入并推送主线，同步更新
+中英文 README；该提交授权不改变下述长期可靠性与产品验收的证据边界。
 
 ### 自动 RSI 与治理保持
 
@@ -566,7 +568,9 @@ MCP CPU 为 0.83 秒。这些是可见进程采样下界，短命 hook/工具可
 - 最终包的受影响 MCP、原生 Codex/Claude 和打包身份检查 **48/48 PASS**，23.63 秒。
   其余未变输入复用初套件证据，不把两组通过数相加，也不冒充最终候选一次全量运行。
 - 仓库完整性 PASS，portable references 10 resources / 24 package files PASS，原
-  Claude advisory 14/14。这些静态检查不证明原生宿主长期开发；本轮远程 CI 未运行。
+  Claude advisory 14/14。这些静态检查不证明原生宿主长期开发；开发阶段远程 CI 未运行。
+  后续主线整合结果由[主线 CI](https://github.com/JoeKeepGo/SAGE-Kit/actions/workflows/sagekit-self-check.yml?query=branch%3Amain)
+  对应提交的实际运行记录确认。
 
 本机原始证据在 `local/rebuild-r7/`：`core-tests.log`、`authority-tests.log`、
 `host-authority-tests.log`、`review.json`、`final/{tests,successor-tests}.log`、
