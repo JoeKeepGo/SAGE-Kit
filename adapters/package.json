@@ -1,6 +1,6 @@
 {
   "name": "@sage-kit/dsh-plugin",
-  "version": "0.3.0-alpha.2",
+  "version": "0.3.0-alpha.3",
   "private": true,
   "description": "Optional governance, manual or preauthorized RSI, and explicit forge evidence adapters",
   "type": "module",

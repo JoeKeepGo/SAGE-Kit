@@ -1,4 +1,6 @@
+# Keep this a plain insert (no disabled/config row) so the host can hot-mount
+# the package. The plugin stays inert until a profile supplies its project
+# mapping; see README.md.
 - insert:
     - id: sage-kit-dsh
       name: '@sage-kit/dsh-plugin'
-      disabled: true

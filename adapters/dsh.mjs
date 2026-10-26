@@ -14,9 +14,12 @@ import { checkForgeBoundary, hostProtectedPaths } from './agent-host.mjs';
 export const name = 'sage-kit-dsh';
 export const inject = ['tools'];
 export const Config = Schema.object({
-  projectRoot: Schema.string().required(),
-  planPath: Schema.string().required(),
-  statePath: Schema.string().required(),
+  // A bare install is enabled but inert until a project mapping is supplied.
+  // Keeping these optional lets the bundle layer load the package without
+  // turning a configuration omission into a startup failure.
+  projectRoot: Schema.string().default(''),
+  planPath: Schema.string().default(''),
+  statePath: Schema.string().default(''),
   rsiPlanPath: Schema.string().default(''),
   rsiStatePath: Schema.string().default(''),
   rsiAutomaticPolicy: Schema.union([Schema.const(null), Schema.object({
@@ -42,6 +45,12 @@ const RSI_TOOL_TIMEOUT_MS = 180000;
 const stopped = new Set(['revoked', 'expired', 'authority_changed', 'evidence_changed']);
 
 export async function apply(ctx, config) {
+  if (!config.projectRoot) {
+    if (config.planPath || config.statePath || config.rsiPlanPath || config.rsiStatePath || config.rsiAutomaticPolicy != null || config.forge != null) {
+      throw error('E_CONFIG', 'projectRoot and the plan/state mapping must be configured together');
+    }
+    return;
+  }
   if (!isAbsolute(config.projectRoot)) throw error('E_CONFIG', 'projectRoot must be absolute');
   for (const [key, min, max] of [['deadlineMs', 100, 10000], ['maxContextBytes', 1024, 65536], ['remindEverySteps', 1, 100]]) {
     if (!Number.isInteger(config[key]) || config[key] < min || config[key] > max) throw error('E_CONFIG', `Invalid ${key}`);

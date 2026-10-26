@@ -8,12 +8,12 @@ Claude own one optional stdio MCP process per connection, plus a startup-only
 reminder helper. Explicit RSI tools can run fixed evaluation commands; governance
 hooks never run those commands. The package keeps its original DSH package name.
 
-This `0.3.0-alpha.2` package is a local compatibility candidate for DSH
+This `0.3.0-alpha.3` package is a local compatibility candidate for DSH
 `0.2.1-rc.2` and `0.2.1-rc.3`; it is not a published release or npm package.
 The published `0.3.0-alpha.1` artifact is unchanged. The governance Skill keeps
 its independent `v2026.8.13.1` component identity. Windows governance/profile
 compatibility does not enable RSI evaluation: its command runner still rejects
-Windows with `E_PLATFORM_UNSUPPORTED`. Keep the profile entry disabled until
+Windows with `E_PLATFORM_UNSUPPORTED`. A bare install is loaded but inert until
 a specific project root, admitted plan and state mapping have been selected.
 For a first local project, the source checkout includes
 `examples/rebuild/minimal/README.md`: a specification, expiring bounded plan,
@@ -30,9 +30,9 @@ Use the release tgz after checking its SHA-256, or pack it locally with
 `npm pack ./adapters --ignore-scripts --pack-destination <directory>`
 from the repository, then install that artifact into an isolated DSH environment
 with the declared host peers. Do not change a user's default profile merely to
-run tests. The package declares a DSH bundle which inserts a disabled
+run tests. The package declares a DSH bundle which inserts an enabled but inert
 `sage-kit-dsh` entry. Select it in the profile's `dsh.profile.bundles`, then
-enable it with an explicit project mapping in the profile's `cordis.patch.yml`:
+give it an explicit project mapping in the profile's `cordis.patch.yml`:
 
 ```yaml
 - id: sage-kit-dsh
@@ -48,6 +48,8 @@ enable it with an explicit project mapping in the profile's `cordis.patch.yml`:
 ```
 
 Use the actual tool names and configuration format of your installed profile.
+Without this mapping the package loads as a no-op, so the market does not
+report a perpetual restart; adding the mapping takes effect on the next reload.
 The guarded list is exact: it does not inspect arbitrary shell paths or protect
 unnamed tools. Existing DSH permissions and other plugin refusals remain in force.
 The project controller selects the existing normative documents, admitted steps,
